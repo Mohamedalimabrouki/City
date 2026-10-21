@@ -61,6 +61,9 @@ def main(argv=None) -> None:
     sn.add_argument("--width", type=int, default=1600)
     sn.add_argument("--height", type=int, default=900)
 
+    ks = sub.add_parser("kit-sheet", help="every 3D piece (doors, shops, goods...) in one viewable grid")
+    ks.add_argument("--out", default="output/kit-sheet")
+
     st = sub.add_parser("stats", help="short summary of a built world (cheap for agents to read)")
     st.add_argument("folder", nargs="?", help="a built world folder (default: the latest build)")
 
@@ -85,6 +88,9 @@ def main(argv=None) -> None:
         folder = _latest(args.folder)
         png = args.png or folder / "maps" / f"snapshot-{args.view}.png"
         snapshot(folder, png, view=args.view, width=args.width, height=args.height)
+    elif args.cmd == "kit-sheet":
+        from .kitsheet import kit_sheet
+        print(kit_sheet(args.out))
     elif args.cmd == "stats":
         folder = _latest(args.folder)
         summary = json.loads((folder / "summary.json").read_text(encoding="utf-8"))

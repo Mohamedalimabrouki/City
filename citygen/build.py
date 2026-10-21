@@ -122,6 +122,8 @@ def build(cfg: dict, area: str | None = None, log=print) -> Path:
             "focus": {"x": round(focus.x, 1), "y": round(focus.y, 1),
                       "z": round(float(world.terrain.height(focus.x, focus.y)), 1), "name": focus.name},
             "views": next((camera_views(p, world.terrain) for p in plans if p.settlement is focus), {}),
+            "cities": [{"name": p.settlement.name, "plan": f"cities/{slug(p.settlement.name)}/plan.json",
+                        "bounds": [round(v, 1) for v in p.boundary.bounds]} for p in plans],
             "tiles": tiles})
 
     summary = {
@@ -130,6 +132,8 @@ def build(cfg: dict, area: str | None = None, log=print) -> Path:
         "roads": len(world.roads),
         "plans": [{"name": p.settlement.name, "kind": p.settlement.kind, **p.stats} for p in plans],
         "tiles": {"count": len(tiles), "triangles": sum(t["triangles"] for t in tiles),
+                  "drawn_triangles": sum(t.get("drawn", t["triangles"]) for t in tiles),
+                  "dressing_pieces": sum(t.get("pieces", 0) for t in tiles),
                   "megabytes": round(sum(t["bytes"] for t in tiles) / 1e6, 1)},
         "seconds": round(time.perf_counter() - t0, 1),
     }

@@ -13,11 +13,13 @@ import argparse
 import json
 import math
 import re
+import struct
 import sys
 from pathlib import Path
 
 import bpy
-from mathutils import Vector
+import numpy as np
+from mathutils import Matrix, Quaternion, Vector
 
 TILES_DIR = ""        # folder with index.json and the .glb tiles; a command line path overrides it
 RADIUS = 1500.0       # meters around the focus
@@ -118,6 +120,10 @@ def import_tile(path: Path, city: bpy.types.Collection, materials: dict) -> None
     before = {o.name for o in bpy.data.objects}
     bpy.ops.import_scene.gltf(filepath=str(path))
     fresh = [o for o in bpy.data.objects if o.name not in before]
+    copies = instance_transforms(path)
+    base = [_COPY_SUFFIX.sub("", o.name) for o in fresh]
+    expand = [(o, copies[b]) for o, b in zip(fresh, base)   # skipped when this Blender made the copies itself
+              if b in copies and base.count(b) == 1 and o.type == "MESH" and o.matrix_basis == Matrix.Identity(4)]
     for obj in fresh:
         for coll in list(obj.users_collection):
             coll.objects.unlink(obj)
@@ -135,6 +141,44 @@ def import_tile(path: Path, city: bpy.types.Collection, materials: dict) -> None
                 slot.material = keep
                 if mat.users == 0:
                     bpy.data.materials.remove(mat)
+    for obj, rows in expand:
+        place_instances(obj, rows, city)
+
+
+def instance_transforms(path: Path) -> dict:
+    """{node name: (K, 10) translation, rotation xyzw, scale} for every EXT_mesh_gpu_instancing node.
+
+    Street dressing (doors, lamps, goods...) is written as one model drawn many times. Blender's
+    glTF importer may not know that extension, so import_tile places the copies itself.
+    """
+    data = path.read_bytes()
+    size = struct.unpack_from("<I", data, 12)[0]
+    gltf = json.loads(data[20:20 + size])
+    binary = data[20 + size + 8:]
+    out = {}
+    for node in gltf.get("nodes", []):
+        ext = node.get("extensions", {}).get("EXT_mesh_gpu_instancing")
+        if not ext:
+            continue
+        cols = []
+        for key, width in (("TRANSLATION", 3), ("ROTATION", 4), ("SCALE", 3)):
+            acc = gltf["accessors"][ext["attributes"][key]]
+            view = gltf["bufferViews"][acc["bufferView"]]
+            start = view.get("byteOffset", 0) + acc.get("byteOffset", 0)
+            cols.append(np.frombuffer(binary, np.float32, acc["count"] * width, start).reshape(-1, width))
+        out[node["name"]] = np.concatenate(cols, axis=1)
+    return out
+
+
+def place_instances(obj: bpy.types.Object, rows: np.ndarray, coll: bpy.types.Collection) -> None:
+    """Turn one imported dressing object into all its copies (linked duplicates sharing one mesh)."""
+    for k, (tx, ty, tz, qx, qy, qz, qw, sx, sy, sz) in enumerate(rows):
+        dup = obj if k == 0 else obj.copy()
+        if k:
+            coll.objects.link(dup)
+        # glTF Y-up to Blender Z-up, as the importer does for nodes: (x, y, z) -> (x, -z, y)
+        dup.matrix_basis = Matrix.LocRotScale(Vector((tx, -tz, ty)), Quaternion((qw, qx, -qz, qy)),
+                                              Vector((sx, sz, sy)))
 
 
 def srgb_to_linear(c: float) -> float:

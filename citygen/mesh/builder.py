@@ -100,15 +100,16 @@ def add_walls(mb: MeshBuilder, ring, z0: float, z1: float, material: str, z_ref:
     mb.add(material, pos.reshape(-1, 3), nrm.reshape(-1, 3), uv.reshape(-1, 2), tris)
 
 
-def add_cap(mb: MeshBuilder, poly: Polygon, z: float, material: str) -> None:
-    """Flat horizontal surface facing up."""
+def add_cap(mb: MeshBuilder, poly: Polygon, z: float, material: str, up: bool = True) -> None:
+    """Flat horizontal surface facing up (or down, for the underside of something)."""
     tri = triangulate(poly)
     if len(tri) == 0:
         return
     pos = np.concatenate([tri, np.full((len(tri), 3, 1), z)], axis=2).reshape(-1, 3)
-    nrm = np.tile([0.0, 0.0, 1.0], (len(pos), 1))
+    nrm = np.tile([0.0, 0.0, 1.0 if up else -1.0], (len(pos), 1))
     uv = np.stack([pos[:, 0], -pos[:, 1]], axis=1)
-    mb.add(material, pos, nrm, uv, np.arange(len(pos)).reshape(-1, 3))
+    idx = np.arange(len(pos)).reshape(-1, 3)
+    mb.add(material, pos, nrm, uv, idx if up else idx[:, ::-1])
 
 
 def extrude(mb: MeshBuilder, poly: Polygon, z0: float, z1: float, wall: str, roof: str | None,
@@ -136,6 +137,19 @@ def add_triangles(mb: MeshBuilder, tris, material: str) -> None:
     nrm = np.repeat(n, 3, axis=0)
     uv = np.stack([pos[:, 0] + pos[:, 1], -pos[:, 2]], axis=1)
     mb.add(material, pos, nrm, uv, np.arange(len(pos)).reshape(-1, 3))
+
+
+def add_sheet(mb: MeshBuilder, tris, material: str, thickness: float = 0.01) -> None:
+    """Thin cloth or canvas seen from both sides: each triangle plus a reversed twin just behind it.
+
+    Real faces on both sides render the same everywhere; a double-sided material alone shows a
+    black underside in some renderers.
+    """
+    tris = np.asarray(tris, dtype=np.float64).reshape(-1, 3, 3)
+    n = np.cross(tris[:, 1] - tris[:, 0], tris[:, 2] - tris[:, 0])
+    n /= np.maximum(np.linalg.norm(n, axis=1), 1e-12)[:, None]
+    add_triangles(mb, tris, material)
+    add_triangles(mb, tris[:, ::-1] - n[:, None, :] * thickness, material)
 
 
 # --- roofs and details ------------------------------------------------------

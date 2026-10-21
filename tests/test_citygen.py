@@ -134,3 +134,64 @@ def test_names_sound_north_african():
             name = maker.settlement(kind).lower()
             assert not any(foreign in name for foreign in ("sh", "ts", "q", "oo")), name
             assert not set(name.split()) & avoid, name
+
+
+def test_kit_names_and_roles(world):
+    from citygen.kit import Kit
+    kit = Kit(world.seed, world.cfg["build"].get("kits", []), world.style["palette"])
+    assert kit.pieces["door_blue"].source == "procedural"
+    kit_pieces = [n for n, p in kit.pieces.items() if p.source != "procedural"]
+    assert all(n.startswith(kit.pieces[n].source + "/") for n in kit_pieces)   # kit pieces never replace ours
+    for role, options in world.style["dressing"]["roles"].items():
+        for option in options:
+            name = option[0]
+            if "/" not in name or name.split("/")[0] in {p.source for p in kit.pieces.values()}:
+                assert name in kit.pieces, f"role {role}: unknown piece {name}"
+    for souk in world.style["souk"]:
+        for name in souk["ground"] + souk["wall"]:
+            assert name in world.style["dressing"]["roles"] or name in kit.pieces or "/" in name, name
+
+
+def test_dressing_is_deterministic_and_on_the_walls(world, plan):
+    from shapely.geometry import Point
+    from citygen.mesh.tile import build_tile
+    tc = TileContext(world, [plan])
+    s = world.capital()
+    i, j = int(s.x // tc.size), int(s.y // tc.size)
+    _, first = build_tile(tc, i, j)
+    _, again = build_tile(tc, i, j)
+    assert len(first) > 200 and [(p.piece, p.x, p.y, p.z) for p in first] == [(p.piece, p.x, p.y, p.z) for p in again]
+    assert all(p.piece in tc.kit.pieces and np.isfinite([p.x, p.y, p.z, p.yaw, p.scale]).all() for p in first)
+    tree = STRtree([b.footprint.exterior for b in plan.buildings])
+    doors = [p for p in first if tc.kit.pieces[p.piece].category == "door"]
+    assert doors
+    for p in doors:   # every door stands on a building wall
+        near = tree.query_nearest(Point(p.x, p.y))
+        assert plan.buildings[int(near[0])].footprint.exterior.distance(Point(p.x, p.y)) < 0.05
+
+
+def test_tile_instances_are_valid(world, plan, tmp_path):
+    tc = TileContext(world, [plan])
+    s = world.capital()
+    info = export_tile(tc, int(s.x // tc.size), int(s.y // tc.size), tmp_path)
+    gltf, binary = read_glb(tmp_path / info["file"])
+    assert "EXT_mesh_gpu_instancing" in gltf["extensionsUsed"]
+    nodes = [n for n in gltf["nodes"] if "EXT_mesh_gpu_instancing" in n.get("extensions", {})]
+    assert sum(gltf["accessors"][n["extensions"]["EXT_mesh_gpu_instancing"]["attributes"]["TRANSLATION"]]["count"]
+               for n in nodes) == info["pieces"] > 100
+    for n in nodes:
+        attrs = n["extensions"]["EXT_mesh_gpu_instancing"]["attributes"]
+        acc = gltf["accessors"][attrs["ROTATION"]]
+        view = gltf["bufferViews"][acc["bufferView"]]
+        q = np.frombuffer(binary, np.float32, acc["count"] * 4, view.get("byteOffset", 0)).reshape(-1, 4)
+        assert np.allclose(np.linalg.norm(q, axis=1), 1.0, atol=1e-5)
+        assert acc["count"] == gltf["accessors"][attrs["TRANSLATION"]]["count"]
+
+
+def test_households_and_souks(plan):
+    assert len(plan.households) > 100
+    kinds = {plan.buildings[h.building].kind for h in plan.households}
+    assert kinds <= {"house", "domed", "apartments", "villa"}
+    assert all(0.0 <= h.wealth <= 1.0 and h.members >= 1 for h in plan.households)
+    assert plan.souks and all(plan.streets[k.street].kind == "souk" for k in plan.souks)
+    assert len({k.name for k in plan.souks}) == len(plan.souks)   # every souk has its own name

@@ -51,11 +51,25 @@
   #bar { height: 3px; margin-top: 6px; border-radius: 2px; background: var(--line); overflow: hidden; }
   #bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width 0.15s; }
   #bar.done { opacity: 0; }
-  #shadows {
+  #buttons { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+  .pill {
     pointer-events: auto; cursor: pointer; font: inherit; color: var(--ink);
     padding: 7px 12px; border-radius: 999px; white-space: nowrap;
   }
   #shadows[aria-pressed="false"] { color: var(--muted); }
+  #info {
+    position: fixed; left: max(16px, env(safe-area-inset-left)); bottom: max(52px, calc(env(safe-area-inset-bottom) + 40px));
+    width: min(320px, calc(100vw - 32px)); border-radius: 12px; padding: 10px 14px 11px; pointer-events: auto;
+  }
+  #info[hidden] { display: none; }
+  #info-title { font-size: 15px; font-weight: 650; padding-right: 22px; overflow-wrap: anywhere; }
+  #info-lines { color: var(--muted); margin-top: 2px; }
+  #info-lines div + div { margin-top: 1px; }
+  #info-close {
+    position: absolute; top: 6px; right: 8px; border: 0; background: none; font: 18px/1 system-ui, sans-serif;
+    color: var(--muted); cursor: pointer; padding: 2px 4px;
+  }
+  .night { --glass: rgba(16, 26, 46, 0.78); --ink: #e8eef8; --muted: #a9b8cc; --line: rgba(232, 238, 248, 0.16); }
   #help {
     align-self: center; max-width: 100%; text-align: center; color: var(--muted);
     padding: 6px 14px; border-radius: 12px; font-size: 12px;
@@ -76,9 +90,17 @@
       <div id="stats"><span id="count">loading...</span><span id="tris"></span></div>
       <div id="bar"><i id="fill"></i></div>
     </div>
-    <button id="shadows" class="glass" type="button" aria-pressed="true">Shadows on</button>
+    <div id="buttons">
+      <button id="night" class="glass pill" type="button" aria-pressed="false">Night</button>
+      <button id="shadows" class="glass pill" type="button" aria-pressed="true">Shadows on</button>
+    </div>
   </div>
   <div id="help" class="glass"></div>
+</div>
+<div id="info" class="glass" hidden aria-live="polite">
+  <button id="info-close" type="button" aria-label="Close">&times;</button>
+  <div id="info-title"></div>
+  <div id="info-lines"></div>
 </div>
 <noscript>This viewer needs JavaScript.</noscript>
 
@@ -108,7 +130,7 @@ function fail(message) {
 
 // URL parameters: radius (meters around the focus, default 2500), shadows=0, ui=0 (hide the overlay),
 // view=aerial|street|top or a camera spot named in the index "views", or cam=x,y,z and look=x,y,z
-// in generator coordinates (meters, z up).
+// in generator coordinates (meters, z up); time=night; pick=x,y shows who lives at that point.
 const RADIUS = Math.max(0, num('radius', 2500));
 const MAX_INFLIGHT = 6;
 const SUN_AZIMUTH = 225;   // degrees clockwise from north: south-west
@@ -121,8 +143,8 @@ const coarse = matchMedia('(pointer: coarse)').matches;
 
 document.body.classList.toggle('noui', q.get('ui') === '0');
 $('help').textContent = coarse
-  ? 'drag rotate \u00b7 pinch zoom \u00b7 two-finger pan \u00b7 double-tap focus'
-  : 'drag rotate \u00b7 right-drag pan \u00b7 wheel zoom \u00b7 double-click focus \u00b7 L shadows';
+  ? 'drag rotate \u00b7 pinch zoom \u00b7 two-finger pan \u00b7 tap a house \u00b7 double-tap focus'
+  : 'drag rotate \u00b7 right-drag pan \u00b7 wheel zoom \u00b7 click a house \u00b7 double-click focus \u00b7 N night \u00b7 L shadows';
 
 let THREE, GLTFLoader, OrbitControls;
 try {
@@ -160,7 +182,8 @@ scene.background = new THREE.Color(SKY);
 scene.fog = new THREE.Fog(SKY, 800, 3000);
 const camera = new THREE.PerspectiveCamera(50, 1, 1, 20000);
 
-scene.add(new THREE.HemisphereLight(0xd2e6ff, 0xc9b48e, 1.9));
+const hemi = new THREE.HemisphereLight(0xd2e6ff, 0xc9b48e, 1.9);
+scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xffe8c4, 3.0);
 sun.castShadow = q.get('shadows') !== '0';
 sun.shadow.mapSize.set(SHADOW_MAP, SHADOW_MAP);
@@ -289,9 +312,12 @@ function shared(material) {
   if (!m) {
     m = material;
     if (/^water/i.test(m.name)) {
-      Object.assign(m, { roughness: 0.06, metalness: 0, transparent: true, opacity: 0.82, depthWrite: false, envMap: skyEnv, envMapIntensity: 0.9 });
+      Object.assign(m, { roughness: 0.06, metalness: 0, transparent: true, opacity: 0.82, depthWrite: false, envMap: skyEnv,
+                         envMapIntensity: night ? 0.06 : 0.9 });
       m.userData.water = true;
     }
+    if (m.emissive && (m.emissive.getHex() !== 0 || LIT_AT_NIGHT[m.name])) m.userData.glows = true;
+    if (night) glow(m);
     sharedMaterials.set(key, m);
   }
   return m;
@@ -310,6 +336,7 @@ function addTile(gltf) {
       if (Math.abs(o.geometry.boundingBox.max.y) < 0.5) addSea(o.material);   // water at sea level, not a lake
     }
     stats.triangles += (o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count) / 3;
+    if (o.isInstancedMesh && o.material.userData.glows && !LIT_AT_NIGHT[o.material.name]) glowMeshes.push(o);
   });
   tiles.add(root);
   root.userData.box = new THREE.Box3().setFromObject(root);
@@ -472,6 +499,7 @@ function resize() {
   camera.fov = camera.aspect >= 1 ? 50
     : Math.min(70, THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(25)) / camera.aspect)));
   camera.updateProjectionMatrix();
+  if (composer) composer.setSize(w, h);
   dirty = true;
 }
 
@@ -494,13 +522,285 @@ function frame(now) {
     if (sunMoved || shadowDirty) renderer.shadowMap.needsUpdate = true;
     shadowDirty = false;
   }
-  renderer.render(scene, camera);
+  if (night) placeLampLights();
+  if (night && composer) composer.render();
+  else renderer.render(scene, camera);
   if (complete && !window.citygenReady) window.citygenReady = true;
 }
 
-// ---------------------------------------------------------------- interaction
+// ---------------------------------------------------------------- night
+// A dark blue sky and moonlight; lamps and lanterns glow (their emissive turned up, with a soft
+// bloom), and the lamps nearest to the orbit target light the walls around them.
+let night = false;
+let composer = null;
+let lampPoints = null;          // centers of every glowing piece, three.js axes, built on demand
+const glowMeshes = [];          // instanced meshes drawn with a glowing material
+const lampLights = [];
+const LAMP_LIGHTS = 12;
+const DAY = { sky: SKY, hemiSky: 0xd2e6ff, hemiGround: 0xc9b48e, hemi: 1.9, sun: 0xffe8c4, sunI: 3.0 };
+const NIGHT = { sky: 0x0c1a38, hemiSky: 0x3a5288, hemiGround: 0x241b12, hemi: 1.0, sun: 0xa8bfff, sunI: 0.7, glow: 4, lamp: 6 };
+
+// window glass lights up at night: the generator's windows glow, the kit's stay dark, so some
+// houses look awake and others asleep
+const LIT_AT_NIGHT = { glass_dark: [0xffa64a, 0.75] };
+
+function glow(m) {
+  if (!m.userData.glows) return;
+  if (m.userData.day === undefined) m.userData.day = [m.emissive.getHex(), m.emissiveIntensity];
+  const lit = LIT_AT_NIGHT[m.name];
+  if (lit) {
+    m.emissive.setHex(night ? lit[0] : m.userData.day[0]);
+    m.emissiveIntensity = night ? lit[1] : m.userData.day[1];
+  } else {
+    m.emissiveIntensity = night ? NIGHT.glow : m.userData.day[1];
+  }
+}
+
+function lampCenters() {
+  const pts = [];
+  const m = new THREE.Matrix4();
+  const c = new THREE.Vector3();
+  for (const mesh of glowMeshes) {
+    mesh.updateWorldMatrix(true, false);
+    if (!mesh.geometry.boundingSphere) mesh.geometry.computeBoundingSphere();
+    for (let i = 0; i < mesh.count; i++) {
+      mesh.getMatrixAt(i, m);
+      pts.push(c.copy(mesh.geometry.boundingSphere.center).applyMatrix4(m).applyMatrix4(mesh.matrixWorld).clone());
+    }
+  }
+  return pts;
+}
+
+// the lamps closest to what the camera looks at get real lights; the rest only glow
+function placeLampLights() {
+  if (!lampLights.length) return;
+  if (!lampPoints || lampPoints.built !== glowMeshes.length) {
+    lampPoints = lampCenters();
+    lampPoints.built = glowMeshes.length;
+  }
+  const t = controls.target;
+  const near = lampPoints.map((p) => [p.distanceToSquared(t), p]).sort((a, b) => a[0] - b[0]).slice(0, LAMP_LIGHTS);
+  lampLights.forEach((light, k) => {
+    light.visible = k < near.length;
+    if (light.visible) light.position.copy(near[k][1]);
+  });
+}
+
+async function setNight(on) {
+  night = on;
+  document.body.classList.toggle('night', on);
+  const v = on ? NIGHT : DAY;
+  scene.background.set(v.sky);
+  scene.fog.color.set(v.sky);
+  hemi.color.set(v.hemiSky);
+  hemi.groundColor.set(v.hemiGround);
+  hemi.intensity = v.hemi;
+  sun.color.set(v.sun);
+  sun.intensity = v.sunI;
+  for (const m of sharedMaterials.values()) {
+    glow(m);
+    if (m.userData.water) m.envMapIntensity = on ? 0.06 : 0.9;   // no daylight sky in the water at night
+  }
+  if (sea) sea.material.envMapIntensity = on ? 0.06 : 0.9;
+  if (on && !lampLights.length) {
+    for (let k = 0; k < LAMP_LIGHTS; k++) {
+      const light = new THREE.PointLight(0xffb45c, NIGHT.lamp, 11, 2);
+      lampLights.push(light);
+      scene.add(light);
+    }
+  }
+  lampLights.forEach((light) => { light.intensity = on ? NIGHT.lamp : 0; });
+  const button = $('night');
+  button.textContent = on ? 'Day' : 'Night';
+  button.setAttribute('aria-pressed', String(on));
+  if (on && !composer) {
+    try {
+      const [{ EffectComposer }, { RenderPass }, { UnrealBloomPass }, { OutputPass }] = await Promise.all([
+        import('three/addons/postprocessing/EffectComposer.js'),
+        import('three/addons/postprocessing/RenderPass.js'),
+        import('three/addons/postprocessing/UnrealBloomPass.js'),
+        import('three/addons/postprocessing/OutputPass.js'),
+      ]);
+      const size = renderer.getSize(new THREE.Vector2());
+      composer = new EffectComposer(renderer);
+      composer.addPass(new RenderPass(scene, camera));
+      composer.addPass(new UnrealBloomPass(size, 0.6, 0.45, 0.92));
+      composer.addPass(new OutputPass());
+      composer.setSize(size.x, size.y);
+    } catch (err) {
+      console.warn('night glow without bloom:', err);
+    }
+  }
+  shadowDirty = dirty = true;
+}
+
 const raycaster = new THREE.Raycaster();
 const ndc = new THREE.Vector2();
+
+// ---------------------------------------------------------------- who lives here
+// A click on a house shows the household behind its door (family, trade, people, wealth), read
+// from the city's plan.json; a click on a souk shows its name and trade.
+const CELL = 48;             // meters; grid cell of the lookup index
+const plans = new Map();     // plan file -> promise of an indexed plan
+let cities = [];             // index.cities: { name, plan, bounds }
+const KIND = { medina: 'old town', colonial: 'colonial quarter', residential: 'neighborhood', modern: 'new town',
+               suburb: 'villas', village: 'village', industry: 'industrial area', port: 'port', park: 'park',
+               cemetery: 'cemetery', souk: 'souk' };
+
+function boxOf(ring) {
+  const b = [Infinity, Infinity, -Infinity, -Infinity];
+  for (const [x, y] of ring) {
+    b[0] = Math.min(b[0], x); b[1] = Math.min(b[1], y); b[2] = Math.max(b[2], x); b[3] = Math.max(b[3], y);
+  }
+  return b;
+}
+
+function cells(b, grow = 0) {
+  const out = [];
+  for (let i = Math.floor((b[0] - grow) / CELL); i <= Math.floor((b[2] + grow) / CELL); i++) {
+    for (let j = Math.floor((b[1] - grow) / CELL); j <= Math.floor((b[3] + grow) / CELL); j++) out.push(i + ',' + j);
+  }
+  return out;
+}
+
+function indexPlan(plan) {
+  const grid = new Map();
+  const add = (key, item) => (grid.get(key) || grid.set(key, []).get(key)).push(item);
+  plan.buildings.forEach((b, k) => {
+    b.box = boxOf(b.footprint[0]);
+    for (const key of cells(b.box, 1)) add(key, ['b', k]);
+  });
+  plan.streets.forEach((st, k) => {
+    for (let i = 1; i < st.coords.length; i++) {
+      const seg = boxOf([st.coords[i - 1], st.coords[i]]);
+      for (const key of cells(seg, st.width / 2)) add(key, ['s', k, i]);
+    }
+  });
+  for (const d of plan.districts) {
+    d.rings = d.geometry.type === 'Polygon' ? [d.geometry.coordinates[0]] : d.geometry.coordinates.map((c) => c[0]);
+  }
+  return {
+    plan, grid,
+    homes: new Map(plan.households.map((h) => [h.building, h])),
+    souks: new Map(plan.souks.map((k) => [k.street, k])),
+  };
+}
+
+function loadPlan(city) {
+  if (!plans.has(city.plan)) {
+    plans.set(city.plan, fetch('data/' + city.plan).then((res) => {
+      if (!res.ok) throw new Error(`${city.plan}: HTTP ${res.status}`);
+      return res.json();
+    }).then(indexPlan));
+  }
+  return plans.get(city.plan);
+}
+
+function insideRing(ring, x, y) {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i], [xj, yj] = ring[j];
+    if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+function segDist(x, y, a, b) {
+  const dx = b[0] - a[0], dy = b[1] - a[1];
+  const t = Math.max(0, Math.min(1, ((x - a[0]) * dx + (y - a[1]) * dy) / (dx * dx + dy * dy || 1)));
+  return Math.hypot(x - a[0] - t * dx, y - a[1] - t * dy);
+}
+
+function ringDist(ring, x, y) {
+  let best = Infinity;
+  for (let i = 1; i < ring.length; i++) best = Math.min(best, segDist(x, y, ring[i - 1], ring[i]));
+  return best;
+}
+
+// the building under (x, y), or one whose wall is within reach (doors and windows stand proud of it)
+function findAt(p, x, y) {
+  let building = -1, wall = 1.0, street = -1, road = Infinity;
+  for (const [type, k, i] of p.grid.get(Math.floor(x / CELL) + ',' + Math.floor(y / CELL)) || []) {
+    if (type === 'b') {
+      const b = p.plan.buildings[k];
+      const ring = b.footprint[0];
+      if (x < b.box[0] - 1 || x > b.box[2] + 1 || y < b.box[1] - 1 || y > b.box[3] + 1) continue;
+      const d = insideRing(ring, x, y) ? 0 : ringDist(ring, x, y);
+      if (d < wall) { wall = d; building = k; }
+    } else {
+      const st = p.plan.streets[k];
+      const d = segDist(x, y, st.coords[i - 1], st.coords[i]) - st.width / 2;
+      if (d < 0.5 && d < road) { road = d; street = k; }
+    }
+  }
+  const district = p.plan.districts.find((d) => d.rings.some((r) => insideRing(r, x, y)));
+  return { building, street, district };
+}
+
+const wealthWord = (w) => (w < 0.25 ? 'modest' : w < 0.5 ? 'getting by' : w < 0.75 ? 'comfortable' : 'wealthy');
+const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+function describe(p, x, y) {
+  const { building, street, district } = findAt(p, x, y);
+  const where = district ? `${district.name} \u00b7 ${KIND[district.kind] || district.kind}` : '';
+  const landmark = p.plan.landmarks.reduce((best, m) => {
+    const d = Math.hypot(m.x - x, m.y - y);
+    return d < 30 && (!best || d < best.d) ? { d, m } : best;
+  }, null);
+  if (building >= 0) {
+    const b = p.plan.buildings[building];
+    const h = p.homes.get(building);
+    if (h) {
+      const house = ['house', 'domed', 'villa'].includes(b.kind);
+      return {
+        title: house ? `Dar ${h.family}` : `The ${h.family} family`,
+        lines: [`${plural(h.members, 'person').replace('persons', 'people')} \u00b7 ${h.trade}`,
+                `${wealthWord(h.wealth)} \u00b7 ${h.door.replace('door_', '')} door \u00b7 ${plural(b.floors, 'floor')}`, where],
+      };
+    }
+    const title = landmark ? landmark.m.name : b.kind.replace(/_/g, ' ');
+    return { title: title.charAt(0).toUpperCase() + title.slice(1), lines: [plural(b.floors, 'floor'), where] };
+  }
+  if (street >= 0) {
+    const souk = p.souks.get(street);
+    const st = p.plan.streets[street];
+    if (souk) return { title: souk.name, lines: [souk.trade, where] };
+    return { title: st.kind.charAt(0).toUpperCase() + st.kind.slice(1), lines: [`${st.width} m wide`, where] };
+  }
+  if (landmark) return { title: landmark.m.name, lines: [where] };
+  return district ? { title: district.name, lines: [KIND[district.kind] || district.kind] } : null;
+}
+
+async function showInfo(x, y) {
+  const city = cities.find((c) => x >= c.bounds[0] && x <= c.bounds[2] && y >= c.bounds[1] && y <= c.bounds[3]);
+  const card = $('info');
+  if (!city) { card.hidden = true; return; }
+  $('info-title').textContent = city.name;
+  $('info-lines').textContent = 'reading the city plan...';
+  card.hidden = false;
+  try {
+    const found = describe(await loadPlan(city), x, y);
+    if (!found) { card.hidden = true; return; }
+    $('info-title').textContent = found.title;
+    $('info-lines').replaceChildren(...found.lines.filter(Boolean).map((line) => {
+      const div = document.createElement('div');
+      div.textContent = line;
+      return div;
+    }));
+  } catch (err) {
+    $('info-lines').textContent = 'no plan for this city (' + (err.message || err) + ')';
+  }
+}
+
+function pickAt(clientX, clientY) {
+  const r = canvas.getBoundingClientRect();
+  ndc.set(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1);
+  raycaster.setFromCamera(ndc, camera);
+  const hit = raycaster.intersectObjects(tiles.children, true)[0];
+  if (hit) showInfo(hit.point.x + focus.x, focus.y - hit.point.z);
+}
+
+// ---------------------------------------------------------------- interaction
 
 function focusAt(clientX, clientY) {
   const r = canvas.getBoundingClientRect();
@@ -513,6 +813,15 @@ function focusAt(clientX, clientY) {
 }
 
 canvas.addEventListener('dblclick', (e) => focusAt(e.clientX, e.clientY));
+let press = null;
+canvas.addEventListener('pointerdown', (e) => { press = { x: e.clientX, y: e.clientY, t: performance.now() }; });
+canvas.addEventListener('pointerup', (e) => {
+  if (press && e.button === 0 && performance.now() - press.t < 400 && Math.hypot(e.clientX - press.x, e.clientY - press.y) < 6) {
+    pickAt(e.clientX, e.clientY);
+  }
+  press = null;
+});
+$('info-close').addEventListener('click', () => { $('info').hidden = true; });
 
 // browsers rarely fire dblclick for touch, so detect a double tap by hand
 let tapStart = null, lastTap = null;
@@ -534,9 +843,14 @@ canvas.addEventListener('pointerup', (e) => {
 });
 
 window.addEventListener('keydown', (e) => {
-  if (e.key.toLowerCase() === 'l' && !e.ctrlKey && !e.metaKey && !e.altKey) setShadows(!shadowsOn);
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  const key = e.key.toLowerCase();
+  if (key === 'l') setShadows(!shadowsOn);
+  if (key === 'n') setNight(!night);
+  if (key === 'escape') $('info').hidden = true;
 });
 $('shadows').addEventListener('click', () => setShadows(!shadowsOn));
+$('night').addEventListener('click', () => setNight(!night));
 window.addEventListener('resize', resize);
 
 // ---------------------------------------------------------------- boot
@@ -561,8 +875,10 @@ async function boot() {
   $('meta').textContent = [f.name, index.seed != null ? 'seed ' + index.seed : ''].filter(Boolean).join(' \u00b7 ');
   document.title = world + ' - citygen';
 
+  cities = Array.isArray(index.cities) ? index.cities : [];
   const view = initialView(index);
   applyView(view.cam, view.look);
+  if (q.get('time') === 'night') await setNight(true);
 
   const list = selectTiles(index);
   stats.requested = list.length;
@@ -571,6 +887,8 @@ async function boot() {
   // with no spot from the index, the street preset looks for open ground once the nearby tiles are in
   const wantsStreet = q.get('view') === 'street' && !triple('cam') && !triple('look') && !indexView(index, 'street');
   await loadTiles(list, wantsStreet);
+  const pick = (q.get('pick') || '').split(',').map(Number);
+  if (pick.length === 2 && pick.every(Number.isFinite)) await showInfo(pick[0], pick[1]);
   loadDone = true;
   dirty = true;
   updateHud();
@@ -578,7 +896,8 @@ async function boot() {
 }
 
 // handle for the browser console and for tests
-window.citygen = { THREE, scene, camera, controls, renderer, sun, tiles, toThree, get focus() { return focus; } };
+window.citygen = { THREE, scene, camera, controls, renderer, sun, tiles, toThree, setNight, showInfo,
+                   get focus() { return focus; } };
 setShadows(shadowsOn);
 resize();
 requestAnimationFrame(frame);

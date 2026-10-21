@@ -37,6 +37,7 @@ max_regional_km = 26.0    # longest road built between two towns
 [tiles]
 size = 512                # tile width in meters
 terrain_step = 8.0        # meters between terrain mesh points
+dressing = true           # doors, windows, shops, goods and street life (see [dressing] in the style)
 
 [build]
 # Which part of the world to export as 3D tiles:
@@ -49,3 +50,4 @@ terrain_step = 8.0        # meters between terrain mesh points
 area = "capital-center"
 center_radius = 1200.0
 output = "output"
+kits = ["tounes"]         # extra 3D piece kits from the kits/ folder (pieces made in Tounes Rush)

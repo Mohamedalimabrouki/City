@@ -6,8 +6,9 @@
 Imports every tile of OUT_DIR (the generator folder), swaps the palette materials for procedural
 shaders (facades are driven by the wall UVs, which are meters: u along the wall, v = 1 + height above
 the building's highest ground point), adds roof parapets and water tanks, and lights the scene with a
-Nishita sky, a matching sun and a thin haze. Windows, doors, shutters, parapets, tanks, sea and sky are
-Blender-only dressing; the buildings, roofs, streets, trees and terrain are the generator's geometry.
+Nishita sky, a matching sun and a thin haze. Parapets, sea and sky are Blender-only dressing. Tiles
+built with street dressing (doors, windows, shops, lamps from the kit) keep it; tiles built without it
+get painted windows, doors and shutters and a few water tanks here instead.
 """
 from __future__ import annotations
 
@@ -25,6 +26,9 @@ import bmesh
 import bpy
 import numpy as np
 from mathutils import Vector
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from blender_import import instance_transforms, place_instances  # noqa: E402
 
 FOV = 50.0                              # vertical field of view in degrees, as the web viewer
 AERIAL = (160.0, 900.0, 650.0)          # viewer preset: bearing, distance, height above the focus
@@ -46,6 +50,7 @@ STYLES = {   # floor height, bay width, window width/height/sill, frame, window 
     "modern": dict(floor=3.0, bay=3.0, ww=1.9, wh=1.5, sill=0.9, frame=0.06, up=0.92, ground=0.55, door=0.0),
 }
 COPY_SUFFIX = re.compile(r"\.\d{3}$")
+DRESSED = False                         # set in main: the tiles carry the generator's street dressing
 
 
 def lin(c: float) -> float:
@@ -578,6 +583,8 @@ def build_materials(mats: dict[str, bpy.types.Material]) -> None:
         kind = STYLE_OF.get(name)
         if kind == "metal":
             shade_metal(mat, b)
+        elif kind and DRESSED:
+            shade_plaster(mat, b)                          # the kit's doors and windows are on the walls
         elif kind:
             shade_facade(mat, kind, b)
         elif name in ("roof_white", "dome_white", "roof_tile"):
@@ -616,7 +623,10 @@ def load_index(out_dir: str) -> tuple[Path, dict]:
 
 
 def import_tiles(folder: Path, index: dict) -> tuple[list[bpy.types.Object], dict[str, bpy.types.Material]]:
-    """Import every tile; "grass.012" and "grass" share one material, as in tools/blender_import.py."""
+    """Import every tile; "grass.012" and "grass" share one material, as in tools/blender_import.py.
+
+    Returns the tile meshes (the dressing pieces are placed but not returned) and the materials.
+    """
     if not hasattr(bpy.ops.import_scene, "gltf"):
         bpy.ops.preferences.addon_enable(module="io_scene_gltf2")
     mats: dict[str, bpy.types.Material] = {}
@@ -624,8 +634,14 @@ def import_tiles(folder: Path, index: dict) -> tuple[list[bpy.types.Object], dic
     for tile in index["tiles"]:
         before = {o.name for o in bpy.data.objects}
         bpy.ops.import_scene.gltf(filepath=str(folder / tile["file"]))
-        for ob in [o for o in bpy.data.objects if o.name not in before and o.type == "MESH"]:
-            tiles.append(ob)
+        fresh = [o for o in bpy.data.objects if o.name not in before and o.type == "MESH"]
+        copies = instance_transforms(folder / tile["file"])
+        for ob in fresh:
+            name = COPY_SUFFIX.sub("", ob.name)
+            if name in copies:
+                place_instances(ob, copies[name], ob.users_collection[0])
+            else:
+                tiles.append(ob)
             for slot in ob.material_slots:
                 if slot.material is None:
                     continue
@@ -749,7 +765,7 @@ def dress_tile(ob: bpy.types.Object, plaster, tank, seed: int):
     tanks = 0
     area = np.linalg.norm(np.cross(pts[:, 1] - pts[:, 0], pts[:, 2] - pts[:, 0]), axis=1) / 2
     for g_id in np.unique(group):
-        if gen.random() >= TANK_SHARE:
+        if DRESSED or gen.random() >= TANK_SHARE:
             continue
         tris = np.flatnonzero(group == g_id)
         if area[tris].sum() < 30.0:
@@ -909,6 +925,8 @@ def main() -> None:
     bpy.ops.wm.read_factory_settings(use_empty=True)
     scene = bpy.context.scene
     folder, index = load_index(args.out_dir)
+    global DRESSED
+    DRESSED = any(t.get("pieces", 0) for t in index["tiles"])
     tiles, mats = import_tiles(folder, index)
     print(f"beauty: imported {len(tiles)} tiles in {time.time() - clock:.1f} s", flush=True)
 

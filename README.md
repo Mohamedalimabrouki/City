@@ -3,15 +3,19 @@
 This project generates a whole fictional country with a Mediterranean and North African feel.
 It has a coast, mountains, steppe and desert, towns and villages joined by roads, and detailed
 cities. The cities have walled old towns (medinas) with markets and mosques, colonial
-boulevards, ports, apartment blocks, villas, parks and cemeteries. You get the result three
-ways: **maps** (images), **data files** for stories and games, and **3D files** for Blender and
-game engines.
+boulevards, ports, apartment blocks, villas, parks and cemeteries. Their streets are dressed:
+studded doors, window grilles, wooden balconies, lamps, flowers, shops full of goods, laundry,
+mopeds and cats, and a family with a name and a trade behind every house door. You get the result
+three ways: **maps** (images), **data files** for stories and games, and **3D files** for Blender
+and game engines.
 
 | The country | The capital |
 |---|---|
 | ![country](docs/img/country.jpg) | ![capital](docs/img/capital.jpg) |
 | **The old town in 3D** | **On the boulevard** |
 | ![3d](docs/img/3d.jpg) | ![street](docs/img/street.jpg) |
+| **The carpet souk** | **The same souk at night** |
+| ![souk](docs/img/souk-life.jpg) | ![night](docs/img/souk-night.jpg) |
 
 **Where it is going.** The same old-town lane, today (top) and as a Blender preview of the
 finished look (bottom): textures, blue doors, windows and soft light on the very same geometry.
@@ -42,8 +46,10 @@ number. A different seed gives a different country. So:
    python -m citygen view
    ```
    Your web browser opens the city in 3D. Drag to turn, right-drag to move, use the wheel to zoom,
-   and double-click a spot to fly around it. Press `L` to switch shadows on or off. The images are
-   in `output/<country>-<seed>/maps/`.
+   and double-click a spot to fly around it. **Click a house to see who lives there** (family,
+   trade, how many people, how well off), or a souk to see its name and trade. Press `N` for
+   night (lamps, lanterns and some windows light up) and `L` to switch shadows on or off. The
+   images are in `output/<country>-<seed>/maps/`.
 
 To save 3D pictures without opening a browser (handy for checks): `pip install playwright`,
 then `python -m citygen snapshot --view aerial` (or `street`, `souk`, `top`).
@@ -60,7 +66,7 @@ Everything goes into `output/<country name>-<seed>/`:
 | `maps/<city>.png` | Detailed map of a city: districts, streets, buildings |
 | `gazetteer.md` | A readable guide to the world for writing stories (places, what they are known for, districts, gates, mosques) |
 | `world.json` | All places and roads as data, for a game or a tool |
-| `cities/<city>/plan.json` | Every street, building and tree of a city as data |
+| `cities/<city>/plan.json` | Every street, building, tree, household and souk of a city as data |
 | `tiles/*.glb` | The 3D world, cut into squares of 512 m ("tiles") |
 | `tiles/index.json` | List of the tiles and where they go |
 | `summary.json` | Counts and timings |
@@ -74,13 +80,26 @@ Everything goes into `output/<country name>-<seed>/`:
 Or from a terminal: `blender --python tools/blender_import.py -- output/<country>-<seed>/tiles`
 
 **Beautiful pictures for your stories:** `tools/blender_beauty.py` renders a finished-looking
-image (golden-hour light, textured walls with doors and windows, rooftop water tanks):
+image (golden-hour light, textured walls, roof parapets, and the street dressing of the tiles):
 
 ```
 blender -b --python tools/blender_beauty.py -- output/<country>-<seed> --view souk --png lane.png
 ```
 
 Views are `aerial`, `street` and `souk`. Each picture takes about 5 minutes on a normal computer.
+
+## The street kit (Tounes Rush)
+
+Doors, windows, balconies, lamps, pots, palms, carts and market goods come from a **kit**: a
+folder of small 3D pieces. `kits/tounes/` holds 51 pieces taken from the game *Tounes Rush*, so
+both projects share one look; the generator adds its own pieces (shops stocked by trade, awnings,
+spice stalls, chechia shelves, water tanks, cats, street lamps...). Which piece goes where, and
+how often, is written in `styles/maghreb.toml` under `[dressing.roles]`: a rich family in the old
+town gets a studded Sidi Bou Said door, a carved frame and maybe a wooden balcony; a souk of
+potters fills its shelves with pots.
+
+To see every piece in one 3D grid: `python -m citygen kit-sheet`, then
+`python -m citygen view output/kit-sheet`.
 
 ## Make your own world
 
@@ -130,6 +149,7 @@ in `docs/SPEC.md`.
 | `citygen/` | The generator (Python) |
 | `styles/` | Style packs: look, names, building rules |
 | `worlds/` | Your world settings files |
+| `kits/` | 3D piece kits for the street dressing (`kits/tounes/` from Tounes Rush) |
 | `tools/` | 3D viewer, Blender import, snapshot tool |
 | `tests/` | Automatic checks (`python -m pytest -q`) |
 | `docs/` | Spec, roadmap, workflow |
@@ -146,3 +166,8 @@ in `docs/SPEC.md`.
 - **Parcel**: one building lot.
 - **Style pack**: the settings file that decides how everything looks and sounds.
 - **LOD (level of detail)**: lighter versions of far-away tiles, so a game runs fast.
+- **Kit**: a set of small 3D pieces (doors, lamps, goods) that dress the streets.
+- **Instancing**: drawing one 3D model many times (one door model on thousands of houses), so files stay small.
+- **Sabat**: a room built over an alley, joining the houses on both sides; the alley runs underneath.
+- **Mashrabiya**: a closed wooden balcony with a lattice, to look out without being seen.
+- **Chechia**: the red felt hat of Tunisia; the chechia makers have their own souk.

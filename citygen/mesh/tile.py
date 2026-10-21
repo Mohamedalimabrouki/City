@@ -12,16 +12,19 @@ from pathlib import Path
 
 import numpy as np
 import shapely
-from shapely.geometry import LineString, box
+from shapely.geometry import LineString, Polygon, box
 from shapely.geometry.polygon import orient
 from shapely.ops import unary_union
 from shapely.strtree import STRtree
 
+from ..city.dressing import Dresser, Placement, building_highs, ground_heights
 from ..city.geo import frame, lines
+from ..kit import Kit
 from ..terrain import BIOME_MATERIAL, SEA, classify
-from .builder import (MeshBuilder, add_cone, add_dome, add_hip_roof, add_octahedron, add_ribbon,
-                      add_triangles, extrude, rectangle, regular_polygon)
+from .builder import (MeshBuilder, add_cap, add_dome, add_hip_roof, add_ribbon, add_sheet, extrude, rectangle,
+                      regular_polygon)
 from .gltf import write_glb
+from .props import tree_mesh
 
 STREET_LIFT = {"boulevard": 0.32, "arterial": 0.3, "ring": 0.3, "corniche": 0.3, "connector": 0.28,
                "street": 0.24, "souk": 0.2, "alley": 0.18}
@@ -46,13 +49,18 @@ class TileContext:
         for area in (self.city_area, self.park_area):
             if area is not None:
                 shapely.prepare(area)
+        # street dressing: doors, shops, goods, street life (city/dressing.py), drawn as instances
+        self.dress = bool(world.cfg["tiles"].get("dressing", True))
+        self.kit = Kit(world.seed, world.cfg["build"].get("kits", []), self.palette) if self.dress else None
+        self.materials = self.kit.materials if self.kit else self.palette
         self.cities = []
         for p in plans:
             fps = [b.footprint for b in p.buildings]
             centers = shapely.get_coordinates(shapely.centroid(fps)) if fps else np.zeros((0, 2))
             trees = np.array([(t.x, t.y) for t in p.trees]) if p.trees else np.zeros((0, 2))
             street_tree = STRtree([s.line for s in p.streets]) if p.streets else None
-            self.cities.append((p, centers, trees, street_tree))
+            dresser = Dresser(world, p, self.kit) if self.dress else None
+            self.cities.append((p, centers, trees, street_tree, dresser))
 
     def height(self, x, y):
         return self.terrain.height(x, y)
@@ -159,59 +167,164 @@ def building_mesh(mb: MeshBuilder, b, height_fn) -> None:
         add_dome(mb, cx, cy, z1 + h, side * 0.5, b.top["cap"], height=side * 0.62)
 
 
-def tree_mesh(mb: MeshBuilder, t, z: float) -> None:
-    h = t.height
-    if t.kind == "palm":
-        extrude(mb, regular_polygon(t.x, t.y, 0.22, 5), z - 0.3, z + h, "trunk", "trunk")
-        top = np.array([t.x, t.y, z + h])
-        tris = []
-        for k in range(7):
-            a = k * 2 * math.pi / 7 + 0.4
-            d = np.array([math.cos(a), math.sin(a), 0.0])
-            side = np.array([-d[1], d[0], 0.0]) * 0.55
-            mid = top + d * 1.6 + np.array([0.0, 0.0, 0.35])
-            tip = top + d * 3.4 + np.array([0.0, 0.0, -1.5])
-            tris += [[top, mid - side, tip], [top, tip, mid + side]]
-        add_triangles(mb, tris, "leaf_palm")
-    elif t.kind == "cypress":
-        add_cone(mb, t.x, t.y, z - 0.2, 1.1, h, "leaf_cypress", segments=6)
-    else:
-        trunk = 0.3 * h if t.kind == "broadleaf" else 0.25 * h
-        extrude(mb, regular_polygon(t.x, t.y, 0.18, 4), z - 0.3, z + trunk + 0.4, "trunk", None)
-        rx = 0.34 * h if t.kind == "broadleaf" else 0.42 * h
-        mat = "leaf" if t.kind == "broadleaf" else "leaf_olive"
-        add_octahedron(mb, t.x, t.y, z + trunk + 0.3 * h, rx, 0.36 * h, mat, twist=(t.x * 7.3) % 1.57)
+CLOTHS = ("cloth_1", "cloth_2", "cloth_3", "cloth_4", "cloth_5", "cloth_6")
+FLAGS = ("awning_red", "awning_yellow", "awning_green", "awning_blue", "awning_cream")
 
 
-def build_tile(tc: TileContext, i: int, j: int) -> MeshBuilder:
+def _quad(mb: MeshBuilder, a, b, c, d, mat: str) -> None:
+    pos = np.array([a, b, c, d], dtype=np.float64)
+    n = np.cross(pos[1] - pos[0], pos[3] - pos[0])
+    n = n / max(np.linalg.norm(n), 1e-9)
+    mb.add(mat, pos, np.tile(n, (4, 1)), np.zeros((4, 2)), [[0, 1, 2], [0, 2, 3]])
+
+
+def span_mesh(mb: MeshBuilder, span, placements: list) -> None:
+    """A sagging line between two walls, with laundry, flags or lanterns hanging from it."""
+    a, b = np.array(span.a, dtype=float), np.array(span.b, dtype=float)
+    d = b - a
+    length = float(np.linalg.norm(d))
+    if length < 0.5:
+        return
+    sag = 0.12 + 0.025 * length
+
+    def at(dist: float) -> np.ndarray:
+        t = dist / length
+        p = a + d * t
+        p[2] -= sag * 4 * t * (1 - t)
+        return p
+
+    pts = [at(t * length) for t in np.linspace(0.0, 1.0, 9)]
+    mat, w = ("iron", 0.012) if span.kind == "cable" else ("rope", 0.016)
+    side = np.cross(d, [0.0, 0.0, 1.0])
+    side = side / max(np.linalg.norm(side), 1e-9) * w
+    up = np.array([0.0, 0.0, w])
+    for p0, p1 in zip(pts[:-1], pts[1:]):
+        _quad(mb, p0 - side, p1 - side, p1 + side, p0 + side, mat)
+        _quad(mb, p0 - up, p1 - up, p1 + up, p0 + up, mat)
+    rng = np.random.default_rng(span.seed)
+    drop = np.array([0.0, 0.0, 1.0])
+    s = 0.4
+    if span.kind == "laundry":
+        while s < length - 0.5:
+            cw, ch = rng.uniform(0.35, 0.75), rng.uniform(0.45, 0.95)
+            if s + cw > length - 0.3:
+                break
+            p0, p1 = at(s), at(s + cw)
+            p2, p3 = p1 - drop * ch, p0 - drop * ch
+            add_sheet(mb, [[p0, p1, p2], [p0, p2, p3]], CLOTHS[int(rng.integers(len(CLOTHS)))])
+            s += cw + rng.uniform(0.15, 0.6)
+    elif span.kind == "bunting":
+        k = 0
+        while s < length - 0.4:
+            p0, p1 = at(s), at(s + 0.3)
+            add_sheet(mb, [[p0, p1, (p0 + p1) / 2 - drop * 0.34]], FLAGS[k % len(FLAGS)], 0.005)
+            s += 0.42
+            k += 1
+    elif span.kind == "lanterns":
+        s = 0.8
+        yaw = math.atan2(d[1], d[0])
+        while s < length - 0.5:
+            p = at(s)
+            placements.append(Placement(span.piece or "string_lantern", p[0], p[1], p[2], yaw, on_ground=False))
+            s += span.step
+
+
+def sabat_mesh(mb: MeshBuilder, span) -> None:
+    """A sabat: a room built across an alley from wall to wall, the alley running under it."""
+    a, b = np.array(span.a[:2], dtype=float), np.array(span.b[:2], dtype=float)
+    across = b - a
+    gap = float(np.hypot(*across))
+    if gap < 0.5:
+        return
+    w = across / gap
+    a, b = a - w * 0.3, b + w * 0.3   # sink the ends into both walls
+    along = np.array([-w[1], w[0]]) * 1.7
+    floor, top = span.a[2], span.top
+    outline = Polygon([a - along, b - along, b + along, a + along])
+    extrude(mb, outline, floor, top, "lime_white", "roof_white")
+    add_cap(mb, outline, floor, "lime_white", up=False)
+    for sgn in (-1.0, 1.0):   # a beam under each edge and a small window on each face
+        edge = along * sgn
+        beam = Polygon([a + edge * 0.92, b + edge * 0.92, b + edge * 1.04, a + edge * 1.04])
+        extrude(mb, beam, floor - 0.18, floor, "wood", "wood")
+        mid = (a + b) / 2 + edge * 1.005
+        z0, z1 = floor + 0.9, min(floor + 1.9, top - 0.3)
+        if z1 - z0 > 0.4:
+            half = w * min(0.45, gap * 0.2)
+            _quad(mb, (*(mid - half), z0), (*(mid + half), z0), (*(mid + half), z1), (*(mid - half), z1), "glass_dark")
+
+
+def build_tile(tc: TileContext, i: int, j: int) -> tuple:
+    """Meshes of one tile, plus the dressing placements to draw as instances."""
     x0, y0, x1, y1 = tile_bounds(tc, i, j)
     tile = box(x0, y0, x1, y1)
     mb = MeshBuilder(origin=(x0, y0))
     if terrain_mesh(mb, tc, x0, y0) < 0.0:
         water_mesh(mb, x0, y0, x1, y1)
     road_meshes(mb, tc, tile)
-    for plan, centers, trees, street_tree in tc.cities:
+    placements: list = []
+    spans: list = []
+    for plan, centers, trees, street_tree, dresser in tc.cities:
         if not plan.boundary.intersects(tile):
             continue
         street_meshes(mb, tc, plan, street_tree, tile)
         inside = (centers[:, 0] >= x0) & (centers[:, 0] < x1) & (centers[:, 1] >= y0) & (centers[:, 1] < y1)
-        for k in np.nonzero(inside)[0]:
+        owned = np.nonzero(inside)[0]
+        for k in owned:
             building_mesh(mb, plan.buildings[int(k)], tc.height)
+        if dresser is not None:
+            highs = building_highs(tc.terrain, [plan.buildings[int(k)] for k in owned])
+            for k, high in zip(owned, highs):
+                placements += dresser.building(int(k), float(high))
+            if street_tree is not None:
+                for k in street_tree.query(tile, predicate="intersects"):
+                    spans += dresser.spans(int(k), tile)
+                    placements += dresser.street_props(int(k), tile)
         if len(trees):
             inside = (trees[:, 0] >= x0) & (trees[:, 0] < x1) & (trees[:, 1] >= y0) & (trees[:, 1] < y1)
             ks = np.nonzero(inside)[0]
             if len(ks):
                 zs = tc.height(trees[ks, 0], trees[ks, 1])
                 for k, z in zip(ks, zs):
-                    tree_mesh(mb, plan.trees[int(k)], float(z))
-    return mb
+                    kit_tree = dresser.tree(int(k), plan.trees[int(k)], float(z)) if dresser is not None else None
+                    if kit_tree is not None:
+                        placements.append(kit_tree)
+                    else:
+                        tree_mesh(mb, plan.trees[int(k)], float(z))
+    ground_heights(tc.terrain, placements)
+    for span in spans:
+        if span.kind == "sabat":
+            sabat_mesh(mb, span)
+        else:
+            span_mesh(mb, span, placements)
+    return mb, placements
+
+
+def instance_groups(tc: TileContext, placements: list, x0: float, y0: float) -> list:
+    """Placements grouped by piece, as glTF instance transforms local to the tile."""
+    groups: dict = {}
+    for p in placements:
+        if tc.kit is not None and p.piece in tc.kit.pieces:
+            groups.setdefault(p.piece, []).append(p)
+    out = []
+    for name, ps in sorted(groups.items()):
+        t = np.array([(p.x - x0, p.z, -(p.y - y0)) for p in ps])
+        half = np.array([p.yaw for p in ps]) / 2.0
+        zero = np.zeros(len(ps))
+        r = np.stack([zero, np.sin(half), zero, np.cos(half)], axis=1)
+        sc = np.repeat(np.array([p.scale for p in ps])[:, None], 3, axis=1)
+        out.append({"name": name, "parts": tc.kit.pieces[name].parts, "t": t, "r": r, "s": sc})
+    return out
 
 
 def export_tile(tc: TileContext, i: int, j: int, folder: Path) -> dict:
-    mb = build_tile(tc, i, j)
+    mb, placements = build_tile(tc, i, j)
     x0, y0, _, _ = tile_bounds(tc, i, j)
+    instances = instance_groups(tc, placements, x0, y0)
     path = Path(folder) / f"tile_{i}_{j}.glb"
-    size = write_glb(path, mb.gltf_parts(), tc.palette, translation=(x0, 0.0, -y0),
-                     name=f"tile_{i}_{j}", extras={"i": i, "j": j, "x0": x0, "y0": y0})
-    return {"i": i, "j": j, "file": path.name, "x0": x0, "y0": y0,
-            "triangles": mb.triangles, "bytes": size}
+    size = write_glb(path, mb.gltf_parts(), tc.materials, translation=(x0, 0.0, -y0),
+                     name=f"tile_{i}_{j}", extras={"i": i, "j": j, "x0": x0, "y0": y0}, instances=instances)
+    unique = mb.triangles + sum(tc.kit.pieces[g["name"]].triangles for g in instances)
+    drawn = mb.triangles + sum(len(g["t"]) * tc.kit.pieces[g["name"]].triangles for g in instances)
+    return {"i": i, "j": j, "file": path.name, "x0": x0, "y0": y0, "triangles": unique,
+            "drawn": drawn, "pieces": sum(len(g["t"]) for g in instances), "bytes": size}

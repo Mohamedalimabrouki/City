@@ -52,6 +52,9 @@ def plan_json(plan) -> dict:
         "trees": [[round(t.x, 2), round(t.y, 2), t.kind, round(t.height, 1)] for t in plan.trees],
         "landmarks": [{"kind": m.kind, "name": m.name, "x": round(m.x, 1), "y": round(m.y, 1)}
                       for m in plan.landmarks],
+        "households": [{"building": h.building, "family": h.family, "trade": h.trade, "wealth": h.wealth,
+                        "door": h.door, "members": h.members} for h in plan.households],
+        "souks": [{"street": k.street, "name": k.name, "trade": k.trade} for k in plan.souks],
     }
 
 
@@ -88,8 +91,17 @@ def gazetteer(world, plans) -> str:
             lines.append(f"- **mosques**: {', '.join(marks)}")
         if gates:
             lines.append(f"- **gates of the old town**: {', '.join(gates)}")
+        if plan.souks:
+            seen = {}
+            for k in plan.souks:
+                seen.setdefault(k.name, k.trade)
+            lines.append("- **souks**: " + ", ".join(f"{n} ({t})" for n, t in seen.items()))
+        if plan.households:
+            notable = sorted(plan.households, key=lambda h: -h.wealth)[:5]
+            lines.append("- **notable families**: " + ", ".join(f"the {h.family} family ({h.trade}s)" for h in notable))
         st = plan.stats
-        lines += [f"- **size**: {st['buildings']:,} buildings, {st['streets']:,} streets, {st['trees']:,} trees", ""]
+        lines += [f"- **size**: {st['buildings']:,} buildings, {len(plan.households):,} households, "
+                  f"{st['streets']:,} streets, {st['trees']:,} trees", ""]
     return "\n".join(lines) + "\n"
 
 

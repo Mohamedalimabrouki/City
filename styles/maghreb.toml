@@ -92,6 +92,60 @@ leaf_olive = { color = "#7F8D5E" }
 leaf_palm = { color = "#6E8C3D", double_sided = true }
 leaf_cypress = { color = "#3F5A35" }
 trunk = { color = "#6B5541" }
+# street dressing (doors, shops, goods, street life)
+stone_frame = { color = "#D8C7A5" }
+tile_panel = { color = "#2F7FA8", roughness = 0.35 }
+door_blue = { color = "#1F5FA8", roughness = 0.55 }
+door_green = { color = "#2E6B4F", roughness = 0.55 }
+door_yellow = { color = "#D9A632", roughness = 0.55 }
+door_brown = { color = "#7A5232", roughness = 0.6 }
+door_red = { color = "#A8322D", roughness = 0.55 }
+stud_black = { color = "#1C1C1C", roughness = 0.4, metallic = 0.6 }
+glass_dark = { color = "#1E2A33", roughness = 0.15 }
+iron = { color = "#2B2F33", roughness = 0.5, metallic = 0.5 }
+lantern_glow = { color = "#FFD98A", emissive = "#FFB347" }
+terracotta = { color = "#B8643C" }
+soil = { color = "#5A4433" }
+plant_green = { color = "#4E7A35" }
+bougainvillea = { color = "#D62E8A" }
+tank_white = { color = "#E6E6E0", roughness = 0.5 }
+tank_black = { color = "#2A2A2A", roughness = 0.45 }
+dish_white = { color = "#DCDCD6", roughness = 0.5, double_sided = true }
+cat_ginger = { color = "#D08A3C" }
+cat_white = { color = "#EEEDE8" }
+cat_black = { color = "#2B2725" }
+cat_grey = { color = "#8C8A86" }
+awning_red = { color = "#B8322B", double_sided = true }
+awning_green = { color = "#2F7A4D", double_sided = true }
+awning_blue = { color = "#2A5FA0", double_sided = true }
+awning_yellow = { color = "#D9A33A", double_sided = true }
+awning_cream = { color = "#EFE6D2", double_sided = true }
+shop_dark = { color = "#2B231C" }
+wood = { color = "#8A5A33" }
+tray_metal = { color = "#B9A574", roughness = 0.4, metallic = 0.6 }
+spice_red = { color = "#B52A1E" }
+spice_orange = { color = "#D9781E" }
+spice_yellow = { color = "#E1B22B" }
+spice_brown = { color = "#7A4A25" }
+spice_green = { color = "#6E8B3D" }
+spice_ochre = { color = "#C18A3A" }
+chechia_red = { color = "#A8191F" }
+copper = { color = "#B8733A", roughness = 0.35, metallic = 0.8 }
+rug_red = { color = "#9E2B25" }
+rug_blue = { color = "#24477A" }
+rug_cream = { color = "#E8DCC0" }
+rug_black = { color = "#262321" }
+rug_green = { color = "#2F5E45" }
+rug_orange = { color = "#C86B2B" }
+orange_fruit = { color = "#E8871E" }
+plastic_white = { color = "#F2F2EE", roughness = 0.6 }
+rope = { color = "#3A3530", double_sided = true }
+cloth_1 = { color = "#E9E4D8", double_sided = true }
+cloth_2 = { color = "#3C6FB0", double_sided = true }
+cloth_3 = { color = "#C0392B", double_sided = true }
+cloth_4 = { color = "#E3B23C", double_sided = true }
+cloth_5 = { color = "#5A8F4E", double_sided = true }
+cloth_6 = { color = "#8E5AA8", double_sided = true }
 
 # --- districts -------------------------------------------------------------------
 # floors/walls/roofs are weighted choices: [value, how often].
@@ -284,3 +338,160 @@ minaret = [4.0, 16.0]
 rings = [
   { until = 9.0, mix = { residential = 1.0 } },
 ]
+
+# --- life: households and souks ---------------------------------------------------------------
+[life]
+door_colors = [["door_blue", 0.46], ["door_green", 0.16], ["door_yellow", 0.13], ["door_brown", 0.16], ["door_red", 0.09]]
+family_patterns = [["Ben {n}", 0.45], ["{i}", 0.35], ["Bou{l}", 0.2]]   # Ben Ammar, Zoghlami, Boukhris
+members = [2, 9]
+# wealth: shape of a beta distribution (a, b); a bigger "a" means richer
+wealth.medina = [2.2, 3.0]
+wealth.village = [1.6, 3.4]
+wealth.residential = [2.4, 2.8]
+wealth.colonial = [3.2, 2.2]
+wealth.modern = [2.2, 2.6]
+wealth.suburb = [4.0, 1.8]
+trades.medina = [["weaver", 2], ["potter", 1], ["coppersmith", 1], ["tailor", 2], ["perfumer", 1], ["baker", 1], ["shoemaker", 1], ["chechia maker", 1], ["carpenter", 1], ["teacher", 1], ["imam", 0.3], ["merchant", 3], ["jeweler", 0.7], ["barber", 1], ["bookseller", 0.5], ["calligrapher", 0.3]]
+trades.village = [["farmer", 4], ["shepherd", 2], ["olive presser", 1], ["potter", 1], ["weaver", 1], ["baker", 0.5], ["fisherman", 1]]
+trades.residential = [["teacher", 2], ["mechanic", 2], ["nurse", 1.5], ["taxi driver", 1.5], ["shopkeeper", 2], ["civil servant", 2], ["engineer", 1], ["baker", 1], ["fisherman", 1], ["builder", 2]]
+trades.colonial = [["doctor", 1], ["lawyer", 1], ["teacher", 1.5], ["cafe owner", 1.5], ["tailor", 1], ["banker", 0.7], ["pharmacist", 1], ["painter", 0.5], ["journalist", 0.5]]
+trades.modern = [["teacher", 2], ["nurse", 2], ["civil servant", 3], ["engineer", 1.5], ["student", 2], ["mechanic", 1], ["shopkeeper", 1.5]]
+trades.suburb = [["doctor", 1], ["engineer", 1.5], ["business owner", 1.5], ["architect", 0.7], ["professor", 0.8], ["pilot", 0.3]]
+
+# Souk trades: every market street of an old town gets one, and its shops show these goods.
+# shop: what fills the shelves (spices, perfume, pots, copper, chechia, fruit, cloth).
+# ground, wall: piece names or roles from [dressing.roles]; "tounes/..." pieces come from Tounes Rush.
+[[souk]]
+word = "Attarine"
+shop = "spices"
+trade = "perfumers and spice sellers"
+ground = ["spice_stall", "tounes/spice_baskets", "tounes/sacks_pile"]
+wall = ["copper_display"]
+[[souk]]
+word = "Chaouachia"
+shop = "chechia"
+trade = "chechia makers"
+ground = []
+wall = ["chechia_shelf"]
+[[souk]]
+word = "Nhas"
+shop = "copper"
+trade = "coppersmiths"
+ground = []
+wall = ["copper_display"]
+[[souk]]
+word = "Zrabi"
+shop = "cloth"
+trade = "carpet sellers"
+ground = ["tounes/rugs_rolled", "tounes/rug_stand"]
+wall = ["rug_wall"]
+[[souk]]
+word = "Khodhra"
+shop = "fruit"
+trade = "fruit and vegetable sellers"
+ground = ["fruit_crate", "fruit_crate_b", "tounes/crates_oranges", "tounes/crate_wood"]
+wall = []
+[[souk]]
+word = "Fakhkhara"
+shop = "pots"
+trade = "potters"
+ground = ["tounes/amphora_terracotta", "tounes/amphora_ochre", "tounes/amphorae_stack", "tounes/stall_sbs", "pot"]
+wall = []
+[[souk]]
+word = "Kmach"
+shop = "cloth"
+trade = "cloth merchants"
+ground = ["tounes/rugs_rolled"]
+wall = ["rug_wall"]
+
+# --- street dressing (built tile by tile, only for the tiles you export) -------------------
+[dressing]
+window_spacing = 3.2
+window_sill = 0.95         # meters from a floor to the bottom of its windows
+door_lantern = 0.35        # chance of a lamp beside a house door
+lamp_height = 2.95         # hook height of wall lamps
+door_hood = 0.15           # chance of a tiled hood over the door (more for richer households)
+hood_height = 3.15
+door_pots = [0, 3]
+doukkana = 0.25            # stone bench beside traditional doors
+cat = 0.07
+door_plant = 0.22          # chance of a climber by the door, multiplied by (0.5 + wealth)
+door_plants = [["vine", 2], ["cascade", 1.5], ["climber", 0.3]]
+vine_height = 3.4
+cascade_height = 4.2       # where a bougainvillea cascade hangs from (lower on low houses)
+parked = 0.08              # chance of a moped parked by the door
+planter = 0.25             # rich houses outside the old town
+rich_door = 0.72           # households richer than this get a studded door in a carved frame
+bay_wealth = 0.55          # richer traditional households may have birdcage bay windows
+bay_window = 0.35
+balcony_wealth = 0.6       # richer households may have one closed wooden balcony (mashrabiya)
+balcony = 0.4
+balcony_height = 0.45
+wall_laundry = 0.1         # a clothesline under an upper window
+shop_on_souk = 0.85        # share of souk-facing houses with a shop on the ground floor
+shop_lamp = 0.3
+cafe = 0.3                 # share of colonial ground floors that are cafes with tables outside
+roof_tank = 0.32
+roof_dish = 0.22
+roof_laundry = 0.15
+roof_pots = 0.15
+laundry = 0.35             # chance, every 9 m along an alley, of a laundry line overhead
+cables = 0.12
+sabat = 0.05               # chance, every 9 m along an alley, of a sabat (a room bridging the alley)
+sabat_clearance = 3.3      # meters of headroom under a sabat
+sabat_reach = 5.5          # widest gap a sabat bridges
+alley_arch = 0.12          # chance of an arch over each end of an alley
+alley_arch_scale = 1.6     # biggest size for an arch (it is sized to reach both walls)
+souk_gate = 0.5            # chance of a decorated gate at each end of a souk
+souk_gate_scale = 1.25
+souk_cart = 0.25           # chance, every 20 m along a souk, of a handcart
+souk_lanterns = 0.55       # chance, every 12 m along a souk, of a string of lanterns
+bunting = 0.2
+street_lamps = { boulevard = 26.0, corniche = 24.0, arterial = 32.0, ring = 34.0, street = 30.0 }   # meters between lamps
+
+# Which pieces play each part, by weight: [piece, weight] or [piece, weight, extra height].
+# "tounes/..." pieces come from the Tounes Rush kit (kits/tounes); the others are made by the
+# generator (citygen/mesh/props.py). Pieces that are missing are skipped, so the city still
+# dresses itself without the kit. A part with no entry here uses the piece of the same name.
+[dressing.roles]
+door_blue = [["tounes/door_medina_blue", 3], ["tounes/door_sbs_blue", 1], ["door_blue", 1.5]]
+door_blue_rich = [["tounes/door_sbs_blue", 3], ["door_blue_rich", 1]]
+door_green = [["tounes/door_medina_green", 3], ["door_green", 1.5]]
+door_green_rich = [["tounes/door_sbs_green", 3], ["door_green_rich", 1]]
+door_yellow = [["tounes/door_medina_yellow", 3], ["door_yellow", 1.5]]
+door_yellow_rich = [["tounes/door_sbs_yellow", 3], ["door_yellow_rich", 1]]
+door_brown = [["tounes/door_medina_wood", 3], ["door_brown", 1.5]]
+door_brown_rich = [["tounes/door_sbs_wood", 3], ["door_brown_rich", 1]]
+window_grille_blue = [["tounes/window_grille_blue", 2], ["window_grille_blue", 1]]
+window_grille_green = [["tounes/window_grille_green", 2], ["window_grille_green", 1]]
+window_grille_brown = [["tounes/window_grille_wood", 2], ["window_grille_brown", 1]]
+window_shutter_blue = [["tounes/window_shutter_blue", 2], ["window_shutter_blue", 1]]
+window_shutter_green = [["tounes/window_shutter_green", 2], ["window_shutter_green", 1]]
+window_bay_blue = [["tounes/window_birdcage_blue", 1]]
+window_bay_green = [["tounes/window_birdcage_green", 1]]
+balcony_blue = [["tounes/balcony_lattice_blue", 1]]
+balcony_green = [["tounes/balcony_lattice_green", 1]]
+balcony = [["tounes/balcony_lattice_blue", 1], ["tounes/balcony_lattice_green", 1]]
+lamp = [["tounes/lantern_brass_sbs", 2], ["tounes/lamp_wall_bracket", 2], ["tounes/lantern_hanging_medina", 1], ["lantern", 1]]
+hanging_lantern = [["tounes/lantern_hanging_medina", 2], ["tounes/lamp_glass_hanging", 2], ["string_lantern", 1]]
+door_hood = [["tounes/hood_canopy", 1]]
+vine = [["tounes/climber_bougainvillea", 1]]
+cascade = [["tounes/bougainvillea_cascade", 1]]
+climber = [["bougainvillea", 1], ["bougainvillea_b", 1]]
+pot = [["tounes/pot_geranium", 2], ["tounes/pot_flowers_bougainvillea", 1.5], ["tounes/pot_cactus", 1], ["pot_plant", 1], ["pot_plant_b", 1]]
+roof_pot = [["tounes/pot_geranium", 1], ["tounes/pot_cactus", 1], ["pot_plant", 1]]
+bench = [["doukkana", 3], ["tounes/bench_sbs", 1]]
+planter = [["tounes/planter_sbs", 1]]
+cat = [["cat_ginger", 1], ["cat_white", 1], ["cat_black", 1], ["cat_grey", 1]]
+parked = [["tounes/moped_delivery", 1]]
+souk_cart = [["tounes/cart_handcart", 1]]
+awning = [["awning_red", 1], ["awning_green", 1], ["awning_blue", 1], ["awning_yellow", 1], ["tounes/awning_canvas", 2, 2.75]]
+souk_awning = [["tounes/awning_reed", 3, 2.75], ["tounes/awning_canvas", 1, 2.75], ["awning_red", 0.5], ["awning_green", 0.5], ["awning_blue", 0.5], ["awning_yellow", 0.5]]
+rug_wall = [["rug_hang_0", 1], ["rug_hang_1", 1], ["rug_hang_2", 1], ["tounes/rug_hanging", 1.5, 2.45]]
+roof_tank = [["tank_white", 1], ["tank_black", 1]]
+roof_dish = [["dish", 1]]
+roof_laundry = [["tounes/laundry_poles", 1]]
+wall_laundry = [["tounes/laundry_line", 1]]
+tree_palm = [["tounes/palm_date", 1]]
+alley_arch = [["tounes/arch_sbs", 1]]
+souk_gate = [["tounes/souk_gate_lanterns", 1], ["tounes/souk_gate_rugs", 1]]

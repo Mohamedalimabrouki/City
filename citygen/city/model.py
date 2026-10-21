@@ -71,3 +71,5 @@ class CityPlan:
     trees: list
     landmarks: list
     stats: dict = field(default_factory=dict)
+    households: list = field(default_factory=list)  # city/life.py: who lives behind each door
+    souks: list = field(default_factory=list)       # city/life.py: the trade of each market street

@@ -7,7 +7,7 @@ How to run one: open Claude Code in this folder and say
 Every task also requires: `python -m pytest -q` passes, `python -m citygen build --quick`
 finishes, tunable numbers go in the style pack, and the task is ticked here when done.
 
-Suggested order: A0, C1, H1, H2, H3, H4, A4, A3, A1, B1, B2, C3, D1, D5, then anything you like.
+Suggested order: C1, H1, H2, H3, H4, A4, A3, A1, A9, B1, B2, C3, D1, D5, then anything you like.
 
 ## Done (v0.1)
 
@@ -19,20 +19,21 @@ Suggested order: A0, C1, H1, H2, H3, H4, A4, A3, A1, B1, B2, C3, D1, D5, then an
 
 ## A. Street level (the capital looks real up close)
 
-- [ ] **A0 Reuse the Tounes Rush kit** (M, Sonnet high; do this before A2 and A8) - The owner's
-  game "Tounes Rush" (claude.ai artifact "Tounes Rush AAA V5.2") already builds a detailed
-  Tunisian kit in code with three.js: studded arched doors, blue window grilles, balconies,
-  bougainvillea, lanterns, pots, palms, paving. Run its builders once in a headless browser and
-  save the pieces with three.js `GLTFExporter` to `kits/tounes.glb`, then place them on generated
-  buildings (doors on street-facing walls, grilles and balconies on upper floors, flowers and
-  lanterns here and there). One art direction for both projects. Done when: the souk snapshot
-  shows real doors, grilles and flowers.
+- [x] **A0 Reuse the Tounes Rush kit** - Done. 51 pieces from "Tounes Rush AAA V5.2" in
+  `kits/tounes/` (manifest + one .glb each, vertex colors, made by running the game's own builders
+  in a headless browser), mixed with the generator's own pieces (`mesh/props.py`: shops stocked by
+  trade, awnings, goods, lamps, cats, tanks, trees) through `[dressing.roles]`. Tiles draw them as
+  instances. Beyond the brief: a household (family, trade, wealth, door color) behind every house
+  door and a trade for every souk (`city/life.py`, in plan.json and the gazetteer), rich and poor
+  doors, birdcage bays and mashrabiya balconies, sabats and arches over alleys, souk gates, carts,
+  laundry and lantern strings, street lamps, palms from the kit; the viewer got a night mode and
+  "click a house: who lives there". `python -m citygen kit-sheet` shows every piece.
 
-- [ ] **A1 Roof life** (S) - Low parapet walls (0.6-1.0 m) on flat roofs; rooftop water tanks
-  (white cylinder on a small stand), satellite dishes and stair boxes on a share of roofs.
-  Files: `mesh/builder.py`, `mesh/tile.py`, `city/model.py`, `styles/maghreb.toml` (chances).
-  Done when: the street snapshot shows parapets and roof clutter, tile triangles grow under 35%.
-  Reference: `tools/blender_beauty.py` (`dress_tile`, `add_parapet`, `add_tank`) already does this in Blender.
+- [ ] **A1 Roof life** (S) - Tanks, dishes, laundry racks and pots already come with the
+  dressing (A0). Left: low parapet walls (0.6-1.0 m) on flat roofs and stair boxes (a small
+  room with a door) on a share of roofs. Files: `mesh/tile.py` (`building_mesh`),
+  `styles/maghreb.toml`. Done when: the street snapshot shows parapets, tile triangles grow under
+  25%. Reference: `tools/blender_beauty.py` (`add_parapet`) does parapets in Blender.
 - [ ] **A2 Facade textures** (M, Sonnet high) - Add optional base-color textures to the glb
   writer (embedded PNG, `KHR_texture_transform` not needed since UVs are meters). Generate small
   tileable facade images per wall material (windows per floor, a door band on the ground floor,
@@ -61,10 +62,15 @@ Suggested order: A0, C1, H1, H2, H3, H4, A4, A3, A1, B1, B2, C3, D1, D5, then an
 - [ ] **A7 More greenery** (S) - Trees along arterials in colonial and modern districts, green
   garden ground in villa lots, olive or citrus trees in some courtyards. Done when: map and
   snapshot show it, tree count rises without slowing the build by more than 15%.
-- [ ] **A8 Asset kit hook** (M, Opus low for the design) - Let a Blender-made kit replace
-  procedural pieces: a `kits/<style>.glb` with named nodes (door_blue, window_arch, balcony...)
-  and placement points written to the plan; tiles reference the kit with
-  `EXT_mesh_gpu_instancing`. Start with doors on medina houses.
+- [ ] **A8 Blender kit export** (S) - Kits and instancing exist (A0). Add
+  `tools/blender_kit_export.py`: every object of a Blender collection becomes `kits/<name>/<object>.glb`
+  (front -Y in Blender = glTF -Z, origin at the anchor) plus `manifest.json` (category and anchor
+  from custom properties). Done when: a kit made in Blender shows in `python -m citygen kit-sheet`
+  and a role in the style uses one of its pieces.
+- [ ] **A9 Lit windows by household** (S) - At night only the generator's windows glow, all of
+  them. Give windows a lit and a dark variant (a `glass_lit` material with a warm emissive) and
+  let the household decide (bigger families and some trades stay up late); Tounes windows get a
+  lit copy through `materials_map`. Done when: a night snapshot shows a believable mix.
 
 ## B. Countryside
 
@@ -142,9 +148,10 @@ studio fills a few rooms by hand; rules fill every one of the 40,000 houses on d
 - [ ] **H2 Furnishing** (L) - Furniture and objects per room type from the kit (A0): banquettes,
   carpets (klim, mergoum), chests, low tables, lanterns, pottery, beds; fridge and TV in modern
   flats. A `density` setting: sparse, lived-in, extremely full.
-- [ ] **H3 Street life** (M) - Props along streets by district: market stalls with goods, awnings,
-  crates, carts, plants, lamps, cables, laundry lines, cats, parked mopeds and cars.
-  Tile-local and deterministic.
+- [ ] **H3 Street life, part 2** (S) - Most street life came with A0 (stalls, goods, awnings,
+  carts, plants, lamps, cables, laundry, cats, mopeds). Left: parked cars along colonial and
+  modern streets, benches and kiosks on squares and the corniche, cafe terraces by the sea.
+  Tile-local and deterministic, through `[dressing.roles]`.
 - [ ] **H4 Hero scenes** (M) - `python -m citygen scene` exports one house or one street block at
   maximum detail (H1 + H2 + H3 + A0) as a single .glb or .blend for a story scene, a trailer or a
   game level, while the rest of the world stays light.

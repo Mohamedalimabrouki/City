@@ -7,7 +7,7 @@ import numpy as np
 
 # hard to read or foreign-looking: a doubled letter (oo, kk), spellings North African names do not
 # use (sh, ts, q), or three consonant sounds in a row once ch, dj, gh, kh and ou count as one
-_FOREIGN = re.compile(r"([a-z])\1|sh|ts|q")
+_FOREIGN = re.compile(r"([a-z])\1|sh|ts|sch|q")
 _CLUSTER = re.compile(r"[^aeiouyU ]{3,}")
 _DIGRAPHS = (("ch", "C"), ("dj", "J"), ("gh", "G"), ("kh", "K"), ("ou", "U"))
 # Arabic "sun letters" as spelled in North African French: el + Souk -> es Souk, el + Chott -> ech Chott

@@ -1,0 +1,1759 @@
+{
+ "format": "citygen-kit/1",
+ "source": "Tounes Rush AAA V5.2",
+ "units": "meters",
+ "axes": "glTF: +Y up, front faces -Z, x along the wall, origin at the anchor",
+ "materials": {
+  "tr_glow": {
+   "color": "#FFFFFF",
+   "roughness": 0.5,
+   "metallic": 0.0,
+   "emissive": "#FFB84D",
+   "note": "lamp glass: the game draws it unlit; here vertex color plus a warm emissive"
+  },
+  "tr_metal": {
+   "color": "#FFFFFF",
+   "roughness": 0.35,
+   "metallic": 0.85,
+   "note": "brass / iron, vertex-colored"
+  },
+  "tr_shiny": {
+   "color": "#FFFFFF",
+   "roughness": 0.38,
+   "metallic": 0.05,
+   "note": "glazed / painted / polished, vertex-colored"
+  },
+  "tr_std": {
+   "color": "#FFFFFF",
+   "roughness": 0.9,
+   "metallic": 0.0,
+   "note": "matte, vertex-colored (COLOR_0 is linear, base color white)"
+  },
+  "tr_canvas": {
+   "color": "#FFFFFF",
+   "roughness": 0.85,
+   "metallic": 0.0,
+   "emissive": "#2E2214",
+   "note": "awning canvas: vertex-colored, a faint warm glow so its shaded underside reads as sunlit cloth"
+  }
+ },
+ "pieces": {
+  "door_sbs_blue": {
+   "file": "door_sbs_blue.glb",
+   "category": "door",
+   "anchor": "wall",
+   "size": [
+    1.97,
+    2.746,
+    0.472
+   ],
+   "triangles": 434,
+   "tags": [
+    "studded",
+    "arch",
+    "sidi-bou-said",
+    "blue",
+    "whitewashed-frame"
+   ],
+   "source": "Sidi Bou Said door builder (studded arch door)",
+   "bounds": {
+    "min": [
+     -0.985,
+     0.0,
+     -0.422
+    ],
+    "max": [
+     0.985,
+     2.746,
+     0.05
+    ]
+   },
+   "materials": [
+    "tr_shiny",
+    "tr_std"
+   ]
+  },
+  "door_sbs_green": {
+   "file": "door_sbs_green.glb",
+   "category": "door",
+   "anchor": "wall",
+   "size": [
+    1.97,
+    2.678,
+    0.472
+   ],
+   "triangles": 542,
+   "tags": [
+    "studded",
+    "arch",
+    "sidi-bou-said",
+    "green",
+    "double-leaf"
+   ],
+   "source": "Sidi Bou Said door builder (studded arch door)",
+   "bounds": {
+    "min": [
+     -0.985,
+     0.0,
+     -0.422
+    ],
+    "max": [
+     0.985,
+     2.678,
+     0.05
+    ]
+   },
+   "materials": [
+    "tr_shiny",
+    "tr_std"
+   ]
+  },
+  "door_sbs_yellow": {
+   "file": "door_sbs_yellow.glb",
+   "category": "door",
+   "anchor": "wall",
+   "size": [
+    1.82,
+    2.598,
+    0.472
+   ],
+   "triangles": 466,
+   "tags": [
+    "studded",
+    "arch",
+    "sidi-bou-said",
+    "yellow",
+    "spiral-studs"
+   ],
+   "source": "Sidi Bou Said door builder (studded arch door)",
+   "bounds": {
+    "min": [
+     -0.91,
+     0.0,
+     -0.422
+    ],
+    "max": [
+     0.91,
+     2.598,
+     0.05
+    ]
+   },
+   "materials": [
+    "tr_shiny",
+    "tr_std"
+   ]
+  },
+  "door_sbs_wood": {
+   "file": "door_sbs_wood.glb",
+   "category": "door",
+   "anchor": "wall",
+   "size": [
+    1.97,
+    2.746,
+    0.472
+   ],
+   "triangles": 442,
+   "tags": [
+    "studded",
+    "arch",
+    "sidi-bou-said",
+    "wood",
+    "natural",
+    "diamond-studs"
+   ],
+   "source": "Sidi Bou Said door builder (studded arch door)",
+   "bounds": {
+    "min": [
+     -0.985,
+     0.0,
+     -0.422
+    ],
+    "max": [
+     0.985,
+     2.746,
+     0.05
+    ]
+   },
+   "materials": [
+    "tr_shiny",
+    "tr_std"
+   ]
+  },
+  "door_medina_yellow": {
+   "file": "door_medina_yellow.glb",
+   "category": "door",
+   "anchor": "wall",
+   "size": [
+    1.98,
+    2.85,
+    0.34
+   ],
+   "triangles": 343,
+   "tags": [
+    "studded",
+    "arch",
+    "medina",
+    "yellow",
+    "wicket"
+   ],
+   "source": "Medina door builder (studded door with arch frame)",
+   "bounds": {
+    "min": [
+     -0.99,
+     0.0,
+     -0.33
+    ],
+    "max": [
+     0.99,
+     2.85,
+     0.01
+    ]
+   },
+   "materials": [
+    "tr_shiny",
+    "tr_std"
+   ]
+  },
+  "door_medina_green": {
+   "file": "door_medina_green.glb",
+   "category": "door",
+   "anchor": "wall",
+   "size": [
+    1.98,
+    2.741,
+    0.34
+   ],
+   "triangles": 345,
+   "tags": [
+    "studded",
+    "arch",
+    "medina",
+    "green",
+    "double-leaf"
+   ],
+   "source": "Medina door builder (studded door with arch frame)",
+   "bounds": {
+    "min": [
+     -0.99,
+     0.0,
+     -0.33
+    ],
+    "max": [
+     0.99,
+     2.741,
+     0.01
+    ]
+   },
+   "materials": [
+    "tr_shiny",
+    "tr_std"
+   ]
+  },
+  "door_medina_blue": {
+   "file": "door_medina_blue.glb",
+   "category": "door",
+   "anchor": "wall",
+   "size": [
+    1.98,
+    2.85,
+    0.34
+   ],
+   "triangles": 343,
+   "tags": [
+    "studded",
+    "arch",
+    "medina",
+    "blue",
+    "wicket"
+   ],
+   "source": "Medina door builder (studded door with arch frame)",
+   "bounds": {
+    "min": [
+     -0.99,
+     0.0,
+     -0.33
+    ],
+    "max": [
+     0.99,
+     2.85,
+     0.01
+    ]
+   },
+   "materials": [
+    "tr_shiny",
+    "tr_std"
+   ]
+  },
+  "door_medina_wood": {
+   "file": "door_medina_wood.glb",
+   "category": "door",
+   "anchor": "wall",
+   "size": [
+    1.98,
+    2.736,
+    0.34
+   ],
+   "triangles": 329,
+   "tags": [
+    "studded",
+    "arch",
+    "medina",
+    "wood",
+    "natural",
+    "stone-frame"
+   ],
+   "source": "Medina door builder (studded door with arch frame)",
+   "bounds": {
+    "min": [
+     -0.99,
+     0.0,
+     -0.33
+    ],
+    "max": [
+     0.99,
+     2.736,
+     0.01
+    ]
+   },
+   "materials": [
+    "tr_shiny",
+    "tr_std"
+   ]
+  },
+  "window_grille_green": {
+   "file": "window_grille_green.glb",
+   "category": "window",
+   "anchor": "wall",
+   "size": [
+    1.04,
+    1.205,
+    0.117
+   ],
+   "triangles": 80,
+   "tags": [
+    "grille",
+    "medina",
+    "green",
+    "iron-grille"
+   ],
+   "source": "Medina window builder",
+   "bounds": {
+    "min": [
+     -0.52,
+     -0.11,
+     -0.117
+    ],
+    "max": [
+     0.52,
+     1.095,
+     0.0
+    ]
+   },
+   "materials": [
+    "tr_std"
+   ]
+  },
+  "window_grille_blue": {
+   "file": "window_grille_blue.glb",
+   "category": "window",
+   "anchor": "wall",
+   "size": [
+    1.04,
+    1.205,
+    0.117
+   ],
+   "triangles": 80,
+   "tags": [
+    "grille",
+    "medina",
+    "blue",
+    "iron-grille"
+   ],
+   "source": "Medina window builder",
+   "bounds": {
+    "min": [
+     -0.52,
+     -0.11,
+     -0.117
+    ],
+    "max": [
+     0.52,
+     1.095,
+     0.0
+    ]
+   },
+   "materials": [
+    "tr_std"
+   ]
+  },
+  "window_grille_wood": {
+   "file": "window_grille_wood.glb",
+   "category": "window",
+   "anchor": "wall",
+   "size": [
+    1.04,
+    1.205,
+    0.117
+   ],
+   "triangles": 80,
+   "tags": [
+    "grille",
+    "medina",
+    "wood",
+    "iron-grille"
+   ],
+   "source": "Medina window builder",
+   "bounds": {
+    "min": [
+     -0.52,
+     -0.11,
+     -0.117
+    ],
+    "max": [
+     0.52,
+     1.095,
+     0.0
+    ]
+   },
+   "materials": [
+    "tr_std"
+   ]
+  },
+  "window_shutter_green": {
+   "file": "window_shutter_green.glb",
+   "category": "window",
+   "anchor": "wall",
+   "size": [
+    1.64,
+    1.205,
+    0.1
+   ],
+   "triangles": 50,
+   "tags": [
+    "shutter",
+    "medina",
+    "green",
+    "shutters"
+   ],
+   "source": "Medina window builder",
+   "bounds": {
+    "min": [
+     -0.82,
+     -0.11,
+     -0.1
+    ],
+    "max": [
+     0.82,
+     1.095,
+     0.0
+    ]
+   },
+   "materials": [
+    "tr_std"
+   ]
+  },
+  "window_shutter_blue": {
+   "file": "window_shutter_blue.glb",
+   "category": "window",
+   "anchor": "wall",
+   "size": [
+    1.64,
+    1.205,
+    0.1
+   ],
+   "triangles": 50,
+   "tags": [
+    "shutter",
+    "medina",
+    "blue",
+    "shutters"
+   ],
+   "source": "Medina window builder",
+   "bounds": {
+    "min": [
+     -0.82,
+     -0.11,
+     -0.1
+    ],
+    "max": [
+     0.82,
+     1.095,
+     0.0
+    ]
+   },
+   "materials": [
+    "tr_std"
+   ]
+  },
+  "window_birdcage_blue": {
+   "file": "window_birdcage_blue.glb",
+   "category": "window",
+   "anchor": "wall",
+   "size": [
+    0.94,
+    1.252,
+    0.462
+   ],
+   "triangles": 292,
+   "tags": [
+    "birdcage",
+    "grille",
+    "bay",
+    "blue",
+    "sidi-bou-said"
+   ],
+   "source": "addGrilleWindow (props kit)",
+   "bounds": {
+    "min": [
+     -0.47,
+     -0.04,
+     -0.341
+    ],
+    "max": [
+     0.47,
+     1.212,
+     0.121
+    ]
+   },
+   "materials": [
+    "tr_std"
+   ]
+  },
+  "window_birdcage_green": {
+   "file": "window_birdcage_green.glb",
+   "category": "window",
+   "anchor": "wall",
+   "size": [
+    0.94,
+    1.252,
+    0.462
+   ],
+   "triangles": 292,
+   "tags": [
+    "birdcage",
+    "grille",
+    "bay",
+    "green",
+    "sidi-bou-said"
+   ],
+   "source": "addGrilleWindow (props kit)",
+   "bounds": {
+    "min": [
+     -0.47,
+     -0.04,
+     -0.341
+    ],
+    "max": [
+     0.47,
+     1.212,
+     0.121
+    ]
+   },
+   "materials": [
+    "tr_std"
+   ]
+  },
+  "balcony_lattice_green": {
+   "file": "balcony_lattice_green.glb",
+   "category": "balcony",
+   "anchor": "wall",
+   "size": [
+    1.84,
+    2.229,
+    0.74
+   ],
+   "triangles": 283,
+   "tags": [
+    "lattice",
+    "mashrabiya",
+    "green",
+    "tiled-roof"
+   ],
+   "source": "Medina balcony builder (lattice oriel)",
+   "bounds": {
+    "min": [
+     -0.92,
+     -0.36,
+     -0.69
+    ],
+    "max": [
+     0.92,
+     1.869,
+     0.05
+    ]
+   },
+   "materials": [
+    "tr_shiny",
+    "tr_std"
+   ]
+  },
+  "balcony_lattice_blue": {
+   "file": "balcony_lattice_blue.glb",
+   "category": "balcony",
+   "anchor": "wall",
+   "size": [
+    2.44,
+    2.231,
+    0.74
+   ],
+   "triangles": 331,
+   "tags": [
+    "lattice",
+    "mashrabiya",
+    "blue",
+    "wide"
+   ],
+   "source": "Medina balcony builder (lattice oriel)",
+   "bounds": {
+    "min": [
+     -1.22,
+     -0.36,
+     -0.69
+    ],
+    "max": [
+     1.22,
+     1.871,
+     0.05
+    ]
+   },
+   "materials": [
+    "tr_shiny",
+    "tr_std"
+   ]
+  },
+  "lamp_wall_bracket": {
+   "file": "lamp_wall_bracket.glb",
+   "category": "lamp",
+   "anchor": "wall",
+   "size": [
+    0.27,
+    0.913,
+    0.617
+   ],
+   "triangles": 96,
+   "tags": [
+    "brass",
+    "bracket",
+    "medina"
+   ],
+   "source": "wall lamp bracket builder",
+   "origin": "wall mount point; lantern hangs below",
+   "bounds": {
+    "min": [
+     -0.135,
+     -0.813,
+     -0.617
+    ],
+    "max": [
+     0.135,
+     0.1,
+     0.0
+    ]
+   },
+   "materials": [
+    "tr_glow",
+    "tr_shiny",
+    "tr_std"
+   ]
+  },
+  "lantern_hanging_medina": {
+   "file": "lantern_hanging_medina.glb",
+   "category": "lamp",
+   "anchor": "wall",
+   "size": [
+    0.33,
+    0.967,
+    0.286
+   ],
+   "triangles": 62,
+   "tags": [
+    "brass",
+    "glow",
+    "medina"
+   ],
+   "source": "hanging lantern builder",
+   "origin": "hang point (top)",
+   "bounds": {
+    "min": [
+     -0.165,
+     -0.967,
+     -0.263
+    ],
+    "max": [
+     0.165,
+     0.0,
+     0.023
+    ]
+   },
+   "materials": [
+    "tr_glow",
+    "tr_shiny",
+    "tr_std"
+   ]
+  },
+  "lamp_glass_hanging": {
+   "file": "lamp_glass_hanging.glb",
+   "category": "lamp",
+   "anchor": "wall",
+   "size": [
+    0.42,
+    0.67,
+    0.42
+   ],
+   "triangles": 152,
+   "tags": [
+    "glass",
+    "blue",
+    "medina"
+   ],
+   "source": "hanging glass lamp builder",
+   "origin": "hang point (top)",
+   "bounds": {
+    "min": [
+     -0.21,
+     -0.67,
+     -0.33
+    ],
+    "max": [
+     0.21,
+     0.0,
+     0.09
+    ]
+   },
+   "materials": [
+    "tr_shiny",
+    "tr_std"
+   ]
+  },
+  "lantern_brass_sbs": {
+   "file": "lantern_brass_sbs.glb",
+   "category": "lamp",
+   "anchor": "wall",
+   "size": [
+    0.305,
+    1.089,
+    0.352
+   ],
+   "triangles": 68,
+   "tags": [
+    "brass",
+    "glow",
+    "sidi-bou-said"
+   ],
+   "source": "addLantern (props kit)",
+   "origin": "hang point (top)",
+   "bounds": {
+    "min": [
+     -0.152,
+     -1.089,
+     -0.296
+    ],
+    "max": [
+     0.152,
+     0.0,
+     0.056
+    ]
+   },
+   "materials": [
+    "tr_glow",
+    "tr_metal",
+    "tr_std"
+   ]
+  },
+  "pot_flowers_bougainvillea": {
+   "file": "pot_flowers_bougainvillea.glb",
+   "category": "pot",
+   "anchor": "ground",
+   "size": [
+    0.631,
+    1.009,
+    0.636
+   ],
+   "triangles": 270,
+   "tags": [
+    "terracotta",
+    "bougainvillea",
+    "flowers"
+   ],
+   "source": "addPottedPlant (props kit)",
+   "bounds": {
+    "min": [
+     -0.291,
+     0.0,
+     -0.321
+    ],
+    "max": [
+     0.34,
+     1.009,
+     0.315
+    ]
+   },
+   "materials": [
+    "tr_std"
+   ]
+  },
+  "pot_geranium": {
+   "file": "pot_geranium.glb",
+   "category": "pot",
+   "anchor": "ground",
+   "size": [
+    0.696,
+    0.955,
+    0.649
+   ],
+   "triangles": 391,
+   "tags": [
+    "geranium",
+    "pot",
+    "flowers"
+   ],
+   "source": "potted plant builder",
+   "bounds": {
+    "min": [
+     -0.35,
+     0.0,
+     -0.366
+    ],
+    "max": [
+     0.346,
+     0.955,
+     0.283
+    ]
+   },
+   "materials": [
+    "tr_shiny",
+    "tr_std"
+   ]
+  },
+  "pot_cactus": {
+   "file": "pot_cactus.glb",
+   "category": "pot",
+   "anchor": "ground",
+   "size": [
+    0.645,
+    1.444,
+    0.528
+   ],
+   "triangles": 232,
+   "tags": [
+    "cactus",
+    "pot"
+   ],
+   "source": "potted plant builder",
+   "bounds": {
+    "min": [
+     -0.333,
+     0.0,
+     -0.264
+    ],
+    "max": [
+     0.312,
+     1.444,
+     0.264
+    ]
+   },
+   "materials": [
+    "tr_std"
+   ]
+  },
+  "climber_bougainvillea": {
+   "file": "climber_bougainvillea.glb",
+   "category": "plant",
+   "anchor": "wall",
+   "size": [
+    1.807,
+    1.046,
+    0.201
+   ],
+   "triangles": 159,
+   "tags": [
+    "bougainvillea",
+    "climber",
+    "pink-flowers"
+   ],
+   "source": "wall climber builder",
+   "bounds": {
+    "min": [
+     -0.907,
+     -0.601,
+     -0.18
+    ],
+    "max": [
+     0.9,
+     0.445,
+     0.02
+    ]
+   },
+   "materials": [
+    "tr_std"
+   ]
+  },
+  "bougainvillea_cascade": {
+   "file": "bougainvillea_cascade.glb",
+   "category": "plant",
+   "anchor": "wall",
+   "size": [
+    2.766,
+    2.738,
+    0.772
+   ],
+   "triangles": 1714,
+   "tags": [
+    "bougainvillea",
+    "cascade",
+    "pink-flowers",
+    "sidi-bou-said"
+   ],
+   "source": "bougainvillea cascade builder",
+   "origin": "top edge of the cascade (wall top)",
+   "bounds": {
+    "min": [
+     -1.422,
+     -2.226,
+     -0.64
+    ],
+    "max": [
+     1.344,
+     0.512,
+     0.132
+    ]
+   },
+   "materials": [
+    "tr_std"
+   ]
+  },
+  "palm_date": {
+   "file": "palm_date.glb",
+   "category": "plant",
+   "anchor": "ground",
+   "size": [
+    4.545,
+    6.413,
+    4.765
+   ],
+   "triangles": 678,
+   "tags": [
+    "palm",
+    "date-palm",
+    "tree"
+   ],
+   "source": "addPalm (props kit)",
+   "origin": "trunk base",
+   "bounds": {
+    "min": [
+     -2.852,
+     -0.044,
+     -2.636
+    ],
+    "max": [
+     1.694,
+     6.369,
+     2.129
+    ]
+   },
+   "materials": [
+    "tr_std"
+   ]
+  },
+  "laundry_line": {
+   "file": "laundry_line.glb",
+   "category": "laundry",
+   "anchor": "wall",
+   "size": [
+    3.201,
+    0.942,
+    0.036
+   ],
+   "triangles": 78,
+   "tags": [
+    "cloth",
+    "clothesline",
+    "sidi-bou-said"
+   ],
+   "source": "addLaundryLine (props kit)",
+   "origin": "line anchors at y=0, clothes hang below",
+   "bounds": {
+    "min": [
+     -1.601,
+     -0.935,
+     -0.18
+    ],
+    "max": [
+     1.601,
+     0.007,
+     -0.144
+    ]
+   },
+   "materials": [
+    "tr_std"
+   ]
+  },
+  "laundry_poles": {
+   "file": "laundry_poles.glb",
+   "category": "laundry",
+   "anchor": "ground",
+   "size": [
+    2.64,
+    1.6,
+    0.04
+   ],
+   "triangles": 204,
+   "tags": [
+    "cloth",
+    "rack",
+    "poles"
+   ],
+   "source": "rooftop laundry rack builder",
+   "bounds": {
+    "min": [
+     -1.32,
+     0.0,
+     -0.02
+    ],
+    "max": [
+     1.32,
+     1.6,
+     0.02
+    ]
+   },
+   "materials": [
+    "tr_std"
+   ]
+  },
+  "awning_canvas": {
+   "file": "awning_canvas.glb",
+   "category": "awning",
+   "anchor": "wall",
+   "size": [
+    3.01,
+    0.93,
+    1.499
+   ],
+   "triangles": 96,
+   "tags": [
+    "canvas",
+    "souk",
+    "shade"
+   ],
+   "source": "souk awning builder",
+   "origin": "y=0 at the beam height on the wall; poles reach the ground",
+   "bounds": {
+    "min": [
+     -1.505,
+     -0.67,
+     -1.45
+    ],
+    "max": [
+     1.505,
+     0.26,
+     0.05
+    ]
+   },
+   "materials": [
+    "tr_glow",
+    "tr_std"
+   ],
+   "materials_map": {
+    "tr_glow": "tr_canvas"
+   }
+  },
+  "awning_reed": {
+   "file": "awning_reed.glb",
+   "category": "awning",
+   "anchor": "wall",
+   "size": [
+    3.0,
+    0.785,
+    1.443
+   ],
+   "triangles": 174,
+   "tags": [
+    "reed",
+    "souk",
+    "shade"
+   ],
+   "source": "souk awning builder",
+   "origin": "y=0 at the beam height on the wall; poles reach the ground",
+   "bounds": {
+    "min": [
+     -1.5,
+     -0.67,
+     -1.4
+    ],
+    "max": [
+     1.5,
+     0.115,
+     0.043
+    ]
+   },
+   "materials": [
+    "tr_std"
+   ]
+  },
+  "rug_hanging": {
+   "file": "rug_hanging.glb",
+   "category": "awning",
+   "anchor": "wall",
+   "size": [
+    1.0,
+    1.52,
+    0.008
+   ],
+   "triangles": 78,
+   "tags": [
+    "rug",
+    "carpet",
+    "cloth",
+    "souk"
+   ],
+   "source": "hanging carpet builder",
+   "origin": "top edge (hang point)",
+   "bounds": {
+    "min": [
+     -0.5,
+     -1.52,
+     -0.028
+    ],
+    "max": [
+     0.5,
+     0.0,
+     -0.02
+    ]
+   },
+   "materials": [
+    "tr_std"
+   ]
+  },
+  "hood_canopy": {
+   "file": "hood_canopy.glb",
+   "category": "wall_prop",
+   "anchor": "wall",
+   "size": [
+    1.69,
+    0.525,
+    0.549
+   ],
+   "triangles": 136,
+   "tags": [
+    "canopy",
+    "hood",
+    "sidi-bou-said"
+   ],
+   "source": "door hood builder",
+   "origin": "y=0 at the hood base line (mount)",
+   "bounds": {
+    "min": [
+     -0.845,
+     -0.25,
+     -0.535
+    ],
+    "max": [
+     0.845,
+     0.275,
+     0.014
+    ]
+   },
+   "materials": [
+    "tr_shiny",
+    "tr_std"
+   ]
+  },
+  "amphora_terracotta": {
+   "file": "amphora_terracotta.glb",
+   "category": "ground_prop",
+   "anchor": "ground",
+   "size": [
+    0.65,
+    1.144,
+    0.64
+   ],
+   "triangles": 222,
+   "tags": [
+    "amphora",
+    "terracotta",
+    "jar"
+   ],
+   "source": "addAmphora (props kit)",
+   "bounds": {
+    "min": [
+     -0.325,
+     0.0,
+     -0.33
+    ],
+    "max": [
+     0.325,
+     1.144,
+     0.31
+    ]
+   },
+   "materials": [
+    "tr_std"
+   ]
+  },
+  "amphora_ochre": {
+   "file": "amphora_ochre.glb",
+   "category": "ground_prop",
+   "anchor": "ground",
+   "size": [
+    0.827,
+    1.456,
+    0.815
+   ],
+   "triangles": 222,
+   "tags": [
+    "amphora",
+    "ochre",
+    "jar",
+    "tall"
+   ],
+   "source": "addAmphora (props kit)",
+   "bounds": {
+    "min": [
+     -0.414,
+     0.0,
+     -0.42
+    ],
+    "max": [
+     0.414,
+     1.456,
+     0.395
+    ]
+   },
+   "materials": [
+    "tr_std"
+   ]
+  },
+  "crate_wood": {
+   "file": "crate_wood.glb",
+   "category": "ground_prop",
+   "anchor": "ground",
+   "size": [
+    1.02,
+    0.82,
+    1.04
+   ],
+   "triangles": 72,
+   "tags": [
+    "crate",
+    "wood"
+   ],
+   "source": "addCrate (props kit)",
+   "bounds": {
+    "min": [
+     -0.51,
+     -0.01,
+     -0.53
+    ],
+    "max": [
+     0.51,
+     0.81,
+     0.51
+    ]
+   },
+   "materials": [
+    "tr_std"
+   ]
+  },
+  "sacks_pile": {
+   "file": "sacks_pile.glb",
+   "category": "ground_prop",
+   "anchor": "ground",
+   "size": [
+    2.149,
+    0.927,
+    0.738
+   ],
+   "triangles": 600,
+   "tags": [
+    "sacks",
+    "burlap",
+    "sahara"
+   ],
+   "source": "ob-jump-sacks",
+   "bounds": {
+    "min": [
+     -1.074,
+     -0.01,
+     -0.369
+    ],
+    "max": [
+     1.075,
+     0.916,
+     0.369
+    ]
+   },
+   "materials": [
+    "tr_std"
+   ]
+  },
+  "rug_stand": {
+   "file": "rug_stand.glb",
+   "category": "ground_prop",
+   "anchor": "ground",
+   "size": [
+    2.221,
+    2.972,
+    0.261
+   ],
+   "triangles": 520,
+   "tags": [
+    "rugs",
+    "stand",
+    "sahara"
+   ],
+   "source": "ob-duck-rugs",
+   "bounds": {
+    "min": [
+     -1.111,
+     -0.041,
+     -0.191
+    ],
+    "max": [
+     1.111,
+     2.932,
+     0.07
+    ]
+   },
+   "materials": [
+    "tr_std"
+   ]
+  },
+  "arch_sbs": {
+   "file": "arch_sbs.glb",
+   "category": "structure",
+   "anchor": "ground",
+   "size": [
+    2.424,
+    3.337,
+    1.222
+   ],
+   "triangles": 2286,
+   "tags": [
+    "arch",
+    "whitewash",
+    "sidi-bou-said"
+   ],
+   "source": "sbs-duck arch",
+   "bounds": {
+    "min": [
+     -1.218,
+     0.0,
+     -0.627
+    ],
+    "max": [
+     1.207,
+     3.337,
+     0.595
+    ]
+   },
+   "materials": [
+    "tr_shiny",
+    "tr_std"
+   ]
+  },
+  "arch_carthage": {
+   "file": "arch_carthage.glb",
+   "category": "structure",
+   "anchor": "ground",
+   "size": [
+    2.31,
+    2.619,
+    1.009
+   ],
+   "triangles": 824,
+   "tags": [
+    "arch",
+    "roman",
+    "carthage"
+   ],
+   "source": "ob-duck-arch",
+   "bounds": {
+    "min": [
+     -1.155,
+     0.0,
+     -0.659
+    ],
+    "max": [
+     1.155,
+     2.619,
+     0.35
+    ]
+   },
+   "materials": [
+    "tr_std"
+   ]
+  },
+  "moped_delivery": {
+   "file": "moped_delivery.glb",
+   "category": "ground_prop",
+   "anchor": "ground",
+   "size": [
+    0.7,
+    2.324,
+    2.055
+   ],
+   "triangles": 776,
+   "tags": [
+    "moped",
+    "vehicle",
+    "crates",
+    "delivery"
+   ],
+   "source": "moped-body (without rider)",
+   "bounds": {
+    "min": [
+     -0.35,
+     -0.021,
+     -0.98
+    ],
+    "max": [
+     0.35,
+     2.303,
+     1.075
+    ]
+   },
+   "materials": [
+    "tr_glow",
+    "tr_shiny",
+    "tr_std"
+   ]
+  },
+  "cart_handcart": {
+   "file": "cart_handcart.glb",
+   "category": "ground_prop",
+   "anchor": "ground",
+   "size": [
+    1.84,
+    2.326,
+    3.677
+   ],
+   "triangles": 1004,
+   "tags": [
+    "cart",
+    "handcart",
+    "wood",
+    "medina"
+   ],
+   "source": "medina handcart",
+   "bounds": {
+    "min": [
+     -0.92,
+     0.024,
+     -1.837
+    ],
+    "max": [
+     0.92,
+     2.35,
+     1.84
+    ]
+   },
+   "materials": [
+    "tr_std"
+   ]
+  },
+  "bench_sbs": {
+   "file": "bench_sbs.glb",
+   "category": "ground_prop",
+   "anchor": "ground",
+   "size": [
+    2.1,
+    0.972,
+    0.492
+   ],
+   "triangles": 574,
+   "tags": [
+    "bench",
+    "whitewash",
+    "sidi-bou-said"
+   ],
+   "source": "sbs-jump bench",
+   "bounds": {
+    "min": [
+     -1.05,
+     0.0,
+     -0.243
+    ],
+    "max": [
+     1.05,
+     0.972,
+     0.25
+    ]
+   },
+   "materials": [
+    "tr_shiny",
+    "tr_std"
+   ]
+  },
+  "planter_sbs": {
+   "file": "planter_sbs.glb",
+   "category": "ground_prop",
+   "anchor": "ground",
+   "size": [
+    2.26,
+    1.092,
+    0.79
+   ],
+   "triangles": 1146,
+   "tags": [
+    "planter",
+    "plants",
+    "sidi-bou-said"
+   ],
+   "source": "sbs-jump planter",
+   "bounds": {
+    "min": [
+     -1.13,
+     0.0,
+     -0.4
+    ],
+    "max": [
+     1.13,
+     1.092,
+     0.39
+    ]
+   },
+   "materials": [
+    "tr_shiny",
+    "tr_std"
+   ]
+  },
+  "stall_sbs": {
+   "file": "stall_sbs.glb",
+   "category": "ground_prop",
+   "anchor": "ground",
+   "size": [
+    2.25,
+    2.95,
+    1.291
+   ],
+   "triangles": 2370,
+   "tags": [
+    "stall",
+    "market",
+    "sidi-bou-said"
+   ],
+   "source": "sbs-block stall",
+   "bounds": {
+    "min": [
+     -1.125,
+     0.0,
+     -0.75
+    ],
+    "max": [
+     1.125,
+     2.95,
+     0.541
+    ]
+   },
+   "materials": [
+    "tr_shiny",
+    "tr_std"
+   ]
+  },
+  "spice_baskets": {
+   "file": "spice_baskets.glb",
+   "category": "ground_prop",
+   "anchor": "ground",
+   "size": [
+    2.12,
+    1.056,
+    0.887
+   ],
+   "triangles": 771,
+   "tags": [
+    "baskets",
+    "spices",
+    "souk",
+    "medina"
+   ],
+   "source": "medina market obstacle (spice baskets)",
+   "bounds": {
+    "min": [
+     -1.071,
+     0.0,
+     -0.49
+    ],
+    "max": [
+     1.049,
+     1.056,
+     0.397
+    ]
+   },
+   "materials": [
+    "tr_metal",
+    "tr_std"
+   ]
+  },
+  "crates_oranges": {
+   "file": "crates_oranges.glb",
+   "category": "ground_prop",
+   "anchor": "ground",
+   "size": [
+    2.05,
+    0.82,
+    0.684
+   ],
+   "triangles": 972,
+   "tags": [
+    "crates",
+    "oranges",
+    "fruit",
+    "souk",
+    "medina"
+   ],
+   "source": "medina market obstacle (orange crates)",
+   "bounds": {
+    "min": [
+     -1.025,
+     0.0,
+     -0.349
+    ],
+    "max": [
+     1.025,
+     0.82,
+     0.335
+    ]
+   },
+   "materials": [
+    "tr_std"
+   ]
+  },
+  "rugs_rolled": {
+   "file": "rugs_rolled.glb",
+   "category": "ground_prop",
+   "anchor": "ground",
+   "size": [
+    2.108,
+    0.794,
+    0.839
+   ],
+   "triangles": 950,
+   "tags": [
+    "rugs",
+    "carpets",
+    "souk",
+    "medina"
+   ],
+   "source": "medina market obstacle (rolled rugs)",
+   "bounds": {
+    "min": [
+     -1.054,
+     -0.007,
+     -0.422
+    ],
+    "max": [
+     1.054,
+     0.787,
+     0.417
+    ]
+   },
+   "materials": [
+    "tr_std"
+   ]
+  },
+  "souk_gate_rugs": {
+   "file": "souk_gate_rugs.glb",
+   "category": "structure",
+   "anchor": "ground",
+   "size": [
+    2.3,
+    2.74,
+    0.3
+   ],
+   "triangles": 885,
+   "tags": [
+    "souk",
+    "rugs",
+    "posts",
+    "frame",
+    "medina"
+   ],
+   "source": "medina duck obstacle (rug frame)",
+   "bounds": {
+    "min": [
+     -1.15,
+     0.0,
+     -0.15
+    ],
+    "max": [
+     1.15,
+     2.74,
+     0.15
+    ]
+   },
+   "materials": [
+    "tr_shiny",
+    "tr_std"
+   ]
+  },
+  "souk_gate_lanterns": {
+   "file": "souk_gate_lanterns.glb",
+   "category": "structure",
+   "anchor": "ground",
+   "size": [
+    2.3,
+    2.87,
+    0.462
+   ],
+   "triangles": 1296,
+   "tags": [
+    "souk",
+    "lanterns",
+    "posts",
+    "canopy",
+    "medina"
+   ],
+   "source": "medina duck obstacle (lantern canopy)",
+   "bounds": {
+    "min": [
+     -1.15,
+     0.0,
+     -0.312
+    ],
+    "max": [
+     1.15,
+     2.87,
+     0.15
+    ]
+   },
+   "materials": [
+    "tr_glow",
+    "tr_shiny",
+    "tr_std"
+   ]
+  },
+  "amphorae_stack": {
+   "file": "amphorae_stack.glb",
+   "category": "ground_prop",
+   "anchor": "ground",
+   "size": [
+    2.2,
+    0.991,
+    1.116
+   ],
+   "triangles": 2412,
+   "tags": [
+    "amphorae",
+    "stack",
+    "terracotta",
+    "carthage"
+   ],
+   "source": "ob-jump-amphorae",
+   "bounds": {
+    "min": [
+     -1.1,
+     -0.002,
+     -0.566
+    ],
+    "max": [
+     1.1,
+     0.989,
+     0.55
+    ]
+   },
+   "materials": [
+    "tr_std"
+   ]
+  }
+ }
+}

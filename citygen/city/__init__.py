@@ -18,6 +18,7 @@ from ..names import NameMaker
 from ..rng import stream
 from .buildings import cemetery_and_parks, make_buildings, neighborhood_mosques
 from .layout import assign_kinds, city_boundary, land_near, main_axis, medina_outline, neighborhoods
+from .life import households, souks
 from .medina import old_town
 from .model import CityPlan, District
 from .parcels import make_blocks, make_parcels
@@ -76,7 +77,10 @@ def plan_city(world, settlement) -> CityPlan:
     trees += green_trees + street_trees(ctx, streets)
     plan = CityPlan(s, boundary, land, medina, districts, streets, blocks, parcels, buildings,
                     trees, landmarks + mosque_marks)
+    plan.households = households(ctx, buildings, districts)
+    plan.souks = souks(ctx, streets)
     plan.stats = {"districts": len(districts), "streets": len(streets), "blocks": len(blocks),
                   "parcels": len(parcels), "buildings": len(buildings), "trees": len(trees),
+                  "households": len(plan.households), "souks": len(plan.souks),
                   "seconds": round(time.perf_counter() - t0, 1)}
     return plan
