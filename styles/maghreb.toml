@@ -10,29 +10,44 @@ qibla_bearing = 105.0  # compass direction every mosque faces (0 = north, 90 = e
 
 # --- names ---------------------------------------------------------------------
 [names]
-# Invented names are built from these sounds. Change them to change the "language".
-onsets = ["b", "d", "f", "g", "h", "j", "k", "kh", "l", "m", "n", "q", "r", "s", "sh", "t", "z", "gh", "dj", "ts", "m", "t", "k"]
-vowels = ["a", "a", "a", "e", "i", "ou", "o", "i"]
-codas = ["", "", "", "n", "r", "l", "t", "s", "m", "z", "k"]
-endings = ["a", "a", "ine", "ane", "et", "ouna", "is", "ia", "an", "it", "ra", "ba"]
-country_endings = ["ia", "a", "ane", "ie"]
-prefixes.village = ["Bir", "Ain", "Henchir", "Sidi", "Douar", "Oued", "Ras", "Dar"]
-prefixes.town = ["Menzel", "Ksar", "Souk", "Bordj", "Ain", "Sidi", "El"]
-prefixes.city = ["El"]
-prefix_chance = { village = 0.65, town = 0.4, city = 0.15, capital = 0.0 }
+# Invented names follow the patterns of North African place names, spelled the Tunisian (French)
+# way: "ou" for u, "ch" for sh, "dj" for j, "gh" and "kh" for the throat sounds.
+onsets = ["b", "d", "f", "g", "h", "k", "l", "m", "n", "r", "s", "t", "z", "ch", "dj", "gh", "kh", "b", "k", "m", "s", "t", "z", "r", "g"]
+vowels = ["a", "a", "a", "e", "i", "ou", "ou", "o"]
+codas = ["", "", "", "", "n", "r", "l", "m", "s", "z", "b", "k"]
+endings = ["a", "a", "ane", "ouane", "ine", "ine", "ir", "ra", "ka", "ba", "ia", "ouna", "es", "el", "ar"]
+berber_chance = 0.15        # names built like Tamezret, Takrouna or Tataouine
+berber_endings = ["ret", "rout", "ine", "ane", "ount", "ra", "ka", "ouine"]
+country_endings = ["ia", "a", "ane"]
+prefixes.village = ["Bir", "Ain", "Henchir", "Sidi", "Sidi Bou", "Douar", "Oued", "Ras", "Dar", "Ouled", "Beni", "Zaouiet"]
+prefixes.town = ["Menzel", "Ksar", "Souk", "Bordj", "Ain", "Sidi", "Hammam", "Kalaat", "Bou", "Ras"]
+prefixes.city = ["El", "Menzel", "Ksar"]
+prefix_chance = { village = 0.6, town = 0.4, city = 0.12, capital = 0.0 }
+article_prefixes = ["Bir", "Ain", "Ras", "Oued", "Henchir", "Ksar", "Hammam", "Souk", "Menzel", "Bordj", "Dar", "Kalaat"]
+article_chance = 0.3        # "Ras el Mokrane" instead of "Ras Mokrane"
+compound_chance = { village = 0.15, town = 0.15, city = 0.1, capital = 0.0 }
+descriptors = ["Kebir", "Sghir", "Djedid", "Bahri", "Gharbi", "Chergui", "Zitoun", "Rmel", "Melh", "Nakhla", "Ghar", "Souk", "Bey"]
+# Real towns are never generated, so the world never copies an existing place.
+avoid = ["tunis", "sfax", "sousse", "kairouan", "bizerte", "gabes", "ariana", "gafsa", "monastir", "kasserine",
+         "mahdia", "nabeul", "tataouine", "beja", "jendouba", "kebili", "tozeur", "siliana", "zaghouan", "medenine",
+         "kef", "hammamet", "tabarka", "djerba", "douz", "nefta", "matmata", "zarzis", "korba", "kelibia", "moknine",
+         "msaken", "testour", "takrouna", "tamezret", "chenini", "carthage", "marsa", "rades", "manouba", "soliman",
+         "alger", "algiers", "oran", "constantine", "annaba", "tlemcen", "setif", "batna", "biskra", "blida", "bejaia",
+         "fes", "fez", "rabat", "marrakech", "tanger", "agadir", "meknes", "oujda", "tetouan", "nador", "safi",
+         "tripoli", "benghazi", "misrata", "zawiya", "sabha", "derna"]
 
 [names.districts]
-# {n} is replaced by an invented name.
+# {n} is an invented name, {a} its Arabic article (el, es, ech...).
 colonial = ["Quartier {n}", "Ville {n}", "{n}"]
-modern = ["Cite {n}", "Hay {n}", "Cite El {n}"]
-residential = ["Hay {n}", "{n}", "El {n}"]
+modern = ["Cite {n}", "Hay {n}", "Cite {a} {n}"]
+residential = ["Hay {n}", "{n}", "Hay {a} {n}"]
 suburb = ["Riadh {n}", "Jardins de {n}", "{n}"]
 industrial = ["Zone Industrielle {n}"]
 port = ["Port de {n}"]
 park = ["Parc {n}", "Belvedere {n}"]
 cemetery = ["Cemetery of Sidi {n}"]
-gate = ["Bab {n}"]
-mosque = ["Jamaa {n}"]
+gate = ["Bab {n}", "Bab {a} {n}"]
+mosque = ["Jamaa {n}", "Jamaa {a} {n}"]
 
 [lore]
 # Fictional history: settlements are said to date from one of these eras.

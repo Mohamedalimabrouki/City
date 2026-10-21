@@ -121,3 +121,16 @@ def test_cli_list(capsys):
     main(["list", "--quick"])
     out = capsys.readouterr().out
     assert "capital" in out and "village" in out
+
+
+def test_names_sound_north_african():
+    from citygen.config import load_style
+    from citygen.names import NameMaker
+    style = load_style("maghreb")
+    maker = NameMaker(style, stream(3, "names-test"))
+    avoid = {a.lower() for a in style["names"]["avoid"]}
+    for kind in ("village", "town", "city"):
+        for _ in range(150):
+            name = maker.settlement(kind).lower()
+            assert not any(foreign in name for foreign in ("sh", "ts", "q", "oo")), name
+            assert not set(name.split()) & avoid, name

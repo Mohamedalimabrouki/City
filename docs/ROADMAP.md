@@ -7,7 +7,7 @@ How to run one: open Claude Code in this folder and say
 Every task also requires: `python -m pytest -q` passes, `python -m citygen build --quick`
 finishes, tunable numbers go in the style pack, and the task is ticked here when done.
 
-Suggested order: A0, C1, A4, A3, A1, B1, B2, C3, D1, then anything you like.
+Suggested order: A0, C1, H1, H2, H3, H4, A4, A3, A1, B1, B2, C3, D1, D5, then anything you like.
 
 ## Done (v0.1)
 
@@ -115,6 +115,9 @@ Suggested order: A0, C1, A4, A3, A1, B1, B2, C3, D1, then anything you like.
   legend, compass rose and scale, ready for print or a book.
 - [ ] **D3 Canon for everything** (S) - Extend `[canon]` in world files to pin district names,
   populations and landmark names; the gazetteer marks pinned facts.
+- [ ] **D5 Names in Arabic and Latin** (M) - Build every name from syllables that have both an
+  Arabic spelling and a French/English transliteration, and store both, so maps, games and books
+  work in Arabic, French and English (as Tounes Rush does).
 - [ ] **D4 Timeline and factions** (M) - A generated history: events per era tied to real
   places in the world (founding, sieges, trade booms), and factions with seats in cities.
 
@@ -124,6 +127,27 @@ Suggested order: A0, C1, A4, A3, A1, B1, B2, C3, D1, then anything you like.
   parallel, report disk size and time, document results for 64 and 128 km.
 - [ ] **E2 Faster noise** (M) - Cache terrain heights per tile and vectorize hot paths so a
   256 km country stays practical.
+
+## H. Inside the houses, and rich streets
+
+This scales because nothing is stored: an interior, or the clutter of a street, is generated only
+when a scene, a game or a picture needs it, and it is always the same for the same seed. A
+studio fills a few rooms by hand; rules fill every one of the 40,000 houses on demand.
+
+- [ ] **H1 Interiors on demand** (L, Opus medium for the design, then Sonnet) -
+  `python -m citygen interior BUILDING` builds the inside of any building. Courtyard houses get a
+  bent entrance (skifa), the courtyard (wast ed dar), rooms around it, a kitchen and stairs to the
+  roof terrace; apartment blocks get flats on every floor. Doors and windows match the facade.
+  Output: one .glb plus a JSON list of rooms.
+- [ ] **H2 Furnishing** (L) - Furniture and objects per room type from the kit (A0): banquettes,
+  carpets (klim, mergoum), chests, low tables, lanterns, pottery, beds; fridge and TV in modern
+  flats. A `density` setting: sparse, lived-in, extremely full.
+- [ ] **H3 Street life** (M) - Props along streets by district: market stalls with goods, awnings,
+  crates, carts, plants, lamps, cables, laundry lines, cats, parked mopeds and cars.
+  Tile-local and deterministic.
+- [ ] **H4 Hero scenes** (M) - `python -m citygen scene` exports one house or one street block at
+  maximum detail (H1 + H2 + H3 + A0) as a single .glb or .blend for a story scene, a trailer or a
+  game level, while the rest of the world stays light.
 
 ## F. More styles (ideas from brainstorming, after A and B)
 
