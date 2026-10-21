@@ -1,14 +1,117 @@
 # Roadmap
 
-Each task is sized for **one cheap session** (Sonnet, medium effort, unless noted).
-How to run one: open Claude Code in this folder and say
-`Do task A1 from docs/ROADMAP.md.` (see docs/WORKFLOW.md).
+The work runs through the playbook in `docs/PROMPTS.md`: 100 numbered prompts, one session
+each, in order (`Do prompt N.`). Each prompt ticks its line in the checklist below; the prompt
+that finishes a task also ticks the task in its section further down. Tasks without a section
+(T, V, S, AR, P, R, G and the checkpoints CP) are described only in their prompt.
 
 Every task also requires: `python -m pytest -q` passes, `python -m citygen build --quick`
 finishes, tunable numbers go in the style pack, and the task is ticked here when done.
 
-Suggested order: Q2, Q1, Q3, C1, H1, H2, H3, H4, A4, A3, A1, A9, Q4, B1, B2, C3, D1, D5, then
-anything you like. Ready prompts for each: `docs/PROMPTS.md`.
+## Playbook checklist
+
+- [ ] 1 T1 Regression fingerprint tool
+- [ ] 2 T2 Before/after pictures
+- [ ] 3 T3 Housekeeping
+- [ ] 4 C1a Build tiles in parallel
+- [ ] 5 C1b Resumable builds
+- [ ] 6 CP1 Checkpoint: foundations
+- [ ] 7 Q3 Bougainvillea that cascades
+- [ ] 8 V1 Golden hour in the viewer
+- [ ] 9 V2 Ambient occlusion
+- [ ] 10 Q4 Blender 5 haze
+- [ ] 11 A4a City ground
+- [ ] 12 A4b Everything on the graded ground
+- [ ] 13 A3 Sidewalks and curbs
+- [ ] 14 S1 Street surfaces and markings
+- [ ] 15 A1 Roof life
+- [ ] 16 CP2 Checkpoint: light and ground
+- [ ] 17 A2a Textures in the 3D files
+- [ ] 18 A2b Generated textures
+- [ ] 19 A2c Textured walls and roofs
+- [ ] 20 A2d Ground textures
+- [ ] 20.1 AD1 Every home gets a door and windows
+- [ ] 20.2 AD2 Impasses to landlocked houses
+- [ ] 21 A9 Lit windows by household
+- [ ] 22 AR1 Arcades and iron balconies
+- [ ] 23 AR2 Building massing
+- [ ] 24 A7 More greenery
+- [ ] 25 H3a Parked cars and taxis
+- [ ] 26 H3b Benches, kiosks, fountains
+- [ ] 27 CP3 Checkpoint: facades and street life
+- [ ] 28 P1 People figures
+- [ ] 29 P2 People in the streets
+- [ ] 30 A5a The kasbah
+- [ ] 31 A5b Covered souks
+- [ ] 32 A5c Cathedral and theatre
+- [ ] 33 A5d Station and clock tower
+- [ ] 34 A6a Quays, breakwater, lighthouse
+- [ ] 35 A6b Boats and cranes
+- [ ] 36 A6c Corniche promenade and beach
+- [ ] 37 H3c Seaside cafes
+- [ ] 38 A8 Blender kit export
+- [ ] 39 Q5 Lighter tiles
+- [ ] 40 C2a Level-of-detail tiles
+- [ ] 41 C2b Viewer level of detail
+- [ ] 42 R1 Refresh the phone 3D page
+- [ ] 43 CP4 Checkpoint: people, landmarks, port
+- [ ] 44 H1 Interiors: the design
+- [ ] 45 H1a Interior model and command
+- [ ] 46 H1b Courtyard houses
+- [ ] 47 H1c Apartments, villas, shops
+- [ ] 48 H1d Interior walls and openings
+- [ ] 49 H1e Floors, stairs, roof terrace
+- [ ] 50 H1f Interiors in the viewer
+- [ ] 51 H2 Furnishing: the design
+- [ ] 52 H2a Traditional furniture
+- [ ] 53 H2b Modern furniture
+- [ ] 54 H2c Furnishing rules
+- [ ] 55 H2d Light, textiles, clutter
+- [ ] 56 H4a Hero scenes
+- [ ] 57 H4b Hero scenes in Blender
+- [ ] 58 CP5 Checkpoint: interiors
+- [ ] 59 B1a Rivers
+- [ ] 60 B1b Valleys and lakes
+- [ ] 61 B1c Rivers in towns
+- [ ] 62 B1d Bridges
+- [ ] 63 B2a Fields and cactus hedges
+- [ ] 64 B2b Olive groves and orchards
+- [ ] 65 B3 Salt lakes and dunes
+- [ ] 66 B4 Oasis towns
+- [ ] 67 B5 Hilltop ksar villages
+- [ ] 68 B6 Regions and natural names
+- [ ] 69 CP6 Checkpoint: countryside
+- [ ] 70 C4a Street graph for games
+- [ ] 71 C4b Building entrances
+- [ ] 72 C3a Godot: stream the city
+- [ ] 73 C3b Godot: walk the streets
+- [ ] 74 C3c Godot: sky, night, guide
+- [ ] 75 C5 Unreal 5 import
+- [ ] 76 C6a Tounes Rush city runs
+- [ ] 77 C6b Country map unlocks
+- [ ] 78 CP7 Checkpoint: game-ready
+- [ ] 79 D7 Street names and addresses
+- [ ] 80 D6 Residents
+- [ ] 81 D1a District histories
+- [ ] 82 D1b Notable families and guilds
+- [ ] 83 D1c Local legends
+- [ ] 84 D3 Canon for everything
+- [ ] 85 D4a Timeline
+- [ ] 86 D4b Factions
+- [ ] 87 D5a Arabic place names
+- [ ] 88 D5b Arabic people and street names
+- [ ] 89 D2a Country poster map
+- [ ] 90 D2b City poster map
+- [ ] 91 CP8 Checkpoint: stories
+- [ ] 92 E2 Faster terrain
+- [ ] 93 E1 Whole-country builds
+- [ ] 94 F4 Styles per region
+- [ ] 95 F2 Medieval fantasy town
+- [ ] 96 F1a Steampunk style pack
+- [ ] 97 F1b Steampunk machines
+- [ ] 98 F3 Two-level city: the design
+- [ ] 99 G1 Gallery, guide and phone page
+- [ ] 100 CP9 Final review
 
 ## Done (v0.1)
 
@@ -67,23 +170,19 @@ anything you like. Ready prompts for each: `docs/PROMPTS.md`.
   room with a door) on a share of roofs. Files: `mesh/tile.py` (`building_mesh`),
   `styles/maghreb.toml`. Done when: the street snapshot shows parapets, tile triangles grow under
   25%. Reference: `tools/blender_beauty.py` (`add_parapet`) does parapets in Blender.
-- [ ] **A2 Facade textures** (M, Sonnet high) - Add optional base-color textures to the glb
-  writer (embedded PNG, `KHR_texture_transform` not needed since UVs are meters). Generate small
-  tileable facade images per wall material (windows per floor, a door band on the ground floor,
-  blue doors and shutters for `lime_white`). Files: `mesh/gltf.py`, new `mesh/textures.py`,
-  palette entries get `texture = "facade_..."`. Done when: Blender and the viewer show windows,
-  and a test checks the glb image is valid. Reference: the facade shaders in
-  `tools/blender_beauty.py` (`old_openings`, `colonial_openings`, `modern_openings`) show the
-  target look and the window and door rules.
-- [ ] **A3 Sidewalks and curbs** (M) - Raised sidewalks (0.15 m, `paving`) along the edges of
-  every block outside the old town, so streets have crisp edges. Build them from block rings in
-  `mesh/tile.py` (each block belongs to the tile holding its center). Done when: snapshot shows
-  curbs, no z-fighting with road ribbons.
-- [ ] **A4 Terrain grading** (M) - Inside city limits, smooth the ground so streets and
-  buildings sit flush: a city height function = terrain blurred over ~60 m and terraced per
-  block. Use it for terrain, ribbons and buildings in tiles touching a city. Files:
-  `mesh/tile.py` (height function per tile), maybe `terrain.py`. Done when: no road below the
-  ground in the street snapshot, building bases within 0.5 m of the ground.
+- [ ] **A2 Facade textures** (M, Sonnet high; prompts 17-20) - Base-color textures in the glb
+  writer (shared or embedded images, `KHR_texture_transform` scale so UVs stay meters) and
+  generated tileable textures (plaster, stone, render, concrete, roof tiles, paving, ground) as
+  neutral detail tinted by the palette colors. Windows and doors stay 3D pieces of the dressing,
+  never painted. Done when: walls, roofs and ground read as materials in the viewer and Blender,
+  and tests check the glb images are valid.
+- [ ] **A3 Sidewalks and curbs** (M; prompt 13) - Raised sidewalks (0.15 m) inside the street
+  surface along the blocks outside the old town, and a raised central promenade on boulevards,
+  so streets have crisp edges. Done when: snapshot shows curbs, no z-fighting with road ribbons.
+- [ ] **A4 Terrain grading** (M; prompts 11-12) - Inside city limits, smooth the ground so
+  streets and buildings sit flush: terrain blurred over about 60 m, gently flattened under blocks
+  (full terraces would make cliffs on these slopes). Used for terrain, ribbons, buildings and
+  dressing. Done when: no road below the drawn ground, no floating wall foot, door or prop.
 - [ ] **A5 Landmarks pack** (M) - Kasbah (walled citadel with towers) on the old town's highest
   edge; a colonial cathedral and a theatre on the boulevard; covered souk roofs (vaults) over
   the main souks; a train station; a lighthouse at the port. Each is a function returning
@@ -97,13 +196,13 @@ anything you like. Ready prompts for each: `docs/PROMPTS.md`.
   snapshot show it, tree count rises without slowing the build by more than 15%.
 - [ ] **A8 Blender kit export** (S) - Kits and instancing exist (A0). Add
   `tools/blender_kit_export.py`: every object of a Blender collection becomes `kits/<name>/<object>.glb`
-  (front -Y in Blender = glTF -Z, origin at the anchor) plus `manifest.json` (category and anchor
+  (front +Y in Blender = glTF -Z, origin at the anchor; prompt 38) plus `manifest.json` (category and anchor
   from custom properties). Done when: a kit made in Blender shows in `python -m citygen kit-sheet`
   and a role in the style uses one of its pieces.
 - [ ] **A9 Lit windows by household** (S) - At night only the generator's windows glow, all of
-  them. Give windows a lit and a dark variant (a `glass_lit` material with a warm emissive) and
+  them. Give windows a lit and a dark variant (`glass_lit`, lit by the viewer at night only) and
   let the household decide (bigger families and some trades stay up late); Tounes windows get a
-  lit copy through `materials_map`. Done when: a night snapshot shows a believable mix.
+  lit glass pane piece (prompt 21). Done when: a night snapshot shows a believable mix.
 
 ## B. Countryside
 

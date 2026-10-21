@@ -38,9 +38,10 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
 - Done: v0.1 (country, cities, maps, data, 3D tiles, viewer, Blender scripts), **A0** (Tounes
   kit, street dressing, households and souk trades, night mode, "click a house: who lives there")
   **Q2** (family names that sound Tunisian) and **Q1** (rounded, shaded leafy trees).
-- Since 21 October 2026 the work runs on Ali's Mac: an Opus lead session plans and reviews, the
-  `city-builder` helper codes one task at a time in the order of `docs/PROMPTS.md`, and Ali says
-  "next" before each new task.
+- Since 21 October 2026 the work runs on Ali's Mac through the playbook `docs/PROMPTS.md`: 100
+  numbered prompts (`Do prompt N.`), each with its model and effort, one session each; nine Opus
+  checkpoints review the work as it goes; every session adds an entry to `docs/WORKLOG.md`.
+  After prompt 100, Ali brings the work back to his lead session for a full review.
 - Seed 42 makes the country **Bodjantouna** with the capital **Goumosbane**.
   `python -m citygen build --quick` writes it to `output/bodjantouna-42/` in about 7 seconds on
   Ali's Mac (20 seconds in the cloud).
@@ -78,7 +79,9 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
 ## Known weak spots
 
 Listed as tasks Q3-Q5 in the roadmap: a crude generated bougainvillea, no haze in Blender 5
-beauty renders, heavy old-town tiles.
+beauty renders, heavy old-town tiles. Also: modern slabs and houses deep inside medina blocks
+have no door or windows, because the dressing only dresses walls within 1.6 m of a street
+(prompts 20.1 and 20.2).
 
 ## Checking the look without wasting tokens
 

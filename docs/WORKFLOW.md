@@ -9,11 +9,11 @@ time, not tokens. So the goal of every session is one small, tested improvement 
 ## Your routine for each task
 
 1. Open Claude Code in this folder.
-2. Pick the cheap model once: type `/model sonnet`. For tiny tasks, also type `/effort low`.
-3. Give the task by its number, for example:
-   `Do task A1 from docs/ROADMAP.md.`
-   That is the whole prompt. The task text, `CLAUDE.md` and `docs/SPEC.md` tell Claude what
-   to read, how to test, and how to commit.
+2. Set the model and effort shown for the next prompt in `docs/PROMPTS.md`.
+3. Give the prompt by its number, for example:
+   `Do prompt 12.`
+   That is the whole prompt. The prompt text in `docs/prompts/`, `CLAUDE.md` and `docs/SPEC.md`
+   tell Claude what to read, how to check, and how to commit.
 4. Look at the result yourself: `python -m citygen build --quick`, then `python -m citygen view`
    (or open the PNG maps in `output/.../maps/`).
 5. Happy: keep it (Claude has already committed). Not happy: say what looks wrong in one or two
@@ -81,9 +81,9 @@ It needs workflows to be available on your plan.
 
 ## Copy-paste prompts
 
-The full list, one per roadmap task in the suggested order, is in `docs/PROMPTS.md`.
+The full list, 100 prompts in order with model and effort, is in `docs/PROMPTS.md`.
 
-- `Do task C1 from docs/ROADMAP.md.`
+- `Do prompt 4.`
 - `Use the city-checker agent to check the repo.`
 - `The medina alleys look too straight in output/.../maps/<city>.png. Make them more winding. Keep the change small.`
 - `Split task B1 in docs/ROADMAP.md into three smaller tasks. Do not write code.`

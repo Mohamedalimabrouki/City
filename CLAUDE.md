@@ -20,14 +20,40 @@ The code builds the world; agents only improve the code. Keep every session smal
 ## Rules
 - Determinism: all randomness comes from `citygen.rng.stream(seed, *purpose)`. Give each new
   feature its own purpose path. No `random` module, no unseeded numpy, no set iteration order.
+- Never add draws to an existing stream (for example `rng("b", k)` in `Dresser.building`, the
+  planner's sequential streams, or the shared `props` stream of `mesh/props.catalog`): new
+  choices and new kit pieces get their own stream (`stream(seed, "piece", name)` for pieces).
+  Adding or removing buildings shifts every later household: append new ones at the end.
 - Looks and numbers live in `styles/*.toml` or `citygen/defaults.toml`, not in code.
 - Units are meters; x = east, y = north, z = up. Only the glTF export converts to Y-up.
 - Small functions, match the style of nearby code, no new dependencies without asking.
 - Never write the em dash character anywhere; use "-".
 
 ## Check your work before committing
-- `python -m pytest -q` (about 20 s) must pass.
-- `python -m citygen build --quick` must finish (about 1 min). For visual changes, look at
-  `output/*/maps/*.png` or run `python -m citygen snapshot --view aerial`.
-- Mark the task done in `docs/ROADMAP.md`, update docs the change touches, then commit with a
-  clear message and push (GitHub is the backup).
+- `python -m pytest -q` (about 8 s here) must pass; `python -m citygen build --quick` must
+  finish (about 7 s here). For visual changes, look at `output/*/maps/*.png` or a snapshot.
+- Mark the task done in `docs/ROADMAP.md`, update docs the change touches, then commit only the
+  files you changed (never `git add -A`) with a clear message, and push (GitHub is the backup).
+
+## Prompt sessions ("Do prompt N", see docs/PROMPTS.md)
+- Find `## N.` in `docs/prompts/*.md` (grep), read only that section and follow it. If a prompt
+  in its "Needs" is not ticked in `docs/ROADMAP.md`, stop and tell Ali.
+- Before coding: `build --quick`, then `python tools/fingerprint.py save before`.
+- After coding: tests, `build --quick`, then `python tools/fingerprint.py compare before --allow
+  "<the parts the prompt allows>"`. Fix or explain every other change.
+- "Look" prompts: `python tools/before_after.py --view <view> --out output/checks/<N>.png` (these
+  are the two snapshots; it starts a local web server, so run it outside the sandbox). Look at
+  the image yourself before you report. Extra runs only to prove a look unchanged by their
+  printed pixel difference (0.0) are fine; you need not look at those.
+- Finish: the checks above, a new entry at the top of `docs/WORKLOG.md`, lessons in
+  `docs/HANDOFF.md`, commit, push, then report to Ali in under 10 plain lines: what changed,
+  what to look at and where, any doubt.
+- Stuck after two honest attempts, or a choice the prompt does not settle: stop, write the
+  question in `docs/WORKLOG.md` and ask Ali. Never lower the quality bar to finish.
+- Prompts 1 and 2 create those two tools; until they exist, skip the steps that use them.
+- If the prompt and `docs/ROADMAP.md` differ, the prompt wins. `--allow` lists name new pieces
+  exactly (`kit/arcade_bay`), never `kit/*`.
+- Builds other than `--quick` write to `--out output/full` (pass that folder to the tools).
+- New tests add at most about 2 s to `pytest -q` (heavier ones get the `slow` marker); commands
+  that write files on demand (interior, scene, runs, poster) get a test that runs them in two
+  processes with different PYTHONHASHSEED and compares the bytes.
