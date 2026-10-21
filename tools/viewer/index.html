@@ -57,6 +57,8 @@
     padding: 7px 12px; border-radius: 999px; white-space: nowrap;
   }
   #shadows[aria-pressed="false"] { color: var(--muted); }
+  #views { max-width: 46vw; }
+  .pill:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   #info {
     position: fixed; left: max(16px, env(safe-area-inset-left)); bottom: max(52px, calc(env(safe-area-inset-bottom) + 40px));
     width: min(320px, calc(100vw - 32px)); border-radius: 12px; padding: 10px 14px 11px; pointer-events: auto;
@@ -91,6 +93,7 @@
       <div id="bar"><i id="fill"></i></div>
     </div>
     <div id="buttons">
+      <select id="views" class="glass pill" aria-label="Camera spot" hidden></select>
       <button id="night" class="glass pill" type="button" aria-pressed="false">Night</button>
       <button id="shadows" class="glass pill" type="button" aria-pressed="true">Shadows on</button>
     </div>
@@ -137,9 +140,10 @@ const SUN_AZIMUTH = 225;   // degrees clockwise from north: south-west
 const SUN_ELEVATION = 40;
 const SUN_DISTANCE = 1200;
 const SHADOW_HALF = 700;   // half width of the shadow camera, meters
-const SHADOW_MAP = 4096;
-const SKY = 0x93c6f2;
 const coarse = matchMedia('(pointer: coarse)').matches;
+const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const SHADOW_MAP = coarse ? 2048 : 4096;   // phones: a lighter shadow map
+const SKY = 0x93c6f2;
 
 document.body.classList.toggle('noui', q.get('ui') === '0');
 $('help').textContent = coarse
@@ -266,6 +270,20 @@ function presetView(name) {
   if (name === 'street') return { cam: at(180, 35, 1.7), look: [focus.x, focus.y, focus.z + 1.7] };
   if (name === 'top') return { cam: at(180, 1, 1600), look: ground };   // 1 m south keeps north up
   return { cam: at(160, 900, 650), look: ground };
+}
+
+// a menu of the generator's camera spots and the presets, for jumping around without the URL
+function fillViews(index, current) {
+  const select = $('views');
+  const names = [...Object.keys(index.views || {}).filter((n) => indexView(index, n)), 'aerial', 'top'];
+  const label = (n) => (n.charAt(0).toUpperCase() + n.slice(1)).replace(/_/g, ' ');
+  select.replaceChildren(...[...new Set(names)].map((n) => new Option(label(n), n, false, n === current)));
+  select.hidden = false;
+  select.addEventListener('change', () => {
+    const v = indexView(index, select.value) || presetView(select.value);
+    applyView(v.cam, v.look);
+    select.blur();
+  });
 }
 
 // cam/look in the URL win over a view from the index, which wins over the built-in presets
@@ -808,7 +826,7 @@ function focusAt(clientX, clientY) {
   raycaster.setFromCamera(ndc, camera);
   const hit = raycaster.intersectObjects(tiles.children, true)[0];
   if (!hit) return;
-  focusAnim = { from: controls.target.clone(), to: hit.point.clone(), t0: performance.now(), ms: 450 };
+  focusAnim = { from: controls.target.clone(), to: hit.point.clone(), t0: performance.now(), ms: calm ? 1 : 450 };
   dirty = true;
 }
 
@@ -878,6 +896,7 @@ async function boot() {
   cities = Array.isArray(index.cities) ? index.cities : [];
   const view = initialView(index);
   applyView(view.cam, view.look);
+  fillViews(index, q.get('view') || 'aerial');
   if (q.get('time') === 'night') await setNight(true);
 
   const list = selectTiles(index);
