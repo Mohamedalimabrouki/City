@@ -7,9 +7,11 @@ boulevards, ports, apartment blocks, villas, parks and cemeteries. You get the r
 ways: **maps** (images), **data files** for stories and games, and **3D files** for Blender and
 game engines.
 
-| The country | The capital | In 3D |
-|---|---|---|
-| ![country](docs/img/country.jpg) | ![capital](docs/img/capital.jpg) | ![3d](docs/img/3d.jpg) |
+| The country | The capital |
+|---|---|
+| ![country](docs/img/country.jpg) | ![capital](docs/img/capital.jpg) |
+| **The old town in 3D** | **On the boulevard** |
+| ![3d](docs/img/3d.jpg) | ![street](docs/img/street.jpg) |
 
 ## How it works, in one minute
 
@@ -35,7 +37,11 @@ number. A different seed gives a different country. So:
    python -m citygen view
    ```
    Your web browser opens the city in 3D. Drag to turn, right-drag to move, use the wheel to zoom,
-   and double-click a spot to fly around it. The images are in `output/<country>-<seed>/maps/`.
+   and double-click a spot to fly around it. Press `L` to switch shadows on or off. The images are
+   in `output/<country>-<seed>/maps/`.
+
+To save 3D pictures without opening a browser (handy for checks): `pip install playwright`,
+then `python -m citygen snapshot --view aerial` (or `street`, `souk`, `top`).
 
 Tip: `python -m citygen build --quick` makes a small test world in under a minute.
 

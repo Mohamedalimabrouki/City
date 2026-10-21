@@ -44,16 +44,25 @@ def select_area(world, area: str) -> tuple:
     return region, focus, needed
 
 
-def camera_views(plan, terrain) -> dict:
-    """Eye-level camera spots for viewers: on the boulevard and in a souk (generator coords)."""
+def camera_views(plan, terrain, reach: float = 600.0) -> dict:
+    """Eye-level camera spots near the city center (generator coords): the boulevard, a souk."""
+    center = Point(plan.settlement.x, plan.settlement.y)
     views = {}
-    for name, kinds in (("street", ("boulevard", "arterial")), ("souk", ("souk",))):
-        streets = [st for st in plan.streets if st.kind in kinds and st.line.length > 60.0]
-        if not streets:
+    for name, kinds in (("street", ("boulevard", "arterial", "street")), ("souk", ("souk",))):
+        for kind in kinds:  # the first kind with a long street near the center wins
+            near = [st for st in plan.streets
+                    if st.kind == kind and st.line.length > 60.0 and st.line.distance(center) < reach]
+            if near:
+                break
+        else:
             continue
-        line = max(streets, key=lambda st: st.line.length).line
-        a = line.interpolate(0.3, normalized=True)
-        b = line.interpolate(min(line.length, line.project(a) + 50.0))
+        street = max(near, key=lambda st: st.line.length)
+        line = street.line
+        if street.width > 16.0:  # wide street: step off the middle row of trees
+            line = line.offset_curve(street.width / 4)
+        d = min(max(line.project(center), 10.0), line.length - 10.0)
+        step = 50.0 if line.length - d >= d else -50.0  # look along the longer side
+        a, b = line.interpolate(d), line.interpolate(min(max(d + step, 0.0), line.length))
         ga, gb = float(terrain.height(a.x, a.y)), float(terrain.height(b.x, b.y))
         views[name] = {"cam": [round(a.x, 1), round(a.y, 1), round(ga + 1.7, 1)],
                        "look": [round(b.x, 1), round(b.y, 1), round(gb + 4.0, 1)]}

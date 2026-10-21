@@ -14,6 +14,7 @@ import re
 import sys
 import time
 from pathlib import Path
+from urllib.parse import quote
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -26,7 +27,6 @@ INSTALL_HINT = ("Playwright is not installed. Install it with:\n"
                 "  playwright install chromium")
 CDN = re.compile(r"https://cdn\.jsdelivr\.net/npm/three@[^/]+/(.*)")
 SOFTWARE_GL = ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"]
-VIEWS = ("aerial", "street", "top")
 BROWSER_GLOBS = (
     "chromium_headless_shell-*/chrome-*/headless_shell", "chromium_headless_shell-*/chrome-*/headless_shell.exe",
     "chromium-*/chrome-linux*/chrome", "chromium-*/chrome-win*/chrome.exe",
@@ -118,7 +118,7 @@ def snapshot(out_dir: str | Path, png_path: str | Path, view: str = "aerial", wi
 
     png = Path(png_path)
     png.parent.mkdir(parents=True, exist_ok=True)
-    params = [] if "view=" in query else [f"view={view}"]
+    params = [] if "view=" in query else [f"view={quote(view)}"]
     if query:
         params.append(query.lstrip("?&"))
     problems: list[str] = []
@@ -156,7 +156,8 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Screenshot a generated city with the web viewer.")
     ap.add_argument("out_dir", help="generator output directory (contains tiles/index.json)")
     ap.add_argument("--png", default=None, help="output file (default: snapshot_<view>.png)")
-    ap.add_argument("--view", choices=VIEWS, default="aerial", help="camera preset (default: aerial)")
+    ap.add_argument("--view", default="aerial",
+                    help="aerial, street, top or a name from the views in tiles/index.json (default: aerial)")
     ap.add_argument("--width", type=int, default=1600)
     ap.add_argument("--height", type=int, default=900)
     ap.add_argument("--query", default="", help='extra viewer parameters, e.g. "radius=1000&shadows=0&ui=0"')

@@ -162,7 +162,7 @@ def add_sun(focus: Vector) -> None:
     toward_sun = Vector((math.sin(az) * math.cos(el), math.cos(az) * math.cos(el), math.sin(el)))
     drop("City Sun", bpy.data.lights)
     light = bpy.data.lights.new("City Sun", "SUN")
-    light.energy = 4.0
+    light.energy = 3.0
     light.color = (1.0, 0.93, 0.8)
     light.angle = math.radians(0.6)
     sun = link_new("City Sun", light)

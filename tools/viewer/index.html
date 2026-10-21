@@ -107,7 +107,8 @@ function fail(message) {
 }
 
 // URL parameters: radius (meters around the focus, default 2500), shadows=0, ui=0 (hide the overlay),
-// view=aerial|street|top, or cam=x,y,z and look=x,y,z in generator coordinates (meters, z up).
+// view=aerial|street|top or a camera spot named in the index "views", or cam=x,y,z and look=x,y,z
+// in generator coordinates (meters, z up).
 const RADIUS = Math.max(0, num('radius', 2500));
 const MAX_INFLIGHT = 6;
 const SUN_AZIMUTH = 225;   // degrees clockwise from north: south-west
@@ -225,7 +226,15 @@ function setView(position, target) {
 
 const applyView = (cam, look) => setView(toThree(...cam), toThree(...look));
 
+// A camera spot written by the generator: index.views[name] = { cam: [x, y, z], look: [x, y, z] }.
+function indexView(index, name) {
+  const v = index.views && Object.prototype.hasOwnProperty.call(index.views, name) ? index.views[name] : null;
+  const ok = (a) => Array.isArray(a) && a.length === 3 && a.every(Number.isFinite);
+  return v && ok(v.cam) && ok(v.look) ? { cam: v.cam, look: v.look } : null;
+}
+
 function presetView(name) {
+  if (!['aerial', 'street', 'top'].includes(name)) console.warn(`unknown view "${name}", using aerial`);
   const at = (bearing, dist, up) => {
     const b = THREE.MathUtils.degToRad(bearing);
     return [focus.x + Math.sin(b) * dist, focus.y + Math.cos(b) * dist, focus.z + up];
@@ -236,14 +245,15 @@ function presetView(name) {
   return { cam: at(160, 900, 650), look: ground };
 }
 
-function initialView() {
+// cam/look in the URL win over a view from the index, which wins over the built-in presets
+function initialView(index) {
   const cam = triple('cam');
   const look = triple('look');
   if (cam) return { cam, look: look || [focus.x, focus.y, focus.z] };
-  const view = presetView(q.get('view'));
+  const name = q.get('view') || 'aerial';
+  const view = indexView(index, name) || presetView(name);
   if (!look) return view;
-  const dx = view.cam[0] - focus.x, dy = view.cam[1] - focus.y, dz = view.cam[2] - focus.z;
-  return { cam: [look[0] + dx, look[1] + dy, look[2] + dz], look };
+  return { cam: look.map((v, i) => v + view.cam[i] - view.look[i]), look };
 }
 
 // ---------------------------------------------------------------- tiles
@@ -254,7 +264,23 @@ const sharedMaterials = new Map();
 let extent = 500;          // distance from the focus to the farthest loaded corner
 let lowest = Infinity;     // lowest point of any loaded tile; the camera stays above it
 const tileBase = new URL('data/tiles/', location.href);
-const wantsStreet = q.get('view') === 'street' && !triple('cam') && !triple('look');
+
+// The tiles' water ends at the last loaded tile: an opaque copy of the water just below sea level
+// carries the sea on to the horizon, where the fog takes over. On land the terrain hides it.
+const SEA_SIZE = 60000;
+let sea = null;
+
+function addSea(water) {
+  if (sea) return;
+  const material = water.clone();
+  // a small constant depth offset lets terrain at sea level win; a slope-scaled one would hide the plane at grazing angles
+  Object.assign(material, { name: 'sea', transparent: false, opacity: 1, depthWrite: true,
+                            polygonOffset: true, polygonOffsetFactor: 0, polygonOffsetUnits: 2 });
+  sea = new THREE.Mesh(new THREE.PlaneGeometry(SEA_SIZE, SEA_SIZE).rotateX(-Math.PI / 2), material);
+  sea.position.y = -0.05;
+  sea.receiveShadow = true;
+  scene.add(sea);
+}
 
 // One material per look, shared by all tiles; water gets a glossy, slightly transparent finish.
 function shared(material) {
@@ -279,6 +305,10 @@ function addTile(gltf) {
     o.material = shared(o.material);
     o.castShadow = !o.material.userData.water;
     o.receiveShadow = true;
+    if (o.material.userData.water && !sea) {
+      o.geometry.computeBoundingBox();
+      if (Math.abs(o.geometry.boundingBox.max.y) < 0.5) addSea(o.material);   // water at sea level, not a lake
+    }
     stats.triangles += (o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count) / 3;
   });
   tiles.add(root);
@@ -352,7 +382,7 @@ function placeStreetCamera() {
   if (best) setView(best.eye, best.eye.clone().addScaledVector(best.dir, THREE.MathUtils.clamp(best.clear, 8, 40)));
 }
 
-async function loadTiles(list) {
+async function loadTiles(list, wantsStreet) {
   let next = 0;
   let nearLeft = wantsStreet ? list.filter((t) => t.d <= 100).length : 0;
   const worker = async () => {
@@ -531,14 +561,16 @@ async function boot() {
   $('meta').textContent = [f.name, index.seed != null ? 'seed ' + index.seed : ''].filter(Boolean).join(' \u00b7 ');
   document.title = world + ' - citygen';
 
-  const view = initialView();
+  const view = initialView(index);
   applyView(view.cam, view.look);
 
   const list = selectTiles(index);
   stats.requested = list.length;
   if (list.length) extent = Math.max(...list.map((t) => t.far));
   updateHud();
-  await loadTiles(list);
+  // with no spot from the index, the street preset looks for open ground once the nearby tiles are in
+  const wantsStreet = q.get('view') === 'street' && !triple('cam') && !triple('look') && !indexView(index, 'street');
+  await loadTiles(list, wantsStreet);
   loadDone = true;
   dirty = true;
   updateHud();
