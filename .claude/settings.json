@@ -7,7 +7,15 @@
       "Bash(python -m pytest *)",
       "Bash(python3 -m pytest *)",
       "Bash(python -m citygen *)",
-      "Bash(python3 -m citygen *)"
+      "Bash(python3 -m citygen *)",
+      "Bash(.venv/bin/python -m pytest *)",
+      "Bash(.venv/bin/python -m citygen *)",
+      "Bash(.venv/bin/python tools/*)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git add *)",
+      "Bash(git commit *)"
     ]
   }
 }

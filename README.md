@@ -140,9 +140,10 @@ it can load only the ones near the player. A ready-made Godot starter is planned
 
 ## Working with Claude
 
-The plan of future improvements is in `docs/ROADMAP.md`, cut into small tasks. How to do them
-cheaply (which model, what to type, ultracode) is in `docs/WORKFLOW.md`. The technical rules are
-in `docs/SPEC.md`.
+The plan of future improvements is in `docs/ROADMAP.md`, cut into small tasks, and
+`docs/PROMPTS.md` has a ready prompt for each one (one new session per task). How to work
+cheaply (which model, ultracode) is in `docs/WORKFLOW.md`, the project's memory (goals,
+decisions, lessons) in `docs/HANDOFF.md`, and the technical rules in `docs/SPEC.md`.
 
 ## Project map
 

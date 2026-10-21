@@ -81,6 +81,8 @@ It needs workflows to be available on your plan.
 
 ## Copy-paste prompts
 
+The full list, one per roadmap task in the suggested order, is in `docs/PROMPTS.md`.
+
 - `Do task C1 from docs/ROADMAP.md.`
 - `Use the city-checker agent to check the repo.`
 - `The medina alleys look too straight in output/.../maps/<city>.png. Make them more winding. Keep the change small.`

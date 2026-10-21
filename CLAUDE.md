@@ -3,6 +3,14 @@
 Python 3.11+ procedural generator for an invented Mediterranean / North African country.
 The code builds the world; agents only improve the code. Keep every session small and cheap.
 
+## The owner and how to work with him
+- Ali is not a software developer: answer in plain language (about B2 English), define jargon,
+  keep reports under 10 lines. Background and past decisions: `docs/HANDOFF.md` (read only
+  when the task needs it).
+- One task per session. Efficient, but never lower the quality bar below.
+- Visual checks: at most two snapshots per task, then ask Ali to look (`python -m citygen view`).
+- On Ali's Mac use `.venv/bin/python` instead of `python`.
+
 ## Before you code
 - Read only what the task needs: the task in `docs/ROADMAP.md`, the matching parts of
   `docs/SPEC.md`, and the files the task names.
@@ -21,4 +29,5 @@ The code builds the world; agents only improve the code. Keep every session smal
 - `python -m pytest -q` (about 20 s) must pass.
 - `python -m citygen build --quick` must finish (about 1 min). For visual changes, look at
   `output/*/maps/*.png` or run `python -m citygen snapshot --view aerial`.
-- Mark the task done in `docs/ROADMAP.md`, then commit with a clear message.
+- Mark the task done in `docs/ROADMAP.md`, update docs the change touches, then commit with a
+  clear message and push (GitHub is the backup).

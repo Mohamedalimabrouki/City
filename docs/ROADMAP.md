@@ -7,7 +7,8 @@ How to run one: open Claude Code in this folder and say
 Every task also requires: `python -m pytest -q` passes, `python -m citygen build --quick`
 finishes, tunable numbers go in the style pack, and the task is ticked here when done.
 
-Suggested order: C1, H1, H2, H3, H4, A4, A3, A1, A9, B1, B2, C3, D1, D5, then anything you like.
+Suggested order: Q2, Q1, Q3, C1, H1, H2, H3, H4, A4, A3, A1, A9, Q4, B1, B2, C3, D1, D5, then
+anything you like. Ready prompts for each: `docs/PROMPTS.md`.
 
 ## Done (v0.1)
 
@@ -16,6 +17,31 @@ Suggested order: C1, H1, H2, H3, H4, A4, A3, A1, A9, B1, B2, C3, D1, D5, then an
       boulevard, port, modern estates, dense housing, villas, industry, parks, cemetery
 - [x] Exports: PNG maps, world.json, plan.json, gazetteer.md, 3D tiles (.glb) with index
 - [x] Tools: browser viewer, snapshot to PNG, Blender import script, tests
+
+## Q. Polish (weak spots seen while doing A0)
+
+- [ ] **Q1 Natural leafy trees** (S) - Broadleaf and olive trees are three blocky octahedrons
+  (`tree_mesh` in `mesh/props.py`). Give them low-poly but natural crowns (for example 6 to 9
+  jittered clumps with a few shades of green). They are drawn as instances, so up to about 200
+  triangles per tree is fine. Done when: the street snapshot looks clearly better and tiles grow
+  under 5%.
+- [ ] **Q2 Family names** (S) - Some family names read oddly ("Ben Zegoughka", "Ben Basrahia").
+  Tune `family_name` in `city/life.py` and `[life]` in the style: short cores (one or two
+  syllables), more nisba names ending in -i (Trabelsi, Jebali style), no "-ka" endings, and the
+  same Maghrebi filters as place names. Add a test over 300 names. Done when: Ali reads 30
+  sample names and they sound real.
+- [ ] **Q3 Generated bougainvillea** (S) - The generator's own climber (`bougainvillea` in
+  `mesh/props.py`) looks like a lollipop next to the kit's cascade. Rebuild it as a dense,
+  flat mass of bracts against the wall with a twisting trunk, or remove it from `door_plants`.
+  Done when: a close snapshot shows no lollipops.
+- [ ] **Q4 Blender 5 haze and color grade** (S) - `tools/blender_beauty.py` skips its compositor
+  on Blender 5 (the compositor became a node group: `scene.compositing_node_group`, a Group
+  Output node instead of Composite). Port `setup_haze` and keep Blender 3.6 and 4.x working.
+  Done when: a 5.2 souk render shows the warm grade like a 3.6 render.
+- [ ] **Q5 Lighter old-town tiles** (M, can be done with C2) - A dressed old-town tile is about
+  4.7 MB because each tile stores its own copy of every kit piece it uses. Options: leave tiny
+  pieces out of far tiles, quantize positions and normals (`KHR_mesh_quantization`), or merge
+  rarely used big pieces. Done when: under 3.5 MB with no visible loss up close.
 
 ## A. Street level (the capital looks real up close)
 
