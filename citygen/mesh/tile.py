@@ -51,7 +51,8 @@ class TileContext:
                 shapely.prepare(area)
         # street dressing: doors, shops, goods, street life (city/dressing.py), drawn as instances
         self.dress = bool(world.cfg["tiles"].get("dressing", True))
-        self.kit = Kit(world.seed, world.cfg["build"].get("kits", []), self.palette) if self.dress else None
+        self.kit = Kit(world.seed, world.cfg["build"].get("kits", []), self.palette,
+                        world.style.get("dressing", {}).get("trees")) if self.dress else None
         self.materials = self.kit.materials if self.kit else self.palette
         self.cities = []
         for p in plans:

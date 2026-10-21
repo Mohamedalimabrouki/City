@@ -169,9 +169,27 @@ def test_family_names_sound_tunisian():
     assert not _root_fits("1a23i", ["b", "f", "n"], roots)   # b and f are the same class
 
 
+def test_trees_are_natural_and_deterministic(world):
+    from citygen.mesh.trees import tree_pieces
+    table = world.style["dressing"]["trees"]
+    a, b = tree_pieces(world.seed, table), tree_pieces(world.seed, table)
+    assert len(a) == sum(int(spec["variants"]) for spec in table.values())
+    for name, mb in a.items():
+        assert 60 <= mb.triangles <= 200, (name, mb.triangles)
+        pa, pb = mb.gltf_parts(), b[name].gltf_parts()
+        assert pa.keys() == pb.keys()
+        for mat in pa:
+            assert mat in world.style["palette"], mat
+            assert (pa[mat]["pos"] == pb[mat]["pos"]).all() and (pa[mat]["idx"] == pb[mat]["idx"]).all()
+        assert 7.0 < max(p["pos"][:, 1].max() for p in pa.values()) < 8.3   # crown top near the 8 m piece height
+    assert len({tuple(p["pos"].shape) + (float(p["pos"].sum()),) for p in
+                (a["tree_broadleaf"].gltf_parts()["trunk"], a["tree_broadleaf_b"].gltf_parts()["trunk"])}) == 2
+
+
 def test_kit_names_and_roles(world):
     from citygen.kit import Kit
-    kit = Kit(world.seed, world.cfg["build"].get("kits", []), world.style["palette"])
+    kit = Kit(world.seed, world.cfg["build"].get("kits", []), world.style["palette"],
+                  world.style["dressing"].get("trees"))
     assert kit.pieces["door_blue"].source == "procedural"
     kit_pieces = [n for n, p in kit.pieces.items() if p.source != "procedural"]
     assert all(n.startswith(kit.pieces[n].source + "/") for n in kit_pieces)   # kit pieces never replace ours

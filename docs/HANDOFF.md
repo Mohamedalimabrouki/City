@@ -37,12 +37,13 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
 
 - Done: v0.1 (country, cities, maps, data, 3D tiles, viewer, Blender scripts), **A0** (Tounes
   kit, street dressing, households and souk trades, night mode, "click a house: who lives there")
-  and **Q2** (family names that sound Tunisian).
+  **Q2** (family names that sound Tunisian) and **Q1** (rounded, shaded leafy trees).
 - Since 21 October 2026 the work runs on Ali's Mac: an Opus lead session plans and reviews, the
   `city-builder` helper codes one task at a time in the order of `docs/PROMPTS.md`, and Ali says
   "next" before each new task.
 - Seed 42 makes the country **Bodjantouna** with the capital **Goumosbane**.
-  `python -m citygen build --quick` writes it to `output/bodjantouna-42/` in about 20 seconds.
+  `python -m citygen build --quick` writes it to `output/bodjantouna-42/` in about 7 seconds on
+  Ali's Mac (20 seconds in the cloud).
 - All work is on the git branch `claude/procedural-city-generator-xop72h`. Keep working on it and
   push at the end of every task (GitHub is the backup).
 - 3D page for the phone (made from the quick build):
@@ -68,20 +69,27 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
   (`glass_dark`) lights up; the nearest lamps get real lights. Kit windows stay dark.
 - **Blender 5**: the physical sky is `MULTIPLE_SCATTERING` with `aerosol_density`; the
   compositor moved to node groups, so the beauty render skips its haze there (task Q4).
+- **Leafy trees** (`mesh/trees.py`) are instanced kit pieces, three variants per kind, each with its
+  own stream. Undressed tiles keep the light 3-clump tree from `tree_mesh`: merging 200-triangle
+  trees 7,900 times into a tile would make it huge.
 - **Headless snapshots** run on the CPU and are slow. Use a small `radius` in `--query`.
 - **Old-town tiles** reach about 5 MB with all the dressing (SPEC budget note; task Q5).
 
 ## Known weak spots
 
-Listed as tasks Q1-Q5 in the roadmap: blocky leafy trees, a crude generated bougainvillea, no
-haze in Blender 5 beauty renders, heavy old-town tiles.
+Listed as tasks Q3-Q5 in the roadmap: a crude generated bougainvillea, no haze in Blender 5
+beauty renders, heavy old-town tiles.
 
 ## Checking the look without wasting tokens
 
 - Best: Ali looks himself. `python -m citygen view` opens the browser (camera spots in the top
   menu, Night button, click a house). Or open the tiles in Blender:
   `/Applications/Blender.app/Contents/MacOS/Blender --python tools/blender_import.py -- output/bodjantouna-42/tiles`
-- Claude takes at most two snapshots per task (`python -m citygen snapshot --view souk`, needs
-  `pip install playwright` and `playwright install chromium`), then stops and asks Ali.
+- Claude takes at most two snapshots per task (`python -m citygen snapshot --view street`; views
+  street = the boulevard, souk, aerial, top), then stops and asks Ali. On Ali's Mac `.venv` has
+  playwright 1.56.0 because it matches the Chromium already in `~/Library/Caches/ms-playwright`
+  (newer versions want a new download of about 250 MB). In a sandboxed Claude session the
+  snapshot's small local web server needs local port binding: run it outside the sandbox, or set
+  `sandbox.network.allowLocalBinding: true`.
 - Every piece of the kit in one grid: `python -m citygen kit-sheet`, then
   `python -m citygen view output/kit-sheet`.

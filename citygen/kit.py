@@ -60,10 +60,10 @@ class Piece:
 
 
 class Kit:
-    def __init__(self, seed: int, kits=(), palette: dict | None = None):
+    def __init__(self, seed: int, kits=(), palette: dict | None = None, trees: dict | None = None):
         self.pieces: dict[str, Piece] = {}
         self.materials: dict = dict(palette or {})
-        for name, (mb, category, anchor) in catalog(stream(seed, "props")).items():
+        for name, (mb, category, anchor) in catalog(stream(seed, "props"), seed, trees).items():
             self.pieces[name] = Piece(name, category, anchor, mb.gltf_parts(), "procedural")
         for kit in kits:
             folder = Path(kit) if Path(kit).is_dir() else ROOT / "kits" / kit

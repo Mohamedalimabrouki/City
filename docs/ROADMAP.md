@@ -20,11 +20,17 @@ anything you like. Ready prompts for each: `docs/PROMPTS.md`.
 
 ## Q. Polish (weak spots seen while doing A0)
 
-- [ ] **Q1 Natural leafy trees** (S) - Broadleaf and olive trees are three blocky octahedrons
+- [x] **Q1 Natural leafy trees** (S) - Broadleaf and olive trees are three blocky octahedrons
   (`tree_mesh` in `mesh/props.py`). Give them low-poly but natural crowns (for example 6 to 9
   jittered clumps with a few shades of green). They are drawn as instances, so up to about 200
   triangles per tree is fine. Done when: the street snapshot looks clearly better and tiles grow
-  under 5%.
+  under 5%. Done. `mesh/trees.py` builds 3 broadleaf and 3 olive variants (122 to 184 triangles):
+  7 to 8 (olive 5 to 7) jittered icosahedron clumps in dark, mid and light shades (`leaf_dark`,
+  `leaf_light`, `leaf_olive_dark`, `leaf_olive_light`), a tapered leaning trunk (olive: one or two
+  stems) and 2 or 3 branches. All numbers are in `[dressing.trees.*]`; roles `tree_broadleaf` and
+  `tree_olive` pick a variant. Each variant has its own stream, so other pieces are unchanged.
+  Undressed tiles keep the light 3-clump tree. Tiles grew 0.9% (11.55 to 11.65 MB). The street
+  snapshot shows rounded crowns, darker below and lighter on top, instead of pointed diamonds.
 - [x] **Q2 Family names** - Done. `family_name` picks one of five patterns from `[life]`: a
   made-up nisba (three Arabic root sounds in a word pattern, Hamdi = 1a23i from H-M-D, with sound
   rules and a rude-word blocklist in `roots.*`), a real nisba, "Ben" plus a real given name, a

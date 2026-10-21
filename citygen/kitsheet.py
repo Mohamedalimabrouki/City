@@ -14,7 +14,7 @@ from .mesh.gltf import write_glb
 
 def kit_sheet(out_dir, kits=("tounes",), seed: int = 42, columns: int = 8, spacing: float = 4.0) -> Path:
     style = load_style(load_config()["world"]["style"])
-    kit = Kit(seed, kits, style["palette"])
+    kit = Kit(seed, kits, style["palette"], style.get("dressing", {}).get("trees"))
     names = sorted(kit.pieces, key=lambda n: (kit.pieces[n].source != "procedural", kit.pieces[n].category, n))
     rows = (len(names) + columns - 1) // columns
     width, depth = columns * spacing, rows * spacing

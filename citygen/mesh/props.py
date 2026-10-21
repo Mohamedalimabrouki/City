@@ -18,6 +18,7 @@ from ..city.model import Tree
 
 from .builder import (MeshBuilder, add_cone, add_dome, add_octahedron, add_sheet, add_triangles, extrude,
                       regular_polygon)
+from .trees import tree_pieces
 
 DOOR_COLORS = ("door_blue", "door_green", "door_yellow", "door_brown", "door_red")
 AWNINGS = ("awning_red", "awning_green", "awning_blue", "awning_yellow")
@@ -389,8 +390,12 @@ def tree_piece(kind: str, height: float = 8.0) -> MeshBuilder:
     return mb
 
 
-def catalog(rng) -> dict:
-    """Every procedural piece: {name: (MeshBuilder, category, anchor)}."""
+def catalog(rng, seed: int = 0, trees: dict | None = None) -> dict:
+    """Every procedural piece: {name: (MeshBuilder, category, anchor)}.
+
+    `trees` is the style table `[dressing.trees]`; the crowns use their own random streams (from `seed`),
+    never `rng`, so they cannot change any other piece. Without it the light three-clump trees are used.
+    """
     pieces = {}
     for color in DOOR_COLORS:
         pieces[color] = (door(color), "door", "wall")
@@ -425,4 +430,6 @@ def catalog(rng) -> dict:
         "street_lamp": (street_lamp(), "lamp", "ground"),
         **{f"tree_{kind}": (tree_piece(kind), "tree", "ground") for kind in ("broadleaf", "olive", "cypress", "palm")},
     })
+    for name, mb in tree_pieces(seed, trees or {}).items():
+        pieces[name] = (mb, "tree", "ground")
     return pieces

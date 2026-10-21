@@ -64,6 +64,7 @@ build.build()                 orchestrates the above into output/<country>-<seed
 | `citygen/mesh/gltf.py` | dependency-free .glb writer and reader |
 | `citygen/mesh/tile.py` | what goes into one tile |
 | `citygen/mesh/props.py` | the generator's own kit pieces (doors, shops by trade, awnings, goods, lamps, trees...) |
+| `citygen/mesh/trees.py` | broadleaf and olive crowns (jittered clumps, 3 variants each) from `[dressing.trees]` |
 | `citygen/kit.py` | `Kit`: procedural pieces plus kits from `kits/<name>/` |
 | `citygen/city/life.py` | households and souk trades (story data that also drives the dressing) |
 | `citygen/city/dressing.py` | `Dresser`: which piece goes where, tile by tile |

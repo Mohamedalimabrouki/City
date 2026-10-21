@@ -91,6 +91,11 @@ leaf = { color = "#5B7A3A" }
 leaf_olive = { color = "#7F8D5E" }
 leaf_palm = { color = "#6E8C3D", double_sided = true }
 leaf_cypress = { color = "#3F5A35" }
+leaf_dark = { color = "#445F2D" }
+leaf_light = { color = "#7F9D4C" }
+leaf_olive_dark = { color = "#667550" }
+leaf_olive_light = { color = "#A5B08A" }
+trunk_olive = { color = "#5D5549" }
 trunk = { color = "#6B5541" }
 # street dressing (doors, shops, goods, street life)
 stone_frame = { color = "#D8C7A5" }
@@ -485,6 +490,51 @@ souk_lanterns = 0.55       # chance, every 12 m along a souk, of a string of lan
 bunting = 0.2
 street_lamps = { boulevard = 26.0, corniche = 24.0, arterial = 32.0, ring = 34.0, street = 30.0 }   # meters between lamps
 
+# Broadleaf and olive crowns (citygen/mesh/trees.py). Sizes are fractions of the tree height.
+# clumps: how many leaf clumps; clump_radius: their size; flatten: clump height / width;
+# jitter: how lumpy each clump is; materials: dark (low, inside), mid, light (top);
+# dark_below / light_above: where the shades switch (0 = lowest clump, 1 = highest).
+[dressing.trees.broadleaf]
+variants = 3
+clumps = [7, 8]
+clump_radius = [0.15, 0.2]
+crown_radius = 0.27
+crown_drop = 0.04         # crown base above the trunk top, as a fraction of height
+flatten = 0.85
+jitter = 0.18
+dark_below = 0.3
+light_above = 0.65
+materials = ["leaf_dark", "leaf", "leaf_light"]
+trunk_height = 0.3
+trunk_radius = 0.028
+taper = 0.55
+trunk_sides = 6
+trunk_material = "trunk"
+stems = [1, 1]
+lean = 0.02
+branches = [2, 3]
+
+[dressing.trees.olive]
+variants = 3
+clumps = [5, 7]
+clump_radius = [0.12, 0.17]
+crown_radius = 0.5
+crown_drop = 0.0
+flatten = 0.6
+jitter = 0.22
+dark_below = 0.3
+light_above = 0.6
+low_bias = 1.4
+materials = ["leaf_olive_dark", "leaf_olive", "leaf_olive_light"]
+trunk_height = 0.2
+trunk_radius = 0.035
+taper = 0.6
+trunk_sides = 5
+trunk_material = "trunk_olive"
+stems = [1, 2]
+lean = 0.07
+branches = [2, 3]
+
 # Which pieces play each part, by weight: [piece, weight] or [piece, weight, extra height].
 # "tounes/..." pieces come from the Tounes Rush kit (kits/tounes); the others are made by the
 # generator (citygen/mesh/props.py). Pieces that are missing are skipped, so the city still
@@ -529,5 +579,7 @@ roof_dish = [["dish", 1]]
 roof_laundry = [["tounes/laundry_poles", 1]]
 wall_laundry = [["tounes/laundry_line", 1]]
 tree_palm = [["tounes/palm_date", 1]]
+tree_broadleaf = [["tree_broadleaf", 1], ["tree_broadleaf_b", 1], ["tree_broadleaf_c", 1]]
+tree_olive = [["tree_olive", 1], ["tree_olive_b", 1], ["tree_olive_c", 1]]
 alley_arch = [["tounes/arch_sbs", 1]]
 souk_gate = [["tounes/souk_gate_lanterns", 1], ["tounes/souk_gate_rugs", 1]]
