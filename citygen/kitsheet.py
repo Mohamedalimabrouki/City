@@ -7,14 +7,16 @@ import numpy as np
 
 from .config import load_config, load_style
 from .export.lore import write_json
-from .kit import Kit
+from .kit import make_kit
 from .mesh.builder import MeshBuilder, add_cap, extrude, rectangle
 from .mesh.gltf import write_glb
 
 
-def kit_sheet(out_dir, kits=("tounes",), seed: int = 42, columns: int = 8, spacing: float = 4.0) -> Path:
-    style = load_style(load_config()["world"]["style"])
-    kit = Kit(seed, kits, style["palette"], style.get("dressing", {}).get("trees"))
+def kit_sheet(out_dir, kits=None, seed: int = 42, columns: int = 8, spacing: float = 4.0) -> Path:
+    cfg = load_config()
+    if kits is not None:
+        cfg["build"]["kits"] = list(kits)
+    kit = make_kit(seed, cfg, load_style(cfg["world"]["style"]))
     names = sorted(kit.pieces, key=lambda n: (kit.pieces[n].source != "procedural", kit.pieces[n].category, n))
     rows = (len(names) + columns - 1) // columns
     width, depth = columns * spacing, rows * spacing

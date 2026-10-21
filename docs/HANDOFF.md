@@ -53,6 +53,8 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
 
 ## Decisions and lessons (do not relearn them)
 
+- **Fingerprint** (`tools/fingerprint.py`): hash kit arrays only after skipping `None` ones
+  (`tobytes()` of a None array hashes a memory address and differs every run).
 - **Randomness** only from `citygen.rng.stream(seed, *purpose)`, one purpose path per feature, so
   adding a feature never changes the rest of the world.
 - **Family names** mix real lists with made-up nisba names built from Arabic roots and patterns

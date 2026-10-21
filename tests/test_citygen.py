@@ -246,3 +246,24 @@ def test_households_and_souks(plan):
     assert all(0.0 <= h.wealth <= 1.0 and h.members >= 1 for h in plan.households)
     assert plan.souks and all(plan.streets[k.street].kind == "souk" for k in plan.souks)
     assert len({k.name for k in plan.souks}) == len(plan.souks)   # every souk has its own name
+
+
+def test_fingerprint_tool(tmp_path, monkeypatch):
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
+    import fingerprint
+    folder = tmp_path / "w"
+    (folder / "tiles").mkdir(parents=True)
+    (folder / "maps").mkdir()
+    (folder / "world.json").write_text(json.dumps({"name": "T", "seed": 1, "style": "maghreb"}))
+    (folder / "tiles" / "index.json").write_text(json.dumps({"tiles": [], "seconds": 1.0}))
+    (folder / "tiles" / "tile_0_0.glb").write_bytes(b"abc")
+    monkeypatch.chdir(tmp_path)
+    assert fingerprint.main(["save", "a", str(folder)]) == 0
+    assert fingerprint.main(["compare", "a", str(folder), "--allow", ""]) == 0
+    (folder / "tiles" / "index.json").write_text(json.dumps({"tiles": [], "seconds": 9.0}))
+    assert fingerprint.main(["compare", "a", str(folder), "--allow", ""]) == 0   # timings are ignored
+    (folder / "tiles" / "tile_0_0.glb").write_bytes(b"abcd")
+    assert fingerprint.main(["compare", "a", str(folder), "--allow", ""]) == 1
+    assert fingerprint.main(["compare", "a", str(folder), "--allow", "tiles/*"]) == 0

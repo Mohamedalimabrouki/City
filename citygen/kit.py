@@ -88,3 +88,6 @@ class Kit:
                                      folder.name, tuple(spec.get("tags", [])))
 
 
+def make_kit(seed: int, cfg: dict, style: dict) -> Kit:
+    """The one place a Kit is built from a seed, the config and the style (tiles, kit sheet, tools)."""
+    return Kit(seed, cfg["build"].get("kits", []), style["palette"], style.get("dressing", {}).get("trees"))

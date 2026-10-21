@@ -19,7 +19,7 @@ from shapely.strtree import STRtree
 
 from ..city.dressing import Dresser, Placement, building_highs, ground_heights
 from ..city.geo import frame, lines
-from ..kit import Kit
+from ..kit import make_kit
 from ..terrain import BIOME_MATERIAL, SEA, classify
 from .builder import (MeshBuilder, add_cap, add_dome, add_hip_roof, add_ribbon, add_sheet, extrude, rectangle,
                       regular_polygon)
@@ -51,8 +51,7 @@ class TileContext:
                 shapely.prepare(area)
         # street dressing: doors, shops, goods, street life (city/dressing.py), drawn as instances
         self.dress = bool(world.cfg["tiles"].get("dressing", True))
-        self.kit = Kit(world.seed, world.cfg["build"].get("kits", []), self.palette,
-                        world.style.get("dressing", {}).get("trees")) if self.dress else None
+        self.kit = make_kit(world.seed, world.cfg, world.style) if self.dress else None
         self.materials = self.kit.materials if self.kit else self.palette
         self.cities = []
         for p in plans:
