@@ -11,7 +11,7 @@ from shapely.ops import nearest_points, unary_union
 
 from .geo import lines, polygons, ray_exit
 from .medina import ring_offset
-from .model import Street
+from .model import Street, Tree
 
 
 def major_streets(ctx, districts, medina, axis: float, land) -> list:
@@ -119,7 +119,6 @@ def local_streets(ctx, districts) -> list:
 
 def street_trees(ctx, streets) -> list:
     """Palms and shade trees along the boulevard and the seafront."""
-    from .model import Tree
     rng = ctx.rng("street-trees")
     rows = {"boulevard": [(0.0, 9.0, "broadleaf")], "corniche": []}
     out = []

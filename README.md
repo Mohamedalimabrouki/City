@@ -9,7 +9,7 @@ game engines.
 
 | The country | The capital | In 3D |
 |---|---|---|
-| ![country](docs/img/country.png) | ![capital](docs/img/capital.png) | ![3d](docs/img/3d.png) |
+| ![country](docs/img/country.jpg) | ![capital](docs/img/capital.jpg) | ![3d](docs/img/3d.jpg) |
 
 ## How it works, in one minute
 

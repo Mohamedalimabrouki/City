@@ -18,7 +18,7 @@ from shapely.geometry import LineString
 from .config import load_style
 from .names import NameMaker
 from .rng import stream
-from .terrain import BIOME_NAMES, DESERT, FOREST, GREEN, STEPPE, Terrain, classify
+from .terrain import BIOME_NAMES, Terrain, classify
 
 KINDS = ["capital", "city", "town", "village"]
 RANK = {k: i for i, k in enumerate(KINDS)}

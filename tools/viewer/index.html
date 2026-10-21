@@ -1,0 +1,559 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#93c6f2">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232c76c2'/%3E%3Cpath d='M6 25V14h6v11zm8 0V7h6v18zm8 0V17h4v8z' fill='white'/%3E%3C/svg%3E">
+<title>citygen viewer</title>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+  }
+}
+</script>
+<style>
+  :root {
+    --ink: #14283a;
+    --muted: #526a7e;
+    --glass: rgba(255, 255, 255, 0.8);
+    --line: rgba(20, 40, 58, 0.14);
+    --accent: #2c76c2;
+    --warn: #b3261e;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; height: 100%; overflow: hidden; background: #93c6f2; color: var(--ink);
+    font: 13px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  #view { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; outline: none; }
+  #hud {
+    position: fixed; inset: 0; pointer-events: none;
+    display: flex; flex-direction: column; justify-content: space-between;
+    padding: max(12px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+             max(12px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  }
+  .noui #hud { display: none; }
+  #top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+  .glass {
+    background: var(--glass); border: 1px solid var(--line);
+    -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+    box-shadow: 0 1px 8px rgba(20, 40, 58, 0.1);
+  }
+  #card { border-radius: 12px; padding: 9px 14px 10px; min-width: 150px; max-width: 280px; }
+  #world { font-size: 15px; font-weight: 650; letter-spacing: 0.01em; overflow-wrap: anywhere; }
+  #meta, #stats { color: var(--muted); font-variant-numeric: tabular-nums; }
+  #stats { margin-top: 2px; }
+  #count { color: var(--ink); }
+  #card.err #count { color: var(--warn); font-weight: 600; }
+  #bar { height: 3px; margin-top: 6px; border-radius: 2px; background: var(--line); overflow: hidden; }
+  #bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width 0.15s; }
+  #bar.done { opacity: 0; }
+  #shadows {
+    pointer-events: auto; cursor: pointer; font: inherit; color: var(--ink);
+    padding: 7px 12px; border-radius: 999px; white-space: nowrap;
+  }
+  #shadows[aria-pressed="false"] { color: var(--muted); }
+  #help {
+    align-self: center; max-width: 100%; text-align: center; color: var(--muted);
+    padding: 6px 14px; border-radius: 12px; font-size: 12px;
+  }
+  @media (max-width: 480px) {
+    #card { min-width: 0; max-width: calc(100vw - 150px); padding: 8px 12px 9px; }
+    #help { font-size: 11.5px; padding: 6px 10px; }
+  }
+</style>
+</head>
+<body>
+<canvas id="view" tabindex="0" aria-label="3D view of the generated city"></canvas>
+<div id="hud">
+  <div id="top">
+    <div id="card" class="glass">
+      <div id="world">citygen</div>
+      <div id="meta"></div>
+      <div id="stats"><span id="count">loading...</span><span id="tris"></span></div>
+      <div id="bar"><i id="fill"></i></div>
+    </div>
+    <button id="shadows" class="glass" type="button" aria-pressed="true">Shadows on</button>
+  </div>
+  <div id="help" class="glass"></div>
+</div>
+<noscript>This viewer needs JavaScript.</noscript>
+
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const q = new URLSearchParams(location.search);
+const num = (key, fallback) => {
+  const v = parseFloat(q.get(key));
+  return Number.isFinite(v) ? v : fallback;
+};
+const triple = (key) => {
+  const parts = (q.get(key) || '').split(',');
+  const ok = parts.length === 3 && parts.every((s) => s.trim() !== '' && Number.isFinite(Number(s)));
+  return ok ? parts.map(Number) : null;
+};
+
+// Screenshot tools wait for citygenReady (or fail fast on citygenError).
+window.citygenReady = false;
+window.citygenError = null;
+const stats = (window.citygenStats = { requested: 0, loaded: 0, failed: 0, triangles: 0 });
+
+function fail(message) {
+  window.citygenError = message;
+  $('card').classList.add('err');
+  $('count').textContent = message;
+}
+
+// URL parameters: radius (meters around the focus, default 2500), shadows=0, ui=0 (hide the overlay),
+// view=aerial|street|top, or cam=x,y,z and look=x,y,z in generator coordinates (meters, z up).
+const RADIUS = Math.max(0, num('radius', 2500));
+const MAX_INFLIGHT = 6;
+const SUN_AZIMUTH = 225;   // degrees clockwise from north: south-west
+const SUN_ELEVATION = 40;
+const SUN_DISTANCE = 1200;
+const SHADOW_HALF = 700;   // half width of the shadow camera, meters
+const SHADOW_MAP = 4096;
+const SKY = 0x93c6f2;
+const coarse = matchMedia('(pointer: coarse)').matches;
+
+document.body.classList.toggle('noui', q.get('ui') === '0');
+$('help').textContent = coarse
+  ? 'drag rotate \u00b7 pinch zoom \u00b7 two-finger pan \u00b7 double-tap focus'
+  : 'drag rotate \u00b7 right-drag pan \u00b7 wheel zoom \u00b7 double-click focus \u00b7 L shadows';
+
+let THREE, GLTFLoader, OrbitControls;
+try {
+  let loaders, controlsModule;
+  [THREE, loaders, controlsModule] = await Promise.all([
+    import('three'),
+    import('three/addons/loaders/GLTFLoader.js'),
+    import('three/addons/controls/OrbitControls.js'),
+  ]);
+  ({ GLTFLoader } = loaders);
+  ({ OrbitControls } = controlsModule);
+} catch (err) {
+  fail('Could not load three.js from the CDN (offline?)');
+  throw err;
+}
+
+// ---------------------------------------------------------------- renderer and scene
+const canvas = $('view');
+let renderer;
+try {
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+} catch (err) {
+  fail('WebGL is not available in this browser');
+  throw err;
+}
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.NeutralToneMapping;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.autoUpdate = false;   // re-rendered only when the sun window or the tiles change
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(SKY);
+scene.fog = new THREE.Fog(SKY, 800, 3000);
+const camera = new THREE.PerspectiveCamera(50, 1, 1, 20000);
+
+scene.add(new THREE.HemisphereLight(0xd2e6ff, 0xc9b48e, 1.9));
+const sun = new THREE.DirectionalLight(0xffe8c4, 3.0);
+sun.castShadow = q.get('shadows') !== '0';
+sun.shadow.mapSize.set(SHADOW_MAP, SHADOW_MAP);
+Object.assign(sun.shadow.camera, {
+  left: -SHADOW_HALF, right: SHADOW_HALF, top: SHADOW_HALF, bottom: -SHADOW_HALF,
+  near: 50, far: SUN_DISTANCE + 1300,
+});
+sun.shadow.camera.updateProjectionMatrix();
+sun.shadow.bias = -0.0001;
+sun.shadow.normalBias = 0.4;
+scene.add(sun, sun.target);
+
+// direction towards the sun in three.js axes (x east, y up, z south)
+const az = THREE.MathUtils.degToRad(SUN_AZIMUTH);
+const el = THREE.MathUtils.degToRad(SUN_ELEVATION);
+const SUN_DIR = new THREE.Vector3(Math.sin(az) * Math.cos(el), Math.sin(el), -Math.cos(az) * Math.cos(el));
+const LX = new THREE.Vector3(0, 1, 0).cross(SUN_DIR).normalize();   // shadow camera axes,
+const LY = new THREE.Vector3().crossVectors(SUN_DIR, LX);           // used to snap to shadow texels
+
+function skyEnvironment() {
+  const material = new THREE.ShaderMaterial({
+    side: THREE.BackSide,
+    depthWrite: false,
+    vertexShader: 'varying vec3 d; void main() { d = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: `varying vec3 d; void main() {
+      float h = normalize(d).y;
+      vec3 zenith = vec3(0.08, 0.28, 0.72), horizon = vec3(0.72, 0.86, 1.0), ground = vec3(0.42, 0.38, 0.31);
+      vec3 c = h > 0.0 ? mix(horizon, zenith, pow(h, 0.45)) : mix(horizon, ground, pow(-h, 0.35));
+      gl_FragColor = vec4(c, 1.0);
+    }`,
+  });
+  const sky = new THREE.Scene();
+  sky.add(new THREE.Mesh(new THREE.SphereGeometry(10, 24, 12), material));
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const texture = pmrem.fromScene(sky, 0.02).texture;
+  pmrem.dispose();
+  return texture;
+}
+let skyEnv = null;
+try {
+  skyEnv = skyEnvironment();
+} catch (err) {
+  console.warn('sky reflections disabled:', err);
+}
+
+// ---------------------------------------------------------------- controls
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.screenSpacePanning = false;
+controls.minDistance = 1;
+controls.maxDistance = 60000;
+
+let focus = { x: 0, y: 0, z: 0 };   // generator coordinates of the focus; it becomes the three.js origin
+const toThree = (x, y, z) => new THREE.Vector3(x - focus.x, z, -(y - focus.y));
+
+function setView(position, target) {
+  camera.position.copy(position);
+  controls.target.copy(target);
+  controls.update();
+  shadowDirty = dirty = true;
+}
+
+const applyView = (cam, look) => setView(toThree(...cam), toThree(...look));
+
+function presetView(name) {
+  const at = (bearing, dist, up) => {
+    const b = THREE.MathUtils.degToRad(bearing);
+    return [focus.x + Math.sin(b) * dist, focus.y + Math.cos(b) * dist, focus.z + up];
+  };
+  const ground = [focus.x, focus.y, focus.z];
+  if (name === 'street') return { cam: at(180, 35, 1.7), look: [focus.x, focus.y, focus.z + 1.7] };
+  if (name === 'top') return { cam: at(180, 1, 1600), look: ground };   // 1 m south keeps north up
+  return { cam: at(160, 900, 650), look: ground };
+}
+
+function initialView() {
+  const cam = triple('cam');
+  const look = triple('look');
+  if (cam) return { cam, look: look || [focus.x, focus.y, focus.z] };
+  const view = presetView(q.get('view'));
+  if (!look) return view;
+  const dx = view.cam[0] - focus.x, dy = view.cam[1] - focus.y, dz = view.cam[2] - focus.z;
+  return { cam: [look[0] + dx, look[1] + dy, look[2] + dz], look };
+}
+
+// ---------------------------------------------------------------- tiles
+const tiles = new THREE.Group();
+scene.add(tiles);
+const loader = new GLTFLoader();
+const sharedMaterials = new Map();
+let extent = 500;          // distance from the focus to the farthest loaded corner
+let lowest = Infinity;     // lowest point of any loaded tile; the camera stays above it
+const tileBase = new URL('data/tiles/', location.href);
+const wantsStreet = q.get('view') === 'street' && !triple('cam') && !triple('look');
+
+// One material per look, shared by all tiles; water gets a glossy, slightly transparent finish.
+function shared(material) {
+  const key = [material.name, material.color.getHex(), material.roughness, material.metalness, material.side].join('|');
+  let m = sharedMaterials.get(key);
+  if (!m) {
+    m = material;
+    if (/^water/i.test(m.name)) {
+      Object.assign(m, { roughness: 0.06, metalness: 0, transparent: true, opacity: 0.82, depthWrite: false, envMap: skyEnv, envMapIntensity: 0.9 });
+      m.userData.water = true;
+    }
+    sharedMaterials.set(key, m);
+  }
+  return m;
+}
+
+function addTile(gltf) {
+  const root = gltf.scene;
+  root.position.set(-focus.x, 0, focus.y);   // rebase: the node translations are x0, 0, -y0
+  root.traverse((o) => {
+    if (!o.isMesh) return;
+    o.material = shared(o.material);
+    o.castShadow = !o.material.userData.water;
+    o.receiveShadow = true;
+    stats.triangles += (o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count) / 3;
+  });
+  tiles.add(root);
+  root.userData.box = new THREE.Box3().setFromObject(root);
+  lowest = Math.min(lowest, root.userData.box.min.y);
+  shadowDirty = dirty = true;
+}
+
+function selectTiles(index) {
+  const size = index.tile_size || 512;
+  const picked = [];
+  for (const t of index.tiles || []) {
+    const x0 = t.x0 ?? t.i * size;
+    const y0 = t.y0 ?? t.j * size;
+    const dx = Math.max(x0 - focus.x, 0, focus.x - (x0 + size));
+    const dy = Math.max(y0 - focus.y, 0, focus.y - (y0 + size));
+    const d = Math.hypot(dx, dy);
+    if (!t.file || d > RADIUS) continue;
+    const dc = Math.hypot(x0 + size / 2 - focus.x, y0 + size / 2 - focus.y);
+    const far = Math.hypot(Math.max(Math.abs(x0 - focus.x), Math.abs(x0 + size - focus.x)),
+                           Math.max(Math.abs(y0 - focus.y), Math.abs(y0 + size - focus.y)));
+    picked.push({ file: t.file, d, dc, far });
+  }
+  return picked.sort((a, b) => a.d - b.d || a.dc - b.dc);
+}
+
+// The street preset needs the buildings around the focus: place the camera once those tiles are in.
+function placeStreetCamera() {
+  const ray = new THREE.Raycaster();
+  const down = new THREE.Vector3(0, -1, 0);
+  const cast = (origin, dir, far, reach) => {
+    ray.set(origin, dir);
+    ray.far = far;
+    const near = tiles.children.filter((t) => {   // tiles within `reach` meters of the origin
+      const b = t.userData.box;
+      return Math.hypot(Math.max(b.min.x - origin.x, 0, origin.x - b.max.x),
+                        Math.max(b.min.z - origin.z, 0, origin.z - b.max.z)) <= reach;
+    });
+    return ray.intersectObjects(near, true);
+  };
+
+  // open ground: one surface below, not a roof over the ground and not water
+  const top = focus.z + 400;
+  const spots = [[0, 0]];
+  for (const r of [12, 25, 40, 60, 90]) {
+    for (let k = 0; k < 8; k++) spots.push([r * Math.cos(k * Math.PI / 4 + r), r * Math.sin(k * Math.PI / 4 + r)]);
+  }
+  const open = [];
+  for (const [x, z] of spots) {
+    const hits = cast(new THREE.Vector3(x, top, z), down, top - Math.min(lowest, 0) + 10, 0);
+    const first = hits[0], last = hits[hits.length - 1];
+    if (first && first.face.normal.y > 0.7 && first.point.y - last.point.y < 1 && !first.object.material.userData.water) {
+      open.push({ x, z, y: last.point.y });
+    }
+  }
+
+  // from the nearest open spots, look along the longest clear line, preferably towards the focus
+  let best = null;
+  for (const p of open.slice(0, 6)) {
+    const eye = new THREE.Vector3(p.x, p.y + 1.7, p.z);
+    const away = Math.hypot(p.x, p.z);
+    for (let k = 0; k < 12; k++) {
+      const dir = new THREE.Vector3(Math.cos(k * Math.PI / 6), 0, Math.sin(k * Math.PI / 6));
+      const hit = cast(eye, dir, 100, 100)[0];
+      const clear = hit ? hit.distance : 100;
+      const facing = away > 1 ? -(p.x * dir.x + p.z * dir.z) / away : 0;
+      const score = Math.min(clear, 60) + 20 * facing - 0.2 * away;
+      if (!best || score > best.score) best = { score, eye, dir, clear };
+    }
+  }
+  if (best) setView(best.eye, best.eye.clone().addScaledVector(best.dir, THREE.MathUtils.clamp(best.clear, 8, 40)));
+}
+
+async function loadTiles(list) {
+  let next = 0;
+  let nearLeft = wantsStreet ? list.filter((t) => t.d <= 100).length : 0;
+  const worker = async () => {
+    while (next < list.length) {
+      const t = list[next++];
+      try {
+        addTile(await loader.loadAsync(new URL(t.file, tileBase).href));
+        stats.loaded++;
+      } catch (err) {
+        stats.failed++;
+        console.error('tile ' + t.file + ' failed:', err);
+      }
+      if (wantsStreet && t.d <= 100 && --nearLeft === 0) placeStreetCamera();
+      updateHud();
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(MAX_INFLIGHT, list.length) }, worker));
+}
+
+// ---------------------------------------------------------------- hud
+const compact = (n) => (n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? Math.round(n / 1e3) + 'k' : String(Math.round(n)));
+
+function updateHud() {
+  const done = stats.loaded + stats.failed;
+  $('count').textContent = stats.requested
+    ? `tiles ${stats.loaded} / ${stats.requested}` + (stats.failed ? `, ${stats.failed} failed` : '')
+    : 'no tiles in range';
+  $('tris').textContent = stats.triangles ? ` \u00b7 ${compact(stats.triangles)} tris` : '';
+  $('fill').style.width = stats.requested ? `${(100 * done / stats.requested).toFixed(1)}%` : '100%';
+  $('bar').classList.toggle('done', done >= stats.requested);
+  if (stats.failed) $('card').classList.add('err');
+}
+
+// ---------------------------------------------------------------- frame loop
+let dirty = true;
+let shadowDirty = true;
+let loadDone = false;
+let shadowsOn = sun.castShadow;
+let focusAnim = null;
+const lastSnap = new THREE.Vector3(Infinity, 0, 0);
+const snapped = new THREE.Vector3();
+
+function setShadows(on) {
+  shadowsOn = on;
+  sun.castShadow = on;
+  shadowDirty = dirty = true;
+  const button = $('shadows');
+  button.textContent = on ? 'Shadows on' : 'Shadows off';
+  button.setAttribute('aria-pressed', String(on));
+}
+
+// Keep the shadow window on the orbit target, snapped to whole shadow texels so edges do not crawl.
+function placeSun() {
+  const t = controls.target;
+  const texel = (2 * SHADOW_HALF) / SHADOW_MAP;
+  const u = t.dot(LX), v = t.dot(LY);
+  snapped.copy(t)
+    .addScaledVector(LX, Math.round(u / texel) * texel - u)
+    .addScaledVector(LY, Math.round(v / texel) * texel - v);
+  if (snapped.distanceToSquared(lastSnap) < 1e-6) return false;
+  lastSnap.copy(snapped);
+  sun.target.position.copy(snapped);
+  sun.position.copy(snapped).addScaledVector(SUN_DIR, SUN_DISTANCE);
+  return true;
+}
+
+function updateClipAndFog() {
+  const toTarget = camera.position.distanceTo(controls.target);
+  const reach = camera.position.length() + extent;   // farthest loaded point from the camera
+  const near = THREE.MathUtils.clamp(toTarget * 0.01, 0.2, 40);
+  const far = Math.max(reach * 1.5, 2000);
+  if (Math.abs(near - camera.near) > near * 0.02 || Math.abs(far - camera.far) > far * 0.02) {
+    camera.near = near;
+    camera.far = far;
+    camera.updateProjectionMatrix();
+  }
+  // no haze up to the subject, full haze at the far edge of the loaded area
+  scene.fog.far = Math.max(reach, 600);
+  scene.fog.near = Math.min(Math.max(toTarget, scene.fog.far * 0.3), scene.fog.far * 0.85);
+}
+
+function resize() {
+  const w = window.innerWidth, h = window.innerHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  // keep a usable horizontal field of view on portrait screens
+  camera.fov = camera.aspect >= 1 ? 50
+    : Math.min(70, THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(25)) / camera.aspect)));
+  camera.updateProjectionMatrix();
+  dirty = true;
+}
+
+function frame(now) {
+  requestAnimationFrame(frame);
+  if (focusAnim) {
+    const k = Math.min((now - focusAnim.t0) / focusAnim.ms, 1);
+    controls.target.lerpVectors(focusAnim.from, focusAnim.to, 1 - Math.pow(1 - k, 3));
+    if (k >= 1) focusAnim = null;
+    dirty = true;
+  }
+  const moved = controls.update();
+  if (Number.isFinite(lowest) && camera.position.y < lowest + 1) camera.position.y = lowest + 1;
+  if (!moved && !dirty) return;
+  dirty = false;
+  const complete = loadDone;   // every tile was added before this frame started
+  updateClipAndFog();
+  const sunMoved = placeSun();
+  if (shadowsOn) {
+    if (sunMoved || shadowDirty) renderer.shadowMap.needsUpdate = true;
+    shadowDirty = false;
+  }
+  renderer.render(scene, camera);
+  if (complete && !window.citygenReady) window.citygenReady = true;
+}
+
+// ---------------------------------------------------------------- interaction
+const raycaster = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+
+function focusAt(clientX, clientY) {
+  const r = canvas.getBoundingClientRect();
+  ndc.set(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1);
+  raycaster.setFromCamera(ndc, camera);
+  const hit = raycaster.intersectObjects(tiles.children, true)[0];
+  if (!hit) return;
+  focusAnim = { from: controls.target.clone(), to: hit.point.clone(), t0: performance.now(), ms: 450 };
+  dirty = true;
+}
+
+canvas.addEventListener('dblclick', (e) => focusAt(e.clientX, e.clientY));
+
+// browsers rarely fire dblclick for touch, so detect a double tap by hand
+let tapStart = null, lastTap = null;
+canvas.addEventListener('pointerdown', (e) => {
+  tapStart = e.pointerType === 'touch' ? { x: e.clientX, y: e.clientY, t: performance.now() } : null;
+});
+canvas.addEventListener('pointerup', (e) => {
+  if (!tapStart || e.pointerType !== 'touch') return;
+  const now = performance.now();
+  const isTap = now - tapStart.t < 300 && Math.hypot(e.clientX - tapStart.x, e.clientY - tapStart.y) < 10;
+  tapStart = null;
+  if (!isTap) return;
+  if (lastTap && now - lastTap.t < 350 && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < 30) {
+    lastTap = null;
+    focusAt(e.clientX, e.clientY);
+  } else {
+    lastTap = { x: e.clientX, y: e.clientY, t: now };
+  }
+});
+
+window.addEventListener('keydown', (e) => {
+  if (e.key.toLowerCase() === 'l' && !e.ctrlKey && !e.metaKey && !e.altKey) setShadows(!shadowsOn);
+});
+$('shadows').addEventListener('click', () => setShadows(!shadowsOn));
+window.addEventListener('resize', resize);
+
+// ---------------------------------------------------------------- boot
+async function boot() {
+  const res = await fetch('data/tiles/index.json', { cache: 'no-store' });
+  if (!res.ok) throw new Error(`data/tiles/index.json: HTTP ${res.status}`);
+  const index = await res.json();
+  if (!String(index.format || '').startsWith('citygen-tiles/1')) console.warn('unexpected tile format:', index.format);
+
+  const f = index.focus || {};
+  const size = index.tile_size || 512;
+  const xs = (index.tiles || []).map((t) => t.x0 ?? t.i * size);
+  const ys = (index.tiles || []).map((t) => t.y0 ?? t.j * size);
+  // without a focus entry, fall back to the middle of the tile set
+  focus = {
+    x: f.x ?? (xs.length ? (Math.min(...xs) + Math.max(...xs) + size) / 2 : 0),
+    y: f.y ?? (ys.length ? (Math.min(...ys) + Math.max(...ys) + size) / 2 : 0),
+    z: f.z ?? 0,
+  };
+  const world = index.world_name || 'citygen';
+  $('world').textContent = world;
+  $('meta').textContent = [f.name, index.seed != null ? 'seed ' + index.seed : ''].filter(Boolean).join(' \u00b7 ');
+  document.title = world + ' - citygen';
+
+  const view = initialView();
+  applyView(view.cam, view.look);
+
+  const list = selectTiles(index);
+  stats.requested = list.length;
+  if (list.length) extent = Math.max(...list.map((t) => t.far));
+  updateHud();
+  await loadTiles(list);
+  loadDone = true;
+  dirty = true;
+  updateHud();
+  if (stats.failed) console.warn(`${stats.failed} of ${stats.requested} tiles failed to load`);
+}
+
+// handle for the browser console and for tests
+window.citygen = { THREE, scene, camera, controls, renderer, sun, tiles, toThree, get focus() { return focus; } };
+setShadows(shadowsOn);
+resize();
+requestAnimationFrame(frame);
+boot().catch((err) => {
+  console.error(err);
+  fail(String(err.message || err));
+});
+</script>
+</body>
+</html>

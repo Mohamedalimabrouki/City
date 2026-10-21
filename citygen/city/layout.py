@@ -144,12 +144,13 @@ def assign_kinds(ctx, districts, medina, axis: float, land) -> None:
         for i in take(cand, 2 if s.kind == "capital" else 1, lambda i: -info[i]["cos"] + info[i]["r"]):
             kinds[i] = "port"
     if kc.get("colonial"):
+        # the newer quarter grew outside the walls, toward the port and along the main axis
         reach = kc.get("colonial_reach", 0.45)
-        cand = [i for i in free if info[i]["r"] < reach and info[i]["cos"] > 0.45]
+        count = max(1, round(kc.get("colonial_share", 0.1) * len(districts)))
+        cand = [i for i in free if info[i]["r"] < reach and info[i]["cos"] > -0.1]
         if not cand:
-            cand = take([i for i in free if info[i]["near_medina"]], 1, lambda i: -info[i]["cos"])
-        for i in cand:
-            free.discard(i)
+            cand = [i for i in free if info[i]["near_medina"]]
+        for i in take(cand, count, lambda i: info[i]["r"] - 0.5 * info[i]["cos"]):
             kinds[i] = "colonial"
     if kc.get("cemetery"):
         cand = [i for i in free if info[i]["near_medina"] and info[i]["cos"] < 0.0 and info[i]["area"] < 6e5]

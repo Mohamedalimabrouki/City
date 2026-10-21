@@ -62,7 +62,7 @@ roof_white = { color = "#E4DFD4" }
 roof_tile = { color = "#B5593B", roughness = 0.8 }
 dome_white = { color = "#F5F3EE" }
 dome_green = { color = "#3E7A57", roughness = 0.4 }
-asphalt = { color = "#57575A", roughness = 0.95 }
+asphalt = { color = "#7A7874", roughness = 0.95 }   # sun-bleached
 paving = { color = "#BDB09A" }
 urban_ground = { color = "#CDBE9C" }
 water = { color = "#2D6F92", roughness = 0.1 }
@@ -191,18 +191,19 @@ neighborhood_spacing = [380.0, 720.0]
 arterial_width = 18.0
 boulevard_width = 34.0
 colonial = true
-colonial_reach = 0.42
+colonial_reach = 0.5
+colonial_share = 0.14      # share of neighborhoods in the colonial style
 walls = true
 port = true                # only if the city is on the coast
 parks = 2
 cemetery = true
-industrial_share = 0.14
+industrial_share = 0.09
 mosque_chance = 0.55       # chance that a neighborhood gets its own mosque
 great_mosque = [62.0, 40.0, 30.0]   # prayer hall width, depth, courtyard depth
 minaret = [7.5, 42.0]               # minaret width, height
 rings = [
-  { until = 0.45, mix = { modern = 0.5, residential = 0.5 } },
-  { until = 0.8, mix = { residential = 0.6, suburb = 0.4 } },
+  { until = 0.5, mix = { modern = 0.55, residential = 0.45 } },
+  { until = 0.8, mix = { residential = 0.55, suburb = 0.3, modern = 0.15 } },
   { until = 9.0, mix = { suburb = 0.75, residential = 0.25 } },
 ]
 
@@ -214,12 +215,13 @@ neighborhood_spacing = [320.0, 560.0]
 arterial_width = 14.0
 boulevard_width = 26.0
 colonial = true
-colonial_reach = 0.5
+colonial_reach = 0.55
+colonial_share = 0.1
 walls = true
 port = true
 parks = 1
 cemetery = true
-industrial_share = 0.12
+industrial_share = 0.08
 mosque_chance = 0.5
 great_mosque = [44.0, 30.0, 22.0]
 minaret = [6.0, 32.0]

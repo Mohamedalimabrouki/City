@@ -44,6 +44,22 @@ def select_area(world, area: str) -> tuple:
     return region, focus, needed
 
 
+def camera_views(plan, terrain) -> dict:
+    """Eye-level camera spots for viewers: on the boulevard and in a souk (generator coords)."""
+    views = {}
+    for name, kinds in (("street", ("boulevard", "arterial")), ("souk", ("souk",))):
+        streets = [st for st in plan.streets if st.kind in kinds and st.line.length > 60.0]
+        if not streets:
+            continue
+        line = max(streets, key=lambda st: st.line.length).line
+        a = line.interpolate(0.3, normalized=True)
+        b = line.interpolate(min(line.length, line.project(a) + 50.0))
+        ga, gb = float(terrain.height(a.x, a.y)), float(terrain.height(b.x, b.y))
+        views[name] = {"cam": [round(a.x, 1), round(a.y, 1), round(ga + 1.7, 1)],
+                       "look": [round(b.x, 1), round(b.y, 1), round(gb + 4.0, 1)]}
+    return views
+
+
 def tiles_for(region, tile: int, world_size: float) -> list:
     minx, miny, maxx, maxy = region.bounds
     last = int(math.ceil(world_size / tile)) - 1
@@ -96,6 +112,7 @@ def build(cfg: dict, area: str | None = None, log=print) -> Path:
             "tile_size": size, "world_size": [world.size, world.size],
             "focus": {"x": round(focus.x, 1), "y": round(focus.y, 1),
                       "z": round(float(world.terrain.height(focus.x, focus.y)), 1), "name": focus.name},
+            "views": next((camera_views(p, world.terrain) for p in plans if p.settlement is focus), {}),
             "tiles": tiles})
 
     summary = {

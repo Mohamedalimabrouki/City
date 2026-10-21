@@ -13,7 +13,6 @@ import math
 import time
 
 from shapely.geometry import LineString
-from shapely.ops import unary_union
 
 from ..names import NameMaker
 from ..rng import stream
