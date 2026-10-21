@@ -7,7 +7,7 @@ How to run one: open Claude Code in this folder and say
 Every task also requires: `python -m pytest -q` passes, `python -m citygen build --quick`
 finishes, tunable numbers go in the style pack, and the task is ticked here when done.
 
-Suggested order: C1, A4, A3, A1, B1, B2, C3, D1, then anything you like.
+Suggested order: A0, C1, A4, A3, A1, B1, B2, C3, D1, then anything you like.
 
 ## Done (v0.1)
 
@@ -18,6 +18,15 @@ Suggested order: C1, A4, A3, A1, B1, B2, C3, D1, then anything you like.
 - [x] Tools: browser viewer, snapshot to PNG, Blender import script, tests
 
 ## A. Street level (the capital looks real up close)
+
+- [ ] **A0 Reuse the Tounes Rush kit** (M, Sonnet high; do this before A2 and A8) - The owner's
+  game "Tounes Rush" (claude.ai artifact "Tounes Rush AAA V5.2") already builds a detailed
+  Tunisian kit in code with three.js: studded arched doors, blue window grilles, balconies,
+  bougainvillea, lanterns, pots, palms, paving. Run its builders once in a headless browser and
+  save the pieces with three.js `GLTFExporter` to `kits/tounes.glb`, then place them on generated
+  buildings (doors on street-facing walls, grilles and balconies on upper floors, flowers and
+  lanterns here and there). One art direction for both projects. Done when: the souk snapshot
+  shows real doors, grilles and flowers.
 
 - [ ] **A1 Roof life** (S) - Low parapet walls (0.6-1.0 m) on flat roofs; rooftop water tanks
   (white cylinder on a small stand), satellite dishes and stair boxes on a share of roofs.
@@ -92,6 +101,10 @@ Suggested order: C1, A4, A3, A1, B1, B2, C3, D1, then anything you like.
   side, for AI pathfinding, traffic and quests.
 - [ ] **C5 Unreal import** (M) - Python editor script and guide to import tiles into an Unreal
   5 World Partition level.
+- [ ] **C6 City runs for Tounes Rush** (M) - Export a run route from a generated city (a chain of
+  souks and streets from `plan.json`, with the buildings along it) in a format Tounes Rush can
+  load, so a run can go through a real, always different medina, and a country map can unlock
+  towns. Agree the format with the Tounes Rush code first.
 
 ## D. Stories
 
