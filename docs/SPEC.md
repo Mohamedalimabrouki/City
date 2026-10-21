@@ -162,6 +162,8 @@ Maghreb-specific values.
 - `python -m citygen stats` prints `summary.json`.
 - Maps: `output/*/maps/*.png` (look at the image, not the data files).
 - 3D: `python -m citygen snapshot --view aerial|street|top` renders the viewer to a PNG.
+- `python tools/before_after.py --view street|souk|aerial` compares the last commit with the working
+  tree in one labelled picture and prints the pixel difference (see HANDOFF.md).
 
 ## 10. Extending
 

@@ -530,7 +530,7 @@ function frame(now) {
     dirty = true;
   }
   const moved = controls.update();
-  if (Number.isFinite(lowest) && camera.position.y < lowest + 1) camera.position.y = lowest + 1;
+  if (loadDone && Number.isFinite(lowest) && camera.position.y < lowest + 1) camera.position.y = lowest + 1;
   if (!moved && !dirty) return;
   dirty = false;
   const complete = loadDone;   // every tile was added before this frame started

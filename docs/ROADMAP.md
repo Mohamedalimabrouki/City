@@ -11,7 +11,7 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
 ## Playbook checklist
 
 - [x] 1 T1 Regression fingerprint tool
-- [ ] 2 T2 Before/after pictures
+- [x] 2 T2 Before/after pictures
 - [ ] 3 T3 Housekeeping
 - [ ] 4 C1a Build tiles in parallel
 - [ ] 5 C1b Resumable builds

@@ -90,6 +90,12 @@ have no door or windows, because the dressing only dresses walls within 1.6 m of
 - Best: Ali looks himself. `python -m citygen view` opens the browser (camera spots in the top
   menu, Night button, click a house). Or open the tiles in Blender:
   `/Applications/Blender.app/Contents/MacOS/Blender --python tools/blender_import.py -- output/bodjantouna-42/tiles`
+- One command for a visual change: `python tools/before_after.py --view street` (last commit above
+  the working tree, same camera, labelled, difference printed; 0.00 = identical). Options:
+  `--ref`, `--cam x,y,z --look x,y,z`, `--kit-sheet --frame PIECE`, `--build-args`, `--no-build`.
+  It needs the local web server (outside the sandbox). Both halves use the working tree's viewer.
+  The viewer only clamps the camera above the ground once all tiles are loaded (before, the
+  camera height depended on tile load order, so snapshots of one world differed from run to run).
 - Claude takes at most two snapshots per task (`python -m citygen snapshot --view street`; views
   street = the boulevard, souk, aerial, top), then stops and asks Ali. On Ali's Mac `.venv` has
   playwright 1.56.0 because it matches the Chromium already in `~/Library/Caches/ms-playwright`
