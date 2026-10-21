@@ -26,6 +26,10 @@ of every prompt is in `docs/prompts/`; Claude reads it there, so you only type t
 - **Pictures.** The picture tool starts a small local web server, which Claude's sandbox
   blocks. When a session asks to run it outside the sandbox, say yes. To stop being asked,
   set `sandbox.network.allowLocalBinding` to `true` in your Claude Code settings.
+- **Blender.** After every prompt that changes the city, the session refreshes
+  `output/bodjantouna-42/goumosbane.blend`: double-click it to see the progress (golden-hour
+  scene with a camera per view: street, aerial, souk, and new views as prompts add them). To
+  refresh it yourself: `.venv/bin/python tools/make_blend.py`.
 - **Engines.** Godot and Unreal are not on your Mac. Prompts 72-75 ask you before installing
   anything; you can also postpone them.
 - **Stuck session.** If it repeats the same error more than twice, stop it (Esc), switch to

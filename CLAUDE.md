@@ -45,6 +45,9 @@ The code builds the world; agents only improve the code. Keep every session smal
   are the two snapshots; it starts a local web server, so run it outside the sandbox). Look at
   the image yourself before you report. Extra runs only to prove a look unchanged by their
   printed pixel difference (0.0) are fine; you need not look at those.
+- Ali follows the progress in Blender: when the fingerprint shows `tiles/*` changes, run
+  `python tools/make_blend.py` (outside the sandbox: Blender crashes inside it). It refreshes
+  `output/<world>/<city>.blend`; name that file in your report.
 - Finish: the checks above, a new entry at the top of `docs/WORKLOG.md`, lessons in
   `docs/HANDOFF.md`, commit, push, then report to Ali in under 10 plain lines: what changed,
   what to look at and where, any doubt.

@@ -267,3 +267,19 @@ def test_fingerprint_tool(tmp_path, monkeypatch):
     (folder / "tiles" / "tile_0_0.glb").write_bytes(b"abcd")
     assert fingerprint.main(["compare", "a", str(folder), "--allow", ""]) == 1
     assert fingerprint.main(["compare", "a", str(folder), "--allow", "tiles/*"]) == 0
+
+
+def test_make_blend_command():
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
+    import make_blend
+    index = {"focus": {"name": "Goumosbane"}, "views": {"souk": {}, "street": {}, "corniche": {}}}
+    views = make_blend.views_of(index)
+    assert views == ["street", "aerial", "corniche", "souk"]           # street stays the active camera
+    assert make_blend.views_of({"focus": {"name": "X"}}) == ["aerial"]  # an index without views
+    out = make_blend.blend_path(Path("w"), index)
+    assert out.name == "goumosbane.blend"
+    cmd = make_blend.command("blender", Path("w"), views, out)
+    assert cmd[cmd.index("--view") + 1] == "street" and "--setup-only" in cmd
+    assert all(view in cmd[cmd.index("--python-expr") + 1] for view in views)
