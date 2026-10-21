@@ -25,11 +25,12 @@ anything you like. Ready prompts for each: `docs/PROMPTS.md`.
   jittered clumps with a few shades of green). They are drawn as instances, so up to about 200
   triangles per tree is fine. Done when: the street snapshot looks clearly better and tiles grow
   under 5%.
-- [ ] **Q2 Family names** (S) - Some family names read oddly ("Ben Zegoughka", "Ben Basrahia").
-  Tune `family_name` in `city/life.py` and `[life]` in the style: short cores (one or two
-  syllables), more nisba names ending in -i (Trabelsi, Jebali style), no "-ka" endings, and the
-  same Maghrebi filters as place names. Add a test over 300 names. Done when: Ali reads 30
-  sample names and they sound real.
+- [x] **Q2 Family names** - Done. `family_name` picks one of five patterns from `[life]`: a
+  made-up nisba (three Arabic root sounds in a word pattern, Hamdi = 1a23i from H-M-D, with sound
+  rules and a rude-word blocklist in `roots.*`), a real nisba, "Ben" plus a real given name, a
+  real "Bou" name, or a trade name. Random syllables had sounded foreign. One draw from the
+  households stream is kept, so doors and wealth are unchanged. Test over 300 names in
+  `tests/test_citygen.py`.
 - [ ] **Q3 Generated bougainvillea** (S) - The generator's own climber (`bougainvillea` in
   `mesh/props.py`) looks like a lollipop next to the kit's cascade. Rebuild it as a dense,
   flat mass of bracts against the wall with a twisting trunk, or remove it from `door_plants`.

@@ -136,6 +136,39 @@ def test_names_sound_north_african():
             assert not set(name.split()) & avoid, name
 
 
+def test_family_names_sound_tunisian():
+    from citygen.city.life import family_name
+    from citygen.config import load_style
+    from citygen.names import NameMaker, _clumsy, _root_fits
+    style = load_style("maghreb")
+    life = style["life"]
+    roots = life["roots"]
+    avoid = {a.lower() for a in style["names"]["avoid"]}
+
+    def draw():
+        maker = NameMaker(style, stream(7, "family-test"))
+        rng = stream(7, "households-test")
+        return [family_name(maker, rng, life) for _ in range(300)]
+
+    names = draw()
+    assert names == draw()                                   # same seed, same names
+    assert len(set(names)) >= 150
+    real = set(life["nisba_names"]) | set(life["bou_names"]) | set(life["trade_names"])
+    nisba = 0
+    for name in names:
+        assert len(name) <= 14, name
+        assert not name.lower().endswith("ka"), name
+        assert not any(part in name.lower() for part in roots["avoid_parts"]), name
+        if name.startswith("Ben "):
+            assert name[4:] in life["given_names"], name
+        elif name not in real:                               # a made-up nisba
+            assert name.endswith("i") and not _clumsy(name) and name.lower() not in avoid, name
+        nisba += name in life["nisba_names"] or (name not in real and not name.startswith("Ben "))
+    assert nisba >= 0.35 * len(names)
+    assert _root_fits("1a23i", ["h", "m", "d"], roots)       # Hamdi
+    assert not _root_fits("1a23i", ["b", "f", "n"], roots)   # b and f are the same class
+
+
 def test_kit_names_and_roles(world):
     from citygen.kit import Kit
     kit = Kit(world.seed, world.cfg["build"].get("kits", []), world.style["palette"])

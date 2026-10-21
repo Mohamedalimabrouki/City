@@ -35,8 +35,12 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
 
 ## Where things stand (October 2026)
 
-- Done: v0.1 (country, cities, maps, data, 3D tiles, viewer, Blender scripts) and **A0** (Tounes
-  kit, street dressing, households and souk trades, night mode, "click a house: who lives there").
+- Done: v0.1 (country, cities, maps, data, 3D tiles, viewer, Blender scripts), **A0** (Tounes
+  kit, street dressing, households and souk trades, night mode, "click a house: who lives there")
+  and **Q2** (family names that sound Tunisian).
+- Since 21 October 2026 the work runs on Ali's Mac: an Opus lead session plans and reviews, the
+  `city-builder` helper codes one task at a time in the order of `docs/PROMPTS.md`, and Ali says
+  "next" before each new task.
 - Seed 42 makes the country **Bodjantouna** with the capital **Goumosbane**.
   `python -m citygen build --quick` writes it to `output/bodjantouna-42/` in about 20 seconds.
 - All work is on the git branch `claude/procedural-city-generator-xop72h`. Keep working on it and
@@ -49,6 +53,9 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
 
 - **Randomness** only from `citygen.rng.stream(seed, *purpose)`, one purpose path per feature, so
   adding a feature never changes the rest of the world.
+- **Family names** mix real lists with made-up nisba names built from Arabic roots and patterns
+  (Hamdi = 1a23i from H-M-D), with sound rules and a rude-word blocklist, because random syllables
+  sounded Japanese or Italian. D5 can map roots and patterns to Arabic script.
 - **Street dressing** (`city/dressing.py`) is built tile by tile from kit pieces and never stored
   in the plan. Which piece plays each part is data: `[dressing.roles]` in `styles/maghreb.toml`.
   Kit pieces are named `<kit>/<piece>`; anchors are explained in `mesh/props.py` and SPEC 6b.
@@ -66,9 +73,8 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
 
 ## Known weak spots
 
-Listed as tasks Q1-Q5 in the roadmap: blocky leafy trees, some odd family names (for example
-"Ben Zegoughka"), a crude generated bougainvillea, no haze in Blender 5 beauty renders, heavy
-old-town tiles.
+Listed as tasks Q1-Q5 in the roadmap: blocky leafy trees, a crude generated bougainvillea, no
+haze in Blender 5 beauty renders, heavy old-town tiles.
 
 ## Checking the look without wasting tokens
 

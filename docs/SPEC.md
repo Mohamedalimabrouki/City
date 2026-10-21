@@ -140,8 +140,9 @@ piece; `tools/blender_import.py` and `tools/blender_beauty.py` place all copies 
 `[names]` sounds and templates, `[lore]` eras and products, `[palette]` materials,
 `[district.<kind>]` street grid, lot size, floors, materials and special rules,
 `[settlement.<kind>]` population, density, old town size, which district kinds exist and the
-`rings` mix by distance from the center. `[life]` door colors, family name patterns, wealth and
-trades by district; `[[souk]]` souk trades and their goods; `[dressing]` chances and heights;
+`rings` mix by distance from the center. `[life]` door colors, family name patterns, real name
+lists and the root sounds and word patterns for made-up nisba names, wealth and trades by
+district; `[[souk]]` souk trades and their goods; `[dressing]` chances and heights;
 `[dressing.roles]` which piece plays each part. Adding a style = a new file; code must not assume
 Maghreb-specific values.
 

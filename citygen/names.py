@@ -5,6 +5,8 @@ import re
 
 import numpy as np
 
+from .rng import weighted
+
 # hard to read or foreign-looking: a doubled letter (oo, kk), spellings North African names do not
 # use (sh, ts, q), or three consonant sounds in a row once ch, dj, gh, kh and ou count as one
 _FOREIGN = re.compile(r"([a-z])\1|sh|ts|sch|q")
@@ -32,6 +34,25 @@ def article(word: str) -> str:
         if w.startswith(letter):
             return "e" + letter
     return "el"
+
+
+def _root_fits(pattern: str, root: list, roots: dict) -> bool:
+    """Sound rules for a root in a pattern: no repeats, no clashing neighbours, no hard clusters."""
+    if len(set(root)) < 3 or sum(c in roots["heavy"] for c in root) > 1:
+        return False
+    if set(root) & {c for c in pattern if c.isalpha() and c not in "aeiou"}:   # ma12ou3i: no root m
+        return False
+    for a, b in ((0, 1), (1, 2)):
+        if any(root[a] in group and root[b] in group for group in roots["classes"]):
+            return False
+    for k in range(len(pattern) - 1):                   # two root sounds side by side in the name
+        if pattern[k].isdigit() and pattern[k + 1].isdigit():
+            x, y = root[int(pattern[k]) - 1], root[int(pattern[k + 1]) - 1]
+            if (k == 0 and y not in roots["opening"]) or y in roots["never_second"]:
+                return False
+            if x not in roots["soft"] and y not in roots["soft"]:
+                return False
+    return True
 
 
 class NameMaker:
@@ -69,6 +90,23 @@ class NameMaker:
         name = self._core() + self._pick(self.n["endings"])
         self.used.add(name)
         return name
+
+    def fits(self, name: str) -> bool:
+        """True when a generated name passes the same filters as place names."""
+        return not _clumsy(name) and name.lower() not in self.avoid
+
+    def root_word(self, roots: dict) -> str:
+        """A made-up nisba the Arabic way: three root sounds set in a word pattern (H-M-D in 1a23i = Hamdi)."""
+        for _ in range(200):
+            pattern = weighted(self.rng, roots["patterns"])
+            root = [weighted(self.rng, roots["sounds"]) for _ in range(3)]
+            if not _root_fits(pattern, root, roots):
+                continue
+            name = "".join(root[int(c) - 1] if c.isdigit() else c for c in pattern).capitalize()
+            if self.fits(name) and not any(part in name.lower() for part in roots["avoid_parts"]):
+                return name
+        # never hand back a refused name (it may hold a blocked word): the style's rules are too tight
+        raise ValueError("no made-up family name passes the rules in [life] roots.*; check the style")
 
     def country(self) -> str:
         core = self.core()

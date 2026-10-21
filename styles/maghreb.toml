@@ -342,7 +342,43 @@ rings = [
 # --- life: households and souks ---------------------------------------------------------------
 [life]
 door_colors = [["door_blue", 0.46], ["door_green", 0.16], ["door_yellow", 0.13], ["door_brown", 0.16], ["door_red", 0.09]]
-family_patterns = [["Ben {n}", 0.45], ["{i}", 0.35], ["Bou{l}", 0.2]]   # Ben Ammar, Zoghlami, Boukhris
+# {n} made-up nisba from Arabic roots, {r} a real nisba, {g} a man's given name (Ben Salah),
+# {b} a real Bou name, {t} an old trade name
+family_patterns = [["{n}", 0.25], ["{r}", 0.22], ["Ben {g}", 0.32], ["{b}", 0.15], ["{t}", 0.06]]
+nisba_names = ["Hamdi", "Sahli", "Gharbi", "Chergui", "Jebali", "Bahri", "Hammami", "Saidi",
+  "Mansouri", "Masmoudi", "Mahjoubi", "Marzouki", "Makhloufi", "Rahmani", "Sahbani", "Hamdani",
+  "Zitouni", "Khemiri", "Ferchichi", "Mejri", "Dridi", "Jlassi", "Riahi", "Ayari", "Zouari",
+  "Ouertani", "Nasri", "Selmi", "Rachidi", "Hamidi", "Sahraoui", "Zouaoui", "Guesmi", "Zoghlami",
+  "Chaouachi", "Dhaouadi", "Mathlouthi", "Ouerghi", "Mzoughi", "Hosni", "Arfaoui", "Ghanmi",
+  "Ayadi", "Hajji", "Khalfaoui", "Abidi", "Amri", "Jaziri", "Kouki", "Karoui", "Charfi", "Labidi",
+  "Bouzidi", "Barhoumi", "Toumi", "Fourati", "Triki"]
+bou_names = ["Bouzid", "Bouaziz", "Boubaker", "Boukhris", "Bouhlel", "Bouslama", "Boujemaa",
+  "Bousaid", "Bouali", "Bouguerra", "Boumiza", "Boulares", "Boudhina", "Bouzaiene", "Bouchiha",
+  "Boukadida", "Bouattour", "Boussetta", "Bouzouita", "Boujelbene", "Bouden", "Bougatef"]
+given_names = ["Ali", "Salah", "Ammar", "Amor", "Youssef", "Slimane", "Hassine", "Achour",
+  "Romdhane", "Mabrouk", "Khelifa", "Aissa", "Brahim", "Jemaa", "Said", "Mahmoud", "Abdallah",
+  "Hamida", "Hamouda", "Ayed", "Messaoud", "Moussa", "Othman", "Taieb", "Fredj", "Mansour", "Nasr",
+  "Rejeb", "Chaabane", "Ghanem", "Belgacem", "Hmida", "Arfa", "Miled", "Abdelkader", "Larbi",
+  "Lakhdar", "Tahar", "Hassen", "Kacem", "Mokhtar", "Sassi", "Salem", "Yahia", "Daoud", "Ismail",
+  "Rhouma", "Dhaou"]
+trade_names = ["Haddad", "Najjar", "Sabbagh", "Attar", "Chaouch", "Khodja"]
+# Made-up nisba names: three root sounds (1, 2, 3) are set in a word pattern, so H-M-D in 1a23i gives Hamdi.
+# patterns: word shapes with their weights
+roots.patterns = [["1a23i", 3], ["1e23i", 2], ["ma12ou3i", 2], ["1a2ou3i", 1], ["1e2a3i", 1.5], ["12i3i", 1], ["12a3i", 1], ["1a23aoui", 1.5], ["1a23ani", 1]]
+# sounds: root sounds with their weights
+roots.sounds = [["r", 3], ["l", 2.5], ["m", 2.5], ["n", 2], ["b", 2], ["d", 1.5], ["s", 2], ["h", 2], ["k", 1.2], ["f", 0.4], ["t", 1.2], ["z", 1.2], ["j", 1.5], ["ch", 1.2], ["gh", 1.2], ["kh", 1.2]]
+# classes: sounds too alike to sit next to each other in a root
+roots.classes = [["b", "f", "m"], ["t", "d", "s", "z", "ch", "j"], ["k", "gh", "kh", "h"], ["l", "r", "n"], ["m", "n"]]
+# soft: easy sounds; two hard ones side by side are refused
+roots.soft = ["r", "l", "m", "n", "h"]
+# heavy: rough sounds; a root may have only one
+roots.heavy = ["ch", "gh", "kh", "j"]
+# opening: the only sounds that may follow a first root sound with no vowel between
+roots.opening = ["r", "l"]
+# never_second: sounds that may not be the second of two side by side
+roots.never_second = ["gh", "kh", "h"]
+# avoid_parts: letter groups that must not appear in a generated name
+roots.avoid_parts = ["merd", "nik", "zeb", "zok", "kahb", "khra", "hmar", "kalb", "kelb", "klab", "kafr", "kfar", "nasran", "term", "sorm", "taboun", "mahboul", "maskhout", "khanz", "hanouk", "ladr", "pute", "bite", "cul"]
 members = [2, 9]
 # wealth: shape of a beta distribution (a, b); a bigger "a" means richer
 wealth.medina = [2.2, 3.0]

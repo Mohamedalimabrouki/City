@@ -33,12 +33,17 @@ class Souk:
     shop: str = ""  # what fills the shelves inside (a key of SHOP_GOODS in mesh/props.py)
 
 
-def family_name(namer: NameMaker, rng, patterns) -> str:
-    core = namer.core()
-    pattern = weighted(rng, patterns)
-    stem = core[:-1] if core[-1] in "aeiou" else core
-    nisba = stem if stem.endswith("i") else stem + "i"   # Zoghlami, not Zoghlamii
-    return pattern.format(n=core, i=nisba, l=core.lower())
+def family_name(namer: NameMaker, rng, life: dict) -> str:
+    """One draw from the households stream picks the pattern; every other choice uses the namer's own."""
+    pattern = weighted(rng, life["family_patterns"])
+    makers = {
+        "n": lambda: namer.root_word(life["roots"]),
+        "r": lambda: namer._pick(life["nisba_names"]),
+        "g": lambda: namer._pick(life["given_names"]),
+        "b": lambda: namer._pick(life["bou_names"]),
+        "t": lambda: namer._pick(life["trade_names"]),
+    }
+    return pattern.format(**{k: make() for k, make in makers.items() if "{" + k + "}" in pattern})
 
 
 def households(ctx, buildings, districts) -> list:
@@ -57,7 +62,7 @@ def households(ctx, buildings, districts) -> list:
         wealth = float(rng.beta(a, bb))
         trades = life.get("trades", {}).get(kind) or life.get("trades", {}).get("residential", [["merchant", 1]])
         door = weighted(rng, life["door_colors"])
-        out.append(Household(k, family_name(namer, rng, life["family_patterns"]), weighted(rng, trades),
+        out.append(Household(k, family_name(namer, rng, life), weighted(rng, trades),
                              round(wealth, 2), door, int(rng.integers(lo, hi + 1))))
     return out
 
