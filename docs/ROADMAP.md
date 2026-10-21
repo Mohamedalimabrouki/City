@@ -108,3 +108,21 @@ Suggested order: C1, A4, A3, A1, B1, B2, C3, D1, then anything you like.
   parallel, report disk size and time, document results for 64 and 128 km.
 - [ ] **E2 Faster noise** (M) - Cache terrain heights per tile and vectorize hot paths so a
   256 km country stays practical.
+
+## F. More styles (ideas from brainstorming, after A and B)
+
+The plan layer (country, roads, districts, names) stays the same; a style is a new style pack
+plus a kit of 3D pieces. Do F4 first so styles can be mixed inside one country.
+
+- [ ] **F4 Styles per region** (M, Opus low for the design) - Let a world file give a style pack
+  per region or per settlement (for example a steampunk inventors' city in the mountains),
+  instead of one style for the whole country.
+- [ ] **F1 Steampunk Maghreb** (L) - Brass and copper domes, copper screens on windows, clock
+  towers, chimneys with smoke, steam trams on the boulevards, airships moored to minarets.
+  Needs: a clock-tower landmark, chimney props, canals and bridges (after B1), an asset kit.
+- [ ] **F2 Medieval fantasy town** (M) - Castle on the highest hill instead of the great mosque,
+  steep tiled roofs, timber-framed walls (texture), round towers with cone roofs, forests.
+  Reuses walls, gates and old-town streets as they are.
+- [ ] **F3 Two-level city** (L, Opus medium for the design) - An upper city on platforms and
+  bridges between towers above a dark undercity of pipes and lanes (Arcane-like). Needs a new
+  vertical planning module and stacked tiles.
