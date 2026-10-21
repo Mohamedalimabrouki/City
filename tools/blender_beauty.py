@@ -28,7 +28,7 @@ import numpy as np
 from mathutils import Vector
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from blender_import import instance_transforms, place_instances  # noqa: E402
+from blender_import import expand_instances  # noqa: E402
 
 FOV = 50.0                              # vertical field of view in degrees, as the web viewer
 AERIAL = (160.0, 900.0, 650.0)          # viewer preset: bearing, distance, height above the focus
@@ -49,7 +49,7 @@ STYLES = {   # floor height, bay width, window width/height/sill, frame, window 
     "colonial": dict(floor=3.6, bay=3.2, ww=1.1, wh=2.2, sill=0.45, frame=0.08, up=0.93, ground=0.72, door=0.0),
     "modern": dict(floor=3.0, bay=3.0, ww=1.9, wh=1.5, sill=0.9, frame=0.06, up=0.92, ground=0.55, door=0.0),
 }
-COPY_SUFFIX = re.compile(r"\.\d{3}$")
+COPY_SUFFIX = re.compile(r"\.\d{3,}$")
 DRESSED = False                         # set in main: the tiles carry the generator's street dressing
 
 
@@ -634,13 +634,12 @@ def import_tiles(folder: Path, index: dict) -> tuple[list[bpy.types.Object], dic
     for tile in index["tiles"]:
         before = {o.name for o in bpy.data.objects}
         bpy.ops.import_scene.gltf(filepath=str(folder / tile["file"]))
-        fresh = [o for o in bpy.data.objects if o.name not in before and o.type == "MESH"]
-        copies = instance_transforms(folder / tile["file"])
+        fresh = [o for o in bpy.data.objects if o.name not in before]
+        dressing = expand_instances(fresh, folder / tile["file"])
         for ob in fresh:
-            name = COPY_SUFFIX.sub("", ob.name)
-            if name in copies:
-                place_instances(ob, copies[name], ob.users_collection[0])
-            else:
+            if ob.type != "MESH":
+                continue
+            if ob.name not in dressing:
                 tiles.append(ob)
             for slot in ob.material_slots:
                 if slot.material is None:
@@ -808,9 +807,15 @@ def setup_world(scene: bpy.types.Scene) -> None:
     nt = world.node_tree
     nt.nodes.clear()
     sky = nt.nodes.new("ShaderNodeTexSky")
-    sky.sky_type, sky.sun_disc = "NISHITA", False
+    types = {item.identifier for item in sky.bl_rna.properties["sky_type"].enum_items}
+    sky.sky_type = "NISHITA" if "NISHITA" in types else "MULTIPLE_SCATTERING"   # Blender 5 renamed the physical sky
+    sky.sun_disc = False
     sky.sun_elevation, sky.sun_rotation = math.radians(SUN_ELEVATION), math.radians(SUN_AZIMUTH)   # rotation reads as compass azimuth
-    sky.air_density, sky.dust_density, sky.altitude = 1.0, 3.0, 0.0
+    sky.air_density, sky.altitude = 1.0, 0.0
+    if hasattr(sky, "dust_density"):
+        sky.dust_density = 3.0
+    else:
+        sky.aerosol_density = 3.0   # Blender 5 name for the dust in the air
     bg, out = nt.nodes.new("ShaderNodeBackground"), nt.nodes.new("ShaderNodeOutputWorld")
     bg.inputs["Strength"].default_value = SKY_STRENGTH
     nt.links.new(sky.outputs[0], bg.inputs[0])
@@ -820,6 +825,9 @@ def setup_world(scene: bpy.types.Scene) -> None:
 def setup_haze(scene: bpy.types.Scene) -> None:
     """Aerial haze in the compositor (a world volume would also extinguish the sun): mix toward a pale
     sky color by 1 - exp(-density * depth); the sky itself (no depth) is left alone."""
+    if not hasattr(scene, "node_tree"):   # Blender 5 moved the compositor into node groups
+        print("beauty: Blender 5 compositor not handled yet, so no haze or color grade")
+        return
     scene.view_layers[0].use_pass_z = True
     scene.use_nodes = True
     nt = scene.node_tree

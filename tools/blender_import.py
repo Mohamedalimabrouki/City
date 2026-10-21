@@ -1,4 +1,4 @@
-"""Import citygen tiles into Blender (3.6+ and 4.x).
+"""Import citygen tiles into Blender (3.6 to 5.x).
 
     blender --python tools/blender_import.py -- OUT_DIR/tiles --radius 1500
 
@@ -112,7 +112,7 @@ def make_active(coll: bpy.types.Collection) -> None:
         bpy.context.view_layer.active_layer_collection = layer
 
 
-_COPY_SUFFIX = re.compile(r"\.\d{3}$")
+_COPY_SUFFIX = re.compile(r"\.\d{3,}$")   # "door.001", and "door.1473" once a name runs past 999
 
 
 def import_tile(path: Path, city: bpy.types.Collection, materials: dict) -> None:
@@ -120,10 +120,6 @@ def import_tile(path: Path, city: bpy.types.Collection, materials: dict) -> None
     before = {o.name for o in bpy.data.objects}
     bpy.ops.import_scene.gltf(filepath=str(path))
     fresh = [o for o in bpy.data.objects if o.name not in before]
-    copies = instance_transforms(path)
-    base = [_COPY_SUFFIX.sub("", o.name) for o in fresh]
-    expand = [(o, copies[b]) for o, b in zip(fresh, base)   # skipped when this Blender made the copies itself
-              if b in copies and base.count(b) == 1 and o.type == "MESH" and o.matrix_basis == Matrix.Identity(4)]
     for obj in fresh:
         for coll in list(obj.users_collection):
             coll.objects.unlink(obj)
@@ -141,8 +137,7 @@ def import_tile(path: Path, city: bpy.types.Collection, materials: dict) -> None
                 slot.material = keep
                 if mat.users == 0:
                     bpy.data.materials.remove(mat)
-    for obj, rows in expand:
-        place_instances(obj, rows, city)
+    expand_instances(fresh, path)   # after the move, so the copies land in `city` too
 
 
 def instance_transforms(path: Path) -> dict:
@@ -170,15 +165,30 @@ def instance_transforms(path: Path) -> dict:
     return out
 
 
-def place_instances(obj: bpy.types.Object, rows: np.ndarray, coll: bpy.types.Collection) -> None:
+def place_instances(obj: bpy.types.Object, rows: np.ndarray) -> None:
     """Turn one imported dressing object into all its copies (linked duplicates sharing one mesh)."""
     for k, (tx, ty, tz, qx, qy, qz, qw, sx, sy, sz) in enumerate(rows):
         dup = obj if k == 0 else obj.copy()
-        if k:
+        for coll in obj.users_collection if k else ():
             coll.objects.link(dup)
         # glTF Y-up to Blender Z-up, as the importer does for nodes: (x, y, z) -> (x, -z, y)
         dup.matrix_basis = Matrix.LocRotScale(Vector((tx, -tz, ty)), Quaternion((qw, qx, -qz, qy)),
                                               Vector((sx, sz, sy)))
+
+
+def expand_instances(fresh: list, path: Path) -> set:
+    """Place the copies of every dressing piece of one imported tile, unless the importer did.
+
+    Blender 4.x and 5.x import the extension themselves (an empty per piece with one child object
+    per copy); Blender 3.6 leaves a single object per piece. Returns the names of the objects that
+    belong to dressing pieces, so callers can tell them from the tile's own meshes.
+    """
+    copies = instance_transforms(path)
+    base = [_COPY_SUFFIX.sub("", o.name) for o in fresh]
+    for o, b in zip(fresh, base):
+        if b in copies and base.count(b) == 1 and o.type == "MESH" and o.matrix_basis == Matrix.Identity(4):
+            place_instances(o, copies[b])
+    return {o.name for o, b in zip(fresh, base) if b in copies}
 
 
 def srgb_to_linear(c: float) -> float:

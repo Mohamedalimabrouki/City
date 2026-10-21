@@ -78,6 +78,8 @@ Everything goes into `output/<country name>-<seed>/`:
 3. Press **Run Script**. The tiles, a sun, a sky color and a camera are added.
 
 Or from a terminal: `blender --python tools/blender_import.py -- output/<country>-<seed>/tiles`
+(on a Mac, `blender` is `/Applications/Blender.app/Contents/MacOS/Blender`). Tested with
+Blender 3.6 and 5.2.
 
 **Beautiful pictures for your stories:** `tools/blender_beauty.py` renders a finished-looking
 image (golden-hour light, textured walls, roof parapets, and the street dressing of the tiles):
