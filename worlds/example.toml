@@ -1,0 +1,20 @@
+# An example world. Copy this file, change what you like, then run:
+#   python -m citygen build --world worlds/example.toml
+# Anything not listed here keeps its default value (see citygen/defaults.toml).
+
+[world]
+seed = 2026          # any whole number; each one is a different country
+size_km = 48         # 48 x 48 km
+name = ""            # e.g. "Zaria"; leave empty to let the generator invent a name
+
+[terrain]
+sea_direction = 0    # the sea is to the north (compass bearing, or "random")
+
+[build]
+area = "capital-center"
+
+# Story canon: once you have written about a place, pin its name here so it never changes.
+# The number is the settlement id shown by:  python -m citygen list --world worlds/example.toml
+[canon.names]
+# 0 = "Carthage Nova"
+# 12 = "Sidi Amor"

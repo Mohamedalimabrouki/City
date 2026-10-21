@@ -1,0 +1,101 @@
+"""Data files for games and stories: world.json, cities/<name>/plan.json and gazetteer.md."""
+from __future__ import annotations
+
+import json
+import re
+from pathlib import Path
+
+import numpy as np
+
+from ..city.geo import polygons
+
+
+def slug(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-") or "unnamed"
+
+
+def _rings(poly) -> list:
+    return [np.round(np.asarray(r.coords), 2).tolist() for r in [poly.exterior, *poly.interiors]]
+
+
+def _geometry(geom) -> dict:
+    ps = polygons(geom)
+    if len(ps) == 1:
+        return {"type": "Polygon", "coordinates": _rings(ps[0])}
+    return {"type": "MultiPolygon", "coordinates": [_rings(p) for p in ps]}
+
+
+def write_json(path, data) -> Path:
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, separators=(",", ":")), encoding="utf-8")
+    return path
+
+
+def plan_json(plan) -> dict:
+    """The full plan of one city. Geometry is GeoJSON-style, in world meters (x east, y north)."""
+    return {
+        "format": "citygen-city/1",
+        "settlement": plan.settlement.to_json(),
+        "stats": plan.stats,
+        "boundary": _geometry(plan.boundary),
+        "districts": [{"id": d.id, "kind": d.kind, "name": d.name, "geometry": _geometry(d.polygon)}
+                      for d in plan.districts],
+        "streets": [{"kind": s.kind, "width": s.width, "coords": np.round(np.asarray(s.line.coords), 2).tolist()}
+                    for s in plan.streets],
+        "buildings": [{"kind": b.kind, "district": b.district, "height": round(b.height, 2),
+                       "floors": b.floors, "wall": b.wall, "roof": b.roof, "roof_shape": b.roof_shape,
+                       "footprint": _rings(b.footprint),
+                       **({"domes": [[round(x, 2), round(y, 2), round(r, 2), m] for x, y, r, m in b.domes]}
+                          if b.domes else {})}
+                      for b in plan.buildings],
+        "trees": [[round(t.x, 2), round(t.y, 2), t.kind, round(t.height, 1)] for t in plan.trees],
+        "landmarks": [{"kind": m.kind, "name": m.name, "x": round(m.x, 1), "y": round(m.y, 1)}
+                      for m in plan.landmarks],
+    }
+
+
+def gazetteer(world, plans) -> str:
+    """A readable guide to the world, for writing stories."""
+    km = world.size / 1000.0
+    lines = [f"# {world.name}", "",
+             f"A generated country, {km:.0f} by {km:.0f} km, seed {world.seed}, style "
+             f"\"{world.style.get('name', world.cfg['world']['style'])}\". "
+             f"Rebuilding with the same seed and settings gives exactly this world again.", ""]
+    cap = world.capital()
+    lines += ["## The capital", "", _describe(cap), ""]
+    for kind, title in (("city", "Cities"), ("town", "Towns"), ("village", "Villages")):
+        group = sorted((s for s in world.settlements if s.kind == kind), key=lambda s: -s.population)
+        if not group:
+            continue
+        lines += [f"## {title}", "", "| Name | People | Coast | Land | Known for | Founded | Map position (km) |",
+                  "|---|---:|---|---|---|---|---|"]
+        for s in group:
+            lines.append(f"| {s.name} | {s.population:,} | {'yes' if s.coastal else 'no'} | {s.biome} | "
+                         f"{', '.join(s.known_for)} | {s.founded} | {s.x / 1000:.1f}, {s.y / 1000:.1f} |")
+        lines.append("")
+    for plan in plans:
+        s = plan.settlement
+        lines += [f"## {s.name} in detail", ""]
+        kinds: dict = {}
+        for d in plan.districts:
+            kinds.setdefault(d.kind, []).append(d.name)
+        for kind, names in sorted(kinds.items()):
+            lines.append(f"- **{kind}**: {', '.join(sorted(names))}")
+        marks = [m.name for m in plan.landmarks if m.kind == "mosque"]
+        gates = [m.name for m in plan.landmarks if m.kind == "gate"]
+        if marks:
+            lines.append(f"- **mosques**: {', '.join(marks)}")
+        if gates:
+            lines.append(f"- **gates of the old town**: {', '.join(gates)}")
+        st = plan.stats
+        lines += [f"- **size**: {st['buildings']:,} buildings, {st['streets']:,} streets, {st['trees']:,} trees", ""]
+    return "\n".join(lines) + "\n"
+
+
+def _describe(s) -> str:
+    coast = "on the coast" if s.coastal else "inland"
+    known = f" Known for {', '.join(s.known_for)}." if s.known_for else ""
+    founded = f" Founded in the time of {s.founded}." if s.founded else ""
+    return (f"**{s.name}**, {s.population:,} people, {coast}, in {s.biome} country at {s.elevation:.0f} m."
+            f"{founded}{known}")

@@ -1,0 +1,8 @@
+numpy>=1.26
+scipy>=1.11
+shapely>=2.1
+contourpy>=1.2
+pillow>=10.1
+pytest>=8
+# optional, only for `python -m citygen snapshot` (3D pictures without a browser window):
+# playwright>=1.48

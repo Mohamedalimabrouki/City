@@ -1,0 +1,269 @@
+# Style pack: an invented Mediterranean / North African country.
+#
+# A style pack decides how the world looks and sounds: names, colors,
+# districts and buildings. The code never hard-codes these, so a new style
+# (a different culture, era or genre) is a new file in this folder.
+# Distances are meters, colors are web colors (#RRGGBB).
+
+name = "Maghreb"
+qibla_bearing = 105.0  # compass direction every mosque faces (0 = north, 90 = east)
+
+# --- names ---------------------------------------------------------------------
+[names]
+# Invented names are built from these sounds. Change them to change the "language".
+onsets = ["b", "d", "f", "g", "h", "j", "k", "kh", "l", "m", "n", "q", "r", "s", "sh", "t", "z", "gh", "dj", "ts", "m", "t", "k"]
+vowels = ["a", "a", "a", "e", "i", "ou", "o", "i"]
+codas = ["", "", "", "n", "r", "l", "t", "s", "m", "z", "k"]
+endings = ["a", "a", "ine", "ane", "et", "ouna", "is", "ia", "an", "it", "ra", "ba"]
+country_endings = ["ia", "a", "ane", "ie"]
+prefixes.village = ["Bir", "Ain", "Henchir", "Sidi", "Douar", "Oued", "Ras", "Dar"]
+prefixes.town = ["Menzel", "Ksar", "Souk", "Bordj", "Ain", "Sidi", "El"]
+prefixes.city = ["El"]
+prefix_chance = { village = 0.65, town = 0.4, city = 0.15, capital = 0.0 }
+
+[names.districts]
+# {n} is replaced by an invented name.
+colonial = ["Quartier {n}", "Ville {n}", "{n}"]
+modern = ["Cite {n}", "Hay {n}", "Cite El {n}"]
+residential = ["Hay {n}", "{n}", "El {n}"]
+suburb = ["Riadh {n}", "Jardins de {n}", "{n}"]
+industrial = ["Zone Industrielle {n}"]
+port = ["Port de {n}"]
+park = ["Parc {n}", "Belvedere {n}"]
+cemetery = ["Cemetery of Sidi {n}"]
+gate = ["Bab {n}"]
+mosque = ["Jamaa {n}"]
+
+[lore]
+# Fictional history: settlements are said to date from one of these eras.
+eras = ["the Salt Kings", "the Caravan Age", "the Exiles' Return", "the Corsair Century", "the Protectorate", "the Republic"]
+products.coast = ["fishing", "sea salt", "sponge diving", "boat building", "sea trade"]
+products.green = ["olive oil", "citrus", "wheat", "almonds", "pottery"]
+products.steppe = ["sheep", "esparto weaving", "barley", "honey"]
+products.desert = ["dates", "carpets", "camel markets", "rock salt"]
+products.mountain = ["cork", "marble", "pine honey", "goat cheese"]
+
+# --- colors and surfaces ---------------------------------------------------------
+# Every surface in the 3D files uses one of these materials (by name).
+[palette]
+lime_white = { color = "#F1EEE6", roughness = 0.92 }
+warm_white = { color = "#ECE4D3" }
+cream = { color = "#E8DCC0" }
+pale_yellow = { color = "#EAD9A6" }
+sand = { color = "#DEC79C" }
+ochre = { color = "#D2A46A" }
+pastel_blue = { color = "#C3D5E0" }
+concrete = { color = "#C9C3B8" }
+concrete_dark = { color = "#9A958C" }
+metal = { color = "#A6ACB1", roughness = 0.5, metallic = 0.3 }
+rampart = { color = "#CFAE7C" }
+minaret_stone = { color = "#D9C398" }
+roof_white = { color = "#E4DFD4" }
+roof_tile = { color = "#B5593B", roughness = 0.8 }
+dome_white = { color = "#F5F3EE" }
+dome_green = { color = "#3E7A57", roughness = 0.4 }
+asphalt = { color = "#57575A", roughness = 0.95 }
+paving = { color = "#BDB09A" }
+urban_ground = { color = "#CDBE9C" }
+water = { color = "#2D6F92", roughness = 0.1 }
+beach = { color = "#E8D6A8" }
+grass = { color = "#86A05A" }
+steppe = { color = "#BFAE78" }
+desert = { color = "#DFC28C" }
+forest = { color = "#566F3E" }
+rock = { color = "#9C8D79" }
+leaf = { color = "#5B7A3A" }
+leaf_olive = { color = "#7F8D5E" }
+leaf_palm = { color = "#6E8C3D", double_sided = true }
+leaf_cypress = { color = "#3F5A35" }
+trunk = { color = "#6B5541" }
+
+# --- districts -------------------------------------------------------------------
+# floors/walls/roofs are weighted choices: [value, how often].
+[district.medina]          # the walled old town
+alley_width = 3.0
+souk_width = 5.0           # main market streets from the gates to the great mosque
+cell = 34.0                # typical distance between alley crossings
+keep_alleys = 0.62         # share of possible alleys that exist (lower = bigger blocks, more dead ends)
+parcel_area = 165.0
+floors = [[1, 0.5], [2, 0.42], [3, 0.08]]
+floor_height = 3.4
+walls = [["lime_white", 0.78], ["warm_white", 0.12], ["sand", 0.1]]
+roofs = [["roof_white", 1.0]]
+courtyard_min_area = 110.0
+dome_chance = 0.035
+courtyard_tree_chance = 0.3
+wall_height = 8.0          # city walls (ramparts)
+wall_thickness = 3.0
+tower_spacing = 55.0
+gate_width = 7.0
+
+[district.village]         # traditional villages: like a small, looser medina
+alley_width = 4.0
+souk_width = 5.0
+cell = 52.0
+keep_alleys = 0.72
+parcel_area = 420.0
+empty_share = 0.3          # share of lots left as yards and gardens
+floors = [[1, 0.78], [2, 0.22]]
+floor_height = 3.3
+walls = [["lime_white", 0.6], ["sand", 0.25], ["ochre", 0.15]]
+roofs = [["roof_white", 0.8], ["sand", 0.2]]
+courtyard_min_area = 140.0
+dome_chance = 0.02
+courtyard_tree_chance = 0.45
+
+[district.colonial]        # the "ville nouvelle": boulevards and apartment buildings from the protectorate era
+grid = [96.0, 72.0]        # block length and width
+street_width = 12.0
+parcel_area = 380.0
+floors = [[3, 0.2], [4, 0.35], [5, 0.3], [6, 0.15]]
+floor_height = 3.6
+walls = [["cream", 0.4], ["warm_white", 0.35], ["pale_yellow", 0.25]]
+roofs = [["roof_white", 1.0]]
+perimeter = true           # buildings line the street, block interiors stay open as courtyards
+
+[district.modern]          # post-independence housing estates: apartment slabs
+grid = [150.0, 110.0]
+street_width = 12.0
+parcel_area = 1700.0
+setback = 6.0
+slab_depth = 13.0
+slab_max_length = 55.0
+floors = [[4, 0.3], [5, 0.3], [6, 0.2], [8, 0.12], [10, 0.08]]
+floor_height = 3.0
+walls = [["warm_white", 0.4], ["concrete", 0.25], ["sand", 0.2], ["pastel_blue", 0.15]]
+roofs = [["roof_white", 1.0]]
+
+[district.residential]     # dense neighborhoods of attached family houses
+grid = [92.0, 52.0]
+street_width = 9.0
+parcel_area = 220.0
+floors = [[1, 0.3], [2, 0.5], [3, 0.2]]
+floor_height = 3.1
+walls = [["lime_white", 0.5], ["warm_white", 0.2], ["sand", 0.15], ["pastel_blue", 0.08], ["ochre", 0.07]]
+roofs = [["roof_white", 1.0]]
+
+[district.suburb]          # villas with gardens
+grid = [112.0, 64.0]
+street_width = 9.0
+parcel_area = 540.0
+setback = 4.0
+house_max = [17.0, 13.0]
+floors = [[1, 0.45], [2, 0.5], [3, 0.05]]
+floor_height = 3.2
+walls = [["lime_white", 0.6], ["warm_white", 0.2], ["cream", 0.2]]
+roofs = [["roof_white", 1.0]]
+hip_roof_chance = 0.18
+garden_trees = [0, 3]
+
+[district.industrial]
+grid = [230.0, 160.0]
+street_width = 14.0
+parcel_area = 4200.0
+setback = 8.0
+height = [7.0, 13.0]
+walls = [["concrete", 0.5], ["metal", 0.3], ["concrete_dark", 0.2]]
+roofs = [["metal", 0.7], ["concrete_dark", 0.3]]
+
+[district.port]
+grid = [180.0, 120.0]
+street_width = 14.0
+parcel_area = 3200.0
+setback = 6.0
+height = [8.0, 15.0]
+walls = [["concrete", 0.4], ["metal", 0.4], ["ochre", 0.2]]
+roofs = [["metal", 0.8], ["concrete_dark", 0.2]]
+
+[district.park]
+tree_spacing = 13.0
+
+[district.cemetery]
+tree_spacing = 24.0
+marabouts = 3              # small domed shrines
+
+# --- settlement kinds ---------------------------------------------------------------
+[settlement.capital]
+population = [320000, 520000]
+density = 14000.0          # people per square kilometer; sets how big the city is
+medina_radius = 0.16       # share of the city radius
+neighborhood_spacing = [380.0, 720.0]
+arterial_width = 18.0
+boulevard_width = 34.0
+colonial = true
+colonial_reach = 0.42
+walls = true
+port = true                # only if the city is on the coast
+parks = 2
+cemetery = true
+industrial_share = 0.14
+mosque_chance = 0.55       # chance that a neighborhood gets its own mosque
+great_mosque = [62.0, 40.0, 30.0]   # prayer hall width, depth, courtyard depth
+minaret = [7.5, 42.0]               # minaret width, height
+rings = [
+  { until = 0.45, mix = { modern = 0.5, residential = 0.5 } },
+  { until = 0.8, mix = { residential = 0.6, suburb = 0.4 } },
+  { until = 9.0, mix = { suburb = 0.75, residential = 0.25 } },
+]
+
+[settlement.city]
+population = [40000, 140000]
+density = 11000.0
+medina_radius = 0.22
+neighborhood_spacing = [320.0, 560.0]
+arterial_width = 14.0
+boulevard_width = 26.0
+colonial = true
+colonial_reach = 0.5
+walls = true
+port = true
+parks = 1
+cemetery = true
+industrial_share = 0.12
+mosque_chance = 0.5
+great_mosque = [44.0, 30.0, 22.0]
+minaret = [6.0, 32.0]
+rings = [
+  { until = 0.45, mix = { modern = 0.35, residential = 0.65 } },
+  { until = 9.0, mix = { residential = 0.55, suburb = 0.45 } },
+]
+
+[settlement.town]
+population = [6000, 25000]
+density = 9000.0
+medina_radius = 0.3
+neighborhood_spacing = [240.0, 380.0]
+arterial_width = 11.0
+boulevard_width = 0.0
+colonial = false
+walls = true
+port = false
+parks = 0
+cemetery = true
+industrial_share = 0.1
+mosque_chance = 0.4
+great_mosque = [30.0, 22.0, 16.0]
+minaret = [5.0, 24.0]
+rings = [
+  { until = 9.0, mix = { residential = 0.8, suburb = 0.2 } },
+]
+
+[settlement.village]
+population = [300, 2500]
+density = 8000.0
+medina_radius = 1.0        # the whole village is traditional
+neighborhood_spacing = [400.0, 400.0]
+arterial_width = 8.0
+boulevard_width = 0.0
+colonial = false
+walls = false
+port = false
+parks = 0
+cemetery = false
+industrial_share = 0.0
+mosque_chance = 0.0
+great_mosque = [16.0, 13.0, 10.0]
+minaret = [4.0, 16.0]
+rings = [
+  { until = 9.0, mix = { residential = 1.0 } },
+]

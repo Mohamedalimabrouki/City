@@ -1,0 +1,13 @@
+{
+  "env": {
+    "CLAUDE_CODE_SUBAGENT_MODEL": "sonnet"
+  },
+  "permissions": {
+    "allow": [
+      "Bash(python -m pytest *)",
+      "Bash(python3 -m pytest *)",
+      "Bash(python -m citygen *)",
+      "Bash(python3 -m citygen *)"
+    ]
+  }
+}
