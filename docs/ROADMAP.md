@@ -23,12 +23,15 @@ Suggested order: C1, A4, A3, A1, B1, B2, C3, D1, then anything you like.
   (white cylinder on a small stand), satellite dishes and stair boxes on a share of roofs.
   Files: `mesh/builder.py`, `mesh/tile.py`, `city/model.py`, `styles/maghreb.toml` (chances).
   Done when: the street snapshot shows parapets and roof clutter, tile triangles grow under 35%.
+  Reference: `tools/blender_beauty.py` (`dress_tile`, `add_parapet`, `add_tank`) already does this in Blender.
 - [ ] **A2 Facade textures** (M, Sonnet high) - Add optional base-color textures to the glb
   writer (embedded PNG, `KHR_texture_transform` not needed since UVs are meters). Generate small
   tileable facade images per wall material (windows per floor, a door band on the ground floor,
   blue doors and shutters for `lime_white`). Files: `mesh/gltf.py`, new `mesh/textures.py`,
   palette entries get `texture = "facade_..."`. Done when: Blender and the viewer show windows,
-  and a test checks the glb image is valid.
+  and a test checks the glb image is valid. Reference: the facade shaders in
+  `tools/blender_beauty.py` (`old_openings`, `colonial_openings`, `modern_openings`) show the
+  target look and the window and door rules.
 - [ ] **A3 Sidewalks and curbs** (M) - Raised sidewalks (0.15 m, `paving`) along the edges of
   every block outside the old town, so streets have crisp edges. Build them from block rings in
   `mesh/tile.py` (each block belongs to the tile holding its center). Done when: snapshot shows

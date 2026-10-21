@@ -13,6 +13,11 @@ game engines.
 | **The old town in 3D** | **On the boulevard** |
 | ![3d](docs/img/3d.jpg) | ![street](docs/img/street.jpg) |
 
+**Where it is going.** The same old-town lane, today (top) and as a Blender preview of the
+finished look (bottom): textures, blue doors, windows and soft light on the very same geometry.
+
+![today vs end point](docs/img/endpoint-souk.jpg)
+
 ## How it works, in one minute
 
 Nothing is drawn by hand. A program (the **generator**) builds everything from rules. You give
@@ -67,6 +72,15 @@ Everything goes into `output/<country name>-<seed>/`:
 3. Press **Run Script**. The tiles, a sun, a sky color and a camera are added.
 
 Or from a terminal: `blender --python tools/blender_import.py -- output/<country>-<seed>/tiles`
+
+**Beautiful pictures for your stories:** `tools/blender_beauty.py` renders a finished-looking
+image (golden-hour light, textured walls with doors and windows, rooftop water tanks):
+
+```
+blender -b --python tools/blender_beauty.py -- output/<country>-<seed> --view souk --png lane.png
+```
+
+Views are `aerial`, `street` and `souk`. Each picture takes about 5 minutes on a normal computer.
 
 ## Make your own world
 
