@@ -186,10 +186,30 @@ def test_trees_are_natural_and_deterministic(world):
                 (a["tree_broadleaf"].gltf_parts()["trunk"], a["tree_broadleaf_b"].gltf_parts()["trunk"])}) == 2
 
 
+def test_climbers_hug_the_wall_and_are_deterministic(world):
+    from citygen.mesh.climbers import climber_pieces
+    spec = world.style["dressing"]["climber"]
+    a, b = climber_pieces(world.seed, spec), climber_pieces(world.seed, spec)
+    assert sorted(a) == ["bougainvillea", "bougainvillea_b"]
+    for name, mb in a.items():
+        assert 200 <= mb.triangles <= 280, (name, mb.triangles)
+        parts = mb.gltf_parts()
+        assert sum(len(p["idx"]) for p in parts.values()) == 3 * mb.triangles
+        assert all(mat in world.style["palette"] for mat in parts)
+        pos = np.concatenate([p["pos"] for p in parts.values()])
+        width, height, depth = np.ptp(pos, axis=0)     # glTF axes: x along the wall, y up, z out of it
+        assert width > 1.6 and height > 3.6 and depth < 0.8, (width, height, depth)
+        assert len([m for m in parts if m.startswith("bougainvillea")]) == 3   # three bract shades
+        assert "leaf_dark" in parts                                           # a few green leaves
+        for mat, part in parts.items():
+            other = b[name].gltf_parts()[mat]
+            assert np.array_equal(part["pos"], other["pos"]) and np.array_equal(part["idx"], other["idx"])
+
+
 def test_kit_names_and_roles(world):
     from citygen.kit import Kit
     kit = Kit(world.seed, world.cfg["build"].get("kits", []), world.style["palette"],
-                  world.style["dressing"].get("trees"))
+                  world.style["dressing"].get("trees"), world.style["dressing"].get("climber"))
     assert kit.pieces["door_blue"].source == "procedural"
     kit_pieces = [n for n, p in kit.pieces.items() if p.source != "procedural"]
     assert all(n.startswith(kit.pieces[n].source + "/") for n in kit_pieces)   # kit pieces never replace ours

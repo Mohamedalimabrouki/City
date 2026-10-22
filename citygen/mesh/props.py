@@ -18,6 +18,7 @@ from ..city.model import Tree
 
 from .builder import (MeshBuilder, add_cone, add_dome, add_octahedron, add_sheet, add_triangles, extrude,
                       regular_polygon)
+from .climbers import climber_pieces
 from .trees import tree_pieces
 
 DOOR_COLORS = ("door_blue", "door_green", "door_yellow", "door_brown", "door_red")
@@ -320,19 +321,6 @@ def cafe_set() -> MeshBuilder:
     return mb
 
 
-def bougainvillea(rng) -> MeshBuilder:
-    """A climber against the wall: a trunk and clouds of pink bracts reaching about 4.5 m."""
-    mb = MeshBuilder()
-    _box(mb, -0.05, 0.05, 0.05, 0.15, 0.0, 3.2, "trunk")
-    for k in range(9):
-        x = float(rng.uniform(-1.1, 1.1))
-        z = float(rng.uniform(2.0, 4.6))
-        mat = "bougainvillea" if k % 3 else "leaf"
-        add_octahedron(mb, x, 0.25, z, float(rng.uniform(0.35, 0.6)), float(rng.uniform(0.3, 0.45)), mat,
-                       twist=float(rng.uniform(0, 1.5)))
-    return mb
-
-
 def street_lamp() -> MeshBuilder:
     """A cast-iron street lamp: its arm and lantern lean over the street (front)."""
     mb = MeshBuilder()
@@ -390,11 +378,12 @@ def tree_piece(kind: str, height: float = 8.0) -> MeshBuilder:
     return mb
 
 
-def catalog(rng, seed: int = 0, trees: dict | None = None) -> dict:
+def catalog(rng, seed: int = 0, trees: dict | None = None, climber: dict | None = None) -> dict:
     """Every procedural piece: {name: (MeshBuilder, category, anchor)}.
 
-    `trees` is the style table `[dressing.trees]`; the crowns use their own random streams (from `seed`),
-    never `rng`, so they cannot change any other piece. Without it the light three-clump trees are used.
+    `trees` and `climber` are the style tables `[dressing.trees]` and `[dressing.climber]`; their
+    shapes use their own random streams (from `seed`), never `rng`, so they cannot change any other
+    piece. Without them the light tree pieces stay and no tree variants or climbers are made.
     """
     pieces = {}
     for color in DOOR_COLORS:
@@ -424,12 +413,12 @@ def catalog(rng, seed: int = 0, trees: dict | None = None) -> dict:
         "fruit_crate": (fruit_crate(rng), "goods", "ground"),
         "fruit_crate_b": (fruit_crate(rng), "goods", "ground"),
         "cafe_set": (cafe_set(), "furniture", "ground"),
-        "bougainvillea": (bougainvillea(rng), "plant", "wall"),
-        "bougainvillea_b": (bougainvillea(rng), "plant", "wall"),
         "string_lantern": (string_lantern(), "lamp", "ground"),
         "street_lamp": (street_lamp(), "lamp", "ground"),
         **{f"tree_{kind}": (tree_piece(kind), "tree", "ground") for kind in ("broadleaf", "olive", "cypress", "palm")},
     })
     for name, mb in tree_pieces(seed, trees or {}).items():
         pieces[name] = (mb, "tree", "ground")
+    for name, mb in climber_pieces(seed, climber).items():
+        pieces[name] = (mb, "plant", "wall")
     return pieces

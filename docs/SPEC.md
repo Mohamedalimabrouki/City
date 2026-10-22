@@ -63,8 +63,10 @@ build.build()                 orchestrates the above into output/<country>-<seed
 | `citygen/mesh/builder.py` | mesh primitives: extrude, walls, caps, domes, hip roofs, ribbons, trees |
 | `citygen/mesh/gltf.py` | dependency-free .glb writer and reader |
 | `citygen/mesh/tile.py` | what goes into one tile |
+| `citygen/mesh/plants.py` | shared plant shapes: clumps (icosahedron, octahedron, 4-face bract) and tapered tubes |
 | `citygen/mesh/props.py` | the generator's own kit pieces (doors, shops by trade, awnings, goods, lamps, trees...) |
 | `citygen/mesh/trees.py` | broadleaf and olive crowns (jittered clumps, 3 variants each) from `[dressing.trees]` |
+| `citygen/mesh/climbers.py` | bougainvillea curtains (2 variants, 250 triangles each) from `[dressing.climber]` |
 | `citygen/kit.py` | `Kit`: procedural pieces plus kits from `kits/<name>/` |
 | `citygen/city/life.py` | households and souk trades (story data that also drives the dressing) |
 | `citygen/city/dressing.py` | `Dresser`: which piece goes where, tile by tile |
@@ -144,7 +146,9 @@ piece; `tools/blender_import.py` and `tools/blender_beauty.py` place all copies 
 `rings` mix by distance from the center. `[life]` door colors, family name patterns, real name
 lists and the root sounds and word patterns for made-up nisba names, wealth and trades by
 district; `[[souk]]` souk trades and their goods; `[dressing]` chances and heights;
-`[dressing.roles]` which piece plays each part. Adding a style = a new file; code must not assume
+`[dressing.roles]` which piece plays each part; `[dressing.trees.<kind>]` the natural tree
+variants and `[dressing.climber]` the bougainvillea curtains (clump count and size, drop,
+stems, colors). Adding a style = a new file; code must not assume
 Maghreb-specific values.
 
 ## 8. Performance budgets

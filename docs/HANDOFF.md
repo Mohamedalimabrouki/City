@@ -37,7 +37,8 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
 
 - Done: v0.1 (country, cities, maps, data, 3D tiles, viewer, Blender scripts), **A0** (Tounes
   kit, street dressing, households and souk trades, night mode, "click a house: who lives there")
-  **Q2** (family names that sound Tunisian) and **Q1** (rounded, shaded leafy trees).
+  **Q2** (family names that sound Tunisian), **Q1** (rounded, shaded leafy trees) and **Q3**
+  (bougainvillea curtains instead of lollipops).
 - Since 21 October 2026 the work runs on Ali's Mac through the playbook `docs/PROMPTS.md`: 100
   numbered prompts (`Do prompt N.`), each with its model and effort, one session each; nine Opus
   checkpoints review the work as it goes; every session adds an entry to `docs/WORKLOG.md`.
@@ -105,12 +106,18 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
   own stream. Undressed tiles keep the light 3-clump tree from `tree_mesh`: merging 200-triangle
   trees 7,900 times into a tile would make it huge.
 - **Headless snapshots** run on the CPU and are slow. Use a small `radius` in `--query`.
+- **Bougainvillea** (`mesh/climbers.py`, prompt 7) is a curtain of 4-face bracts on a staggered
+  grid, not blobs: 38 to 40 clumps from the wall top to a ragged hem, 2 or 3 bent 4-5 sided stems,
+  three magenta shades and a few green leaves, 250 triangles per variant, its own stream. The
+  clump and tube helpers moved from `trees.py` to `mesh/plants.py`; `clump(..., turn=0, roll=...)`
+  keeps wall pieces thin in y. Big clumps spaced apart look like leaves, so density comes from
+  overlap, not size. Numbers are in `[dressing.climber]`.
 - **Old-town tiles** reach about 5 MB with all the dressing (SPEC budget note; task Q5).
 
 ## Known weak spots
 
-Listed as tasks Q3-Q5 in the roadmap: a crude generated bougainvillea, no haze in Blender 5
-beauty renders, heavy old-town tiles. Also: modern slabs and houses deep inside medina blocks
+Listed as tasks Q4 and Q5 in the roadmap: no haze in Blender 5 beauty renders and heavy
+old-town tiles. Also: modern slabs and houses deep inside medina blocks
 have no door or windows, because the dressing only dresses walls within 1.6 m of a street
 (prompts 20.1 and 20.2).
 

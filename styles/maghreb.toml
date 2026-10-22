@@ -113,6 +113,8 @@ terracotta = { color = "#B8643C" }
 soil = { color = "#5A4433" }
 plant_green = { color = "#4E7A35" }
 bougainvillea = { color = "#D62E8A" }
+bougainvillea_deep = { color = "#A61E5E" }
+bougainvillea_pink = { color = "#F08AB5" }
 tank_white = { color = "#E6E6E0", roughness = 0.5 }
 tank_black = { color = "#2A2A2A", roughness = 0.45 }
 dish_white = { color = "#DCDCD6", roughness = 0.5, double_sided = true }
@@ -489,6 +491,31 @@ souk_cart = 0.25           # chance, every 20 m along a souk, of a handcart
 souk_lanterns = 0.55       # chance, every 12 m along a souk, of a string of lanterns
 bunting = 0.2
 street_lamps = { boulevard = 26.0, corniche = 24.0, arterial = 32.0, ring = 34.0, street = 30.0 }   # meters between lamps
+
+# Bougainvillea climbers (citygen/mesh/climbers.py), the `climber` role. The piece hangs on a wall:
+# `top` is where the cascade starts, `drop` how far its hem hangs below it.
+# materials: deep, mid and pale bracts; leaves: share of green clumps.
+[dressing.climber]
+variants = 2
+top = 4.3
+drop = [2.4, 2.8]
+spread = [0.85, 1.15]      # half-width of the canopy along the wall
+clumps = [38, 40]
+clump_radius = [0.28, 0.38]
+flatten = 0.72             # clump height / width
+depth = 0.42               # clump depth / width (thin against the wall)
+depth_jitter = 0.12
+jitter = 0.2
+leaves = 0.1
+rows = 7                   # grid rows from the wall top down to the hem
+back = 6                   # dark clumps behind, to fill the gaps between the front ones
+materials = ["bougainvillea_deep", "bougainvillea", "bougainvillea_pink"]
+leaf_material = "leaf_dark"
+trunks = [2, 3]
+trunk_radius = 0.055
+taper = 0.35
+trunk_material = "trunk"
+branches = [2, 3]
 
 # Broadleaf and olive crowns (citygen/mesh/trees.py). Sizes are fractions of the tree height.
 # clumps: how many leaf clumps; clump_radius: their size; flatten: clump height / width;

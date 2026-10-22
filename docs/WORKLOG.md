@@ -15,6 +15,24 @@ Entry format:
 - Doubts and questions for Ali: <none, or the question>
 ```
 
+## 2026-10-22 - Prompt 7 Q3 Bougainvillea that cascades
+- Commit: "Q3 bougainvillea curtains" (see git log) | Model: DeepSeek V4.1 Flash, medium (playbook: Sonnet, medium)
+- Changed: `citygen/mesh/plants.py` (new shared clump and tube helpers), `citygen/mesh/climbers.py`
+  (new), `citygen/mesh/trees.py`, `citygen/mesh/props.py`, `citygen/kit.py`,
+  `styles/maghreb.toml`, `tests/test_citygen.py`, `docs/SPEC.md`, `docs/ROADMAP.md`,
+  `docs/HANDOFF.md`
+- Checks: tests 24 passed (9.6 s); quick build 6.6 s; fingerprint 7 changed, all allowed:
+  `kit/bougainvillea` and `kit/bougainvillea_b` 82 -> 250 triangles, four tiles +0.1 to 0.2%,
+  `tiles/index` bytes; every other kit piece identical. Each climber 250 triangles, 2.4 m wide,
+  0.28 m deep, 4.8 m tall.
+- Look: `output/checks/7.png` - before: nine floating octahedra on a straight pole; after: a
+  curtain of flat bracts from the wall top down to about 2 m, three magenta shades, green leaves
+  and two or three bent stems. The kit-sheet camera also shows the next rows, which hide the
+  lower half of the piece.
+- Doubts and questions for Ali: at 250 triangles the mass is coarser than the Tounes cascade
+  (1,714 triangles); if it reads too sparse in the streets, raise `clumps` in
+  `[dressing.climber]` in a later prompt.
+
 ## 2026-10-22 - Prompt 6 CP1 Checkpoint: foundations
 - Commit: "CP1 fixes" (see git log) | Model: Opus, medium
 - Reviewed prompts 1-5 against their "Done when": all met. No em dashes, no unseeded randomness,

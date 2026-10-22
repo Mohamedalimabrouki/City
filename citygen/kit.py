@@ -60,10 +60,12 @@ class Piece:
 
 
 class Kit:
-    def __init__(self, seed: int, kits=(), palette: dict | None = None, trees: dict | None = None):
+    def __init__(self, seed: int, kits=(), palette: dict | None = None, trees: dict | None = None,
+                 climber: dict | None = None):
         self.pieces: dict[str, Piece] = {}
         self.materials: dict = dict(palette or {})
-        for name, (mb, category, anchor) in catalog(stream(seed, "props"), seed, trees).items():
+        table = catalog(stream(seed, "props"), seed, trees, climber)
+        for name, (mb, category, anchor) in table.items():
             self.pieces[name] = Piece(name, category, anchor, mb.gltf_parts(), "procedural")
         for kit in kits:
             folder = Path(kit) if Path(kit).is_dir() else ROOT / "kits" / kit
@@ -90,4 +92,5 @@ class Kit:
 
 def make_kit(seed: int, cfg: dict, style: dict) -> Kit:
     """The one place a Kit is built from a seed, the config and the style (tiles, kit sheet, tools)."""
-    return Kit(seed, cfg["build"].get("kits", []), style["palette"], style.get("dressing", {}).get("trees"))
+    dressing = style.get("dressing", {})
+    return Kit(seed, cfg["build"].get("kits", []), style["palette"], dressing.get("trees"), dressing.get("climber"))

@@ -16,7 +16,7 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
 - [x] 4 C1a Build tiles in parallel (2.8x on the capital, accepted by Ali)
 - [x] 5 C1b Resumable builds
 - [x] 6 CP1 Checkpoint: foundations
-- [ ] 7 Q3 Bougainvillea that cascades
+- [x] 7 Q3 Bougainvillea that cascades
 - [ ] 8 V1 Golden hour in the viewer
 - [ ] 9 V2 Ambient occlusion
 - [ ] 10 Q4 Blender 5 haze
@@ -140,10 +140,11 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
   real "Bou" name, or a trade name. Random syllables had sounded foreign. One draw from the
   households stream is kept, so doors and wealth are unchanged. Test over 300 names in
   `tests/test_citygen.py`.
-- [ ] **Q3 Generated bougainvillea** (S) - The generator's own climber (`bougainvillea` in
-  `mesh/props.py`) looks like a lollipop next to the kit's cascade. Rebuild it as a dense,
-  flat mass of bracts against the wall with a twisting trunk, or remove it from `door_plants`.
-  Done when: a close snapshot shows no lollipops.
+- [x] **Q3 Generated bougainvillea** (S) - Done. `mesh/climbers.py` builds two variants from
+  `[dressing.climber]`: 2 or 3 bent, tapered stems and a 38 to 40 clump curtain of flat 4-face
+  bracts (250 triangles each) in three magenta shades plus green leaves, hanging from the wall
+  top to a ragged hem; it has its own stream. `mesh/plants.py` now holds the clump and tube
+  helpers shared with the trees. Tiles grew 0.2%.
 - [ ] **Q4 Blender 5 haze and color grade** (S) - `tools/blender_beauty.py` skips its compositor
   on Blender 5 (the compositor became a node group: `scene.compositing_node_group`, a Group
   Output node instead of Composite). Port `setup_haze` and keep Blender 3.6 and 4.x working.
