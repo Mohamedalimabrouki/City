@@ -41,10 +41,11 @@ The code builds the world; agents only improve the code. Keep every session smal
 - Before coding: `build --quick`, then `python tools/fingerprint.py save before`.
 - After coding: tests, `build --quick`, then `python tools/fingerprint.py compare before --allow
   "<the parts the prompt allows>"`. Fix or explain every other change.
-- "Look" prompts: `python tools/before_after.py --view <view> --out output/checks/<N>.png` (these
-  are the two snapshots; it starts a local web server, so run it outside the sandbox). Look at
-  the image yourself before you report. Extra runs only to prove a look unchanged by their
-  printed pixel difference (0.0) are fine; you need not look at those.
+- "Look" prompts: run exactly `.venv/bin/python tools/before_after.py --view <view> --out
+  output/checks/<N>.png` as a command of its own (no `cd`, redirect or `&&`), so Ali's sandbox
+  exclusion runs it outside the sandbox, where its browser can start. These are the two
+  snapshots. Look at the image yourself before you report. Extra runs only to prove a look
+  unchanged by their printed pixel difference (0.0) are fine; you need not look at those.
 - Ali follows the progress in Blender: when the fingerprint shows `tiles/*` changes, run exactly
   `.venv/bin/python tools/make_blend.py` as a command of its own (no `cd`, redirect or `&&`, so
   Ali's sandbox exclusion matches it; Blender crashes inside the sandbox). It refreshes
