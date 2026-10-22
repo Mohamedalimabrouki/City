@@ -167,6 +167,14 @@ Maghreb-specific values.
 - `python tools/before_after.py --view street|souk|aerial` compares the last commit with the working
   tree in one labelled picture and prints the pixel difference (see HANDOFF.md).
 
+**Checking a change.** `python tools/fingerprint.py save before` records a hash of every part
+of the latest build (world, each plan section, each tile, each kit piece, maps, other files;
+timings and build keys ignored) in `output/checks/fp-before.json`. After the edit and a new
+build, `python tools/fingerprint.py compare before --allow "tiles/*,kit/tree_*"` lists each
+changed part with a short detail and exits with code 1 when a part outside the patterns changed
+(`--allow ""` allows nothing). Pass the build folder for builds outside `output/`, for example
+`output/full/bodjantouna-42`.
+
 ## 10. Extending
 
 - **New district kind:** add `[district.<kind>]` to the style, a branch in

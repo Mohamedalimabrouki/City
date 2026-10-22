@@ -15,6 +15,28 @@ Entry format:
 - Doubts and questions for Ali: <none, or the question>
 ```
 
+## 2026-10-22 - Prompt 6 CP1 Checkpoint: foundations
+- Commit: "CP1 fixes" (see git log) | Model: Opus, medium
+- Reviewed prompts 1-5 against their "Done when": all met. No em dashes, no unseeded randomness,
+  no stray files. Prompt 1 had left out the "Checking a change" paragraph in SPEC section 9: added.
+- Fixed: (1) a `--force` build stopped while writing maps left a cut-short `country.png` that the
+  next build reused (found by a real Ctrl+C test): `summary.json` is now deleted before maps and
+  data are rewritten; the slow resume test covers it and fails without the fix. (2) The build key
+  now includes the Python and library versions (a shapely upgrade could change output or break
+  cached plans). (3) The fingerprint skips Ali's `*.blend` files (they always showed as changed).
+  (4) The fingerprint test now edits one plan key and checks that exactly that part changes.
+- Changed: citygen/build.py, citygen/buildkey.py, tools/fingerprint.py, tests/test_citygen.py,
+  docs/SPEC.md, docs/HANDOFF.md, docs/ROADMAP.md
+- Checks: tests 23 passed (9.6 s) + 2 slow (21 s); quick build 6.7 s (forced 7.0 s), rerun 0.1 s;
+  stats match prompt 5 (1,742 buildings, 9 tiles, 200,024 triangles, 11.7 MB). Fingerprint vs
+  before the fixes: 0 changed (only the two .blend parts, now skipped). Capital `--workers 8`:
+  24.7 s forced, 1.5 s rerun, 299 parts 0 changed. Saved `fp-cp1` (140 parts).
+- Look: output/checks/cp1-street.png and cp1-aerial.png (before_after on the unchanged tree,
+  pixel difference 0.00 both). Current state: plain wide asphalt streets without sidewalks, flat
+  facades, fields and the walled medina from the air; later prompts change exactly these.
+- Doubts and questions for Ali: none. Small rough edge left: the before/after labels cover the
+  viewer's "tiles 9/9" box (cosmetic).
+
 ## 2026-10-22 - Lead session: DeepSeek trial and backup point
 - Commit: the "DeepSeek trial" commit, tagged `before-deepseek` | Model: Opus
 - Changed: docs/PROMPTS.md (which prompts stay on Claude), docs/prompts/02 (checkpoint 16 judges

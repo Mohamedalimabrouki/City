@@ -296,6 +296,7 @@ def build(cfg: dict, area: str | None = None, log=print, force: bool = False) ->
             if not force and data_files_current(out, key, plans):
                 log("maps and data files reused")
                 return
+            (out / "summary.json").unlink(missing_ok=True)   # written again last: files cut short never count as current
             write_json(out / "world.json", world.to_json())
             country_map(world, out / "maps" / "country.png")
             for plan in plans:

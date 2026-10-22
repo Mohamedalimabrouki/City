@@ -259,11 +259,20 @@ def test_fingerprint_tool(tmp_path, monkeypatch):
     (folder / "world.json").write_text(json.dumps({"name": "T", "seed": 1, "style": "maghreb"}))
     (folder / "tiles" / "index.json").write_text(json.dumps({"tiles": [], "seconds": 1.0}))
     (folder / "tiles" / "tile_0_0.glb").write_bytes(b"abc")
+    (folder / "cities" / "c").mkdir(parents=True)
+    (folder / "cities" / "c" / "plan.json").write_text(json.dumps({"streets": [1, 2], "trees": [1]}))
     monkeypatch.chdir(tmp_path)
     assert fingerprint.main(["save", "a", str(folder)]) == 0
     assert fingerprint.main(["compare", "a", str(folder), "--allow", ""]) == 0
     (folder / "tiles" / "index.json").write_text(json.dumps({"tiles": [], "seconds": 9.0}))
     assert fingerprint.main(["compare", "a", str(folder), "--allow", ""]) == 0   # timings are ignored
+    saved = json.loads((tmp_path / "output" / "checks" / "fp-a.json").read_text())["parts"]
+    (folder / "cities" / "c" / "plan.json").write_text(json.dumps({"streets": [1, 2], "trees": [1, 2]}))
+    changes = fingerprint.compare(saved, fingerprint.fingerprint(folder)["parts"])
+    assert changes == [("plan/c/trees", "n 1 -> 2")]   # exactly the edited key
+    assert fingerprint.main(["compare", "a", str(folder), "--allow", "plan/c/trees"]) == 0
+    assert fingerprint.main(["compare", "a", str(folder), "--allow", ""]) == 1
+    (folder / "cities" / "c" / "plan.json").write_text(json.dumps({"streets": [1, 2], "trees": [1]}))
     (folder / "tiles" / "tile_0_0.glb").write_bytes(b"abcd")
     assert fingerprint.main(["compare", "a", str(folder), "--allow", ""]) == 1
     assert fingerprint.main(["compare", "a", str(folder), "--allow", "tiles/*"]) == 0
@@ -344,7 +353,7 @@ def test_finished_tiles_need_every_file(tmp_path):
     assert finished_tiles(tmp_path, tmp_path / "none", "other", keys) == {}   # another key: nothing counts
 
 
-def _tiny_build(tmp_path, monkeypatch, plan, calls, **tiles):
+def _tiny_build(tmp_path, monkeypatch, plan, calls, force=False, **tiles):
     """One small build into tmp_path; planning is counted and answered by the shared fixture plan."""
     from citygen import build as builder
 
@@ -357,7 +366,7 @@ def _tiny_build(tmp_path, monkeypatch, plan, calls, **tiles):
     cfg = load_config(quick=True, overrides={"build": {"output": str(tmp_path), "center_radius": 150.0,
                                                       "workers": 1}, "tiles": tiles})
     messages = []
-    out = builder.build(cfg, log=messages.append)
+    out = builder.build(cfg, log=messages.append, force=force)
     return out, messages
 
 
@@ -389,3 +398,14 @@ def test_resumed_builds_match_and_a_changed_setting_rebuilds(world, plan, tmp_pa
     assert len(list((out / "cache").glob("*.pkl"))) == 1   # the plan of the old key was deleted
     _tiny_build(tmp_path, monkeypatch, plan, calls, terrain_step=20.0)
     assert len(calls) == 2   # the same key again: nothing is planned
+    from citygen import build as builder
+    country_map = builder.country_map
+
+    def stopped(*args):   # Ctrl+C while a --force build writes the maps
+        raise KeyboardInterrupt
+    monkeypatch.setattr(builder, "country_map", stopped)
+    with pytest.raises(KeyboardInterrupt):
+        _tiny_build(tmp_path, monkeypatch, plan, calls, force=True, terrain_step=20.0)
+    monkeypatch.setattr(builder, "country_map", country_map)
+    out, messages = _tiny_build(tmp_path, monkeypatch, plan, calls, terrain_step=20.0)
+    assert "maps and data files reused" not in messages   # the cut-short maps are written again

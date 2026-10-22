@@ -12,6 +12,7 @@ import argparse
 import fnmatch
 import hashlib
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -25,6 +26,7 @@ from citygen.kit import make_kit  # noqa: E402
 
 CHECKS = Path("output/checks")
 SKIP_KEYS = ("build_key",)
+BLEND = re.compile(r"\.blend\d*$")   # Ali's Blender file and its backups change when he saves them
 
 
 def _latest(folder) -> Path:
@@ -124,7 +126,7 @@ def fingerprint(folder: Path) -> dict:
         rel = path.relative_to(folder)
         top = rel.parts[0]
         if (not path.is_file() or "cache" in rel.parts or top in ("maps", "tiles", "checks")
-                or str(rel) in covered or path.name.startswith(".")
+                or str(rel) in covered or path.name.startswith(".") or BLEND.search(path.name)
                 or (top == "cities" and path.name == "plan.json")):
             continue
         parts[f"files/{rel.as_posix()}"] = _file_part(path)

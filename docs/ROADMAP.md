@@ -15,7 +15,7 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
 - [x] 3 T3 Housekeeping
 - [x] 4 C1a Build tiles in parallel (2.8x on the capital, accepted by Ali)
 - [x] 5 C1b Resumable builds
-- [ ] 6 CP1 Checkpoint: foundations
+- [x] 6 CP1 Checkpoint: foundations
 - [ ] 7 Q3 Bougainvillea that cascades
 - [ ] 8 V1 Golden hour in the viewer
 - [ ] 9 V2 Ambient occlusion

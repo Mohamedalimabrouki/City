@@ -1,18 +1,22 @@
 """The build key: one SHA-256 that changes whenever anything a build's content depends on changes.
 
 A finished plan or tile is reused only when its key equals the key of the current build.
-Simple and safe: any edit to any code file, setting, style, kit or planned city changes the key.
+Simple and safe: any edit to any code file, setting, style, kit or planned city changes the key,
+and so does a new version of Python or of a library the code uses.
 """
 from __future__ import annotations
 
 import hashlib
 import json
+import platform
+from importlib import metadata
 from pathlib import Path
 
 from .config import ROOT, style_path
 
 CODE = Path(__file__).resolve().parent
 NOT_CONTENT = ("output", "workers", "area")   # [build] settings that never change what a tile holds
+LIBRARIES = ("numpy", "scipy", "shapely", "contourpy", "pillow")   # a new version may change the numbers
 
 
 def _code_hash() -> str:
@@ -37,6 +41,10 @@ def _kit_hash(kit: str) -> str:
     return h.hexdigest()
 
 
+def _versions() -> list:
+    return [platform.python_version(), *(metadata.version(name) for name in LIBRARIES)]
+
+
 def build_key(cfg: dict, settlement_ids) -> str:
     """Key of a build with these merged settings and these planned settlements (by id)."""
     settings = {k: v for k, v in cfg.items() if k != "build"}
@@ -46,6 +54,7 @@ def build_key(cfg: dict, settlement_ids) -> str:
         "style": hashlib.sha256(style_path(cfg["world"]["style"]).read_bytes()).hexdigest(),
         "kits": [_kit_hash(k) for k in cfg["build"].get("kits", [])],
         "code": _code_hash(),
+        "versions": _versions(),
         "settlements": sorted(int(i) for i in settlement_ids),
     }
     return hashlib.sha256(json.dumps(parts, sort_keys=True).encode()).hexdigest()
