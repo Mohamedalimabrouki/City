@@ -15,6 +15,14 @@ Entry format:
 - Doubts and questions for Ali: <none, or the question>
 ```
 
+## 2026-10-22 - Lead session: DeepSeek trial and backup point
+- Commit: the "DeepSeek trial" commit, tagged `before-deepseek` | Model: Opus
+- Changed: docs/PROMPTS.md (which prompts stay on Claude), docs/prompts/02 (checkpoint 16 judges
+  the trial), docs/HANDOFF.md, this log
+- Plan: prompt 6 on Claude (Opus); prompts 7-15 with DeepSeek V4.1 Flash in OpenCode; prompt 16
+  on Claude judges the trial. To undo the trial: `git reset --hard before-deepseek` (ask first).
+- Doubts and questions for Ali: none
+
 ## 2026-10-22 - Prompt 5 C1b Resumable builds
 - Commit: see git log | Model: Sonnet, high
 - Changed: citygen/buildkey.py (new), citygen/build.py, citygen/config.py (`style_path`), citygen/mesh/tile.py (write .part, rename), citygen/__main__.py (--force), tests/test_citygen.py, README.md, docs/SPEC.md, docs/HANDOFF.md, docs/ROADMAP.md (boxes 5 and C1)

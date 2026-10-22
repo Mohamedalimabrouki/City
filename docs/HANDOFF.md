@@ -42,6 +42,10 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
   numbered prompts (`Do prompt N.`), each with its model and effort, one session each; nine Opus
   checkpoints review the work as it goes; every session adds an entry to `docs/WORKLOG.md`.
   After prompt 100, Ali brings the work back to his lead session for a full review.
+- From prompt 7, a trial runs the build prompts with DeepSeek V4.1 Flash in OpenCode (free; it
+  reads `CLAUDE.md` because there is no `AGENTS.md`). Claude keeps the checkpoints, the big
+  designs and the phone page (list in `docs/PROMPTS.md`). Checkpoint 16 judges the trial; the
+  git tag `before-deepseek` is the backup point from before it.
 - Seed 42 makes the country **Bodjantouna** with the capital **Goumosbane**.
   `python -m citygen build --quick` writes it to `output/bodjantouna-42/` in about 7 seconds on
   Ali's Mac (20 seconds in the cloud).

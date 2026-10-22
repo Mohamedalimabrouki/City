@@ -30,6 +30,13 @@ of every prompt is in `docs/prompts/`; Claude reads it there, so you only type t
   `output/bodjantouna-42/goumosbane.blend`: double-click it to see the progress (golden-hour
   scene with a camera per view: street, aerial, souk, and new views as prompts add them). To
   refresh it yourself: `.venv/bin/python tools/make_blend.py`.
+- **Other models (DeepSeek in OpenCode).** From prompt 7, a trial runs the build prompts with
+  DeepSeek V4.1 Flash in OpenCode (free). OpenCode reads `CLAUDE.md` by itself, so type the same
+  `Do prompt 7.` there; do not add an `AGENTS.md` file (OpenCode would read it instead of
+  `CLAUDE.md`). Keep these on Claude: the checkpoints (6, 16, 27, 43, 58, 69, 78, 91, 100), the
+  big designs (44, 51, 94, 98) and the phone page (42, 99: they need Claude's Artifact tool).
+  Never run two agents on this folder at the same time. Checkpoint 16 judges the trial; the
+  backup point before it is the git tag `before-deepseek`.
 - **Engines.** Godot and Unreal are not on your Mac. Prompts 72-75 ask you before installing
   anything; you can also postpone them.
 - **Stuck session.** If it repeats the same error more than twice, stop it (Esc), switch to

@@ -290,5 +290,9 @@ prompts 7 to 15, comparing with the `cp1` fingerprint and images (pass
 - Tile size and build time against SPEC section 8; the drawn-triangle count in `stats`.
 - One ground: `Ground.height` and `Ground.surface` are used by every height reader (grep for
   `terrain.height` outside `terrain.py`, `world.py`, the planner and `ground.py`).
+- The model trial: prompts 7 to 15 were meant for DeepSeek V4.1 Flash in OpenCode (their
+  WORKLOG entries name the model). Judge that work by the same bar as Claude's, list what it
+  got wrong and how much fixing it needed, and recommend to Ali in plain words: continue with
+  it, switch back to Sonnet, or roll back to the git tag `before-deepseek`.
 Save `fingerprint save cp2 output/bodjantouna-42` and `output/checks/cp2-*.png`. Fix prompts go
 in `## 16.1. ...`.
