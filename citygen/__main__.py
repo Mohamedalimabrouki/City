@@ -50,6 +50,7 @@ def main(argv=None) -> None:
     b.add_argument("--out", help="output folder (default: output)")
     b.add_argument("--workers", type=int, help="processes that build tiles: 0 = all cores but one, "
                                                "1 = one process (default: [build] workers)")
+    b.add_argument("--force", action="store_true", help="rebuild everything, ignoring earlier plans and tiles")
 
     ls = sub.add_parser("list", help="list the settlements of a world (fast, writes nothing)")
     _world_args(ls)
@@ -75,7 +76,7 @@ def main(argv=None) -> None:
     if args.cmd == "build":
         from .build import build
         cfg = _config(args)
-        build(cfg, area=args.area, log=lambda msg: print(msg, flush=True))
+        build(cfg, area=args.area, log=lambda msg: print(msg, flush=True), force=args.force)
     elif args.cmd == "list":
         from .world import generate_world
         world = generate_world(_config(args))

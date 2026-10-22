@@ -41,8 +41,10 @@ def load_config(world_file=None, overrides: dict | None = None, quick: bool = Fa
     return cfg
 
 
-def load_style(name: str) -> dict:
+def style_path(name: str) -> Path:
     path = Path(name)
-    if path.suffix != ".toml":
-        path = ROOT / "styles" / f"{name}.toml"
-    return tomllib.loads(path.read_text(encoding="utf-8"))
+    return path if path.suffix == ".toml" else ROOT / "styles" / f"{name}.toml"
+
+
+def load_style(name: str) -> dict:
+    return tomllib.loads(style_path(name).read_text(encoding="utf-8"))

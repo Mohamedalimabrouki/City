@@ -14,7 +14,7 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
 - [x] 2 T2 Before/after pictures
 - [x] 3 T3 Housekeeping
 - [x] 4 C1a Build tiles in parallel (2.8x on the capital, accepted by Ali)
-- [ ] 5 C1b Resumable builds
+- [x] 5 C1b Resumable builds
 - [ ] 6 CP1 Checkpoint: foundations
 - [ ] 7 Q3 Bougainvillea that cascades
 - [ ] 8 V1 Golden hour in the viewer
@@ -224,7 +224,7 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
 
 ## C. Game-ready
 
-- [ ] **C1 Fast, resumable builds** (M) - Build tiles in parallel (`--workers N`,
+- [x] **C1 Fast, resumable builds** (M) - Build tiles in parallel (`--workers N`,
   multiprocessing; each worker rebuilds the world from settings, which takes seconds), skip
   tiles that already exist unless `--force`, reuse saved city plans. Done when: the full
   capital (`--area capital`) builds at least 3x faster on 4 cores.

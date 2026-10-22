@@ -8,6 +8,7 @@ so tiles can be loaded and unloaded independently without duplicates.
 from __future__ import annotations
 
 import math
+import os
 from pathlib import Path
 
 import numpy as np
@@ -322,8 +323,10 @@ def export_tile(tc: TileContext, i: int, j: int, folder: Path) -> dict:
     x0, y0, _, _ = tile_bounds(tc, i, j)
     instances = instance_groups(tc, placements, x0, y0)
     path = Path(folder) / f"tile_{i}_{j}.glb"
-    size = write_glb(path, mb.gltf_parts(), tc.materials, translation=(x0, 0.0, -y0),
+    part = path.with_name(path.name + ".part")   # renamed at the end: a half-written tile never counts as done
+    size = write_glb(part, mb.gltf_parts(), tc.materials, translation=(x0, 0.0, -y0),
                      name=f"tile_{i}_{j}", extras={"i": i, "j": j, "x0": x0, "y0": y0}, instances=instances)
+    os.replace(part, path)
     unique = mb.triangles + sum(tc.kit.pieces[g["name"]].triangles for g in instances)
     drawn = mb.triangles + sum(len(g["t"]) * tc.kit.pieces[g["name"]].triangles for g in instances)
     return {"i": i, "j": j, "file": path.name, "x0": x0, "y0": y0, "triangles": unique,

@@ -125,6 +125,12 @@ Choose what to build in 3D with `--area`:
 Tiles are built in parallel. `--workers N` sets how many processes (`0` = all cores but one,
 the default from `[build] workers`; `1` = one process). The files are identical either way.
 
+Builds are resumable. Every build has a key (a fingerprint of the settings, style, kits, all code
+and the planned cities). Run the same build again and it reuses the saved city plans
+(`output/<world>/cache/`), the finished tiles, the maps and data files; a build stopped with
+Ctrl+C continues where it stopped. Any change to a setting or to the code rebuilds everything.
+`--force` rebuilds everything anyway.
+
 **For stories:** once you have written about a place, pin its name in your world file under
 `[canon.names]` so it never changes, even if the generator gets new features.
 

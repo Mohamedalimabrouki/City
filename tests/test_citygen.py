@@ -301,3 +301,90 @@ def test_parallel_tiles_match_one_process(world, plan, tmp_path):
     for i, j in keys:
         name = f"tile_{i}_{j}.glb"
         assert (out[1][1] / name).read_bytes() == (out[2][1] / name).read_bytes()
+
+
+def test_build_key_ignores_workers_and_output():
+    from citygen.buildkey import build_key
+    a = load_config(quick=True)
+    b = load_config(quick=True, overrides={"build": {"workers": 3, "output": "elsewhere"}})
+    c = load_config(quick=True, overrides={"tiles": {"terrain_step": 99.0}})
+    assert build_key(a, [3, 1]) == build_key(b, [1, 3]) != build_key(c, [1, 3]) != build_key(a, [1, 3, 4])
+
+
+def test_cached_plan_is_reused_with_the_worlds_own_settlement(world, plan, tmp_path):
+    from citygen import build as builder
+    messages = []
+    first = builder.load_or_plan(world, world.capital(), tmp_path / "cache", "aaaa", False, messages.append)
+    assert first.settlement is world.capital() and messages[0].startswith("planned")
+    again = builder.load_or_plan(world, world.capital(), tmp_path / "cache", "aaaa", False, messages.append)
+    assert messages[1].startswith("plan reused") and again.settlement is world.capital()
+    assert again.stats == first.stats and len(again.buildings) == len(first.buildings)
+    (tmp_path / "cache" / "tiles-aaaa").mkdir()
+    (tmp_path / "cache" / "tiles-aaaa" / "tile_0_0.json").write_text("{}")
+    (tmp_path / "cache" / "tiles-bbbb").mkdir()
+    builder.clean_cache(tmp_path / "cache", "bbbb", False)   # other builds' files go, this key's stay
+    assert [p.name for p in (tmp_path / "cache").iterdir()] == ["tiles-bbbb"]
+
+
+def test_finished_tiles_need_every_file(tmp_path):
+    from citygen.build import finished_tiles
+    entry = lambda i, **more: {"i": i, "j": 0, "file": f"tile_{i}_0.glb", "bytes": 3, **more}
+    for i in (0, 1, 2, 3):
+        (tmp_path / f"tile_{i}_0.glb").write_bytes(b"abc")
+    (tmp_path / "tile_3_0.glb").write_bytes(b"ab")   # cut short: wrong size
+    (tmp_path / "index.json").write_text(json.dumps({"build_key": "k", "tiles": [entry(0), entry(1)]}))
+    journal = tmp_path / "journal"
+    journal.mkdir()
+    for e in (entry(2), entry(3), entry(4), entry(5, files=["lod_5.glb"])):
+        (journal / f"tile_{e['i']}_0.json").write_text(json.dumps(e))
+    (journal / "tile_6_0.json").write_text('{"i": 6, "j"')   # cut short
+    keys = [(i, 0) for i in range(8)]
+    assert sorted(finished_tiles(tmp_path, journal, "k", keys)) == [(0, 0), (1, 0), (2, 0)]
+    assert finished_tiles(tmp_path, tmp_path / "none", "other", keys) == {}   # another key: nothing counts
+
+
+def _tiny_build(tmp_path, monkeypatch, plan, calls, **tiles):
+    """One small build into tmp_path; planning is counted and answered by the shared fixture plan."""
+    from citygen import build as builder
+
+    def fake_plan(world, settlement):
+        calls.append(settlement.name)
+        plan.settlement = settlement
+        return plan
+
+    monkeypatch.setattr(builder, "plan_city", fake_plan)
+    cfg = load_config(quick=True, overrides={"build": {"output": str(tmp_path), "center_radius": 150.0,
+                                                      "workers": 1}, "tiles": tiles})
+    messages = []
+    out = builder.build(cfg, log=messages.append)
+    return out, messages
+
+
+def _bytes_of(out):
+    return {p.name: p.read_bytes() for p in sorted(out.rglob("*")) if p.is_file() and "cache" not in p.parts}
+
+
+@pytest.mark.slow  # four small builds, about 15 s; run with: python -m pytest -q -m slow
+def test_resumed_builds_match_and_a_changed_setting_rebuilds(world, plan, tmp_path, monkeypatch):
+    calls = []
+    out, _ = _tiny_build(tmp_path, monkeypatch, plan, calls)
+    first = _bytes_of(out)
+    index = json.loads(first["index.json"])
+    key = json.loads(first["summary.json"])["build_key"]
+    assert len(calls) == 1 and index["build_key"] == key and index["views"] and not list(out.rglob("*.part"))
+    (out / "tiles" / index["tiles"][0]["file"]).unlink()   # an interrupted build: one tile is missing
+    stale = out / "tiles" / "tile_9_9.glb.part"
+    stale.write_bytes(b"half")
+    out, messages = _tiny_build(tmp_path, monkeypatch, plan, calls)
+    assert len(calls) == 1 and any(m.startswith("plan reused") for m in messages)
+    assert f"tiles reused: {len(index['tiles']) - 1} of {len(index['tiles'])}" in messages and not stale.exists()
+    second = _bytes_of(out)
+    for name in first:   # the rebuilt tile, plan.json and the index views come out the same
+        if name != "summary.json":   # its timings differ
+            assert second[name] == first[name], name
+    out, messages = _tiny_build(tmp_path, monkeypatch, plan, calls, terrain_step=20.0)
+    assert len(calls) == 2 and not any("reused" in m for m in messages)
+    assert json.loads((out / "summary.json").read_text())["build_key"] != key
+    assert len(list((out / "cache").glob("*.pkl"))) == 1   # the plan of the old key was deleted
+    _tiny_build(tmp_path, monkeypatch, plan, calls, terrain_step=20.0)
+    assert len(calls) == 2   # the same key again: nothing is planned

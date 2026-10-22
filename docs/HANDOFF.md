@@ -59,6 +59,17 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
   `os.sysconf` call the executor makes. Capital on the M1: 71 s -> 25 s (2.8x); the 9 s of
   planning is now the biggest serial part. The parent's file writing runs while workers load.
   Slow tests: `python -m pytest -q -m slow` (default run skips them, see `pytest.ini`).
+- **Resumable builds** (`citygen/buildkey.py`, `build.py`): `build_key` = SHA-256 of settings (minus
+  `output`, `workers`, `area`), style bytes, kit manifests and .glb files, every `citygen/**/*.py`
+  and the sorted planned settlement ids; stored in `summary.json` and `tiles/index.json`. Plans
+  are pickled to `cache/<slug>-<key12>.pkl` right after planning (before tile export can touch
+  them); reload resets `plan.settlement` to the world's own object. Tiles are written as
+  `.glb.part` then renamed; each finished tile also leaves a note `cache/tiles-<key12>/tile_i_j.json`
+  (written by the worker), so Ctrl+C loses only the tiles in flight. A tile is reused when all
+  files its entry lists exist (`tile_files`: add texture and lod files to the entry as `files`)
+  and the .glb size matches. Maps and data files are skipped when `summary.json` has the same key.
+  Any code edit changes the key, so the first build after an edit is always full. In a test that
+  fakes `plan_city`, set `plan.settlement` yourself or the index loses its `views`.
 - **Fingerprint** (`tools/fingerprint.py`): hash kit arrays only after skipping `None` ones
   (`tobytes()` of a None array hashes a memory address and differs every run).
 - **Randomness** only from `citygen.rng.stream(seed, *purpose)`, one purpose path per feature, so

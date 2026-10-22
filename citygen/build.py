@@ -1,16 +1,19 @@
 """One full build: world, then city plans, then maps, data files and 3D tiles in an output folder."""
 from __future__ import annotations
 
+import json
 import math
 import multiprocessing
 import os
 import pickle
+import shutil
 import tempfile
 import time
 from pathlib import Path
 
 from shapely.geometry import Point, box
 
+from .buildkey import build_key
 from .city import plan_city
 from .export.lore import gazetteer, plan_json, slug, write_json
 from .export.maps import city_map, country_map
@@ -104,8 +107,20 @@ def _init_worker(path: str) -> None:
 
 
 def _export_in_worker(job: tuple) -> dict:
-    i, j, folder = job
-    return export_tile(_worker_tc, i, j, folder)
+    i, j, folder, journal = job
+    return export_and_record(_worker_tc, i, j, folder, journal)
+
+
+def export_and_record(tc, i: int, j: int, folder: Path, journal: Path | None) -> dict:
+    """Export one tile, then write down in `journal` that it is finished (a note per tile)."""
+    entry = export_tile(tc, i, j, folder)
+    if journal is not None:
+        journal.mkdir(parents=True, exist_ok=True)
+        note = journal / f"tile_{i}_{j}.json"
+        part = note.with_suffix(".part")
+        part.write_text(json.dumps(entry), encoding="utf-8")
+        os.replace(part, note)
+    return entry
 
 
 class TilePool:
@@ -135,40 +150,110 @@ class TilePool:
             self.pool.terminate()
             self.tmp.cleanup()
 
-    def export(self, world, plans: list, keys: list, folder: Path, progress, meanwhile=lambda: None) -> list:
+    def export(self, world, plans: list, keys: list, folder: Path, progress, meanwhile=lambda: None,
+               journal: Path | None = None) -> list:
         """Export every tile in `keys`; returns the tile entries in the same order.
 
         `meanwhile` is the parent's own work (writing data files and maps): it runs while the
-        workers load the world.
+        workers load the world. Each finished tile leaves a note in the `journal` folder, so an
+        interrupted build knows what is done.
         """
-        if self.pool is None:
+        if not keys or self.pool is None:
             meanwhile()
-            tc = TileContext(world, plans)
             tiles = []
+            tc = TileContext(world, plans) if keys else None   # nothing to export: skip the costly setup
             for n, (i, j) in enumerate(keys, 1):
-                tiles.append(export_tile(tc, i, j, folder))
+                tiles.append(export_and_record(tc, i, j, folder, journal))
                 progress(n)
             return tiles
         part = self.shared.with_suffix(".part")
         with open(part, "wb") as f:
             pickle.dump((world, plans), f, protocol=pickle.HIGHEST_PROTOCOL)
         os.replace(part, self.shared)  # workers only see the finished file
-        results = self.pool.imap(_export_in_worker, [(i, j, folder) for i, j in keys])  # keeps the order
+        results = self.pool.imap_unordered(_export_in_worker, [(i, j, folder, journal) for i, j in keys])
         meanwhile()
-        tiles = []
+        done = {}
         for n, entry in enumerate(results, 1):
-            tiles.append(entry)
+            done[(entry["i"], entry["j"])] = entry
             progress(n)
-        return tiles
+        return [done[k] for k in keys]
 
 
 def export_tiles(world, plans: list, keys: list, folder: Path, workers: int, progress,
-                 meanwhile=lambda: None) -> list:
+                 meanwhile=lambda: None, journal: Path | None = None) -> list:
     with TilePool(workers) as pool:
-        return pool.export(world, plans, keys, folder, progress, meanwhile)
+        return pool.export(world, plans, keys, folder, progress, meanwhile, journal)
 
 
-def build(cfg: dict, area: str | None = None, log=print) -> Path:
+def tile_files(entry: dict) -> list:
+    """Every file a tile entry lists (later steps add texture and lod files to the entry)."""
+    return [entry["file"], *entry.get("files", [])]
+
+
+def finished_tiles(folder: Path, journal: Path, key: str, keys: list) -> dict:
+    """Entries of tiles already built with this key: from the last finished build's index.json
+    and from the journal (a note per tile) of an interrupted one. A tile counts only if all its files exist."""
+    found = {}
+    index = folder / "index.json"
+    if index.is_file():
+        old = json.loads(index.read_text(encoding="utf-8"))
+        if old.get("build_key") == key:
+            found.update({(t["i"], t["j"]): t for t in old["tiles"]})
+    for note in sorted(journal.glob("tile_*.json")) if journal.is_dir() else []:
+        try:
+            entry = json.loads(note.read_text(encoding="utf-8"))
+        except ValueError:
+            continue
+        found[(entry["i"], entry["j"])] = entry
+    return {k: found[k] for k in keys
+            if k in found and all((folder / f).is_file() for f in tile_files(found[k]))
+            and (folder / found[k]["file"]).stat().st_size == found[k]["bytes"]}
+
+
+def load_or_plan(world, s, cache: Path, key12: str, force: bool, log):
+    """The plan of settlement `s`: from the cache when the key matches, else planned and cached."""
+    path = cache / f"{slug(s.name)}-{key12}.pkl"
+    if not force and path.is_file():
+        try:
+            plan = pickle.loads(path.read_bytes())
+        except Exception:   # a damaged cache file is only a cache miss
+            plan = None
+        if plan is not None:
+            plan.settlement = s   # the pickle holds a copy; build.py compares settlements with `is`
+            log(f"plan reused {s.name} ({s.kind}): {plan.stats['buildings']:,} buildings")
+            return plan
+    plan = plan_city(world, s)
+    cache.mkdir(parents=True, exist_ok=True)
+    part = path.with_suffix(".part")
+    part.write_bytes(pickle.dumps(plan, protocol=pickle.HIGHEST_PROTOCOL))
+    os.replace(part, path)
+    st = plan.stats
+    log(f"planned {s.name} ({s.kind}): {st['buildings']:,} buildings, {st['streets']:,} streets "
+        f"[{st['seconds']}s]")
+    return plan
+
+
+def data_files_current(out: Path, key: str, plans: list) -> bool:
+    """True when the last finished build had this key and its maps and data files are all there."""
+    try:
+        old = json.loads((out / "summary.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    names = [slug(p.settlement.name) for p in plans]
+    files = [out / "world.json", out / "gazetteer.md", out / "maps" / "country.png"]
+    files += [out / "cities" / n / "plan.json" for n in names] + [out / "maps" / f"{n}.png" for n in names]
+    return old.get("build_key") == key and all(f.is_file() for f in files)
+
+
+def clean_cache(cache: Path, key12: str, force: bool) -> None:
+    """Delete cache files and folders of other builds (all of them with --force)."""
+    if cache.is_dir():
+        for path in cache.iterdir():
+            if force or not path.name.endswith((f"-{key12}.pkl", f"-{key12}")):
+                shutil.rmtree(path) if path.is_dir() else path.unlink()
+
+
+def build(cfg: dict, area: str | None = None, log=print, force: bool = False) -> Path:
     t0 = time.perf_counter()
     area = area or cfg["build"]["area"]
     world = generate_world(cfg)
@@ -183,22 +268,34 @@ def build(cfg: dict, area: str | None = None, log=print) -> Path:
     if region is not None:
         keys = tiles_for(region, size, world.size)
         keys.sort(key=lambda k: math.hypot((k[0] + 0.5) * size - focus.x, (k[1] + 0.5) * size - focus.y))
+    key = build_key(cfg, [s.id for s in needed])
+    cache = out / "cache"
+    clean_cache(cache, key[:12], force)
+    folder = out / "tiles"
+    journal = cache / f"tiles-{key[:12]}"
+    done = {}
+    if keys:
+        folder.mkdir(parents=True, exist_ok=True)
+        for stale in folder.glob("*.part"):   # tiles an interrupted build left half written
+            stale.unlink()
+        if not force:
+            done = finished_tiles(folder, journal, key, keys)
+    todo = [k for k in keys if k not in done]
     workers = resolve_workers(cfg)
-    if len(keys) <= 2 * workers:  # too few tiles to repay starting the processes
+    if len(todo) <= 2 * workers:  # too few tiles to repay starting the processes
         workers = 1
+    if done:
+        log(f"tiles reused: {len(done)} of {len(keys)}")
     if workers > 1:
-        log(f"exporting {len(keys)} tiles with {workers} workers")
+        log(f"exporting {len(todo)} tiles with {workers} workers")
 
     with TilePool(workers) as pool:  # its processes start now and wait while the parent plans
-        plans = []
-        for s in needed:
-            plan = plan_city(world, s)
-            plans.append(plan)
-            st = plan.stats
-            log(f"planned {s.name} ({s.kind}): {st['buildings']:,} buildings, {st['streets']:,} streets "
-                f"[{st['seconds']}s]")
+        plans = [load_or_plan(world, s, cache, key[:12], force, log) for s in needed]
 
         def write_files() -> None:  # the parent's own writing, done while workers start up
+            if not force and data_files_current(out, key, plans):
+                log("maps and data files reused")
+                return
             write_json(out / "world.json", world.to_json())
             country_map(world, out / "maps" / "country.png")
             for plan in plans:
@@ -210,17 +307,15 @@ def build(cfg: dict, area: str | None = None, log=print) -> Path:
         if region is None:
             write_files()
         else:
-            folder = out / "tiles"
-            folder.mkdir(parents=True, exist_ok=True)
-            step = max(1, len(keys) // 10)
-
+            step = max(1, len(todo) // 10)
             def progress(n: int) -> None:
-                if n % step == 0 or n == len(keys):
-                    log(f"tiles {n}/{len(keys)} [{time.perf_counter() - t0:.0f}s]")
+                if n % step == 0 or n == len(todo):
+                    log(f"tiles {n}/{len(todo)} [{time.perf_counter() - t0:.0f}s]")
 
-            tiles = pool.export(world, plans, keys, folder, progress, write_files)
+            built = iter(pool.export(world, plans, todo, folder, progress, write_files, journal))
+            tiles = [done[k] if k in done else next(built) for k in keys]
             write_json(folder / "index.json", {
-                "format": "citygen-tiles/1", "seed": world.seed, "world_name": world.name,
+                "format": "citygen-tiles/1", "build_key": key, "seed": world.seed, "world_name": world.name,
                 "tile_size": size, "world_size": [world.size, world.size],
                 "focus": {"x": round(focus.x, 1), "y": round(focus.y, 1),
                           "z": round(float(world.terrain.height(focus.x, focus.y)), 1), "name": focus.name},
@@ -230,7 +325,7 @@ def build(cfg: dict, area: str | None = None, log=print) -> Path:
                 "tiles": tiles})
 
         summary = {
-            "world": world.name, "seed": world.seed, "size_km": world.size / 1000.0, "area": area,
+            "world": world.name, "build_key": key, "seed": world.seed, "size_km": world.size / 1000.0, "area": area,
             "settlements": {k: sum(s.kind == k for s in world.settlements) for k in ("capital", "city", "town", "village")},
             "roads": len(world.roads),
             "plans": [{"name": p.settlement.name, "kind": p.settlement.kind, **p.stats} for p in plans],
