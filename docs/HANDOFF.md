@@ -37,8 +37,9 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
 
 - Done: v0.1 (country, cities, maps, data, 3D tiles, viewer, Blender scripts), **A0** (Tounes
   kit, street dressing, households and souk trades, night mode, "click a house: who lives there")
-  **Q2** (family names that sound Tunisian), **Q1** (rounded, shaded leafy trees) and **Q3**
-  (bougainvillea curtains instead of lollipops).
+  **Q2** (family names that sound Tunisian), **Q1** (rounded, shaded leafy trees), **Q3**
+  (bougainvillea curtains instead of lollipops) and **P8** (golden hour as the viewer's default,
+  with a Noon / Golden hour / Night menu).
 - Since 21 October 2026 the work runs on Ali's Mac through the playbook `docs/PROMPTS.md`: 100
   numbered prompts (`Do prompt N.`), each with its model and effort, one session each; nine Opus
   checkpoints review the work as it goes; every session adds an entry to `docs/WORKLOG.md`.
@@ -100,6 +101,16 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
 - **Vertex colors** are written as 8-bit RGBA (a quarter of the size of floats).
 - **Night mode** in the viewer: materials with an `emissive` color glow; window glass
   (`glass_dark`) lights up; the nearest lamps get real lights. Kit windows stay dark.
+- **Golden hour in the viewer** (prompt 8): the light menu is `PRESETS` in `tools/viewer/index.html`.
+  Noon copies the old values exactly (0 pixel difference); golden copies Blender's sun (azimuth
+  225, elevation 14). Two traps: three mixes fog *after* tone mapping, so `scene.fog.color` must be
+  the display hex (`0xf2d2b0`), not a linear sky value, or the sea gets an orange band; and a
+  change of `renderer.toneMapping` needs `needsUpdate` on every material, or they keep the old
+  shader. The shadow box is asymmetric at a low sun (700 m across the light, 150 m along its up
+  axis) and snaps per axis; PCFSoft with bias -0.0002 and normal bias 0.35 is clean. The sky is a
+  dome shader (with three's tone-mapping includes) that only golden shows; noon and night keep the
+  plain clear color. The street view looks away from the sun and its 14 degree light cannot reach
+  into the canyon, so cast shadows show in the aerial view, not on the road.
 - **Blender 5**: the physical sky is `MULTIPLE_SCATTERING` with `aerosol_density`; the
   compositor moved to node groups, so the beauty render skips its haze there (task Q4).
 - **Leafy trees** (`mesh/trees.py`) are instanced kit pieces, three variants per kind, each with its

@@ -47,8 +47,9 @@ number. A different seed gives a different country. So:
    ```
    Your web browser opens the city in 3D. Drag to turn, right-drag to move, use the wheel to zoom,
    and double-click a spot to fly around it. **Click a house to see who lives there** (family,
-   trade, how many people, how well off), or a souk to see its name and trade. Press `N` for
-   night (lamps, lanterns and some windows light up) and `L` to switch shadows on or off. The
+   trade, how many people, how well off), or a souk to see its name and trade. Pick **Golden hour**
+   (the default), **Noon** or **Night** in the top-right menu (at night lamps, lanterns and some
+   windows light up); `N` jumps to night and back, and `L` switches shadows on or off. The
    images are in `output/<country>-<seed>/maps/`.
 
 To save 3D pictures without opening a browser (handy for checks): `pip install playwright`,

@@ -17,7 +17,7 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
 - [x] 5 C1b Resumable builds
 - [x] 6 CP1 Checkpoint: foundations
 - [x] 7 Q3 Bougainvillea that cascades
-- [ ] 8 V1 Golden hour in the viewer
+- [x] 8 V1 Golden hour in the viewer
 - [ ] 9 V2 Ambient occlusion
 - [ ] 10 Q4 Blender 5 haze
 - [ ] 11 A4a City ground

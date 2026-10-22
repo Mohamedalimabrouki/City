@@ -93,8 +93,12 @@
       <div id="bar"><i id="fill"></i></div>
     </div>
     <div id="buttons">
+      <select id="light" class="glass pill" aria-label="Light">
+        <option value="golden">Golden hour</option>
+        <option value="noon">Noon</option>
+        <option value="night">Night</option>
+      </select>
       <select id="views" class="glass pill" aria-label="Camera spot" hidden></select>
-      <button id="night" class="glass pill" type="button" aria-pressed="false">Night</button>
       <button id="shadows" class="glass pill" type="button" aria-pressed="true">Shadows on</button>
     </div>
   </div>
@@ -133,13 +137,12 @@ function fail(message) {
 
 // URL parameters: radius (meters around the focus, default 2500), shadows=0, ui=0 (hide the overlay),
 // view=aerial|street|top or a camera spot named in the index "views", or cam=x,y,z and look=x,y,z
-// in generator coordinates (meters, z up); time=night; pick=x,y shows who lives at that point.
+// in generator coordinates (meters, z up); light=noon|golden|night (time=night is an old alias);
+// pick=x,y shows who lives at that point.
 const RADIUS = Math.max(0, num('radius', 2500));
 const MAX_INFLIGHT = 6;
-const SUN_AZIMUTH = 225;   // degrees clockwise from north: south-west
-const SUN_ELEVATION = 40;
 const SUN_DISTANCE = 1200;
-const SHADOW_HALF = 700;   // half width of the shadow camera, meters
+const SHADOW_HALF = 700;   // half width of the shadow camera across the light, meters
 const coarse = matchMedia('(pointer: coarse)').matches;
 const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const SHADOW_MAP = coarse ? 2048 : 4096;   // phones: a lighter shadow map
@@ -164,6 +167,52 @@ try {
   fail('Could not load three.js from the CDN (offline?)');
   throw err;
 }
+
+// ---------------------------------------------------------------- light presets
+// Noon is the look the viewer had before the light menu; its values must stay as they were.
+// Golden hour copies the sun of tools/blender_beauty.py (azimuth 225, elevation 14) so the viewer
+// and the Blender renders agree. Its sky colors are linear values chosen to land on the intended
+// sRGB hues after ACES; the fog uses the horizon color, so haze and sky meet without a seam.
+const NOON_ENV = { zenith: [0.08, 0.28, 0.72], horizon: [0.72, 0.86, 1.0], ground: [0.42, 0.38, 0.31] };
+const PRESETS = {
+  noon: {
+    azimuth: 225, elevation: 40,                 // degrees clockwise from north: south-west
+    sky: SKY,
+    hemiSky: 0xd2e6ff, hemiGround: 0xc9b48e, hemi: 1.9,
+    sun: 0xffe8c4, sunI: 3.0,
+    tone: THREE.NeutralToneMapping, exposure: 1,
+    across: 700, up: 700, bias: -0.0001, normalBias: 0.4,
+    fog: SKY, env: NOON_ENV,
+  },
+  golden: {
+    azimuth: 225, elevation: 14,
+    sky: 0xf2d2b0,                               // only seen if the sky dome cannot draw
+    hemiSky: 0xc4d6ea, hemiGround: 0xc7a57c, hemi: 1.7,   // pale cool fill, warm bounce
+    sun: 0xffd5a5, sunI: 4.2,                    // Blender's (1.0, 0.66, 0.38) linear color
+    tone: THREE.ACESFilmicToneMapping, exposure: 1.2,
+    across: 700, up: 150, bias: -0.0002, normalBias: 0.35,
+    haze: 0.85,                                  // fog reaches closer than at noon
+    skyTop: [0.082, 0.160, 0.352],               // linear values: #5d84b8 after ACES
+    skyHorizon: [1.257, 0.511, 0.244],           // #f2d2b0 after ACES
+    skyGround: [0.317, 0.216, 0.148],
+    glow: 0.55,                                  // warm glow around the sun in the sky dome
+    fog: 0xf2d2b0,                               // fog is mixed after tone mapping, so this is a display color
+    env: { zenith: [0.082, 0.160, 0.352], horizon: [1.257, 0.511, 0.244], ground: [0.317, 0.216, 0.148] },
+  },
+};
+
+// direction towards the sun in three.js axes (x east, y up, z south); the light menu aims it
+const UP_AXIS = new THREE.Vector3(0, 1, 0);
+const SUN_DIR = new THREE.Vector3();
+const LX = new THREE.Vector3();   // shadow camera axes,
+const LY = new THREE.Vector3();   // used to snap to shadow texels
+function aimSun(p) {
+  const az = THREE.MathUtils.degToRad(p.azimuth), el = THREE.MathUtils.degToRad(p.elevation);
+  SUN_DIR.set(Math.sin(az) * Math.cos(el), Math.sin(el), -Math.cos(az) * Math.cos(el));
+  LX.crossVectors(UP_AXIS, SUN_DIR).normalize();
+  LY.crossVectors(SUN_DIR, LX);
+}
+aimSun(PRESETS.noon);   // today's daylight, until boot picks the light mode
 
 // ---------------------------------------------------------------- renderer and scene
 const canvas = $('view');
@@ -200,21 +249,17 @@ sun.shadow.bias = -0.0001;
 sun.shadow.normalBias = 0.4;
 scene.add(sun, sun.target);
 
-// direction towards the sun in three.js axes (x east, y up, z south)
-const az = THREE.MathUtils.degToRad(SUN_AZIMUTH);
-const el = THREE.MathUtils.degToRad(SUN_ELEVATION);
-const SUN_DIR = new THREE.Vector3(Math.sin(az) * Math.cos(el), Math.sin(el), -Math.cos(az) * Math.cos(el));
-const LX = new THREE.Vector3(0, 1, 0).cross(SUN_DIR).normalize();   // shadow camera axes,
-const LY = new THREE.Vector3().crossVectors(SUN_DIR, LX);           // used to snap to shadow texels
+// direction towards the sun in three.js axes comes from the light presets above
 
-function skyEnvironment() {
+function skyEnvironment(palette = NOON_ENV) {
+  const vec = (a) => `vec3(${a.map((n) => n.toFixed(4)).join(', ')})`;
   const material = new THREE.ShaderMaterial({
     side: THREE.BackSide,
     depthWrite: false,
     vertexShader: 'varying vec3 d; void main() { d = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
     fragmentShader: `varying vec3 d; void main() {
       float h = normalize(d).y;
-      vec3 zenith = vec3(0.08, 0.28, 0.72), horizon = vec3(0.72, 0.86, 1.0), ground = vec3(0.42, 0.38, 0.31);
+      vec3 zenith = ${vec(palette.zenith)}, horizon = ${vec(palette.horizon)}, ground = ${vec(palette.ground)};
       vec3 c = h > 0.0 ? mix(horizon, zenith, pow(h, 0.45)) : mix(horizon, ground, pow(-h, 0.35));
       gl_FragColor = vec4(c, 1.0);
     }`,
@@ -231,6 +276,57 @@ try {
   skyEnv = skyEnvironment();
 } catch (err) {
   console.warn('sky reflections disabled:', err);
+}
+
+// The golden hour sky is a real dome, not a flat clear color: it is tone mapped with the scene so
+// the haze on the far buildings and the horizon meet without a seam. Unused in noon and night.
+let skyDome = null;
+const skyColors = { zenith: new THREE.Color(), horizon: new THREE.Color(), ground: new THREE.Color(),
+                    sun: new THREE.Vector3(0, 1, 0) };
+function ensureSkyDome() {
+  if (skyDome) return skyDome;
+  const material = new THREE.ShaderMaterial({
+    side: THREE.BackSide, depthWrite: false, depthTest: false, fog: false,
+    uniforms: { zenithColor: { value: skyColors.zenith }, horizonColor: { value: skyColors.horizon },
+                groundColor: { value: skyColors.ground }, sunDir: { value: skyColors.sun },
+                glow: { value: 0 } },
+    vertexShader: 'varying vec3 vDir; void main() { vDir = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: `uniform vec3 zenithColor, horizonColor, groundColor, sunDir;
+      uniform float glow;
+      varying vec3 vDir;
+      void main() {
+        vec3 d = normalize(vDir);
+        float h = d.y;
+        vec3 c = h > 0.0 ? mix(horizonColor, zenithColor, pow(h, 0.45))
+                         : mix(horizonColor, groundColor, pow(-h, 0.35));
+        // a warm halo around the sun, so the low light has a place in the sky
+        c = mix(c, vec3(1.9, 0.95, 0.45), pow(max(dot(d, sunDir), 0.0), 10.0) * glow);
+        gl_FragColor = vec4(c, 1.0);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }`,
+  });
+  skyDome = new THREE.Mesh(new THREE.SphereGeometry(1000, 32, 16), material);
+  skyDome.frustumCulled = false;   // it follows the camera and is always around it
+  skyDome.renderOrder = -1;
+  skyDome.visible = false;
+  scene.add(skyDome);
+  return skyDome;
+}
+
+// Sky reflection for the water, per light mode (built on demand; noon keeps its old texture).
+let goldenEnv = null;
+function environmentFor(p) {
+  if (p !== PRESETS.golden) return skyEnv;
+  if (!goldenEnv) {
+    try {
+      goldenEnv = skyEnvironment(p.env);
+    } catch (err) {
+      console.warn('golden sky reflections disabled:', err);
+      goldenEnv = skyEnv;
+    }
+  }
+  return goldenEnv;
 }
 
 // ---------------------------------------------------------------- controls
@@ -330,8 +426,8 @@ function shared(material) {
   if (!m) {
     m = material;
     if (/^water/i.test(m.name)) {
-      Object.assign(m, { roughness: 0.06, metalness: 0, transparent: true, opacity: 0.82, depthWrite: false, envMap: skyEnv,
-                         envMapIntensity: night ? 0.06 : 0.9 });
+      Object.assign(m, { roughness: 0.06, metalness: 0, transparent: true, opacity: 0.82, depthWrite: false,
+                         envMap: environmentFor(activePreset), envMapIntensity: night ? 0.06 : 0.9 });
       m.userData.water = true;
     }
     if (m.emissive && (m.emissive.getHex() !== 0 || LIT_AT_NIGHT[m.name])) m.userData.glows = true;
@@ -479,14 +575,90 @@ function setShadows(on) {
   button.setAttribute('aria-pressed', String(on));
 }
 
+// ---------------------------------------------------------------- light menu
+// One applied mode at a time; "night" keeps today's night code path, the day presets are above.
+let lightMode = 'golden';
+let dayMode = 'golden';       // the day mode the night returns to
+let activePreset = PRESETS.noon;
+let shadowAcross = SHADOW_HALF;
+let shadowUp = SHADOW_HALF;
+let hazeScale = 1;
+
+function retone() {
+  // a tone mapping change is part of each material's shader, so force a fresh program
+  scene.traverse((o) => {
+    if (!o.isMesh) return;
+    for (const m of Array.isArray(o.material) ? o.material : [o.material]) m.needsUpdate = true;
+  });
+}
+
+function setWaterEnv(p) {
+  const env = environmentFor(p);
+  for (const m of sharedMaterials.values()) {
+    if (m.userData.water && m.envMap !== env) { m.envMap = env; m.needsUpdate = true; }
+  }
+  if (sea && sea.material.envMap !== env) { sea.material.envMap = env; sea.material.needsUpdate = true; }
+}
+
+function applyDayLook(p) {
+  activePreset = p;
+  aimSun(p);
+  shadowAcross = p.across;
+  shadowUp = p.up;
+  const cam = sun.shadow.camera;
+  cam.left = -shadowAcross; cam.right = shadowAcross;
+  cam.top = shadowUp; cam.bottom = -shadowUp;
+  cam.updateProjectionMatrix();
+  sun.shadow.bias = p.bias;
+  sun.shadow.normalBias = p.normalBias;
+  if (renderer.toneMapping !== p.tone) {
+    renderer.toneMapping = p.tone;
+    retone();
+  }
+  renderer.toneMappingExposure = p.exposure;
+  hazeScale = p.haze || 1;
+  scene.fog.color.setHex(p.fog);
+  const dome = ensureSkyDome();
+  dome.visible = Array.isArray(p.skyTop);
+  if (dome.visible) {
+    skyColors.zenith.setRGB(p.skyTop[0], p.skyTop[1], p.skyTop[2], THREE.LinearSRGBColorSpace);
+    skyColors.horizon.setRGB(p.skyHorizon[0], p.skyHorizon[1], p.skyHorizon[2], THREE.LinearSRGBColorSpace);
+    skyColors.ground.setRGB(p.skyGround[0], p.skyGround[1], p.skyGround[2], THREE.LinearSRGBColorSpace);
+    skyColors.sun.copy(SUN_DIR);
+    dome.material.uniforms.glow.value = p.glow || 0;
+  }
+  setWaterEnv(p);
+  lastSnap.x = Infinity;      // the shadow window must re-centre on the new axes
+  shadowDirty = dirty = true;
+  renderer.shadowMap.needsUpdate = true;
+}
+
+async function applyLight(mode) {
+  if (mode !== 'noon' && mode !== 'golden' && mode !== 'night') mode = 'golden';
+  if (mode === 'night') {
+    lightMode = 'night';
+    applyDayLook(PRESETS.noon);      // night keeps today's sun angle, shadow box and neutral tone
+    await setNight(true);
+  } else {
+    dayMode = mode;
+    lightMode = mode;
+    await setNight(false);           // day colors from the new preset
+    applyDayLook(PRESETS[mode]);
+  }
+  const menu = $('light');
+  if (menu) menu.value = lightMode;
+}
+
 // Keep the shadow window on the orbit target, snapped to whole shadow texels so edges do not crawl.
+// The box is asymmetric at a low sun, so each axis snaps with its own texel size.
 function placeSun() {
   const t = controls.target;
-  const texel = (2 * SHADOW_HALF) / SHADOW_MAP;
+  const texelU = (2 * shadowAcross) / SHADOW_MAP;
+  const texelV = (2 * shadowUp) / SHADOW_MAP;
   const u = t.dot(LX), v = t.dot(LY);
   snapped.copy(t)
-    .addScaledVector(LX, Math.round(u / texel) * texel - u)
-    .addScaledVector(LY, Math.round(v / texel) * texel - v);
+    .addScaledVector(LX, Math.round(u / texelU) * texelU - u)
+    .addScaledVector(LY, Math.round(v / texelV) * texelV - v);
   if (snapped.distanceToSquared(lastSnap) < 1e-6) return false;
   lastSnap.copy(snapped);
   sun.target.position.copy(snapped);
@@ -504,8 +676,8 @@ function updateClipAndFog() {
     camera.far = far;
     camera.updateProjectionMatrix();
   }
-  // no haze up to the subject, full haze at the far edge of the loaded area
-  scene.fog.far = Math.max(reach, 600);
+  // no haze up to the subject, full haze at the far edge of the loaded area; golden hour pulls it closer
+  scene.fog.far = Math.max(reach, 600) * hazeScale;
   scene.fog.near = Math.min(Math.max(toTarget, scene.fog.far * 0.3), scene.fog.far * 0.85);
 }
 
@@ -541,6 +713,7 @@ function frame(now) {
     shadowDirty = false;
   }
   if (night) placeLampLights();
+  if (skyDome && skyDome.visible) skyDome.position.copy(camera.position);
   if (night && composer) composer.render();
   else renderer.render(scene, camera);
   if (complete && !window.citygenReady) window.citygenReady = true;
@@ -555,7 +728,6 @@ let lampPoints = null;          // centers of every glowing piece, three.js axes
 const glowMeshes = [];          // instanced meshes drawn with a glowing material
 const lampLights = [];
 const LAMP_LIGHTS = 12;
-const DAY = { sky: SKY, hemiSky: 0xd2e6ff, hemiGround: 0xc9b48e, hemi: 1.9, sun: 0xffe8c4, sunI: 3.0 };
 const NIGHT = { sky: 0x0c1a38, hemiSky: 0x3a5288, hemiGround: 0x241b12, hemi: 1.0, sun: 0xa8bfff, sunI: 0.7, glow: 4, lamp: 6 };
 
 // window glass lights up at night: the generator's windows glow, the kit's stay dark, so some
@@ -607,7 +779,7 @@ function placeLampLights() {
 async function setNight(on) {
   night = on;
   document.body.classList.toggle('night', on);
-  const v = on ? NIGHT : DAY;
+  const v = on ? NIGHT : PRESETS[dayMode];
   scene.background.set(v.sky);
   scene.fog.color.set(v.sky);
   hemi.color.set(v.hemiSky);
@@ -628,9 +800,6 @@ async function setNight(on) {
     }
   }
   lampLights.forEach((light) => { light.intensity = on ? NIGHT.lamp : 0; });
-  const button = $('night');
-  button.textContent = on ? 'Day' : 'Night';
-  button.setAttribute('aria-pressed', String(on));
   if (on && !composer) {
     try {
       const [{ EffectComposer }, { RenderPass }, { UnrealBloomPass }, { OutputPass }] = await Promise.all([
@@ -864,11 +1033,13 @@ window.addEventListener('keydown', (e) => {
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   const key = e.key.toLowerCase();
   if (key === 'l') setShadows(!shadowsOn);
-  if (key === 'n') setNight(!night);
+  if (key === 'n') applyLight(lightMode === 'night' ? dayMode : 'night').catch((err) => console.error(err));
   if (key === 'escape') $('info').hidden = true;
 });
 $('shadows').addEventListener('click', () => setShadows(!shadowsOn));
-$('night').addEventListener('click', () => setNight(!night));
+$('light').addEventListener('change', (e) => {
+  applyLight(e.target.value).catch((err) => console.error(err));
+});
 window.addEventListener('resize', resize);
 
 // ---------------------------------------------------------------- boot
@@ -897,7 +1068,9 @@ async function boot() {
   const view = initialView(index);
   applyView(view.cam, view.look);
   fillViews(index, q.get('view') || 'aerial');
-  if (q.get('time') === 'night') await setNight(true);
+  const wanted = q.get('light');
+  await applyLight(['noon', 'golden', 'night'].includes(wanted) ? wanted
+    : q.get('time') === 'night' ? 'night' : 'golden');
 
   const list = selectTiles(index);
   stats.requested = list.length;
@@ -915,8 +1088,8 @@ async function boot() {
 }
 
 // handle for the browser console and for tests
-window.citygen = { THREE, scene, camera, controls, renderer, sun, tiles, toThree, setNight, showInfo,
-                   get focus() { return focus; } };
+window.citygen = { THREE, scene, camera, controls, renderer, sun, tiles, toThree, setNight, setLight: applyLight,
+                   showInfo, get focus() { return focus; }, get light() { return lightMode; } };
 setShadows(shadowsOn);
 resize();
 requestAnimationFrame(frame);

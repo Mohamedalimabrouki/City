@@ -15,6 +15,21 @@ Entry format:
 - Doubts and questions for Ali: <none, or the question>
 ```
 
+## 2026-10-22 - Prompt 8 V1 Golden hour in the viewer
+- Commit: "Golden hour light menu in the viewer" (see git log) | Model: DeepSeek V4.1 Flash, high
+  (playbook: Sonnet, high)
+- Changed: `tools/viewer/index.html` (light presets, sky dome, per-mode sky reflection, asymmetric
+  shadow box, light menu), `README.md`, `docs/ROADMAP.md`, `docs/HANDOFF.md`
+- Checks: tests 24 passed (9.8 s); quick build OK (0.2 s cached); fingerprint 140 parts, 0 changed
+  (`--allow ""`); `before_after --view street` 0.00 and the same with `--query light=noon` 0.00;
+  the new Noon against a HEAD worktree differs by 0 of 921,600 pixels.
+- Look: `output/checks/8.png` - top: HEAD daylight, sun 40 degrees, flat blue sky; bottom: golden
+  hour, sun 14 degrees, pink horizon, warm walls and haze. At 14 degrees the narrow street lies
+  in the shade of its buildings, so no cast shadows cross the road; the long shadows show in the
+  aerial view. The new light menu is at the top right, next to the camera spot.
+- Doubts and questions for Ali: none. If the golden hour feels too bright in the shade, lower
+  `hemi` in `PRESETS.golden` (one number, all else follows).
+
 ## 2026-10-22 - Prompt 7 Q3 Bougainvillea that cascades
 - Commit: "Q3 bougainvillea curtains" (see git log) | Model: DeepSeek V4.1 Flash, medium (playbook: Sonnet, medium)
 - Changed: `citygen/mesh/plants.py` (new shared clump and tube helpers), `citygen/mesh/climbers.py`
