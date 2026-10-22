@@ -825,10 +825,10 @@ def setup_world(scene: bpy.types.Scene) -> None:
 def setup_haze(scene: bpy.types.Scene) -> None:
     """Aerial haze in the compositor (a world volume would also extinguish the sun): mix toward a pale
     sky color by 1 - exp(-density * depth); the sky itself (no depth) is left alone."""
-    if not hasattr(scene, "node_tree"):   # Blender 5 moved the compositor into node groups
-        print("beauty: Blender 5 compositor not handled yet, so no haze or color grade")
-        return
     scene.view_layers[0].use_pass_z = True
+    if bpy.app.version >= (5, 0, 0):        # Blender 5 moved the compositor into a node group
+        setup_haze_group(scene)
+        return
     scene.use_nodes = True
     nt = scene.node_tree
     nt.nodes.clear()
@@ -854,6 +854,51 @@ def setup_haze(scene: bpy.types.Scene) -> None:
     grade.correction_method = "LIFT_GAMMA_GAIN"
     grade.gain, grade.lift = GRADE_GAIN, GRADE_LIFT
     nt.links.new(mix.outputs[0], grade.inputs["Image"])
+    nt.links.new(grade.outputs[0], comp.inputs["Image"])
+
+
+def comp_socket(node, name: str, kind: str):
+    """The socket called `name` of type `kind`: the unified 5.x nodes carry one per data type."""
+    return next(s for s in node.inputs if s.name == name and s.type == kind)
+
+
+def setup_haze_group(scene: bpy.types.Scene) -> None:
+    """Blender 5: the compositor is a node group with a Group Output instead of a Composite node.
+
+    Same chain as the 3.6 and 4.x path above. The math and mix nodes are the unified shader nodes,
+    and the color balance method is a menu socket whose default is already Lift/Gamma/Gain, so it
+    is left alone.
+    """
+    group = bpy.data.node_groups.new("Beauty Haze", "CompositorNodeTree")
+    group.interface.new_socket(name="Image", in_out="OUTPUT", socket_type="NodeSocketColor")
+    scene.compositing_node_group = group
+    nt = group
+    layers = nt.nodes.new("CompositorNodeRLayers")
+    nt.nodes.new("NodeGroupOutput")
+    comp = next(n for n in nt.nodes if n.bl_idname == "NodeGroupOutput")
+    mix = nt.nodes.new("ShaderNodeMix")
+    mix.data_type = "RGBA"
+
+    def math(op: str, a, b):
+        node = nt.nodes.new("ShaderNodeMath")
+        node.operation = op
+        for sock, value in zip(node.inputs, (a, b)):
+            if isinstance(value, bpy.types.NodeSocket):
+                nt.links.new(value, sock)
+            else:
+                sock.default_value = value
+        return node.outputs[0]
+
+    depth = layers.outputs["Depth"]
+    keep = math("SUBTRACT", 1.0, math("POWER", 2.71828, math("MULTIPLY", depth, -HAZE_DENSITY)))
+    fac = math("MINIMUM", math("MULTIPLY", keep, math("LESS_THAN", depth, 1e8)), HAZE_MAX)
+    nt.links.new(fac, comp_socket(mix, "Factor", "VALUE"))
+    nt.links.new(layers.outputs["Image"], comp_socket(mix, "A", "RGBA"))
+    comp_socket(mix, "B", "RGBA").default_value = HAZE_COLOR
+    grade = nt.nodes.new("CompositorNodeColorBalance")          # golden hour grade: warm highlights, cool shadows
+    comp_socket(grade, "Gain", "RGBA").default_value = GRADE_GAIN + (1.0,)
+    comp_socket(grade, "Lift", "RGBA").default_value = GRADE_LIFT + (1.0,)
+    nt.links.new(next(o for o in mix.outputs if o.type == "RGBA"), grade.inputs["Image"])
     nt.links.new(grade.outputs[0], comp.inputs["Image"])
 
 

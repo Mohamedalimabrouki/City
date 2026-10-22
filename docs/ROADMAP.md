@@ -19,7 +19,7 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
 - [x] 7 Q3 Bougainvillea that cascades
 - [x] 8 V1 Golden hour in the viewer
 - [x] 9 V2 Ambient occlusion
-- [ ] 10 Q4 Blender 5 haze
+- [x] 10 Q4 Blender 5 haze
 - [ ] 11 A4a City ground
 - [ ] 12 A4b Everything on the graded ground
 - [ ] 13 A3 Sidewalks and curbs
@@ -145,10 +145,14 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
   bracts (250 triangles each) in three magenta shades plus green leaves, hanging from the wall
   top to a ragged hem; it has its own stream. `mesh/plants.py` now holds the clump and tube
   helpers shared with the trees. Tiles grew 0.2%.
-- [ ] **Q4 Blender 5 haze and color grade** (S) - `tools/blender_beauty.py` skips its compositor
-  on Blender 5 (the compositor became a node group: `scene.compositing_node_group`, a Group
-  Output node instead of Composite). Port `setup_haze` and keep Blender 3.6 and 4.x working.
-  Done when: a 5.2 souk render shows the warm grade like a 3.6 render.
+- [x] **Q4 Blender 5 haze and color grade** (S) - Done. `setup_haze` branches on
+  `bpy.app.version`: 3.6 and 4.x keep `scene.node_tree` and the Composite node unchanged; Blender 5
+  builds a `CompositorNodeTree` with a Group Output, rebuilds the same Render Layers -> haze mix ->
+  color balance chain with the unified `ShaderNodeMath` and `ShaderNodeMix` (RGBA) nodes, and
+  assigns it to `scene.compositing_node_group`. The 5.x Color Balance method is a menu socket whose
+  default is already Lift/Gamma/Gain, so the method is not hard-coded. A 5.2 souk render shows the
+  warm grade and the aerial view shows the depth haze (the souk lane is only about 20 m deep); the
+  HEAD script renders both without either.
 - [ ] **Q5 Lighter old-town tiles** (M, can be done with C2) - A dressed old-town tile is about
   4.7 MB because each tile stores its own copy of every kit piece it uses. Options: leave tiny
   pieces out of far tiles, quantize positions and normals (`KHR_mesh_quantization`), or merge

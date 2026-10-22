@@ -38,8 +38,9 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
 - Done: v0.1 (country, cities, maps, data, 3D tiles, viewer, Blender scripts), **A0** (Tounes
   kit, street dressing, households and souk trades, night mode, "click a house: who lives there")
   **Q2** (family names that sound Tunisian), **Q1** (rounded, shaded leafy trees), **Q3**
-  (bougainvillea curtains instead of lollipops) and **P8** (golden hour as the viewer's default,
-  with a Noon / Golden hour / Night menu).
+  (bougainvillea curtains instead of lollipops), **P8** (golden hour as the viewer's default, with
+  a Noon / Golden hour / Night menu) and **Q4** (Blender 5 beauty renders get the same depth haze
+  and warm grade as 3.6 and 4.x, through the compositor node group).
 - Since 21 October 2026 the work runs on Ali's Mac through the playbook `docs/PROMPTS.md`: 100
   numbered prompts (`Do prompt N.`), each with its model and effort, one session each; nine Opus
   checkpoints review the work as it goes; every session adds an entry to `docs/WORKLOG.md`.
@@ -124,8 +125,14 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
 - **Street camera fallback** (prompt 9): when a world has no `views.street` in the index, wait for
   every tile within 200 m before `placeStreetCamera` casts its rays. Otherwise a far tile still
   loading can change the chosen camera from one load to the next.
-- **Blender 5**: the physical sky is `MULTIPLE_SCATTERING` with `aerosol_density`; the
-  compositor moved to node groups, so the beauty render skips its haze there (task Q4).
+- **Blender 5**: the physical sky is `MULTIPLE_SCATTERING` with `aerosol_density`. The compositor
+  is a `CompositorNodeTree` in `scene.compositing_node_group` and ends in a Group Output, not
+  `scene.node_tree` and Composite: add an output socket to `group.interface` first, then the
+  Group Output node shows its input. `setup_haze_group` rebuilds the 3.6 chain with the unified
+  5.x nodes: `ShaderNodeMath`, and `ShaderNodeMix` set to RGBA, where every data type has its own
+  socket, so pick sockets by name plus type ("Factor"/VALUE, "A"/RGBA). Color Balance keeps
+  its method in a menu socket (default Lift/Gamma/Gain, the 3.6 method) and its Lift/Gain values
+  in RGBA sockets; the old `correction_method`, `lift` and `gain` properties are gone.
 - **Leafy trees** (`mesh/trees.py`) are instanced kit pieces, three variants per kind, each with its
   own stream. Undressed tiles keep the light 3-clump tree from `tree_mesh`: merging 200-triangle
   trees 7,900 times into a tile would make it huge.
@@ -140,9 +147,8 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
 
 ## Known weak spots
 
-Listed as tasks Q4 and Q5 in the roadmap: no haze in Blender 5 beauty renders and heavy
-old-town tiles. Also: modern slabs and houses deep inside medina blocks
-have no door or windows, because the dressing only dresses walls within 1.6 m of a street
+Task Q5 in the roadmap: heavy old-town tiles. Also: modern slabs and houses deep inside medina
+blocks have no door or windows, because the dressing only dresses walls within 1.6 m of a street
 (prompts 20.1 and 20.2).
 
 ## Checking the look without wasting tokens

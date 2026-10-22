@@ -15,6 +15,24 @@ Entry format:
 - Doubts and questions for Ali: <none, or the question>
 ```
 
+## 2026-10-23 - Prompt 10 Q4 Blender 5 haze and warm grade
+- Commit: "Blender 5 haze and warm grade" (see git log) | Model: DeepSeek V4.1 Flash, high
+  (playbook: Sonnet, high)
+- Changed: `tools/blender_beauty.py` (`setup_haze` returns early into the new `setup_haze_group`
+  on `bpy.app.version` 5 and up; the 3.6 and 4.x body below stays as it was), `docs/ROADMAP.md`,
+  `docs/HANDOFF.md`
+- Checks: tests 24 passed (9.8 s); quick build OK (0.1 s cached); fingerprint 140 parts, 0 changed
+  (`--allow ""`); Blender 5.2 log has no Python errors (only the pre-existing `World.use_nodes`
+  deprecation warning).
+- Look: `output/checks/10.png` - top: HEAD script on 5.2, no compositor, so no haze and no grade;
+  bottom: new script, warmer walls, sky and pottery. Mean channel difference over the frame: R +2.86,
+  G +0.04, B -4.78. Extra proof for the haze, which needs distance: `output/checks/10-aerial.png`
+  (same pair in the aerial view) shows the far coast washed pale by the depth mix; the souk lane is
+  under about 20 m deep, so there the warm grade is the visible change.
+- Doubts and questions for Ali: none. The 5.x Color Balance node reports its method through a menu
+  socket that cannot be listed from Python; its default is Lift/Gamma/Gain, which is exactly what
+  the 3.6 code set, so the script leaves it alone and a future default change would be silent.
+
 ## 2026-10-23 - Prompt 9 V2 Ambient occlusion and clean edges
 - Commit: "Ambient occlusion and a quality menu in the viewer" (see git log) | Model: DeepSeek
   V4.1 Flash, high (playbook: Sonnet, high)
