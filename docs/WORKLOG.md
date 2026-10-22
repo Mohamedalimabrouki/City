@@ -15,6 +15,24 @@ Entry format:
 - Doubts and questions for Ali: <none, or the question>
 ```
 
+## 2026-10-23 - Prompt 9 V2 Ambient occlusion and clean edges
+- Commit: "Ambient occlusion and a quality menu in the viewer" (see git log) | Model: DeepSeek
+  V4.1 Flash, high (playbook: Sonnet, high)
+- Changed: `tools/viewer/index.html` (one post chain, GTAO and SMAA, High/Fast menu, `?quality`,
+  `?perf=1`, a deterministic fallback for the street camera), `README.md`, `docs/SPEC.md`,
+  `docs/ROADMAP.md`, `docs/HANDOFF.md`
+- Checks: tests 24 passed (9.8 s); quick build OK (0.1 s cached); fingerprint 140 parts, 0 changed
+  (`--allow ""`); `before_after --view street --query quality=high` 0.18 mean (sub-pixel
+  post-chain differences, the picture is visually identical), the same run without the query 0.00.
+  M1, 1280x720: High 18.07 ms/frame against Fast 17.23 ms (+4.9%); 2560x1440: 21.01 against
+  17.23 ms (+22%); both under the +40% budget. High render cost 2.82 against 1.47 ms (1280x720).
+- Look: `output/checks/9.png` - High in the street: soft contact shadows at wall bases and tree
+  trunks, no halo against the sky, cleaner silhouettes. `output/checks/9-pair.png` compares the
+  HEAD viewer in Fast with the working viewer in High, same camera.
+- Doubts and questions for Ali: none. On a retina screen the AO buffer is about 1 MP and is
+  scaled up, a compromise that keeps the frame under budget; if it looks soft on your screen, tell
+  me and we can raise `AO_PIXELS` in the viewer.
+
 ## 2026-10-22 - Prompt 8 V1 Golden hour in the viewer
 - Commit: "Golden hour light menu in the viewer" (see git log) | Model: DeepSeek V4.1 Flash, high
   (playbook: Sonnet, high)

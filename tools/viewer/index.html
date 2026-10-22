@@ -99,6 +99,10 @@
         <option value="night">Night</option>
       </select>
       <select id="views" class="glass pill" aria-label="Camera spot" hidden></select>
+      <select id="quality" class="glass pill" aria-label="Quality">
+        <option value="high">High</option>
+        <option value="fast">Fast</option>
+      </select>
       <button id="shadows" class="glass pill" type="button" aria-pressed="true">Shadows on</button>
     </div>
   </div>
@@ -138,6 +142,7 @@ function fail(message) {
 // URL parameters: radius (meters around the focus, default 2500), shadows=0, ui=0 (hide the overlay),
 // view=aerial|street|top or a camera spot named in the index "views", or cam=x,y,z and look=x,y,z
 // in generator coordinates (meters, z up); light=noon|golden|night (time=night is an old alias);
+// quality=high|fast (ambient occlusion and clean edges), perf=1 (log the average frame time);
 // pick=x,y shows who lives at that point.
 const RADIUS = Math.max(0, num('radius', 2500));
 const MAX_INFLIGHT = 6;
@@ -229,6 +234,25 @@ renderer.toneMapping = THREE.NeutralToneMapping;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.shadowMap.autoUpdate = false;   // re-rendered only when the sun window or the tiles change
+
+// ---------------------------------------------------------------- quality
+// High draws the city through a post chain: GTAO contact shading and SMAA clean edges in the day,
+// bloom at night. Fast is the plain forward renderer of earlier versions. Phones start on Fast,
+// and so does the software renderer (SwiftShader) used by the snapshot tool; ?quality=high|fast
+// forces one. beware: the renderer string is only a hint, never a hard rule.
+const GL_NAME = (() => {
+  try {
+    const gl = renderer.getContext();
+    const ext = gl.getExtension('WEBGL_debug_renderer_info');
+    return String(ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER));
+  } catch (err) {
+    return '';
+  }
+})();
+const SOFTWARE_GL = /swiftshader|llvmpipe|softpipe|software/i.test(GL_NAME);
+const QUALITY_DEFAULT = coarse || SOFTWARE_GL ? 'fast' : 'high';
+let quality = ['high', 'fast'].includes((q.get('quality') || '').toLowerCase())
+  ? q.get('quality').toLowerCase() : QUALITY_DEFAULT;
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(SKY);
@@ -524,8 +548,11 @@ function placeStreetCamera() {
 }
 
 async function loadTiles(list, wantsStreet) {
+  // Wait for every tile a street ray can reach (spots out to 90 m, rays out to 100 m), not only the
+  // closest ones: a tile still in flight would change the chosen camera from one load to the next.
+  const STREET_LOAD = 200;
   let next = 0;
-  let nearLeft = wantsStreet ? list.filter((t) => t.d <= 100).length : 0;
+  let nearLeft = wantsStreet ? list.filter((t) => t.d <= STREET_LOAD).length : 0;
   const worker = async () => {
     while (next < list.length) {
       const t = list[next++];
@@ -536,7 +563,7 @@ async function loadTiles(list, wantsStreet) {
         stats.failed++;
         console.error('tile ' + t.file + ' failed:', err);
       }
-      if (wantsStreet && t.d <= 100 && --nearLeft === 0) placeStreetCamera();
+      if (wantsStreet && t.d <= STREET_LOAD && --nearLeft === 0) placeStreetCamera();
       updateHud();
     }
   };
@@ -563,6 +590,8 @@ let shadowDirty = true;
 let loadDone = false;
 let shadowsOn = sun.castShadow;
 let focusAnim = null;
+const PERF = q.get('perf') === '1';   // ?perf=1: log the average frame time over 120 frames
+let perf = PERF ? { warm: 5, left: 120, total: 0, frameTotal: 0, last: 0 } : null;
 const lastSnap = new THREE.Vector3(Infinity, 0, 0);
 const snapped = new THREE.Vector3();
 
@@ -645,6 +674,8 @@ async function applyLight(mode) {
     await setNight(false);           // day colors from the new preset
     applyDayLook(PRESETS[mode]);
   }
+  if (quality === 'high' || night) await buildChain();   // night always has its bloom chain
+  updatePasses();
   const menu = $('light');
   if (menu) menu.value = lightMode;
 }
@@ -689,8 +720,31 @@ function resize() {
   camera.fov = camera.aspect >= 1 ? 50
     : Math.min(70, THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(25)) / camera.aspect)));
   camera.updateProjectionMatrix();
-  if (composer) composer.setSize(w, h);
+  sizeChain();
   dirty = true;
+}
+
+// one frame of the ?perf=1 measurement: finish the GPU work, then record the cost and the gap
+// between two frames (the frame time the eye sees, capped at the display refresh rate)
+function samplePerf(t0, now) {
+  renderer.getContext().finish();
+  const cost = performance.now() - t0;
+  if (perf.warm > 0) {
+    perf.warm--;
+    perf.last = now;
+    return;
+  }
+  perf.total += cost;
+  if (perf.last) perf.frameTotal += now - perf.last;
+  perf.last = now;
+  perf.left--;
+  if (perf.left > 0) return;
+  const render = perf.total / 120;
+  const frame = perf.frameTotal / 119;   // 119 gaps between 120 frames
+  window.citygenPerf = { quality, light: lightMode, frames: 120, frame, render };
+  console.log(`perf: ${frame.toFixed(2)} ms/frame, ${render.toFixed(2)} ms rendering on average ` +
+              `over 120 frames (${quality}, ${lightMode})`);
+  perf = null;
 }
 
 function frame(now) {
@@ -703,6 +757,7 @@ function frame(now) {
   }
   const moved = controls.update();
   if (loadDone && Number.isFinite(lowest) && camera.position.y < lowest + 1) camera.position.y = lowest + 1;
+  if (perf && loadDone) dirty = true;   // measure a moving scene too, not only the first frame
   if (!moved && !dirty) return;
   dirty = false;
   const complete = loadDone;   // every tile was added before this frame started
@@ -714,8 +769,14 @@ function frame(now) {
   }
   if (night) placeLampLights();
   if (skyDome && skyDome.visible) skyDome.position.copy(camera.position);
-  if (night && composer) composer.render();
-  else renderer.render(scene, camera);
+  const t0 = perf ? performance.now() : 0;
+  if (composer && (quality === 'high' || night)) {
+    tuneAo();
+    composer.render();
+  } else {
+    renderer.render(scene, camera);
+  }
+  if (t0) samplePerf(t0, now);
   if (complete && !window.citygenReady) window.citygenReady = true;
 }
 
@@ -723,7 +784,6 @@ function frame(now) {
 // A dark blue sky and moonlight; lamps and lanterns glow (their emissive turned up, with a soft
 // bloom), and the lamps nearest to the orbit target light the walls around them.
 let night = false;
-let composer = null;
 let lampPoints = null;          // centers of every glowing piece, three.js axes, built on demand
 const glowMeshes = [];          // instanced meshes drawn with a glowing material
 const lampLights = [];
@@ -800,25 +860,115 @@ async function setNight(on) {
     }
   }
   lampLights.forEach((light) => { light.intensity = on ? NIGHT.lamp : 0; });
-  if (on && !composer) {
-    try {
-      const [{ EffectComposer }, { RenderPass }, { UnrealBloomPass }, { OutputPass }] = await Promise.all([
+  updatePasses();
+  shadowDirty = dirty = true;
+}
+
+// ---------------------------------------------------------------- post-processing
+// One chain for both light modes. Day, High: GTAO contact shading, then the tone map, then SMAA on
+// the display colors. Night: the same composer with only the bloom pass on, as before. Fast keeps
+// the plain forward renderer in the day and the bloom-only chain at night.
+let composer = null;
+let renderPass = null;
+let gtaoPass = null;
+let smaaPass = null;
+let bloomPass = null;
+let outputPass = null;
+let chainPromise = null;
+const AO_PIXELS = 1.0e6;   // AO works best at full resolution, but a retina buffer is too slow
+let aoDistance = -1;
+
+async function buildChain() {
+  if (chainPromise) return chainPromise;
+  chainPromise = (async () => {
+    const [{ EffectComposer }, { RenderPass }, { GTAOPass }, { SMAAPass }, { UnrealBloomPass }, { OutputPass }] =
+      await Promise.all([
         import('three/addons/postprocessing/EffectComposer.js'),
         import('three/addons/postprocessing/RenderPass.js'),
+        import('three/addons/postprocessing/GTAOPass.js'),
+        import('three/addons/postprocessing/SMAAPass.js'),
         import('three/addons/postprocessing/UnrealBloomPass.js'),
         import('three/addons/postprocessing/OutputPass.js'),
       ]);
-      const size = renderer.getSize(new THREE.Vector2());
-      composer = new EffectComposer(renderer);
-      composer.addPass(new RenderPass(scene, camera));
-      composer.addPass(new UnrealBloomPass(size, 0.6, 0.45, 0.92));
-      composer.addPass(new OutputPass());
-      composer.setSize(size.x, size.y);
-    } catch (err) {
-      console.warn('night glow without bloom:', err);
-    }
+    const size = renderer.getSize(new THREE.Vector2());
+    composer = new EffectComposer(renderer);
+    renderPass = new RenderPass(scene, camera);
+    gtaoPass = new GTAOPass(scene, camera, 1, 1);
+    // radius, thickness and strength follow the view (see tuneAo); 24 samples plus the Poisson
+    // denoise keep the contact shading smooth without dark seams at silhouettes
+    gtaoPass.updateGtaoMaterial({ distanceExponent: 1, distanceFallOff: 1, samples: 24,
+                                  screenSpaceRadius: false });
+    gtaoPass.updatePdMaterial({ lumaPhi: 12, depthPhi: 2, normalPhi: 4, radius: 24, rings: 6, samples: 48 });
+    gtaoPass.blendIntensity = 1;
+    smaaPass = new SMAAPass(1, 1);
+    bloomPass = new UnrealBloomPass(size, 0.6, 0.45, 0.92);
+    outputPass = new OutputPass();
+    // the tone map and the display color space come last, so SMAA cleans display-space edges
+    composer.addPass(renderPass);
+    composer.addPass(gtaoPass);
+    composer.addPass(bloomPass);
+    composer.addPass(outputPass);
+    composer.addPass(smaaPass);
+    sizeChain();
+    updatePasses();
+    return composer;
+  })().catch((err) => {
+    console.warn('post-processing disabled:', err);
+    composer = null;
+    quality = 'fast';
+    syncQualityMenu();
+    return null;
+  });
+  return chainPromise;
+}
+
+function sizeChain() {
+  if (!composer) return;
+  const w = window.innerWidth, h = window.innerHeight;
+  const pr = renderer.getPixelRatio();
+  composer.setSize(w, h);        // every pass gets the full drawing buffer
+  if (gtaoPass) {                // then AO shrinks to about a million pixels; blending upscales it
+    const scale = Math.min(1, Math.sqrt(AO_PIXELS / (w * pr * h * pr)));
+    gtaoPass.setSize(Math.max(1, Math.round(w * pr * scale)), Math.max(1, Math.round(h * pr * scale)));
   }
-  shadowDirty = dirty = true;
+}
+
+function updatePasses() {
+  if (!composer) return;
+  const day = quality === 'high' && !night;
+  gtaoPass.enabled = day;
+  smaaPass.enabled = day;
+  bloomPass.enabled = night;
+  dirty = true;
+}
+
+function syncQualityMenu() {
+  const menu = $('quality');
+  if (menu) menu.value = quality;
+}
+
+async function applyQuality(value) {
+  quality = value === 'fast' ? 'fast' : 'high';
+  syncQualityMenu();
+  if (quality === 'high' || night) await buildChain();
+  updatePasses();
+  dirty = true;
+}
+
+// Keep the AO radius in proportion to what the screen shows: a tight 1.4 m band at eye height in
+// the street, up to 8 m from the aerial view, where that is about 7 pixels and fills narrow
+// alleys. The strength falls with the distance too, so the aerial view keeps its bright roofs.
+function tuneAo() {
+  if (!gtaoPass || !gtaoPass.enabled) return;
+  const d = camera.position.distanceTo(controls.target);
+  if (Math.abs(d - aoDistance) < 0.5) return;
+  aoDistance = d;
+  const radius = THREE.MathUtils.clamp(d * 0.012, 1.4, 8);
+  const air = THREE.MathUtils.smoothstep(d, 60, 600);   // 0 in the street, 1 from the air
+  const u = gtaoPass.gtaoMaterial.uniforms;
+  u.radius.value = radius;
+  u.thickness.value = THREE.MathUtils.clamp(radius * 0.8, 2, 6);
+  u.scale.value = 2.4 - 1 * air;
 }
 
 const raycaster = new THREE.Raycaster();
@@ -1040,6 +1190,9 @@ $('shadows').addEventListener('click', () => setShadows(!shadowsOn));
 $('light').addEventListener('change', (e) => {
   applyLight(e.target.value).catch((err) => console.error(err));
 });
+$('quality').addEventListener('change', (e) => {
+  applyQuality(e.target.value).catch((err) => console.error(err));
+});
 window.addEventListener('resize', resize);
 
 // ---------------------------------------------------------------- boot
@@ -1068,6 +1221,8 @@ async function boot() {
   const view = initialView(index);
   applyView(view.cam, view.look);
   fillViews(index, q.get('view') || 'aerial');
+  syncQualityMenu();
+  await applyQuality(quality);     // High loads the post chain; Fast skips it in the day
   const wanted = q.get('light');
   await applyLight(['noon', 'golden', 'night'].includes(wanted) ? wanted
     : q.get('time') === 'night' ? 'night' : 'golden');
@@ -1089,7 +1244,8 @@ async function boot() {
 
 // handle for the browser console and for tests
 window.citygen = { THREE, scene, camera, controls, renderer, sun, tiles, toThree, setNight, setLight: applyLight,
-                   showInfo, get focus() { return focus; }, get light() { return lightMode; } };
+                   applyQuality, showInfo, get focus() { return focus; }, get light() { return lightMode; },
+                   get quality() { return quality; }, get composer() { return composer; } };
 setShadows(shadowsOn);
 resize();
 requestAnimationFrame(frame);

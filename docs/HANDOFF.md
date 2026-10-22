@@ -111,6 +111,19 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
   dome shader (with three's tone-mapping includes) that only golden shows; noon and night keep the
   plain clear color. The street view looks away from the sun and its 14 degree light cannot reach
   into the canyon, so cast shadows show in the aerial view, not on the road.
+- **Ambient occlusion and quality** (prompt 9): one `EffectComposer` serves every mode. Day High is
+  RenderPass, GTAOPass, OutputPass, SMAAPass; night enables only UnrealBloomPass on the same chain;
+  Fast day is the plain forward renderer and Fast night the bloom-only chain. The quality menu
+  defaults to Fast on phones and on SwiftShader and to High on a desktop; `?quality=fast|high`
+  forces it. Keep the AO buffer near 1 MP: full resolution at 1280x720 on a normal screen, scaled
+  down on a retina buffer, because full 2560x1440 AO cost 45 ms/frame on the M1. SMAA must come
+  after OutputPass so it works on display colors. The sky dome is BackSide while the AO normal pass
+  is FrontSide, so trees against the sky get no halo. The Poisson denoise needs radius 24 and 48
+  samples at that buffer size; the default 10 and 24 left a grainy band along wall bases.
+  `?perf=1` logs the frame time and the render cost over 120 frames.
+- **Street camera fallback** (prompt 9): when a world has no `views.street` in the index, wait for
+  every tile within 200 m before `placeStreetCamera` casts its rays. Otherwise a far tile still
+  loading can change the chosen camera from one load to the next.
 - **Blender 5**: the physical sky is `MULTIPLE_SCATTERING` with `aerosol_density`; the
   compositor moved to node groups, so the beauty render skips its haze there (task Q4).
 - **Leafy trees** (`mesh/trees.py`) are instanced kit pieces, three variants per kind, each with its

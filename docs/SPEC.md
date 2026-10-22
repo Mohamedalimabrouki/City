@@ -168,6 +168,9 @@ Maghreb-specific values.
 - `python -m citygen stats` prints `summary.json`.
 - Maps: `output/*/maps/*.png` (look at the image, not the data files).
 - 3D: `python -m citygen snapshot --view aerial|street|top` renders the viewer to a PNG.
+- The viewer starts in **Fast** on phones and in the software snapshot browser, and in **High** on a
+  computer (ambient occlusion and clean edges). Add `--query quality=high` to a snapshot to force
+  High; add `?perf=1` to the viewer address to log the average frame time over 120 frames.
 - `python tools/before_after.py --view street|souk|aerial` compares the last commit with the working
   tree in one labelled picture and prints the pixel difference (see HANDOFF.md).
 

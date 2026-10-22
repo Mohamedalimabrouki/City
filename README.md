@@ -49,8 +49,11 @@ number. A different seed gives a different country. So:
    and double-click a spot to fly around it. **Click a house to see who lives there** (family,
    trade, how many people, how well off), or a souk to see its name and trade. Pick **Golden hour**
    (the default), **Noon** or **Night** in the top-right menu (at night lamps, lanterns and some
-   windows light up); `N` jumps to night and back, and `L` switches shadows on or off. The
-   images are in `output/<country>-<seed>/maps/`.
+   windows light up); `N` jumps to night and back, and `L` switches shadows on or off. Next to the
+   light menu, **Quality** offers **High** (soft contact shadows in corners and clean edges; the
+   default on a computer) and **Fast** (the lightest; the default on phones). Add `quality=high`
+   to the address to force High, or `perf=1` to print the average frame time in the browser
+   console. The images are in `output/<country>-<seed>/maps/`.
 
 To save 3D pictures without opening a browser (handy for checks): `pip install playwright`,
 then `python -m citygen snapshot --view aerial` (or `street`, `souk`, `top`).
