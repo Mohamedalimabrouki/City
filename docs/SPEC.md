@@ -12,7 +12,7 @@ This is the contract every change must respect. Read the sections your task touc
    worlds stream in a game engine and build in parallel.
 4. **Content is data.** Names, colors, district rules and building rules live in
    `styles/*.toml`; world settings live in `citygen/defaults.toml` and `worlds/*.toml`.
-5. **Fast feedback.** `pytest` about 20 s, `build --quick` about 1 min. Keep it that way.
+5. **Fast feedback.** `pytest` about 20 s, `build --quick` about 1 min. Keep it that way. (Today on Ali's Mac: tests about 8 s, quick build about 7 s.)
 
 ## 2. Coordinates and units
 
@@ -151,8 +151,8 @@ Maghreb-specific values.
 
 | Step | Budget |
 |---|---|
-| `pytest -q` | under 30 s |
-| `build --quick` | under 90 s |
+| `pytest -q` | under 30 s (Ali's Mac today: about 8 s) |
+| `build --quick` | under 90 s (Ali's Mac today: about 7 s) |
 | country (64 km) | under 10 s |
 | capital plan (about 60k buildings) | under 60 s |
 | one tile | under 5 s, under 3 MB (under 5 MB for a dressed old-town tile) |

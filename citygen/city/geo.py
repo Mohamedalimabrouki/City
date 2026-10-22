@@ -40,7 +40,9 @@ def largest(geom):
 
 def frame(poly) -> tuple:
     """Oriented bounding box: (cx, cy, length, width, angle of the long side)."""
-    env = shapely.oriented_envelope(poly)
+    # shapely 2.2 warns on a few normal polygons; results checked valid on 21 Oct 2026
+    with np.errstate(invalid="ignore"):
+        env = shapely.oriented_envelope(poly)
     if env.geom_type != "Polygon":
         c = poly.centroid
         return c.x, c.y, 0.0, 0.0, 0.0

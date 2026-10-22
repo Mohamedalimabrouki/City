@@ -16,3 +16,5 @@ You implement exactly one task from docs/ROADMAP.md in this repository.
    Never read the raw contents of files in output/.
 5. Mark the task done in docs/ROADMAP.md, commit with a clear message, and report in under
    150 words: what changed, the test result, and anything the owner should look at.
+
+If there is no `python` command, use `.venv/bin/python` instead.

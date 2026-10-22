@@ -57,7 +57,7 @@ def main(argv=None) -> None:
     sn = sub.add_parser("snapshot", help="save a PNG of the 3D view (needs: pip install playwright)")
     sn.add_argument("folder", nargs="?", help="a built world folder (default: the latest build)")
     sn.add_argument("--png", default=None, help="output image (default: <folder>/maps/snapshot-<view>.png)")
-    sn.add_argument("--view", default="aerial", help="aerial, street or top")
+    sn.add_argument("--view", default="aerial", help="aerial, street, souk or top")
     sn.add_argument("--width", type=int, default=1600)
     sn.add_argument("--height", type=int, default=900)
 

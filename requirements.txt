@@ -6,3 +6,5 @@ pillow>=10.1
 pytest>=8
 # optional, only for `python -m citygen snapshot` (3D pictures without a browser window):
 # playwright>=1.48
+# On Ali's Mac keep playwright==1.56.0: it matches the Chromium already cached there
+# (newer versions download a new browser).

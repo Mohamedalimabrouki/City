@@ -15,6 +15,12 @@ Entry format:
 - Doubts and questions for Ali: <none, or the question>
 ```
 
+## 2026-10-22 - Prompt 3 T3 Housekeeping
+- Commit: (this commit) | Model: Sonnet, low
+- Changed: citygen/city/geo.py, citygen/__main__.py, requirements.txt, docs/SPEC.md, docs/ROADMAP.md, .claude/agents/city-builder.md, city-checker.md
+- Checked: tests 20 passed (8 s, no warnings), quick build 7 s, fingerprint 142 parts 0 changed.
+- Note: editing .claude/agents needed the sandbox off.
+
 ## 2026-10-22 - Prompt 2 T2 Before/after pictures
 - Commit: see git log | Model: Sonnet, medium
 - Changed: tools/before_after.py (new), tools/viewer/index.html (camera ground clamp only after all tiles loaded), docs/HANDOFF.md, docs/SPEC.md, docs/ROADMAP.md

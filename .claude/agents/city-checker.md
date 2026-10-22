@@ -13,3 +13,5 @@ In the repository root, run:
 Report in under 120 words: tests passed or failed (name each failing test with its one-line
 error), build time, and the building, street and tile counts. Do not edit any file. Do not
 open files in output/.
+
+If there is no `python` command, use `.venv/bin/python` instead.
