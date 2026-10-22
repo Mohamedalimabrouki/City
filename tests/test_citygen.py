@@ -283,6 +283,7 @@ def test_make_blend_command():
     cmd = make_blend.command("blender", Path("w"), views, out)
     assert cmd[cmd.index("--view") + 1] == "street" and "--setup-only" in cmd
     assert all(view in cmd[cmd.index("--python-expr") + 1] for view in views)
+    assert '"CAMERA"' in cmd[cmd.index("--python-expr") + 1]           # opens looking through the camera
 
 
 @pytest.mark.slow  # about 5 s and needs processes; run with: python -m pytest -q -m slow

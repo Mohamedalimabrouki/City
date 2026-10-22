@@ -40,6 +40,14 @@ for view in {views!r}[1:]:
     bb.setup_camera(scene, index, view)
     scene.camera.name = "Camera " + view
 scene.camera = first
+for screen in bpy.data.screens:  # open looking through the camera, lit by the golden-hour sun and sky
+    for area in screen.areas:
+        for space in area.spaces:
+            if space.type == "VIEW_3D":
+                space.shading.type = "MATERIAL"
+                space.shading.use_scene_lights = space.shading.use_scene_world = True
+                space.clip_end = 50000.0
+                space.region_3d.view_perspective = "CAMERA"
 bpy.ops.wm.save_as_mainfile(filepath={out!r}, compress=True)
 print("make_blend: saved", {out!r}, flush=True)
 """
