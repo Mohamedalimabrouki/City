@@ -156,6 +156,7 @@ Maghreb-specific values.
 | country (64 km) | under 10 s |
 | capital plan (about 60k buildings) | under 60 s |
 | one tile | under 5 s, under 3 MB (under 5 MB for a dressed old-town tile) |
+| `build --area capital` (168 tiles) | Ali's Mac (M1, 4 fast + 4 slow cores) today: 71 s with `--workers 1`, 25 s with `--workers 8` |
 
 ## 9. Checking results cheaply
 

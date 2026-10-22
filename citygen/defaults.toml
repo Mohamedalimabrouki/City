@@ -50,4 +50,5 @@ dressing = true           # doors, windows, shops, goods and street life (see [d
 area = "capital-center"
 center_radius = 1200.0
 output = "output"
+workers = 0               # processes that build 3D tiles: 0 = all cores but one, 1 = one process
 kits = ["tounes"]         # extra 3D piece kits from the kits/ folder (pieces made in Tounes Rush)

@@ -283,3 +283,21 @@ def test_make_blend_command():
     cmd = make_blend.command("blender", Path("w"), views, out)
     assert cmd[cmd.index("--view") + 1] == "street" and "--setup-only" in cmd
     assert all(view in cmd[cmd.index("--python-expr") + 1] for view in views)
+
+
+@pytest.mark.slow  # about 5 s and needs processes; run with: python -m pytest -q -m slow
+def test_parallel_tiles_match_one_process(world, plan, tmp_path):
+    from citygen.build import export_tiles
+    size = int(world.cfg["tiles"]["size"])
+    s = world.capital()
+    i, j = int(s.x // size), int(s.y // size)
+    keys = [(i, j), (i + 1, j), (i, j + 1)]
+    out = {}
+    for workers in (1, 2):
+        folder = tmp_path / f"w{workers}"
+        folder.mkdir()
+        out[workers] = (export_tiles(world, [plan], keys, folder, workers, lambda n: None), folder)
+    assert out[1][0] == out[2][0]
+    for i, j in keys:
+        name = f"tile_{i}_{j}.glb"
+        assert (out[1][1] / name).read_bytes() == (out[2][1] / name).read_bytes()

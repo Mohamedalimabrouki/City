@@ -122,6 +122,9 @@ Choose what to build in 3D with `--area`:
 | `box:30,28,34,32` | A rectangle, in kilometers |
 | `all` | The whole country (hours, and many gigabytes) |
 
+Tiles are built in parallel. `--workers N` sets how many processes (`0` = all cores but one,
+the default from `[build] workers`; `1` = one process). The files are identical either way.
+
 **For stories:** once you have written about a place, pin its name in your world file under
 `[canon.names]` so it never changes, even if the generator gets new features.
 

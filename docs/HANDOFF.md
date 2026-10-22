@@ -53,6 +53,12 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
 
 ## Decisions and lessons (do not relearn them)
 
+- **Parallel tiles** (`TilePool` in `citygen/build.py`): spawn processes start while the parent
+  plans and wait for one pickle file (world + plans); each builds its own `TileContext`. Use
+  `multiprocessing.Pool`, not `ProcessPoolExecutor`: the Claude sandbox forbids the
+  `os.sysconf` call the executor makes. Capital on the M1: 71 s -> 25 s (2.8x); the 9 s of
+  planning is now the biggest serial part. The parent's file writing runs while workers load.
+  Slow tests: `python -m pytest -q -m slow` (default run skips them, see `pytest.ini`).
 - **Fingerprint** (`tools/fingerprint.py`): hash kit arrays only after skipping `None` ones
   (`tobytes()` of a None array hashes a memory address and differs every run).
 - **Randomness** only from `citygen.rng.stream(seed, *purpose)`, one purpose path per feature, so

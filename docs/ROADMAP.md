@@ -13,7 +13,7 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
 - [x] 1 T1 Regression fingerprint tool
 - [x] 2 T2 Before/after pictures
 - [x] 3 T3 Housekeeping
-- [ ] 4 C1a Build tiles in parallel
+- [ ] 4 C1a Build tiles in parallel (done in code, 2.8x not 3x: see WORKLOG question)
 - [ ] 5 C1b Resumable builds
 - [ ] 6 CP1 Checkpoint: foundations
 - [ ] 7 Q3 Bougainvillea that cascades

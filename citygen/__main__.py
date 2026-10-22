@@ -24,6 +24,8 @@ def _config(args) -> dict:
         over["world"]["size_km"] = args.size_km
     if getattr(args, "out", None):
         over["build"]["output"] = args.out
+    if getattr(args, "workers", None) is not None:
+        over["build"]["workers"] = args.workers
     return load_config(args.world, over, quick=args.quick)
 
 
@@ -46,6 +48,8 @@ def main(argv=None) -> None:
     b.add_argument("--area", help='what to export in 3D: "capital-center" (default), "capital", '
                                   '"city:NAME", "city-center:NAME", "box:X0,Y0,X1,Y1" (km), "all", "none"')
     b.add_argument("--out", help="output folder (default: output)")
+    b.add_argument("--workers", type=int, help="processes that build tiles: 0 = all cores but one, "
+                                               "1 = one process (default: [build] workers)")
 
     ls = sub.add_parser("list", help="list the settlements of a world (fast, writes nothing)")
     _world_args(ls)
