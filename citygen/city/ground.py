@@ -184,7 +184,9 @@ class Ground:
                 lifts.append(STREET_LIFT.get(st.kind, 0.24))
         self.street_lift = np.asarray(lifts, dtype=np.float64)
         self.street_tree = STRtree(surfaces) if surfaces else None
-        self.curb_height = float(world.style.get("streets", {}).get("curb_height", 0.15))
+        streets_cfg = world.style.get("streets", {})
+        self.curb_height = float(streets_cfg.get("curb_height", 0.15))
+        self.walk_reach = float(streets_cfg.get("walk_reach", 0.05))
         walks = [w.polygon for plan in plans for w in getattr(plan, "walks", [])]
         self.walk_tree = STRtree(walks) if walks else None
 
@@ -213,8 +215,12 @@ class Ground:
                 of[sel] = city.blur(xf[sel], yf[sel])
         return out
 
-    def _graded(self, city: _City, x: np.ndarray, y: np.ndarray, natural: np.ndarray) -> np.ndarray:
-        """City ground at points inside `city`'s boundary: blur, terrace, then edge blend."""
+    def _graded(self, city: _City, x: np.ndarray, y: np.ndarray) -> np.ndarray:
+        """City ground at points inside `city`'s boundary: blur, terrace, then edge blend.
+
+        The natural terrain is sampled only inside the edge band: deeper in, its weight is
+        exactly 0, so skipping it changes no height and saves most of a tile's terrain noise.
+        """
         blur = city.blur(x, y)
         out = blur.copy()
         idx, dist = city.block_at(x, y)
@@ -225,32 +231,47 @@ class Ground:
             out[hit] = blur[hit] + w * np.clip(terrace - blur[hit], -self.terrace_max, self.terrace_max)
         edge = shapely.distance(shapely.points(x, y), city.plan.boundary.boundary)
         b = smoothstep(0.0, self.edge_band, edge)
-        return natural * (1.0 - b) + out * b
+        near = b < 1.0
+        if near.any():
+            natural = np.asarray(self.terrain.height(x[near], y[near]), dtype=np.float64)
+            out[near] = natural * (1.0 - b[near]) + out[near] * b[near]
+        return out
 
     def height(self, x, y):
         """Graded ground height in meters, in arrays out for arrays in (or a float for floats)."""
         x = np.asarray(x, dtype=np.float64)
         y = np.asarray(y, dtype=np.float64)
-        h = np.asarray(self.terrain.height(x, y), dtype=np.float64)
-        if self.area is None or h.size == 0:
+        if self.area is None or x.size == 0:
+            h = np.asarray(self.terrain.height(x, y), dtype=np.float64)
             return float(h) if h.ndim == 0 else h
-        xf, yf, hf = np.ravel(x), np.ravel(y), np.ravel(h)
-        out = hf.copy()
+        xf, yf = np.ravel(x), np.ravel(y)
+        out = np.empty(len(xf))
+        rest = np.ones(len(xf), dtype=bool)
         for city, sel in self._select(xf, yf):
-            out[sel] = self._graded(city, xf[sel], yf[sel], hf[sel])
-        if h.ndim == 0:
+            out[sel] = self._graded(city, xf[sel], yf[sel])
+            rest[sel] = False
+        if rest.any():
+            out[rest] = self.terrain.height(xf[rest], yf[rest])
+        if x.ndim == 0:
             return float(out[0])
-        return out.reshape(h.shape)
+        return out.reshape(x.shape)
 
-    def lift(self, x, y):
-        """Highest street-ribbon lift at each point (0 where no street lies)."""
+    def lift(self, x, y, reach: float = 0.0):
+        """Highest street-ribbon lift at each point (0 where no street lies).
+
+        With `reach`, streets up to that many meters away count too.
+        """
         x = np.asarray(x, dtype=np.float64)
         y = np.asarray(y, dtype=np.float64)
         out = np.zeros(x.shape)
         if self.street_tree is None or x.size == 0:
             return float(out) if out.ndim == 0 else out
         xf, yf, of = np.ravel(x), np.ravel(y), np.ravel(out)
-        inp, hit = self.street_tree.query(shapely.points(xf, yf), predicate="intersects")
+        pts = shapely.points(xf, yf)
+        if reach > 0.0:
+            inp, hit = self.street_tree.query(pts, predicate="dwithin", distance=reach)
+        else:
+            inp, hit = self.street_tree.query(pts, predicate="intersects")
         if len(inp):
             np.maximum.at(of, inp, self.street_lift[hit])
         if out.ndim == 0:
@@ -261,8 +282,8 @@ class Ground:
         """Top of what is drawn at each point: ground, street ribbon, or a raised walk.
 
         Overlapping streets take the highest ribbon; a sidewalk or promenade adds the curb
-        height above that ribbon. Like `height`, this is a pure function of position, so
-        neighbouring tiles agree on every shared point.
+        height above that ribbon (see `walk_top`). Like `height`, this is a pure function of
+        position, so neighbouring tiles agree on every shared point.
         """
         x = np.asarray(x, dtype=np.float64)
         y = np.asarray(y, dtype=np.float64)
@@ -275,7 +296,22 @@ class Ground:
         if self.walk_tree is not None:
             inp, _hit = self.walk_tree.query(shapely.points(xf, yf), predicate="intersects")
             if len(inp):
-                np.maximum.at(out, inp, hf[inp] + lift[inp] + self.curb_height)
+                on = np.unique(inp)
+                out[on] = self._walk_top(xf[on], yf[on], hf[on])
         if h.ndim == 0:
             return float(out[0])
         return out.reshape(h.shape)
+
+    def _walk_top(self, x: np.ndarray, y: np.ndarray, h: np.ndarray) -> np.ndarray:
+        return h + np.ravel(np.asarray(self.lift(x, y, self.walk_reach), dtype=np.float64)) + self.curb_height
+
+    def walk_top(self, x, y):
+        """Top of a sidewalk or promenade at points known to lie on one (its outline included).
+
+        A walk's edge on the block side lies on the street outline itself, where rounding can
+        miss the street: walk points take the lift of any street within `walk_reach`, so no
+        corner of a sidewalk drops under the asphalt.
+        """
+        x = np.ravel(np.asarray(x, dtype=np.float64))
+        y = np.ravel(np.asarray(y, dtype=np.float64))
+        return self._walk_top(x, y, np.ravel(np.asarray(self.height(x, y), dtype=np.float64)))

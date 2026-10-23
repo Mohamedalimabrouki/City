@@ -57,7 +57,7 @@ def make_walks(ctx, districts, streets, blocks) -> list:
         strips.append(outer.difference(inner))
     if not strips:
         return []
-    allowed = unary_union(strips)
+    strip_tree = STRtree(strips)   # each block is clipped to the strips near it, not to one city-wide union
 
     lines = [st.line for st in streets]
     tree = STRtree(lines)
@@ -69,7 +69,10 @@ def make_walks(ctx, districts, streets, blocks) -> list:
         if kind in NO_WALK or width <= 0.0:
             continue
         band = block.buffer(width, join_style="mitre", quad_segs=3).difference(block)
-        band = band.intersection(allowed)
+        near = sorted(int(i) for i in strip_tree.query(band, predicate="intersects"))
+        if not near:
+            continue
+        band = band.intersection(unary_union([strips[i] for i in near]))
         for poly in polygons(band):
             if poly.area < 0.8 or poly.length <= 0.0:
                 continue

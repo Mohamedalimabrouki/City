@@ -47,8 +47,10 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
   After prompt 100, Ali brings the work back to his lead session for a full review.
 - From prompt 7, a trial runs the build prompts with DeepSeek V4.1 Flash in OpenCode (free; it
   reads `CLAUDE.md` because there is no `AGENTS.md`). Claude keeps the checkpoints, the big
-  designs and the phone page (list in `docs/PROMPTS.md`). Checkpoint 16 judges the trial; the
-  git tag `before-deepseek` is the backup point from before it.
+  designs and the phone page (list in `docs/PROMPTS.md`). Checkpoint 16 judged the trial
+  (prompts 7-15): good code and honest reports, but it let speed slip and its tests did not
+  look at the drawn result; recommendation: continue with it, checkpoints catch the rest. The
+  git tag `before-deepseek` stays as the backup point.
 - Prompts 1-5 (tools and fast builds) are done and checked by checkpoint 1 (CP1, 22 October
   2026): fingerprint, before/after pictures, parallel and resumable builds all work as
   documented. Reference for checkpoint 16: `output/checks/fp-cp1.json` (quick build) and the
@@ -56,7 +58,10 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
 - Prompts 6-15 are done: bougainvillea, golden hour, ambient occlusion, Blender 5 haze, A4a and
   A4b (graded ground, and every prop, door, tree and camera on its surface), A3 (raised
   sidewalks, curbs and the boulevard promenade), S1 (street surfaces and painted markings) and
-  A1 (roof parapets and stair rooms). Next: prompt 16, checkpoint light and ground.
+  A1 (roof parapets and stair rooms). Checkpoint 2 (CP2, 23 October 2026) reviewed them, fixed
+  sidewalk corners and paint lines that sank under the asphalt, and won back the build time the
+  trial had lost. Reference for checkpoint 27: `output/checks/fp-cp2.json` and
+  `output/checks/cp2-street.png`, `cp2-souk.png`. Next: prompt 17.
 - Seed 42 makes the country **Bodjantouna** with the capital **Goumosbane**.
   `python -m citygen build --quick` writes it to `output/bodjantouna-42/` in about 10 seconds on
   Ali's Mac (20 seconds in the cloud).
@@ -67,6 +72,21 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
   after a big visual step, then publish the folder to that same link from a Claude session.
 
 ## Decisions and lessons (do not relearn them)
+
+- **Measure the full capital, not only the quick build** (CP2). Prompts 11-15 each stayed under
+  their own budget on the quick build, yet together they doubled `build --area capital
+  --workers 8` (27 s to 55 s) and the planner (9 s to 17.5 s). The causes were all "every item
+  against every item" loops: crossings buffered every street for every main street, carriageways
+  scanned every walk per street, sidewalk bands were clipped against one city-wide union, and
+  `Ground.height` sampled the noise terrain at every point even where the edge blend gives it
+  weight 0. Use an STRtree or a dict instead, and time the capital after any planner or
+  tile change.
+- **Test the drawn triangles, not the function against itself** (CP2). The prompt 13 test
+  compared `Ground.surface` with the same formula, so it passed while 14% of sidewalk corners
+  missed their street (they lie exactly on its outline) and long sidewalk and paint triangles
+  (up to 150 m) cut under the ribbon or floated up to 1.8 m. `walk_top` takes the lift of
+  streets within `walk_reach`; walks and paint are drawn with points every `walk_step` and
+  `paint_step`; `test_drawn_sidewalks_and_paint_stay_above_the_ribbon` checks the triangles.
 
 - **Roof layout** (prompt 15, `city/roofs.py`, `[roofs]`): `roof_layout` is the only place that
   decides a flat roof's parapet band, deck, stair room and door. It runs on
@@ -193,7 +213,8 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
   clump and tube helpers moved from `trees.py` to `mesh/plants.py`; `clump(..., turn=0, roll=...)`
   keeps wall pieces thin in y. Big clumps spaced apart look like leaves, so density comes from
   overlap, not size. Numbers are in `[dressing.climber]`.
-- **Old-town tiles** reach about 5 MB with all the dressing (SPEC budget note; task Q5).
+- **Old-town tiles** reach about 5 MB on the quick build and 8 MB on the full capital
+  (`tile_65_106`, mostly roofs since prompt 15); task Q5 (prompt 39) brings them down.
 
 ## Known weak spots
 

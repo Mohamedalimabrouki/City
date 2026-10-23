@@ -261,9 +261,13 @@ tiles smaller.
 3. Teach both readers the new types: `read_parts` in `mesh/gltf.py` (int8 and int16 in its dtype
    table, normalization) and `instance_transforms` in `tools/blender_import.py` (used by
    `blender_beauty.py` too).
-4. If still over budget: merge rarely used big pieces. Do not drop pieces by distance to the
+4. Since prompt 15 the roofs are the biggest part of a dense tile (CP2, full capital,
+   `tile_65_106`: `roof_white` 2.5 MB of 7.9 MB, 28k triangles, was 0.8 MB): the parapet coping
+   (`add_loft`) and the stair rooms write 4 unshared vertices per quad. Share vertices along a
+   coping strip, then measure again.
+5. If still over budget: merge rarely used big pieces. Do not drop pieces by distance to the
    build focus: a tile must not depend on the area built (it breaks tile locality and resume).
-5. Check that three.js and Blender 5.2 read the result; note for prompt 72 what Godot supports.
+6. Check that three.js and Blender 5.2 read the result; note for prompt 72 what Godot supports.
 
 **Check.** Fingerprint may change: `tiles/*`. Look: `--view souk`: the printed difference must
 be near 0 (no visible change).

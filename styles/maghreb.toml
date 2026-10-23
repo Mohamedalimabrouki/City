@@ -162,6 +162,8 @@ cloth_6 = { color = "#8E5AA8", double_sided = true }
 # Raised sidewalks (prompt 13) and their crisp curb. Widths per district are below.
 [streets]
 curb_height = 0.15          # meters above the street ribbon
+walk_reach = 0.05           # a walk point takes the lift of streets this close (block-side edge)
+walk_step = 15.0            # meters between outline points, so a long sidewalk follows the ground
 min_carriageway = 5.5       # a sidewalk is narrowed until this much asphalt remains
 promenade_width = 8.0       # the raised island under the boulevard's middle tree row
 promenade_piece = 64.0      # meters; short pieces keep a tile's mesh local
@@ -170,6 +172,7 @@ promenade_piece = 64.0      # meters; short pieces keep a tile's mesh local
 marking_min_width = 8.0     # only streets wider than this get paint
 paint_width = 0.12          # a line's width in meters
 paint_lift = 0.03           # above the street ribbon (at 0.01 it flickers in aerial views)
+paint_step = 6.0            # meters between outline points, as along the ribbon, so no line sinks
 paint_edge_inset = 0.4      # an edge line sits this far inside the carriageway edge
 paint_dash = [3.0, 4.5]     # dash and gap of a center or lane line
 crossing_length = 3.0       # zebra bar length along the street

@@ -151,28 +151,31 @@ def paint_meshes(mb: MeshBuilder, tc: TileContext, plan, paint_tree, tile) -> No
     """Painted lines and crossings owned by this tile, a few centimeters above the ribbon."""
     if paint_tree is None:
         return
-    lift = float(tc.world.style.get("streets", {}).get("paint_lift", 0.03))
+    cfg = tc.world.style.get("streets", {})
+    lift = float(cfg.get("paint_lift", 0.03))
+    step = float(cfg.get("paint_step", 6.0))   # same spacing as the ribbon, so a long line never sinks into it
     for k in paint_tree.query(tile, predicate="intersects"):
         mark = plan.paint[int(k)]
         st = plan.streets[mark.street]
         z = STREET_LIFT.get(st.kind, 0.24) + lift
         for poly in polygons(mark.polygon.intersection(tile)):
             if poly.area > 0.005:
-                add_draped_cap(mb, poly, lambda x, y, z=z: tc.height(x, y) + z, "road_paint")
+                add_draped_cap(mb, shapely.segmentize(poly, step), lambda x, y, z=z: tc.height(x, y) + z, "road_paint")
 
 
 def walk_meshes(mb: MeshBuilder, tc: TileContext, plan, tile) -> None:
     """Raised sidewalks and promenades owned by this tile (the tile holding their centroid)."""
     x0, y0, x1, y1 = tile.bounds
+    step = float(tc.world.style.get("streets", {}).get("walk_step", 15.0))
     for walk in getattr(plan, "walks", ()):
         c = walk.polygon.centroid
         if not (x0 <= c.x < x1 and y0 <= c.y < y1):
             continue
-        poly = orient(walk.polygon, sign=1.0)
-        add_draped_cap(mb, poly, tc.ground.surface, "sidewalk")
+        poly = shapely.segmentize(orient(walk.polygon, sign=1.0), step)   # long blocks follow the ground
+        add_draped_cap(mb, poly, tc.ground.walk_top, "sidewalk")
         for ring in (poly.exterior, *poly.interiors):
             pts = np.asarray(ring.coords)[:-1]
-            top = tc.ground.surface(pts[:, 0], pts[:, 1])
+            top = tc.ground.walk_top(pts[:, 0], pts[:, 1])
             bottom = tc.height(pts[:, 0], pts[:, 1])
             add_skirt(mb, pts, top, bottom, "curb")
 

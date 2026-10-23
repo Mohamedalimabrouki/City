@@ -12,7 +12,7 @@ This is the contract every change must respect. Read the sections your task touc
    worlds stream in a game engine and build in parallel.
 4. **Content is data.** Names, colors, district rules and building rules live in
    `styles/*.toml`; world settings live in `citygen/defaults.toml` and `worlds/*.toml`.
-5. **Fast feedback.** `pytest` about 20 s, `build --quick` about 1 min. Keep it that way. (Today on Ali's Mac: tests about 8 s, quick build about 7 s.)
+5. **Fast feedback.** `pytest` about 20 s, `build --quick` about 1 min. Keep it that way. (Today on Ali's Mac: tests about 13 s, quick build about 8 s.)
 
 ## 2. Coordinates and units
 
@@ -36,7 +36,10 @@ This is the contract every change must respect. Read the sections your task touc
   tiles that share an edge compute exactly the same height there. The lattice cells are filled
   lazily and cached per process, never stored. `Ground.surface` is pure as well: it adds the
   street-ribbon lift (`STREET_LIFT`, highest where streets overlap) and the curb height of a
-  raised sidewalk or promenade to that height.
+  raised sidewalk or promenade to that height. On a walk, the lift of any street within
+  `[streets] walk_reach` counts (`Ground.walk_top`), because a sidewalk's block-side edge lies on
+  the street outline, where rounding can miss the street. Inside a city the natural terrain is
+  sampled only in the edge band, where it has weight; deeper in, the height is the graded one.
 
 ## 4. Pipeline and modules
 
@@ -170,7 +173,8 @@ piece; `tools/blender_import.py` and `tools/blender_beauty.py` place all copies 
 ## 7. Style pack (`styles/<name>.toml`)
 
 `[names]` sounds and templates, `[lore]` eras and products, `[palette]` materials,
-`[streets]` curb height, minimum carriageway, promenade width and the paint numbers,
+`[streets]` curb height, minimum carriageway, promenade width, the paint numbers and the outline
+steps of drawn walks and paint (`walk_step`, `paint_step`: long pieces follow the ground),
 `[streets.surface]` the ribbon material per street kind, `[roofs]` parapet thickness, height by
 district kind and the stair room share and size, `[district.<kind>]` street
 grid, sidewalk width, lot size, floors, materials and special rules,
@@ -187,12 +191,12 @@ Maghreb-specific values.
 
 | Step | Budget |
 |---|---|
-| `pytest -q` | under 30 s (Ali's Mac today: about 8 s) |
-| `build --quick` | under 90 s (Ali's Mac today: about 7 s) |
+| `pytest -q` | under 30 s (Ali's Mac today: about 13 s) |
+| `build --quick` | under 90 s (Ali's Mac today: about 8 s) |
 | country (64 km) | under 10 s |
 | capital plan (about 60k buildings) | under 60 s |
 | one tile | under 5 s, under 3 MB (under 5 MB for a dressed old-town tile) |
-| `build --area capital` (168 tiles) | Ali's Mac (M1, 4 fast + 4 slow cores) today: 71 s with `--workers 1`, 26 s with `--workers 8` |
+| `build --area capital` (168 tiles) | Ali's Mac (M1, 4 fast + 4 slow cores) today: 73 s with `--workers 1`, 30 s with `--workers 8` (CP2) |
 | the same build run again (nothing changed) | under 10% of the first run (today 1.5 s, plans, tiles, maps and data reused) |
 
 ## 9. Checking results cheaply

@@ -488,10 +488,33 @@ def test_sidewalks_are_raised_and_leave_a_carriageway(world, plan, ground):
         pts = shapely.get_coordinates(w.polygon.exterior)[:3]
         xy = np.asarray(pts)
         top = ground.surface(xy[:, 0], xy[:, 1])
-        expect = ground.height(xy[:, 0], xy[:, 1]) + ground.lift(xy[:, 0], xy[:, 1]) + curb
+        expect = ground.height(xy[:, 0], xy[:, 1]) + ground.lift(xy[:, 0], xy[:, 1], ground.walk_reach) + curb
         assert np.all(np.abs(top - expect) < 1e-6)
         for k in footprints.query(w.polygon, predicate="intersects"):
             assert w.polygon.intersection(plan.buildings[int(k)].footprint).area < 0.05
+
+
+def test_drawn_sidewalks_and_paint_stay_above_the_ribbon(world, plan, ground):
+    # the triangles as mesh/tile.py draws them, checked at their centers: long blocks and lines
+    # must follow the ground, and no sidewalk corner on the block side may miss its street
+    from citygen.city.ground import STREET_LIFT
+    from citygen.mesh.builder import triangulate
+    cfg = world.style["streets"]
+    curb, lift = float(cfg["curb_height"]), float(cfg["paint_lift"])
+
+    def centers(poly, top, step):
+        tri = triangulate(shapely.segmentize(poly, step))
+        z = top(tri[..., 0].ravel(), tri[..., 1].ravel()).reshape(-1, 3).mean(axis=1)
+        c = tri.mean(axis=1)
+        return z, ground.height(c[:, 0], c[:, 1]) + ground.lift(c[:, 0], c[:, 1])
+
+    for w in plan.walks:
+        z, ribbon = centers(w.polygon, ground.walk_top, float(cfg["walk_step"]))
+        assert np.all(z >= ribbon + 0.5 * curb)   # a junction with a higher ribbon eats part of the curb
+    for m in plan.paint:
+        z0 = STREET_LIFT.get(plan.streets[m.street].kind, 0.24) + lift
+        z, ribbon = centers(m.polygon, lambda x, y: ground.height(x, y) + z0, float(cfg["paint_step"]))
+        assert np.all(z >= ribbon - 0.01)       # under a crossing street's higher ribbon is fine
 
 
 def test_street_paint_stays_inside_its_carriageway(world, plan):

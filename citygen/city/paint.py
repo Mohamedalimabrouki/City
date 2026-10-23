@@ -11,6 +11,7 @@ import numpy as np
 import shapely
 from shapely.geometry import LineString
 from shapely.ops import substring, unary_union
+from shapely.strtree import STRtree
 
 from .geo import lines, polygons
 from .model import Paint
@@ -30,8 +31,19 @@ def street_surfaces(districts, streets, style) -> None:
         st.surface = surface
 
 
+def _by_street(walks) -> dict:
+    """Walks grouped by their street index, in plan order."""
+    out: dict = {}
+    for w in walks:
+        out.setdefault(w.street, []).append(w)
+    return out
+
+
 def _carriageway(st, k: int, walks, promenade_width: float):
-    """Street surface minus its raised sidewalks and, on a boulevard, the promenade strip."""
+    """Street surface minus its raised sidewalks and, on a boulevard, the promenade strip.
+
+    `walks` are the walks of street k (see `_by_street`).
+    """
     area = st.line.buffer(st.width / 2.0, cap_style="flat")
     cuts = [w.polygon for w in walks if w.street == k and w.kind == "sidewalk"]
     if any(w.street == k and w.kind == "promenade" for w in walks):
@@ -43,7 +55,7 @@ def _carriageway(st, k: int, walks, promenade_width: float):
 
 def carriageway(plan, k: int, promenade_width: float = 8.0):
     """The drivable surface of street k, for tests and later traffic features."""
-    return _carriageway(plan.streets[k], k, plan.walks, promenade_width)
+    return _carriageway(plan.streets[k], k, _by_street(plan.walks).get(k, []), promenade_width)
 
 
 def _offset(line, distance: float) -> list:
@@ -117,15 +129,14 @@ def _crossing(plan_street, area, station: float, length: float, stripe: float, g
     return out
 
 
-def _crossings(streets, k: int, st, area, length: float, stripe: float, gap: float,
+def _crossings(bands, band_tree, k: int, st, area, length: float, stripe: float, gap: float,
                junction_gap: float) -> list:
     """Zebra bars on both approaches of every junction on one boulevard or arterial."""
     centers = []
-    for j, other in enumerate(streets):
+    for j in sorted(int(i) for i in band_tree.query(st.line, predicate="intersects")):
         if j == k:
             continue
-        band = other.line.buffer(other.width / 2.0, cap_style="flat")
-        hit = st.line.intersection(band)
+        hit = st.line.intersection(bands[j])
         if hit.is_empty:
             continue
         pts = shapely.get_coordinates(hit)
@@ -164,11 +175,12 @@ def make_paint(style, streets, walks) -> list:
         elif w.kind == "promenade" and w.street >= 0:
             promoted.add(w.street)
 
+    by_street = _by_street(walks)
     out: list = []
     for k, st in enumerate(streets):
         if st.width <= min_width or st.kind not in MARKED:
             continue
-        area = _carriageway(st, k, walks, promenade)
+        area = _carriageway(st, k, by_street.get(k, []), promenade)
         if area.is_empty:
             continue
         out_l = st.width / 2.0 - widths.get((k, 1), 0.0)
@@ -192,11 +204,13 @@ def make_paint(style, streets, walks) -> list:
                 for part in _offset(st.line, off):
                     out += _strips(part, paint_width, area, k)
 
+    bands = [other.line.buffer(other.width / 2.0, cap_style="flat") for other in streets]
+    band_tree = STRtree(bands)
     for k, st in enumerate(streets):
         if st.width <= min_width or st.kind not in CROSSED:
             continue
-        area = _carriageway(st, k, walks, promenade)
+        area = _carriageway(st, k, by_street.get(k, []), promenade)
         if area.is_empty:
             continue
-        out += _crossings(streets, k, st, area, cross_length, stripe, cross_gap, junction_gap)
+        out += _crossings(bands, band_tree, k, st, area, cross_length, stripe, cross_gap, junction_gap)
     return out

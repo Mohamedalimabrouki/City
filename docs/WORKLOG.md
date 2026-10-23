@@ -15,6 +15,47 @@ Entry format:
 - Doubts and questions for Ali: <none, or the question>
 ```
 
+## 2026-10-23 - Prompt 16 CP2 Checkpoint: light and ground
+- Commit: "CP2 fixes: sidewalks and paint stay above the asphalt, build time won back" (see git
+  log) | Model: Opus, medium
+- Reviewed prompts 7-15 (all DeepSeek V4.1 Flash) against their "Done when": all met, docs and
+  WORKLOG entries complete and honest, own random streams, numbers in the style, no em dashes.
+  One ground: every height reader outside `terrain.py`, `world.py`, the planner and `ground.py`
+  goes through `Ground` (only the 2D map shading reads the raw terrain, which is right there).
+- Found and fixed: (1) 223 of 1,552 sidewalk corners missed their street's lift (the block-side
+  edge lies exactly on the street outline), so they sat up to 0.24 m low, under the asphalt; the
+  prompt 13 test compared the formula with itself. New `Ground.walk_top` with `walk_reach`.
+  (2) Sidewalks and paint were drawn with their raw corners only: triangles up to 150 m long cut
+  under the ribbon or floated (paint up to 1.8 m). Now points every `walk_step` (15 m) and
+  `paint_step` (6 m, like the ribbon), and a new test checks the drawn triangles. (3) Speed:
+  `build --area capital --workers 8` had gone 27 s -> 55 s, the planner 9 s -> 17.5 s. Fixed
+  without changing any height: `Ground.height` samples the noise only in the city edge band
+  (bit-identical, checked on 300,000 points), crossings use an STRtree of street bands (same
+  output), carriageways group walks by street, sidewalk bands are clipped to nearby strips (same
+  area; one pair of touching pieces is now one piece).
+- Changed: `citygen/city/ground.py`, `citygen/city/paint.py`, `citygen/city/walks.py`,
+  `citygen/mesh/tile.py`, `styles/maghreb.toml`, `tests/test_citygen.py`, `docs/SPEC.md`,
+  `docs/HANDOFF.md`, `docs/ROADMAP.md`, `docs/prompts/04-people-landmarks-port.md` (prompt 39
+  note on roofs), `CLAUDE.md` (timings)
+- Checks: tests 38 passed (13.3 s; 21.6 s before the fixes, 11.3 s at `before-deepseek` on the
+  same Mac today); `build --quick` 7.5 s (11.1 s before, 7.0 s at the tag); capital 29.7 s with
+  8 workers, 73 s with 1 (SPEC: 26 s and 71 s). Fingerprint against `before`: 9 changed, all
+  `tiles/*` (bytes +1-19%, triangles +1-15%). Stats: 235,109 triangles, 2,452,551 drawn,
+  14.4 MB. Saved `fp-cp2`.
+- Budgets: the densest tile is 5.8 MB on the quick build and 8.2 MB on the full capital
+  (`tile_65_106`; 6.2 MB at the tag, so already over the 5 MB note before the trial). Roofs grew
+  it most (roof triangles 7.9k -> 28.3k): added to prompt 39 (Q5 lighter tiles) instead of a
+  new fix prompt. Tile time under 2 s (budget 5 s).
+- Look: `output/checks/cp2-street.png` (golden hour, top: before the fixes, bottom: after, mean
+  difference 1.29: same edge lines, zebra and curbs) and `output/checks/cp2-souk.png` (night,
+  0.00: the old town has no sidewalks). Noon was proven identical to the old daylight in
+  prompt 8. Blender file refreshed: `output/bodjantouna-42/goumosbane.blend`.
+- The DeepSeek trial: careful, readable code and exact reports; it settled two budget conflicts
+  well (ground blur, roof coping). It missed what only shows across prompts or in the drawn
+  result: speed lost step by step, tests that check a function against itself, drape
+  resolution. About one checkpoint session to fix. Recommendation: continue with it.
+- Doubts and questions for Ali: none.
+
 ## 2026-10-23 - Prompt 15 A1 Roof life
 - Commit: "Roof life: parapets and stair rooms" (see git log) | Model: DeepSeek V4.1 Flash,
   high (playbook: Sonnet, medium)
