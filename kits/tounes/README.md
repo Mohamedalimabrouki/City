@@ -17,4 +17,5 @@ pieces `tounes/<piece>`. Which piece goes where is decided in `styles/maghreb.to
 `[dressing.roles]`. See every piece in 3D: `python -m citygen kit-sheet`.
 
 Changes made here by hand: `awning_canvas` uses the `tr_canvas` material (`materials_map`), so
-the canvas no longer glows like a lamp.
+the canvas no longer glows like a lamp. Windows carry `glass` (x0, x1, y0, y1, z of their glass
+face, glTF axes): the generator lays a lit pane there at night (prompt 21).

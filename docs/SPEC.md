@@ -282,6 +282,23 @@ shaders (which ignore the image and the tint) and takes their palette color from
   sidewalk or street edge that crosses no building; it is draped on `Ground.drawn` (the terrain
   mesh as drawn) with a small lift, and the door threshold is the path top. Other doors on open
   ground also stand on `Ground.drawn`; doors on a street or walk on `Ground.surface`.
+- **Lit windows at night** (prompt 21, `[dressing.lit]`, `Dresser._light`): the palette's `glass_lit`
+  is an exact copy of `glass_dark` (color, roughness, no emissive), so nothing glows by day in the
+  viewer or in Blender; the viewer's night code (`LIT_AT_NIGHT`) lights `glass_lit` only. `Kit` adds
+  a twin `<piece>_lit` for every window, balcony and door piece with `glass_dark` (the same part
+  arrays, `glass_lit` for `glass_dark`; closed slab shutters have no glass and no twin). A kit window
+  that declares its glass in the manifest (`"glass": [x0, x1, y0, y1, z]`, glTF axes) gets
+  `<piece>_pane_lit`: one `glass_lit` quad over that rectangle, `pane_offset` m in front of the glass
+  (behind its grille); the viewer draws `*_pane_lit` nodes at night only and Blender hides objects
+  drawn only in `glass_lit`. After every piece of a building is placed exactly as by day, one draw
+  on `rng("lit", k, side, floor, section, half)` per flat decides lit or dark: a flat is one floor of
+  one side (yaw) of the building; in a modern block one half of one stair's section (sections as
+  `stair_spacing` spaces the stairs). Staircases (`window_stair`, `stair_door`) draw once per section
+  with their own chance `stair`. Chance per flat: `base + member x (members - members_ref) + wealth x
+  (wealth - 0.5) + trades[trade] + district[kind]`, plus `couple` for two-person households, within
+  `range`. A lit piece becomes its twin; a kit window keeps its piece and gets its pane right after
+  it. Quick capital: 40% of housing windows lit (medina 34%, colonial 39%, modern 41%). The glTF
+  writer reuses the accessors of a part drawn twice, so a twin costs one mesh entry, not a copy.
 
 ## 7. Style pack (`styles/<name>.toml`)
 

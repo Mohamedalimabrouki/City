@@ -610,7 +610,8 @@ def test_every_home_keeps_its_street_pieces_and_gets_a_door(plan, homes):
         assert spot is not None
         reach[spot.reach] += 1
         assert plan.buildings[k].footprint.exterior.distance(shapely.Point(spot.x, spot.y)) < 0.05
-        placed = [p for p in on if p.piece == spot.piece and abs(p.x - spot.x) < 1e-6 and abs(p.y - spot.y) < 1e-6]
+        placed = [p for p in on if p.piece in (spot.piece, spot.piece + "_lit")   # a lit fanlight at night (21)
+                  and abs(p.x - spot.x) < 1e-6 and abs(p.y - spot.y) < 1e-6]
         assert placed and kit.pieces[spot.piece].category == "door", k   # the door really is drawn there
         assert abs(placed[0].z - spot.z) < 1e-6 and not placed[0].on_ground
     assert reach["street"] > 50 and reach["open"] > 50 and reach["enclosed"] == 0   # 20.2: impasses reach them
@@ -730,6 +731,73 @@ def test_every_slab_has_windows_on_each_floor_of_its_open_long_sides(plan, homes
             assert seen >= set(range(floors)), (k, sorted(seen), floors)
         assert open_long >= 1, k
     assert slabs > 80
+
+
+def test_lit_twins_look_like_their_dark_pieces_by_day(world, homes):
+    # prompt 21: a `_lit` twin is its piece with glass_lit for glass_dark (same arrays); glass_lit is
+    # glass_dark's exact copy, no emissive; a kit window's pane covers its glass, just in front of it
+    kit = homes[0]
+    palette = world.style["palette"]
+    assert palette["glass_lit"] == palette["glass_dark"] and "emissive" not in palette["glass_lit"]
+    twins = [n for n in kit.pieces if n.endswith("_lit") and not n.endswith("_pane_lit")]
+    assert {"window_grille_blue_lit", "window_slab_white_lit", "window_stair_lit", "balcony_slab_lit",
+            "door_narrow_blue_lit", "stair_door_lit"} <= set(twins)
+    assert "window_slab_white_shut_lit" not in kit.pieces                   # closed shutters stay dark
+    for name in twins:
+        dark, lit = kit.pieces[name[:-4]].parts, kit.pieces[name].parts
+        assert [("glass_lit" if m == "glass_dark" else m) for m in dark] == list(lit), name
+        for m, part in dark.items():
+            twin = lit["glass_lit" if m == "glass_dark" else m]
+            for key in ("pos", "nrm", "uv", "idx"):
+                assert np.array_equal(part[key], twin[key]), (name, m, key)
+    panes = [n for n in kit.pieces if n.endswith("_pane_lit")]
+    assert len(panes) == 7
+    for name in panes:
+        pane, window = kit.pieces[name], kit.pieces[name[:-len("_pane_lit")]]
+        assert list(pane.parts) == ["glass_lit"] and pane.triangles == 2
+        x0, x1, y0, y1, z = (float(v) for v in kit.panes[window.name])
+        lo, hi = pane.bounds
+        assert np.allclose([lo[0], hi[0], lo[1], hi[1]], [x0, x1, y0, y1]) and lo[2] == hi[2] < z
+        pos = np.concatenate([p["pos"] for p in window.parts.values()])    # nothing of the window in its plane
+        inside = (pos[:, 0] > x0) & (pos[:, 0] < x1) & (pos[:, 1] > y0) & (pos[:, 1] < y1)
+        assert not np.any(inside & (np.abs(pos[:, 2] - lo[2]) < 0.004)), name
+
+
+def test_lit_windows_follow_households_and_light_whole_flats(world, plan, homes):
+    from citygen.city.dressing import Dresser
+    from citygen.city.geo import frame
+    kit, dresser, out = homes
+    lo, hi = world.style["dressing"]["slab"]["stair_spacing"]
+    windows = lit = 0
+    for k, (high, on, _, _, _) in out.items():
+        b = plan.buildings[k]
+        fh = b.height / max(1, int(b.floors))
+        cx, cy, length, _, angle = frame(b.footprint)
+        seg = length / max(1, int(length / ((lo + hi) / 2) + 0.5))
+        flats: dict = {}
+        for i, p in enumerate(on):
+            name = p.piece[:-4] if p.piece.endswith("_lit") else p.piece
+            if p.piece.endswith("_pane_lit") or not (name + "_lit" in kit.pieces or name + "_pane_lit" in kit.pieces):
+                continue
+            on_ = p.piece.endswith("_lit") or (i + 1 < len(on) and on[i + 1].piece == p.piece + "_pane_lit")
+            if on_ and p.piece + "_pane_lit" in kit.pieces:
+                assert (on[i + 1].x, on[i + 1].y, on[i + 1].z, on[i + 1].yaw) == (p.x, p.y, p.z, p.yaw)
+            windows += 1
+            lit += on_
+            t = (p.x - cx) * math.cos(angle) + (p.y - cy) * math.sin(angle) + length / 2
+            half = int(t // (seg / 2)) if dresser._is_slab(b) else 0      # one flat each side of a stair
+            if name in ("window_stair", "stair_door"):
+                continue
+            flats.setdefault((round(p.yaw, 3), int((p.z - high + 0.01) // fh), half), set()).add(on_)
+        assert all(len(v) == 1 for v in flats.values()), (k, flats)          # a flat is all lit or all dark
+    assert windows > 10000 and 0.25 <= lit / windows <= 0.5, lit / windows
+    day = Dresser(world, plan, kit, dresser.ground)                          # without lights: the same pieces
+    day.lit_cfg = {}
+    for k in list(out)[::10]:
+        high, on = out[k][0], out[k][1]
+        night = [(p.piece[:-4] if p.piece.endswith("_lit") else p.piece, p.x, p.y, p.z, p.yaw)
+                 for p in on if not p.piece.endswith("_pane_lit")]
+        assert night == [(p.piece, p.x, p.y, p.z, p.yaw) for p in day.building(k, high)], k
 
 
 def test_ground_drawn_is_the_terrain_mesh(world, plan, ground):

@@ -222,6 +222,14 @@ def window_slab(color: str, shut: bool = False) -> MeshBuilder:
     return mb
 
 
+def lit_pane(x0: float, x1: float, z0: float, z1: float, y: float) -> MeshBuilder:
+    """One `glass_lit` quad facing the street at depth y: the light behind a kit window's glass
+    (prompt 21). Kit windows are single vertex-colored meshes, so their glass cannot be lit alone."""
+    mb = MeshBuilder()
+    _faces(mb, [_front(x0, x1, z0, z1, y)], "glass_lit")
+    return mb
+
+
 def window_stair() -> MeshBuilder:
     """A small barred window lighting a staircase (0.7 x 0.9 m), set half a floor off the flats' windows."""
     mb = MeshBuilder()

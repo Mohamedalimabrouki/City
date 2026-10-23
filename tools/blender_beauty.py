@@ -28,7 +28,7 @@ import numpy as np
 from mathutils import Vector
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from blender_import import expand_instances  # noqa: E402
+from blender_import import expand_instances, hide_night_panes  # noqa: E402
 
 FOV = 50.0                              # vertical field of view in degrees, as the web viewer
 AERIAL = (160.0, 900.0, 650.0)          # viewer preset: bearing, distance, height above the focus
@@ -658,6 +658,7 @@ def import_tiles(folder: Path, index: dict) -> tuple[list[bpy.types.Object], dic
         bpy.ops.import_scene.gltf(filepath=str(folder / tile["file"]))
         fresh = [o for o in bpy.data.objects if o.name not in before]
         dressing = expand_instances(fresh, folder / tile["file"])
+        hide_night_panes([o for o in bpy.data.objects if o.name not in before])
         for ob in fresh:
             if ob.type != "MESH":
                 continue

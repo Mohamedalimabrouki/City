@@ -140,7 +140,12 @@ def write_glb(path, parts: dict, materials: dict, translation=(0.0, 0.0, 0.0),
                 prims.append(prim)
         return prims
 
+    written: dict = {}   # id(part) -> (attributes, indices): a part drawn again reuses its accessors
+
     def make_primitive(mat_name: str, part: dict):
+        if id(part) in written:   # a lit window twin shares its dark piece's arrays (prompt 21)
+            attrs, ind_acc = written[id(part)]
+            return {"attributes": dict(attrs), "indices": ind_acc, "material": add_material(mat_name), "mode": 4}
         pos = np.ascontiguousarray(part["pos"], dtype=np.float32).reshape(-1, 3)
         idx = np.asarray(part["idx"]).reshape(-1)
         if len(pos) == 0 or len(idx) == 0:
@@ -164,12 +169,16 @@ def write_glb(path, parts: dict, materials: dict, translation=(0.0, 0.0, 0.0),
         else:
             ind = np.ascontiguousarray(idx, dtype=np.uint32)
             ind_acc = add_accessor(ind, _UINT, "SCALAR", _ELEMENT_ARRAY_BUFFER)
+        written[id(part)] = (attrs, ind_acc)
+        return {"attributes": dict(attrs), "indices": ind_acc, "material": add_material(mat_name), "mode": 4}
+
+    def add_material(mat_name: str) -> int:
         if mat_name not in material_index:
             material_index[mat_name] = len(gl_materials)
             spec = materials.get(mat_name, {})
             texture = add_texture(spec["texture"]) if spec.get("texture") else None
             gl_materials.append(_material(mat_name, spec, texture))
-        return {"attributes": attrs, "indices": ind_acc, "material": material_index[mat_name], "mode": 4}
+        return material_index[mat_name]
 
     meshes: list[dict] = []
     primitives = make_primitives(parts)

@@ -486,6 +486,10 @@ function addTile(gltf) {
     }
     stats.triangles += (o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count) / 3;
     if (o.isInstancedMesh && o.material.userData.glows && !LIT_AT_NIGHT[o.material.name]) glowMeshes.push(o);
+    if (/_pane_lit$/.test(o.name)) {
+      o.visible = night;
+      nightOnly.push(o);
+    }
   });
   tiles.add(root);
   root.userData.box = new THREE.Box3().setFromObject(root);
@@ -801,9 +805,14 @@ const lampLights = [];
 const LAMP_LIGHTS = 12;
 const NIGHT = { sky: 0x0c1a38, hemiSky: 0x3a5288, hemiGround: 0x241b12, hemi: 1.0, sun: 0xa8bfff, sunI: 0.7, glow: 4, lamp: 6 };
 
-// window glass lights up at night: the generator's windows glow, the kit's stay dark, so some
-// houses look awake and others asleep
-const LIT_AT_NIGHT = { glass_dark: [0xffa64a, 0.75] };
+// lit window glass glows at night: the generator chose which rooms are lit (glass_lit, the same
+// as glass_dark by day) from the household, so some flats look awake and others asleep. A kit
+// window's lit pane (a "..._pane_lit" piece over its glass) is drawn at night only.
+const LIT_AT_NIGHT = { glass_lit: [0xffa64a, 0.75] };
+const nightOnly = [];           // the lit panes of kit windows, hidden by day
+// lights seen from afar: at night the fog would mix them toward the dark sky (pale dots from the
+// air), so these stay out of it while the buildings fade; by day they keep the fog as before
+const CLEAR_AT_NIGHT = new Set(['glass_lit', 'lantern_glow', 'tr_glow']);
 
 function glow(m) {
   if (!m.userData.glows) return;
@@ -814,6 +823,11 @@ function glow(m) {
     m.emissiveIntensity = night ? lit[1] : m.userData.day[1];
   } else {
     m.emissiveIntensity = night ? NIGHT.glow : m.userData.day[1];
+  }
+  const fog = !(night && CLEAR_AT_NIGHT.has(m.name));
+  if (m.fog !== fog) {
+    m.fog = fog;
+    m.needsUpdate = true;
   }
 }
 
@@ -862,6 +876,7 @@ async function setNight(on) {
     glow(m);
     if (m.userData.water) m.envMapIntensity = on ? 0.06 : 0.9;   // no daylight sky in the water at night
   }
+  for (const o of nightOnly) o.visible = on;
   if (sea) sea.material.envMapIntensity = on ? 0.06 : 0.9;
   if (on && !lampLights.length) {
     for (let k = 0; k < LAMP_LIGHTS; k++) {

@@ -351,6 +351,13 @@
    },
    "materials": [
     "tr_std"
+   ],
+   "glass": [
+    -0.35,
+    0.35,
+    0.0,
+    0.9,
+    -0.014
    ]
   },
   "window_grille_blue": {
@@ -384,6 +391,13 @@
    },
    "materials": [
     "tr_std"
+   ],
+   "glass": [
+    -0.35,
+    0.35,
+    0.0,
+    0.9,
+    -0.014
    ]
   },
   "window_grille_wood": {
@@ -417,6 +431,13 @@
    },
    "materials": [
     "tr_std"
+   ],
+   "glass": [
+    -0.35,
+    0.35,
+    0.0,
+    0.9,
+    -0.014
    ]
   },
   "window_shutter_green": {
@@ -450,6 +471,13 @@
    },
    "materials": [
     "tr_std"
+   ],
+   "glass": [
+    -0.35,
+    0.35,
+    0.0,
+    0.9,
+    -0.014
    ]
   },
   "window_shutter_blue": {
@@ -483,6 +511,13 @@
    },
    "materials": [
     "tr_std"
+   ],
+   "glass": [
+    -0.35,
+    0.35,
+    0.0,
+    0.9,
+    -0.014
    ]
   },
   "window_birdcage_blue": {
@@ -517,6 +552,13 @@
    },
    "materials": [
     "tr_std"
+   ],
+   "glass": [
+    -0.4,
+    0.4,
+    0.0,
+    1.1,
+    -0.045
    ]
   },
   "window_birdcage_green": {
@@ -551,6 +593,13 @@
    },
    "materials": [
     "tr_std"
+   ],
+   "glass": [
+    -0.4,
+    0.4,
+    0.0,
+    1.1,
+    -0.045
    ]
   },
   "balcony_lattice_green": {

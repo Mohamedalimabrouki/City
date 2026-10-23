@@ -32,7 +32,7 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
 - [x] 20 A2d Ground textures
 - [x] 20.1 AD1 Every home gets a door and windows
 - [x] 20.2 AD2 Impasses to landlocked houses
-- [ ] 21 A9 Lit windows by household
+- [x] 21 A9 Lit windows by household
 - [ ] 22 AR1 Arcades and iron balconies
 - [ ] 23 AR2 Building massing
 - [ ] 24 A7 More greenery
@@ -224,7 +224,7 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
   (front +Y in Blender = glTF -Z, origin at the anchor; prompt 38) plus `manifest.json` (category and anchor
   from custom properties). Done when: a kit made in Blender shows in `python -m citygen kit-sheet`
   and a role in the style uses one of its pieces.
-- [ ] **A9 Lit windows by household** (S) - At night only the generator's windows glow, all of
+- [x] **A9 Lit windows by household** (S) - At night only the generator's windows glow, all of
   them. Give windows a lit and a dark variant (`glass_lit`, lit by the viewer at night only) and
   let the household decide (bigger families and some trades stay up late); Tounes windows get a
   lit glass pane piece (prompt 21). Done when: a night snapshot shows a believable mix.

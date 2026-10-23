@@ -138,6 +138,17 @@ def import_tile(path: Path, city: bpy.types.Collection, materials: dict) -> None
                 if mat.users == 0:
                     bpy.data.materials.remove(mat)
     expand_instances(fresh, path)   # after the move, so the copies land in `city` too
+    hide_night_panes([o for o in bpy.data.objects if o.name not in before])
+
+
+def hide_night_panes(objects) -> None:
+    """Hide the lit panes of kit windows (objects drawn only in `glass_lit`): Blender scenes are
+    daylight, and the viewer shows these panes at night only. Lit generator windows stay visible:
+    their `glass_lit` looks exactly like `glass_dark` by day."""
+    for obj in objects:
+        slots = obj.material_slots if obj.type == "MESH" else ()
+        if slots and all(s.material and _COPY_SUFFIX.sub("", s.material.name) == "glass_lit" for s in slots):
+            obj.hide_render = obj.hide_viewport = True
 
 
 def instance_transforms(path: Path) -> dict:

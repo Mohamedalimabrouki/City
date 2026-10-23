@@ -220,8 +220,10 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
 - **Thin cloth and canvas** need real faces on both sides (`add_sheet` in `mesh/builder.py`):
   a double-sided material alone showed black undersides.
 - **Vertex colors** are written as 8-bit RGBA (a quarter of the size of floats).
-- **Night mode** in the viewer: materials with an `emissive` color glow; window glass
-  (`glass_dark`) lights up; the nearest lamps get real lights. Kit windows stay dark.
+- **Night mode** in the viewer: materials with an `emissive` color glow; lit window glass
+  (`glass_lit`, chosen per flat by the household, prompt 21) lights up and `glass_dark` stays dark;
+  kit windows light through their `*_pane_lit` pieces, shown at night only; the nearest lamps get
+  real lights.
 - **Golden hour in the viewer** (prompt 8): the light menu is `PRESETS` in `tools/viewer/index.html`.
   Noon copies the old values exactly (0 pixel difference); golden copies Blender's sun (azimuth
   225, elevation 14). Two traps: three mixes fog *after* tone mapping, so `scene.fog.color` must be
@@ -304,6 +306,22 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
   houses had a 2 m street wall as main facade and no room for a door on their long arterial wall.
   Cost: full capital 34.8 s -> 42.5 s in the same minutes (planner 10.6 -> 15.5 s, tile work +12%),
   `build --quick` 9.1 -> 9.4 s, old-town tile 6.06 -> 6.74 MB.
+- **Lit windows** (prompt 21, `Dresser._light`): light decisions run after every piece is placed
+  and swap names only, so the day list is unchanged (a test dresses with `lit_cfg` off and compares).
+  Key a flat on geometry (yaw, floor from z, stair section from the block's frame), never on the
+  stair door spots or on a per-building list of groups: the `every_home` off/on prefix test dresses
+  with different piece sets, and a shared per-building stream would shift every decision. Panes go
+  right after their window in the list, for the same prefix reason. Kit windows have no glass
+  material and their near-black glass (roughness 0.9) cannot match `glass_dark`, so a pane in front
+  of it would change the day picture: the viewer hides `*_pane_lit` nodes by day (day difference
+  0.00) and Blender hides objects drawn only in `glass_lit`. The mashrabiya balconies got no pane: their dark
+  back panel at z -0.52 sits 1-4 mm behind lattice faces, too tight to avoid z-fighting. Twins first
+  cost +8% on light tiles (each twin a full mesh copy); `write_glb` now reuses the accessors of a
+  part dict seen before (twins share their dark piece's part dicts): worst +2.0%. At night the
+  viewer keeps lights out of the fog (`CLEAR_AT_NIGHT`: `glass_lit`, `lantern_glow`, `tr_glow`,
+  `m.fog = false` with `needsUpdate`, back on by day): fogged, lit windows faded toward the dark sky
+  from the air, while real lit windows stay warm points across a city. The headless SwiftShader
+  snapshot renders lit glass as grey dots at aerial distance; check night glass in a GPU browser.
 - **Old-town tiles** reach about 5 MB on the quick build and 8 MB on the full capital
   (`tile_65_106`, mostly roofs since prompt 15); task Q5 (prompt 39) brings them down.
 

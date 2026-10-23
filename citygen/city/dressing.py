@@ -99,6 +99,8 @@ class Dresser:
         self.open_cfg = self.cfg.get("open_walls", {})
         self.slab_cfg = self.cfg.get("slab", {})
         self.path_cfg = self.cfg.get("paths", {})
+        self.lit_cfg = self.cfg.get("lit", {})
+        self._stairs = {n for r in ("stair_window", "stair_door") for n in (self.roles[r][0] if r in self.roles else [r])}
         targets = self.surfaces + [w.polygon for w in getattr(plan, "walks", ())]
         self.target_tree = STRtree(targets) if targets else None   # where a garden path may end
 
@@ -185,6 +187,8 @@ class Dresser:
             self._homes(k, b, walls, spots, high, out, boxes)
             if paths is not None:
                 paths += [s.path for s in spots if s.path is not None]
+        if self.lit_cfg:
+            self._light(k, b, high, out)
         return out
 
     def entrances(self, k: int) -> list:
@@ -728,6 +732,79 @@ class Dresser:
                     if role is not None:
                         cells.append(((col + 0.5) * length / count, high + floor * fh, [(role, sill)]))
             self._wall_pieces(out, cells, rng, walls, int(i), boxes)
+
+    # --- lit windows at night (prompt 21) -------------------------------------------------------
+    def _light(self, k: int, b, high: float, out: list) -> None:
+        """Light the windows of the rooms where someone is still up, after every piece is placed.
+
+        A lit window becomes its `_lit` twin (the same piece with `glass_lit`); a kit window keeps its
+        piece and gets its `_pane_lit` right after it. One draw on `rng("lit", k, ...)` per flat: the
+        same floor of one side of the building (in a modern block, one half of one stair's section), or
+        per staircase (its windows and door together). No other stream is touched, so the day look
+        stays exactly as it was.
+        """
+        pieces = self.kit.pieces
+        todo = [i for i, p in enumerate(out) if p.piece + "_lit" in pieces or p.piece + "_pane_lit" in pieces]
+        if not todo:
+            return
+        chance, stair = self._lit_chance(k, b), float(self.lit_cfg.get("stair", 0.5))
+        floors = max(1, int(b.floors))
+        fh = b.height / floors
+        sections = self._sections(b) if self._is_slab(b) else None
+        draws: dict = {}
+        lit = set()
+        for i in todo:
+            p = out[i]
+            part = sections(p.x, p.y) if sections else (0, 0)
+            if p.piece in self._stairs:
+                key, odds = ("stair", part[0]), stair
+            else:
+                key, odds = (round(p.yaw, 4), max(0, int((p.z - high + 0.01) // fh))) + part, chance
+            if key not in draws:
+                draws[key] = self.rng("lit", k, *key).random()
+            if draws[key] < odds:
+                lit.add(i)
+        new = []
+        for i, p in enumerate(out):
+            new.append(p)
+            if i not in lit:
+                continue
+            if p.piece + "_lit" in pieces:
+                p.piece += "_lit"
+            else:
+                new.append(Placement(p.piece + "_pane_lit", p.x, p.y, p.z, p.yaw, p.on_ground, p.scale))
+        out[:] = new
+
+    def _lit_chance(self, k: int, b) -> float:
+        """Chance that a room of dwelling k is lit at night: bigger households and late trades stay
+        up, two-person households (often an older couple) and early trades go to bed, wealth a little."""
+        cfg = self.lit_cfg
+        home = self.homes.get(k)
+        if home is None:
+            return float(cfg.get("other", 0.1))
+        p = (cfg.get("base", 0.34) + cfg.get("member", 0.025) * (home.members - cfg.get("members_ref", 5))
+             + cfg.get("wealth", 0.12) * (home.wealth - 0.5) + cfg.get("trades", {}).get(home.trade, 0.0)
+             + cfg.get("district", {}).get(self.kinds[b.district], 0.0))
+        if home.members <= 2:
+            p += cfg.get("couple", -0.08)
+        lo, hi = cfg.get("range", [0.05, 0.85])
+        return float(np.clip(p, lo, hi))
+
+    def _sections(self, b):
+        """For a modern block: (x, y) -> (stair section, half of it) along the block's length. The
+        sections are the stair doors' shares (one per 20-25 m, as `_stair_row` spaces them); each stair
+        serves one flat on either side of it on every floor."""
+        cx, cy, length, _, angle = frame(b.footprint)
+        lo, hi = self.slab_cfg.get("stair_spacing", [20.0, 25.0])
+        count = max(1, int(length / ((lo + hi) / 2) + 0.5))
+        seg = max(length / count, 1e-6)
+        c, s = math.cos(angle), math.sin(angle)
+
+        def part(x: float, y: float) -> tuple:
+            t = (x - cx) * c + (y - cy) * s + length / 2
+            sec = min(max(int(t // seg), 0), count - 1)
+            return sec, int(t - sec * seg >= seg / 2)
+        return part
 
     # --- trees ------------------------------------------------------------------------------
     def tree(self, k: int, t, z: float) -> Placement | None:

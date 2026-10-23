@@ -17,8 +17,11 @@ import numpy as np
 
 from .config import ROOT
 from .mesh.gltf import read_parts
-from .mesh.props import catalog
+from .mesh.props import catalog, lit_pane
 from .rng import stream
+
+DARK, LIT = "glass_dark", "glass_lit"          # window glass by day; the twin the viewer lights at night
+LIT_CATEGORIES = {"window", "balcony", "door"}   # pieces whose glass may be lit (not shop goods)
 
 
 @dataclass
@@ -61,16 +64,33 @@ class Piece:
 
 class Kit:
     def __init__(self, seed: int, kits=(), palette: dict | None = None, trees: dict | None = None,
-                 climber: dict | None = None):
+                 climber: dict | None = None, lit: dict | None = None):
         self.pieces: dict[str, Piece] = {}
         self.materials: dict = dict(palette or {})
         table = catalog(stream(seed, "props"), seed, trees, climber)
         for name, (mb, category, anchor) in table.items():
             self.pieces[name] = Piece(name, category, anchor, mb.gltf_parts(), "procedural")
+        self.panes: dict = {}   # kit piece -> (x0, x1, y0, y1, z) of its glass, glTF axes (manifest "glass")
         for kit in kits:
             folder = Path(kit) if Path(kit).is_dir() else ROOT / "kits" / kit
             if (folder / "manifest.json").is_file():
                 self._load(folder)
+        if LIT in self.materials:
+            self._lit_pieces(float((lit or {}).get("pane_offset", 0.008)))
+
+    def _lit_pieces(self, offset: float) -> None:
+        """Lit windows (prompt 21): `<piece>_lit`, the same piece with `glass_lit` for `glass_dark`,
+        and for a kit window, which has no glass material of its own, `<piece>_pane_lit`: a lit quad
+        over its glass, `offset` m in front of it (behind any grille), shown only at night."""
+        for name, pc in list(self.pieces.items()):
+            if pc.category in LIT_CATEGORIES and DARK in pc.parts:
+                parts = {(LIT if m == DARK else m): part for m, part in pc.parts.items()}
+                self.pieces[name + "_lit"] = Piece(name + "_lit", pc.category, pc.anchor, parts, pc.source, pc.tags)
+        for name, (x0, x1, y0, y1, z) in self.panes.items():
+            pc = self.pieces[name]
+            key = name + "_pane_lit"
+            self.pieces[key] = Piece(key, "pane", pc.anchor, lit_pane(x0, x1, y0, y1, offset - z).gltf_parts(),
+                                     pc.source, pc.tags)
 
     def _load(self, folder: Path) -> None:
         manifest = json.loads((folder / "manifest.json").read_text(encoding="utf-8"))
@@ -88,9 +108,12 @@ class Kit:
             key = f"{folder.name}/{name}"
             self.pieces[key] = Piece(key, spec.get("category", "ground_prop"), spec.get("anchor", "ground"), parts,
                                      folder.name, tuple(spec.get("tags", [])))
+            if "glass" in spec:
+                self.panes[key] = tuple(float(v) for v in spec["glass"])
 
 
 def make_kit(seed: int, cfg: dict, style: dict) -> Kit:
     """The one place a Kit is built from a seed, the config and the style (tiles, kit sheet, tools)."""
     dressing = style.get("dressing", {})
-    return Kit(seed, cfg["build"].get("kits", []), style["palette"], dressing.get("trees"), dressing.get("climber"))
+    return Kit(seed, cfg["build"].get("kits", []), style["palette"], dressing.get("trees"), dressing.get("climber"),
+               dressing.get("lit"))

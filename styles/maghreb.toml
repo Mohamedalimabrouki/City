@@ -119,6 +119,7 @@ door_brown = { color = "#7A5232", roughness = 0.6 }
 door_red = { color = "#A8322D", roughness = 0.55 }
 stud_black = { color = "#1C1C1C", roughness = 0.4, metallic = 0.6 }
 glass_dark = { color = "#1E2A33", roughness = 0.15 }
+glass_lit = { color = "#1E2A33", roughness = 0.15 }   # glass_dark's twin: the same by day, the viewer lights it at night
 iron = { color = "#2B2F33", roughness = 0.5, metallic = 0.5 }
 lantern_glow = { color = "#FFD98A", emissive = "#FFB347" }
 terracotta = { color = "#B8643C" }
@@ -671,6 +672,23 @@ lift = 0.04                # above the ground, so it never flickers through the 
 reach = 40.0               # longest path in meters
 step = 4.0                 # meters between draped points (the city ground is smooth)
 material = "sidewalk"
+
+# Lit windows at night (prompt 21): the household decides. Each flat (one floor of one side of a
+# house; in a modern block, one half of a stair's section) is lit with this chance:
+# base + member x (members - members_ref) + wealth x (wealth - 0.5) + trades + district,
+# plus couple for two-person households, kept within range. Staircases have their own chance.
+[dressing.lit]
+base = 0.3
+member = 0.025
+members_ref = 5
+couple = -0.08             # two people, often an older couple: early to bed
+wealth = 0.12
+trades = { baker = 0.12, student = 0.14, "cafe owner" = 0.12, nurse = 0.08, journalist = 0.1, "taxi driver" = 0.06, farmer = -0.1, shepherd = -0.1, "olive presser" = -0.08, fisherman = -0.08 }
+district = { medina = 0.02, colonial = 0.05, modern = 0.06, residential = 0.0, suburb = -0.04, village = -0.1 }
+range = [0.05, 0.85]
+stair = 0.55               # a staircase's windows and door, lit together
+other = 0.1                # a dressed building without a household
+pane_offset = 0.008        # meters a kit window's lit pane stands in front of its glass (behind the grille)
 
 # Bougainvillea climbers (citygen/mesh/climbers.py), the `climber` role. The piece hangs on a wall:
 # `top` is where the cascade starts, `drop` how far its hem hangs below it.

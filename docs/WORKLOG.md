@@ -15,6 +15,28 @@ Entry format:
 - Doubts and questions for Ali: <none, or the question>
 ```
 
+## 2026-10-23 - Prompt 21 A9 Lit windows by household
+- Commit: (see git log) | Model: Opus 5.5, medium (playbook: Sonnet, medium)
+- Changed: `citygen/city/dressing.py` (`_light`, `_lit_chance`, `_sections`), `citygen/kit.py`
+  (`_lit_pieces`: `_lit` twins, `_pane_lit` panes from the manifest's `glass`), `citygen/mesh/props.py`
+  (`lit_pane`), `citygen/mesh/gltf.py` (a part drawn twice reuses its accessors), `kits/tounes/manifest.json`
+  (`glass` rectangles of 7 windows), `styles/maghreb.toml` (`glass_lit`, `[dressing.lit]`),
+  `tools/viewer/index.html` (`LIT_AT_NIGHT` lights `glass_lit`; panes at night only),
+  `tools/blender_import.py`, `tools/blender_beauty.py` (`hide_night_panes`), tests (2 new, 1 adjusted:
+  a door spot's piece may be drawn as its `_lit` twin), `docs/SPEC.md`, `docs/HANDOFF.md`, `docs/ROADMAP.md`
+- Checks: tests 68 passed (21.5 s; HEAD 21.5 s); `build --quick` 9.5 s; fingerprint 38 changed: 29
+  new `kit/*_lit` pieces and `tiles/*`, worst tile +2.0% (`tile_13_24`). Quick capital: 40% of housing
+  windows lit (medina 34%, colonial 39%, modern 41%). Day street picture: difference 0.00.
+- Look: `output/checks/21.png` (street at night: lit kit windows by flat), `output/checks/21-night-aerial.png`
+  (lead's camera over the colonial blocks, headless: grey dots), `output/checks/21-night-viewer.jpg`
+  (same camera in the GPU viewer, High: the real look). Blender: `output/bodjantouna-42/goumosbane.blend`.
+- Lead review: at night `glass_lit`, `lantern_glow` and `tr_glow` stay out of the fog (`CLEAR_AT_NIGHT`
+  in the viewer; fog back on by day, day difference still 0.00). In the GPU viewer (browser pane,
+  same camera) lit flats read as warm orange points in clusters, many dark; 1,464 kit window panes
+  visible at night, 0 by day. The headless SwiftShader snapshot draws lit window glass as grey
+  dots (HEAD's glowing `glass_dark` did not show there either), so judge night glass in the real viewer.
+- Doubts and questions for Ali: mashrabiya balconies stay dark (no room for a pane without flicker).
+
 ## 2026-10-23 - Prompt 20.2 AD2 Impasses to landlocked houses
 - Commit: (see git log) | Model: Opus 5.5, high (playbook: Sonnet, high)
 - Scope: the lead extended the prompt from medina and village blocks to residential and suburb
