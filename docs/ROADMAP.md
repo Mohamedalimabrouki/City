@@ -26,7 +26,7 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
 - [x] 14 S1 Street surfaces and markings
 - [x] 15 A1 Roof life
 - [x] 16 CP2 Checkpoint: light and ground
-- [ ] 17 A2a Textures in the 3D files
+- [x] 17 A2a Textures in the 3D files
 - [ ] 18 A2b Generated textures
 - [ ] 19 A2c Textured walls and roofs
 - [ ] 20 A2d Ground textures

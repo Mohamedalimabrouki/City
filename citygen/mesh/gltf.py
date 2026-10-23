@@ -31,17 +31,26 @@ def srgb_to_linear(rgb) -> list[float]:
     return [round(float(v), 5) for v in lin]
 
 
-def _material(name: str, spec: dict) -> dict:
+_SAMPLER = {"magFilter": 9729, "minFilter": 9987, "wrapS": 10497, "wrapT": 10497}  # REPEAT, mipmaps
+
+
+def _material(name: str, spec: dict, texture: int | None = None) -> dict:
     # glTF wants linear colors; style packs are written in sRGB hex like a paint picker.
     rgb = srgb_to_linear(hex_to_rgb(spec.get("color", "#cccccc")))
-    mat = {
-        "name": name,
-        "pbrMetallicRoughness": {
-            "baseColorFactor": rgb + [1.0],
-            "metallicFactor": float(spec.get("metallic", 0.0)),
-            "roughnessFactor": float(spec.get("roughness", 0.9)),
-        },
+    base = {
+        "baseColorFactor": rgb + [1.0],
+        "metallicFactor": float(spec.get("metallic", 0.0)),
+        "roughnessFactor": float(spec.get("roughness", 0.9)),
     }
+    if texture is not None:
+        # UVs are meters, so one repeat covers `texture_size` meters: scale the UVs instead of
+        # baking a repeat into the mesh (three.js and Blender both read KHR_texture_transform).
+        w, h = (float(v) for v in spec.get("texture_size", (1.0, 1.0)))
+        base["baseColorTexture"] = {
+            "index": texture,
+            "extensions": {"KHR_texture_transform": {"scale": [1.0 / w, 1.0 / h]}},
+        }
+    mat = {"name": name, "pbrMetallicRoughness": base}
     if spec.get("double_sided"):
         mat["doubleSided"] = True
     if spec.get("emissive"):
@@ -50,13 +59,21 @@ def _material(name: str, spec: dict) -> dict:
 
 
 def write_glb(path, parts: dict, materials: dict, translation=(0.0, 0.0, 0.0),
-              name: str = "tile", extras: dict | None = None, instances: list | None = None) -> int:
+              name: str = "tile", extras: dict | None = None, instances: list | None = None,
+              images: dict | None = None) -> int:
     """Write a .glb file and return its size in bytes.
 
     parts:     {material: {"pos": (N,3), "nrm": (N,3) or None, "uv": (N,2) or None,
                            "col": (N,3|4) linear vertex colors or None, "idx": (M,)}}
     materials: {material: {"color": "#RRGGBB", "roughness": 0.9, "metallic": 0.0,
-                           "double_sided": False, "emissive": "#RRGGBB"}}
+                           "double_sided": False, "emissive": "#RRGGBB",
+                           "texture": "plaster", "texture_size": [w, h]}}
+    images:    {texture name: {"uri": "textures/plaster.png"} or {"bytes": png, "mime": ...}}
+               A material that names a texture in `images` gets it as a base-color texture:
+               the palette color still multiplies it, and `texture_size` (meters per repeat)
+               becomes a KHR_texture_transform scale so the meter UVs stay unchanged.
+               "shared" builds pass URIs written once by the parent; "embedded" builds pass
+               the bytes, which go into the binary chunk.
     instances: [{"name": str, "parts": {...like parts}, "t": (K,3), "r": (K,4) xyzw, "s": (K,3)}]
                each becomes a child node drawn K times (EXT_mesh_gpu_instancing): one door model
                placed on thousands of houses costs its geometry once.
@@ -65,21 +82,25 @@ def write_glb(path, parts: dict, materials: dict, translation=(0.0, 0.0, 0.0),
     offset = 0
     views: list[dict] = []
     accessors: list[dict] = []
+    extensions: set[str] = set()
 
-    def add_accessor(arr: np.ndarray, comp: int, kind: str, target: int, minmax=False, normalized=False) -> int:
+    def add_view(data: bytes, target: int = 0) -> int:
         nonlocal offset
         pad = (-offset) % 4
         if pad:
             chunks.append(b"\x00" * pad)
             offset += pad
-        data = arr.tobytes()
         view = {"buffer": 0, "byteOffset": offset, "byteLength": len(data)}
         if target:
             view["target"] = target
         views.append(view)
         chunks.append(data)
         offset += len(data)
-        acc = {"bufferView": len(views) - 1, "componentType": comp, "count": int(arr.shape[0]), "type": kind}
+        return len(views) - 1
+
+    def add_accessor(arr: np.ndarray, comp: int, kind: str, target: int, minmax=False, normalized=False) -> int:
+        view = add_view(arr.tobytes(), target)
+        acc = {"bufferView": view, "componentType": comp, "count": int(arr.shape[0]), "type": kind}
         if normalized:
             acc["normalized"] = True
         if minmax:
@@ -90,6 +111,26 @@ def write_glb(path, parts: dict, materials: dict, translation=(0.0, 0.0, 0.0),
 
     gl_materials: list[dict] = []
     material_index: dict = {}
+    gl_images: list[dict] = []
+    gl_textures: list[dict] = []
+    texture_index: dict = {}
+
+    def add_texture(name: str) -> int | None:
+        """Index of texture `name`, adding its image, texture and the shared sampler once."""
+        if name in texture_index:
+            return texture_index[name]
+        info = (images or {}).get(name)
+        if info is None:
+            return None
+        if "bytes" in info:
+            image = {"bufferView": add_view(info["bytes"]), "mimeType": info.get("mime", "image/png")}
+        else:
+            image = {"uri": info["uri"]}
+        gl_images.append(image)
+        gl_textures.append({"sampler": 0, "source": len(gl_images) - 1})
+        texture_index[name] = len(gl_textures) - 1
+        extensions.add("KHR_texture_transform")
+        return texture_index[name]
 
     def make_primitives(parts: dict) -> list:
         prims = []
@@ -125,7 +166,9 @@ def write_glb(path, parts: dict, materials: dict, translation=(0.0, 0.0, 0.0),
             ind_acc = add_accessor(ind, _UINT, "SCALAR", _ELEMENT_ARRAY_BUFFER)
         if mat_name not in material_index:
             material_index[mat_name] = len(gl_materials)
-            gl_materials.append(_material(mat_name, materials.get(mat_name, {})))
+            spec = materials.get(mat_name, {})
+            texture = add_texture(spec["texture"]) if spec.get("texture") else None
+            gl_materials.append(_material(mat_name, spec, texture))
         return {"attributes": attrs, "indices": ind_acc, "material": material_index[mat_name], "mode": 4}
 
     meshes: list[dict] = []
@@ -156,12 +199,18 @@ def write_glb(path, parts: dict, materials: dict, translation=(0.0, 0.0, 0.0),
         meshes.append({"name": inst["name"], "primitives": prims})
         gltf["nodes"].append(child)
         node.setdefault("children", []).append(len(gltf["nodes"]) - 1)
-        gltf["extensionsUsed"] = ["EXT_mesh_gpu_instancing"]
+        extensions.add("EXT_mesh_gpu_instancing")
+    if extensions:
+        gltf["extensionsUsed"] = sorted(extensions)
     if meshes:
         gltf["meshes"] = meshes
         gltf["materials"] = gl_materials
         gltf["accessors"] = accessors
         gltf["bufferViews"] = views
+    if gl_textures:
+        gltf["samplers"] = [_SAMPLER]
+        gltf["images"] = gl_images
+        gltf["textures"] = gl_textures
 
     bin_data = b"".join(chunks)
     bin_data += b"\x00" * ((-len(bin_data)) % 4)

@@ -19,6 +19,7 @@ from .city.ground import Ground
 from .export.lore import gazetteer, plan_json, slug, write_json
 from .export.maps import city_map, country_map
 from .mesh.tile import TileContext, export_tile
+from .mesh.textures import write_shared_textures
 from .world import generate_world
 
 
@@ -279,6 +280,11 @@ def build(cfg: dict, area: str | None = None, log=print, force: bool = False) ->
         folder.mkdir(parents=True, exist_ok=True)
         for stale in folder.glob("*.part"):   # tiles an interrupted build left half written
             stale.unlink()
+        texture_mode = str(cfg["tiles"].get("textures", "shared"))
+        if texture_mode == "shared":   # once, here: parallel workers must never race on one image
+            written = write_shared_textures(world.style, world.seed, folder)
+            if written:
+                log(f"textures: {len(written)} shared images in tiles/textures")
         if not force:
             done = finished_tiles(folder, journal, key, keys)
     todo = [k for k in keys if k not in done]

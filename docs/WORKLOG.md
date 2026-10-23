@@ -15,6 +15,32 @@ Entry format:
 - Doubts and questions for Ali: <none, or the question>
 ```
 
+## 2026-10-23 - Prompt 17 A2a Textures in the 3D files
+- Commit: "Textures in the 3D files: shared, embedded or off" (see git log) | Model: DeepSeek
+  V4.1 Flash, high (playbook: Sonnet, high)
+- Changed: `citygen/mesh/gltf.py` (`images` table, `baseColorTexture` + `KHR_texture_transform`
+  scale `1/texture_size`, `images`/`textures`/REPEAT sampler with mipmaps; embedded images as
+  bufferViews), `citygen/mesh/textures.py` (new: provider `texture(name, seed)` with one neutral
+  test checker on its own stream, `write_shared_textures`, `images_for`), `citygen/mesh/tile.py`
+  (`TileContext` texture mode and image table, `texture_files` in each tile entry),
+  `citygen/build.py` (parent writes shared images before workers start), `citygen/defaults.toml`
+  (`[tiles] textures = "shared"`), `tools/viewer/index.html` (material cache keys on texture URL
+  and repeat), `tools/make_artifact.py` (one base64 copy per image, blob URLs through
+  `setURLModifier`), tests (5 new), `docs/SPEC.md`, `docs/ROADMAP.md`, `docs/HANDOFF.md`
+- Checks: tests 44 passed (12.5 s); `build --quick` 7.1 s, 9 tiles; fingerprint 140 parts,
+  0 changed with the default `shared` (the palette has no textures yet) and 0 changed on a
+  `textures = "off"` build. A test build with `cream` textured (`output/checks/p17`) writes
+  `tiles/textures/test.png`; tiles that use it list the file, the others do not. Embedded mode
+  puts the PNG in the BIN chunk and writes no texture folder. Blender 5.2 import gives
+  `cream` an Image Texture node (`test.png`, 128 x 128) fed by a Mapping node with scale
+  0.25 (4 m repeat) from UVMap. The phone page served by `python -m http.server` loads 9/9
+  tiles, makes no HTTP request for the image (blob URL) and renders the checker.
+- Look: `output/checks/p17-street.png` - test build only, not the final look: the cream wall on
+  the right shows 1 m checker squares from the placeholder texture. The normal build is
+  unchanged until prompt 19 maps real textures.
+- Doubts and questions for Ali: none. The checker is a placeholder; prompt 18 replaces it with
+  plaster, stone, tiles and ground.
+
 ## 2026-10-23 - Prompt 16 CP2 Checkpoint: light and ground
 - Commit: "CP2 fixes: sidewalks and paint stay above the asphalt, build time won back" (see git
   log) | Model: Opus, medium

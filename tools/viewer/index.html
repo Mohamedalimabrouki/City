@@ -445,7 +445,11 @@ function addSea(water) {
 
 // One material per look, shared by all tiles; water gets a glossy, slightly transparent finish.
 function shared(material) {
-  const key = [material.name, material.color.getHex(), material.roughness, material.metalness, material.side].join('|');
+  const map = material.map;
+  const texture = map ? [map.image && map.image.src, map.repeat.x, map.repeat.y,
+                         map.offset.x, map.offset.y].join(',') : '';
+  const key = [material.name, material.color.getHex(), material.roughness, material.metalness,
+               material.side, texture].join('|');
   let m = sharedMaterials.get(key);
   if (!m) {
     m = material;

@@ -133,6 +133,7 @@ carriageway; everything is deterministic.
 | `gazetteer.md` | readable guide for stories |
 | `maps/country.png`, `maps/<city>.png` | 2D maps, north up |
 | `tiles/tile_<i>_<j>.glb` | 3D tile covering x `i*512..(i+1)*512`, y `j*512..(j+1)*512` |
+| `tiles/textures/*.png` | base-color images shared by the tiles (`[tiles] textures = "shared"`, the default) |
 | `tiles/index.json` | `citygen-tiles/1`: tile list (bytes, unique and drawn triangles, dressing pieces), `"parapets": true` when the tiles carry their own roof parapets, `focus` point, camera `views`, `cities` (name, plan file, bounds) |
 | `summary.json` | counts and timings (read this instead of big files) |
 
@@ -145,6 +146,17 @@ Street dressing and trees are drawn with `EXT_mesh_gpu_instancing`: one child no
 local to the tile root. Kit pieces may carry `COLOR_0` (linear, 8-bit RGBA) on white materials,
 and lamps an `emissiveFactor`. Importers without the extension (Blender 3.6) show one copy per
 piece; `tools/blender_import.py` and `tools/blender_beauty.py` place all copies themselves.
+
+**Textures:** a palette entry may carry `texture = "<name>"` and `texture_size = [w, h]` (meters
+one repeat covers). The writer emits `images`, `textures`, one REPEAT sampler with mipmaps
+(`wrapS`/`wrapT` 10497, `minFilter` 9987) and a `baseColorTexture` with
+`KHR_texture_transform` scale `[1/w, 1/h]`, so the meter UVs never change. The palette color
+still multiplies the image (`baseColorFactor` x texture), so images stay near-neutral detail
+around white. `[tiles] textures` is `"shared"` (each image written once by the parent into
+`tiles/textures/`, tiles link it with a relative URI; a tile counts as finished only when the
+files in its entry exist), `"embedded"` (bytes inside every .glb, for single-file exports) or
+`"off"` (flat colors). The phone page (`tools/make_artifact.py`) stores each image once as
+base64 JSON and maps `textures/<name>` to blob URLs with `loader.manager.setURLModifier`.
 
 ## 6b. Kits and street dressing
 

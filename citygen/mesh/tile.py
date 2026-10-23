@@ -28,6 +28,7 @@ from .builder import (MeshBuilder, add_cap, add_dome, add_draped_cap, add_hip_ro
                       add_sheet, add_skirt, add_walls, extrude, rectangle, regular_polygon)
 from .gltf import write_glb
 from .props import tree_mesh
+from .textures import images_for
 
 ROAD_LIFT = 0.34
 
@@ -56,6 +57,8 @@ class TileContext:
         self.dress = bool(world.cfg["tiles"].get("dressing", True))
         self.kit = make_kit(world.seed, world.cfg, world.style) if self.dress else None
         self.materials = self.kit.materials if self.kit else self.palette
+        self.texture_mode = str(world.cfg["tiles"].get("textures", "shared"))
+        self.texture_images = images_for(world.style, world.seed, self.texture_mode)
         self.cities = []
         self.paint_trees = []
         for p in plans:
@@ -408,16 +411,37 @@ def instance_groups(tc: TileContext, placements: list, x0: float, y0: float) -> 
     return out
 
 
+def texture_files(tc: TileContext, parts: dict, instances: list) -> list[str]:
+    """Shared texture files one tile uses; the resume check (build.py) waits for them too."""
+    if tc.texture_mode != "shared":
+        return []
+    names = set(parts)
+    for inst in instances:
+        names.update(inst["parts"])
+    files = set()
+    for name in names:
+        texture = tc.materials.get(name, {}).get("texture")
+        if texture and texture in tc.texture_images:
+            files.add(tc.texture_images[texture]["uri"])
+    return sorted(files)
+
+
 def export_tile(tc: TileContext, i: int, j: int, folder: Path) -> dict:
     mb, placements = build_tile(tc, i, j)
     x0, y0, _, _ = tile_bounds(tc, i, j)
     instances = instance_groups(tc, placements, x0, y0)
+    parts = mb.gltf_parts()
     path = Path(folder) / f"tile_{i}_{j}.glb"
     part = path.with_name(path.name + ".part")   # renamed at the end: a half-written tile never counts as done
-    size = write_glb(part, mb.gltf_parts(), tc.materials, translation=(x0, 0.0, -y0),
-                     name=f"tile_{i}_{j}", extras={"i": i, "j": j, "x0": x0, "y0": y0}, instances=instances)
+    size = write_glb(part, parts, tc.materials, translation=(x0, 0.0, -y0),
+                     name=f"tile_{i}_{j}", extras={"i": i, "j": j, "x0": x0, "y0": y0}, instances=instances,
+                     images=tc.texture_images)
     os.replace(part, path)
     unique = mb.triangles + sum(tc.kit.pieces[g["name"]].triangles for g in instances)
     drawn = mb.triangles + sum(len(g["t"]) * tc.kit.pieces[g["name"]].triangles for g in instances)
-    return {"i": i, "j": j, "file": path.name, "x0": x0, "y0": y0, "triangles": unique,
-            "drawn": drawn, "pieces": sum(len(g["t"]) for g in instances), "bytes": size}
+    entry = {"i": i, "j": j, "file": path.name, "x0": x0, "y0": y0, "triangles": unique,
+             "drawn": drawn, "pieces": sum(len(g["t"]) for g in instances), "bytes": size}
+    files = texture_files(tc, parts, instances)
+    if files:
+        entry["files"] = files
+    return entry

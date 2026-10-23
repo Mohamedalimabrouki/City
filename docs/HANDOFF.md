@@ -61,7 +61,7 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
   A1 (roof parapets and stair rooms). Checkpoint 2 (CP2, 23 October 2026) reviewed them, fixed
   sidewalk corners and paint lines that sank under the asphalt, and won back the build time the
   trial had lost. Reference for checkpoint 27: `output/checks/fp-cp2.json` and
-  `output/checks/cp2-street.png`, `cp2-souk.png`. Next: prompt 17.
+  `output/checks/cp2-street.png`, `cp2-souk.png`. Next: prompt 18.
 - Seed 42 makes the country **Bodjantouna** with the capital **Goumosbane**.
   `python -m citygen build --quick` writes it to `output/bodjantouna-42/` in about 10 seconds on
   Ali's Mac (20 seconds in the cloud).
@@ -98,6 +98,16 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
   version is +20.6%. `_coping` needs open rings: strip the closing point before rolling the
   inner ring, or the roll puts the duplicate in the middle and `add_loft` drops every quad (that
   bug made the first parapets invisible).
+- **Textures** (prompt 17, `mesh/gltf.py`, `mesh/textures.py`): a palette `texture` +
+  `texture_size` becomes a `baseColorTexture`; UVs stay meters and `KHR_texture_transform`
+  scales by `1/size`. The sampler is REPEAT with mipmaps (10497 / 9987). Shared images are
+  written once by the parent before any worker starts; every tile entry lists the images it uses
+  in `files`, so the resume check waits for them. Embedded images are bufferViews without a
+  `target` (an image is not an accessor). The fingerprint hashes GLB bytes, so keep new
+  top-level JSON keys in their old insertion position (`extensionsUsed` before `meshes`):
+  appending one makes every tile "content differs" although the scene is identical. The viewer
+  material cache keys on the texture URL and repeat; the phone page stores each image once as
+  base64 JSON and maps `textures/<name>` to a blob URL.
 - **Parallel tiles** (`TilePool` in `citygen/build.py`): spawn processes start while the parent
   plans and wait for one pickle file (world + plans); each builds its own `TileContext`. Use
   `multiprocessing.Pool`, not `ProcessPoolExecutor`: the Claude sandbox forbids the

@@ -11,8 +11,9 @@ from citygen.__main__ import main
 from citygen.city import plan_city
 from citygen.config import load_config
 from citygen.mesh.builder import MeshBuilder, extrude, rectangle
-from citygen.mesh.gltf import read_glb, triangle_count, write_glb
-from citygen.mesh.tile import TileContext, export_tile
+from citygen.mesh.gltf import read_glb, read_parts, triangle_count, write_glb
+from citygen.mesh.textures import TEST_SIZE, images_for, png_bytes, texture, write_shared_textures
+from citygen.mesh.tile import TileContext, export_tile, texture_files
 from citygen.rng import stream
 from citygen.world import generate_world
 
@@ -102,6 +103,79 @@ def test_glb_roundtrip_and_axes(tmp_path):
     pos = gltf["accessors"][gltf["meshes"][0]["primitives"][0]["attributes"]["POSITION"]]
     assert pos["max"][1] == pytest.approx(5.0)                      # glTF +Y is up
     assert pos["min"][2] == pytest.approx(-20.0) and pos["max"][2] == pytest.approx(-10.0)  # north is -Z
+
+
+def test_textured_glb_embeds_a_valid_image(tmp_path):
+    import io
+    from PIL import Image
+    mb = MeshBuilder()
+    mb.add("wall", [[0, 0, 0], [1, 0, 0], [1, 0, 1], [0, 0, 1]], [[0, 1, 0]] * 4,
+           [[0, 0], [1, 0], [1, 1], [0, 1]], [[0, 1, 2], [0, 2, 3]])
+    png = png_bytes(texture("test", 3))
+    write_glb(tmp_path / "t.glb", mb.gltf_parts(),
+              {"wall": {"color": "#ffffff", "texture": "test", "texture_size": [4.0, 2.0]}},
+              images={"test": {"bytes": png}})
+    gltf, binary = read_glb(tmp_path / "t.glb")
+    assert gltf["extensionsUsed"] == ["KHR_texture_transform"]
+    assert gltf["samplers"] == [{"magFilter": 9729, "minFilter": 9987, "wrapS": 10497, "wrapT": 10497}]
+    info = gltf["materials"][0]["pbrMetallicRoughness"]["baseColorTexture"]
+    assert info["extensions"]["KHR_texture_transform"]["scale"] == [0.25, 0.5]   # 4 m x 2 m repeats
+    assert gltf["textures"][info["index"]]["source"] == 0 and gltf["textures"][info["index"]]["sampler"] == 0
+    image = gltf["images"][0]
+    view = gltf["bufferViews"][image["bufferView"]]
+    assert image["mimeType"] == "image/png" and "uri" not in image
+    assert binary[view["byteOffset"]:view["byteOffset"] + view["byteLength"]] == png
+    assert Image.open(io.BytesIO(png)).size == (TEST_SIZE, TEST_SIZE)
+    assert read_parts(tmp_path / "t.glb")["wall"]["uv"].tolist() == [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]]
+
+
+def test_shared_texture_files_are_written_once(tmp_path):
+    style = {"palette": {"wall": {"color": "#ffffff", "texture": "test", "texture_size": [3.0, 3.0]},
+                         "roof": {"color": "#ffffff"}}}
+    assert write_shared_textures(style, 5, tmp_path) == ["test.png"]
+    assert write_shared_textures(style, 5, tmp_path) == ["test.png"]   # again: same bytes, no race
+    image = tmp_path / "textures" / "test.png"
+    assert image.is_file() and image.read_bytes() == png_bytes(texture("test", 5))
+    images = images_for(style, 5, "shared")
+    assert images == {"test": {"uri": "textures/test.png"}}
+    mb = MeshBuilder()
+    mb.add("wall", [[0, 0, 0], [1, 0, 0], [1, 0, 1]], [[0, 1, 0]] * 3,
+           [[0, 0], [1, 0], [1, 1]], [[0, 1, 2]])
+    write_glb(tmp_path / "tile_0_0.glb", mb.gltf_parts(),
+              {"wall": {"color": "#ffffff", "texture": "test"}}, images=images)
+    gltf, _ = read_glb(tmp_path / "tile_0_0.glb")
+    assert gltf["images"] == [{"uri": "textures/test.png"}]
+    assert (tmp_path / gltf["images"][0]["uri"]).is_file()   # the URI resolves next to the tile
+
+
+def test_textures_off_leaves_flat_colors(tmp_path):
+    style = {"palette": {"wall": {"color": "#ffffff", "texture": "test", "texture_size": [3.0, 3.0]}}}
+    assert images_for(style, 5, "off") == {}
+    mb = MeshBuilder()
+    mb.add("wall", [[0, 0, 0], [1, 0, 0], [1, 0, 1]], [[0, 1, 0]] * 3,
+           [[0, 0], [1, 0], [1, 1]], [[0, 1, 2]])
+    write_glb(tmp_path / "t.glb", mb.gltf_parts(),
+              {"wall": {"color": "#ffffff", "texture": "test"}}, images={})
+    gltf, _ = read_glb(tmp_path / "t.glb")
+    assert "images" not in gltf and "textures" not in gltf and "extensionsUsed" not in gltf
+    assert "baseColorTexture" not in gltf["materials"][0]["pbrMetallicRoughness"]
+
+
+def test_texture_images_are_deterministic():
+    assert png_bytes(texture("test", 9)) == png_bytes(texture("test", 9))
+    assert png_bytes(texture("test", 9)) != png_bytes(texture("test", 10))
+
+
+def test_tile_entry_lists_shared_textures():
+    class FakeTC:
+        texture_mode = "shared"
+        materials = {"wall": {"texture": "test"}, "roof": {"color": "#ffffff"}}
+        texture_images = {"test": {"uri": "textures/test.png"}}
+
+    parts = {"wall": {}, "roof": {}}
+    assert texture_files(FakeTC, parts, []) == ["textures/test.png"]
+    FakeTC.texture_mode = "off"
+    assert texture_files(FakeTC, parts, []) == []
 
 
 def test_tile_is_valid_glb(world, plan, tmp_path):
@@ -689,6 +763,19 @@ def test_finished_tiles_need_every_file(tmp_path):
     keys = [(i, 0) for i in range(8)]
     assert sorted(finished_tiles(tmp_path, journal, "k", keys)) == [(0, 0), (1, 0), (2, 0)]
     assert finished_tiles(tmp_path, tmp_path / "none", "other", keys) == {}   # another key: nothing counts
+
+
+def test_finished_tiles_need_their_textures(tmp_path):
+    from citygen.build import finished_tiles
+    (tmp_path / "tile_0_0.glb").write_bytes(b"abc")
+    journal = tmp_path / "journal"
+    journal.mkdir()
+    entry = {"i": 0, "j": 0, "file": "tile_0_0.glb", "bytes": 3, "files": ["textures/test.png"]}
+    (journal / "tile_0_0.json").write_text(json.dumps(entry))
+    assert finished_tiles(tmp_path, journal, "k", [(0, 0)]) == {}   # the shared image is still missing
+    (tmp_path / "textures").mkdir()
+    (tmp_path / "textures" / "test.png").write_bytes(b"png")
+    assert (0, 0) in finished_tiles(tmp_path, journal, "k", [(0, 0)])
 
 
 def _tiny_build(tmp_path, monkeypatch, plan, calls, force=False, **tiles):

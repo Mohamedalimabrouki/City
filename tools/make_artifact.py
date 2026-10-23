@@ -47,6 +47,22 @@ def page(title: str, start: str) -> str:
             "  return loader.parseAsync(bytes.buffer, '');\n"
             "}\n\n"
             "async function loadTiles(list, wantsStreet) {",
+        "const loader = new GLTFLoader();":
+            "const loader = new GLTFLoader();\n"
+            "// texture images travel as base64 JSON; each becomes one blob URL shared by every tile\n"
+            "const textureFiles = await (await fetch('data/textures.json')).json();\n"
+            "const textureUrls = new Map();\n"
+            "for (const [name, data] of Object.entries(textureFiles)) {\n"
+            "  const binary = atob(data);\n"
+            "  const bytes = new Uint8Array(binary.length);\n"
+            "  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);\n"
+            "  const type = /\\.jpe?g$/i.test(name) ? 'image/jpeg' : 'image/png';\n"
+            "  textureUrls.set('textures/' + name, URL.createObjectURL(new Blob([bytes], { type })));\n"
+            "}\n"
+            "loader.manager.setURLModifier((url) => {\n"
+            "  const name = url.split('/').pop().split('?')[0];\n"
+            "  return textureUrls.get('textures/' + name) || url;\n"
+            "});",
         "  const name = q.get('view') || 'aerial';": f"  const name = q.get('view') || '{start}';",
         "  fillViews(index, q.get('view') || 'aerial');": f"  fillViews(index, q.get('view') || '{start}');",
     }
@@ -105,6 +121,11 @@ def make_artifact(src: Path, art: Path, title: str, start: str) -> int:
         out.parent.mkdir(parents=True, exist_ok=True)
         plan = json.loads((src / city["plan"]).read_text(encoding="utf-8"))
         out.write_text(json.dumps(slim_plan(plan, box), separators=(",", ":")))
+    # one base64 copy per texture image; the page turns each into a blob URL the tiles share
+    textures = {path.name: base64.b64encode(path.read_bytes()).decode()
+                for path in sorted((src / "tiles" / "textures").glob("*"))
+                if path.is_file() and path.suffix.lower() in (".png", ".jpg", ".jpeg")}
+    (art / "data" / "textures.json").write_text(json.dumps(textures))
     (art / "index.html").write_text(page(title, start), encoding="utf-8")
     return max(f.stat().st_size for f in art.rglob("*") if f.is_file()), \
         sum(f.stat().st_size for f in art.rglob("*") if f.is_file())

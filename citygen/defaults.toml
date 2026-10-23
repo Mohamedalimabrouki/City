@@ -38,6 +38,9 @@ max_regional_km = 26.0    # longest road built between two towns
 size = 512                # tile width in meters
 terrain_step = 8.0        # meters between terrain mesh points
 dressing = true           # doors, windows, shops, goods and street life (see [dressing] in the style)
+textures = "shared"       # base-color textures named by [palette]: "shared" writes each image once to
+                          # tiles/textures/ and tiles link it; "embedded" puts the bytes inside every .glb
+                          # (single-file exports such as hero scenes); "off" keeps flat colors
 
 [ground]
 # Inside a city the ground is graded: smoothed and gently flattened under blocks, then
