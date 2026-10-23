@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import math
 import os
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -486,13 +487,19 @@ def build_tile(tc: TileContext, i: int, j: int) -> tuple:
             inside = (trees[:, 0] >= x0) & (trees[:, 0] < x1) & (trees[:, 1] >= y0) & (trees[:, 1] < y1)
             ks = np.nonzero(inside)[0]
             if len(ks):
-                zs = tc.ground.surface(trees[ks, 0], trees[ks, 1])
-                for k, z in zip(ks, zs):
-                    kit_tree = dresser.tree(int(k), plan.trees[int(k)], float(z)) if dresser is not None else None
+                xy, kept, away = (dresser.tree_spots(trees[ks]) if dresser is not None
+                                  else (trees[ks], np.ones(len(ks), dtype=bool), np.zeros((len(ks), 2))))
+                zs = np.atleast_1d(tc.ground.surface(xy[:, 0], xy[:, 1]))
+                for k, (x, y), z, keep, aw in zip(ks, xy, zs, kept, away):
+                    if not keep:                       # no room beside an arcade (prompt 22)
+                        continue
+                    t = plan.trees[int(k)]
+                    t = replace(t, x=float(x), y=float(y)) if aw.any() else t
+                    kit_tree = dresser.tree(int(k), t, float(z), aw) if dresser is not None else None
                     if kit_tree is not None:
                         placements.append(kit_tree)
                     else:
-                        tree_mesh(mb, plan.trees[int(k)], float(z))
+                        tree_mesh(mb, t, float(z))
     ground_heights(tc.ground, placements)
     for span in spans:
         if span.kind == "sabat":
@@ -514,7 +521,7 @@ def instance_groups(tc: TileContext, placements: list, x0: float, y0: float) -> 
         half = np.array([p.yaw for p in ps]) / 2.0
         zero = np.zeros(len(ps))
         r = np.stack([zero, np.sin(half), zero, np.cos(half)], axis=1)
-        sc = np.repeat(np.array([p.scale for p in ps])[:, None], 3, axis=1)
+        sc = np.array([(p.scale * p.stretch, p.scale, p.scale) for p in ps])   # stretch: along the wall only
         out.append({"name": name, "parts": tc.kit.pieces[name].parts, "t": t, "r": r, "s": sc})
     return out
 

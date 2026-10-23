@@ -15,6 +15,31 @@ Entry format:
 - Doubts and questions for Ali: <none, or the question>
 ```
 
+## 2026-10-23 - Prompt 22 AR1 Colonial arcades and iron balconies
+- Commit: (see git log) | Model: Opus 5.5, high (playbook: Sonnet, high)
+- Changed: `citygen/city/arcades.py` (new: free runs, bay layout around doors on a 5 cm grid, level
+  steps), `citygen/city/dressing.py` (`_colonial`, `_arcade_runs`, `_free_run`, `_side_gap`,
+  `_corner_free`, `_pillar_zones`, `_arcade_pieces`, `_clear_of`, `_iron`, `_iron_window`, lamp rule
+  in `_lamps`, cafe tables under arcades, `Placement.stretch`), `citygen/city/openings.py` and
+  `citygen/mesh/tile.py` (stretch in boxes and instance SCALE), `citygen/mesh/props.py` (`arcade_bay`,
+  `arcade_corner`, `balcony_iron`, `balcony_iron_long`), `citygen/kit.py`, `styles/maghreb.toml`
+  (`[dressing.arcade]`, `[dressing.balcony_iron]`, roles), tests (1 new, 1 adjusted: new doors may stand
+  inside an arcade's box, its pillars are checked by the new test), `docs/SPEC.md`, `docs/HANDOFF.md`,
+  `docs/ROADMAP.md`; after the lead's review: `Dresser.tree_spots` and `citygen/mesh/tile.py` (trees
+  clear the arcades), `[dressing.arcade]` `tree_*`, the test also checks tree trunks
+- Checks: tests 69 passed (23.1 s; HEAD 21.5 s); `build --quick` 10.0 s (HEAD 9.5 s); fingerprint 10
+  changed: `kit/arcade_bay`, `kit/arcade_corner` (the corner piece, a fourth new piece), `kit/balcony_iron`,
+  `kit/balcony_iron_long` and `tiles/*`, worst tile +7.6% (`tile_12_23`). Full capital 44.1 -> 43.3 s
+  (same minutes; CPU 175 -> 181 s). Quick capital: 312 bays on 95 colonial facades, 17 corner pieces,
+  1,523 + 335 long iron balconies, 19 of 235 lamps on those streets moved to the curb (none left out);
+  planned trees by an arcade (lead review): 10 palms moved to the curb, 2 left out (plan unchanged);
+  dropped under arcades: 7 climbers, 2 cascades, 1 clothesline. Bays: 48% within 3.5-4.0 m, all within 3.2-4.4 m.
+- Look: `output/checks/22.png` (street: arcades along the boulevard, lamps at the curb),
+  `output/checks/22-corner.png` (corner of building 972: boulevard arcade, corner piece, one bay into
+  the side street; iron balconies above). Blender: `output/bodjantouna-42/goumosbane.blend`.
+- Doubts and questions for Ali: about half the wall lengths cannot be cut into 3.5-4.0 m bays, so those
+  use 3.2-4.4 m (continuous arcades); `bay_relaxed` in the style narrows it if he prefers gaps.
+
 ## 2026-10-23 - Prompt 21 A9 Lit windows by household
 - Commit: (see git log) | Model: Opus 5.5, medium (playbook: Sonnet, medium)
 - Changed: `citygen/city/dressing.py` (`_light`, `_lit_chance`, `_sections`), `citygen/kit.py`

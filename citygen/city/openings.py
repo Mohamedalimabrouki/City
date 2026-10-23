@@ -106,9 +106,9 @@ def piece_boxes(kit, placements, base: float) -> tuple:
     z = np.array([p.z for p in placements], dtype=np.float64)
     z[np.array([p.on_ground for p in placements])] += base
     yaw = np.array([p.yaw for p in placements])
-    sc = np.array([p.scale for p in placements])
-    lo = np.array([kit.pieces[p.piece].bounds[0] for p in placements]) * sc[:, None]
-    hi = np.array([kit.pieces[p.piece].bounds[1] for p in placements]) * sc[:, None]
+    sc = np.array([(p.scale * getattr(p, "stretch", 1.0), p.scale, p.scale) for p in placements])   # x along the wall
+    lo = np.array([kit.pieces[p.piece].bounds[0] for p in placements]) * sc
+    hi = np.array([kit.pieces[p.piece].bounds[1] for p in placements]) * sc
     lx = np.stack([lo[:, 0], hi[:, 0], hi[:, 0], lo[:, 0]], 1)         # along the wall
     ly = np.stack([-hi[:, 2], -hi[:, 2], -lo[:, 2], -lo[:, 2]], 1)     # out of the wall
     c, s = np.cos(yaw)[:, None], np.sin(yaw)[:, None]

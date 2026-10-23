@@ -683,7 +683,8 @@ def test_new_doors_and_windows_overlap_nothing(world, plan, ground, homes):
             for o in world.style["dressing"]["roles"][r]}
     checked = 0
     for k, (_, on, off, _, _) in out.items():
-        olds = [p for p in off if p.piece not in roof]
+        olds = [p for p in off if p.piece not in roof   # doors stand under an arcade: its pillars are checked
+                and kit.pieces[p.piece].category != "arcade"]   # in test_colonial_arcades_and_iron_balconies (22)
         zs = [p.z + (ground.surface(p.x, p.y) if p.on_ground else 0.0) for p in olds]
         boxes = [_footprint_box(kit, p, z) for p, z in zip(olds, zs)]
         standing = [b for p, b in zip(olds, boxes) if p.on_ground]
@@ -798,6 +799,114 @@ def test_lit_windows_follow_households_and_light_whole_flats(world, plan, homes)
         night = [(p.piece[:-4] if p.piece.endswith("_lit") else p.piece, p.x, p.y, p.z, p.yaw)
                  for p in on if not p.piece.endswith("_pane_lit")]
         assert night == [(p.piece, p.x, p.y, p.z, p.yaw) for p in day.building(k, high)], k
+
+
+def _plan_box(kit, p, out0=None, out1=None):
+    """Plan rectangle of a placed piece from its kit bounds (stretch along the wall), optionally only the
+    part between out0 and out1 meters in front of its anchor."""
+    lo, hi = kit.pieces[p.piece].bounds
+    x0, x1 = lo[0] * p.stretch * p.scale, hi[0] * p.stretch * p.scale
+    y0, y1 = -hi[2] * p.scale, -lo[2] * p.scale
+    y0, y1 = (y0 if out0 is None else out0), (y1 if out1 is None else out1)
+    c, s = math.cos(p.yaw), math.sin(p.yaw)
+    return shapely.Polygon([(p.x + x * c - y * s, p.y + x * s + y * c) for x, y in ((x0, y0), (x1, y0), (x1, y1), (x0, y1))])
+
+
+def test_colonial_arcades_and_iron_balconies(world, plan, ground, homes):
+    # prompt 22: an arcade along every colonial facade on a boulevard, arterial or ring, its bays end to
+    # end along the whole wall; no pillar in front of a door or shop front, in a cafe table or other
+    # ground piece, no street lamp or planted tree trunk in or under an arcade; iron balconies only on the upper floors of
+    # colonial buildings and never on the floor right above an arcade
+    from shapely.geometry.polygon import orient
+    from citygen.city.dressing import DRESSED, building_highs
+    kit, dresser, sample = homes
+    cfg = dresser.arcade_cfg
+    d, (pw, pd), kinds = cfg["depth"], cfg["pillar"], set(cfg["kinds"])
+    sill = world.style["dressing"]["window_sill"]
+    width = kit.pieces["arcade_bay"].width
+    colonial = [k for k, b in enumerate(plan.buildings)
+                if b.kind in DRESSED and plan.districts[b.district].kind == "colonial"]
+    highs = building_highs(ground, [plan.buildings[k] for k in colonial])
+    pillars, roofs, bays_all, walls, corners = [], [], [], 0, 0
+    covered = total = strict = balconies = 0
+    for k, high in zip(colonial, highs):
+        b = plan.buildings[k]
+        out = dresser.building(k, float(high))
+        bays = [p for p in out if p.piece == "arcade_bay"]
+        bays_all += bays
+        roofs += [_plan_box(kit, p) for p in out if kit.pieces[p.piece].category == "arcade"]
+        for c in [p for p in out if p.piece == "arcade_corner"]:   # in the square past the corner, on no bay
+            corners += 1                                    # (a sliver where the corner is a few degrees off square)
+            assert all(_plan_box(kit, c).intersection(_plan_box(kit, p)).area < 0.2 for p in bays), k
+        mine = []                                       # pillars: half of each bay's width end, out at the arches
+        for p in bays:
+            half = pw / 2 * p.stretch
+            for x in (-width / 2 * p.stretch, width / 2 * p.stretch - half):
+                c, s = math.cos(p.yaw), math.sin(p.yaw)
+                q = shapely.Polygon([(p.x + xx * c - y * s, p.y + xx * s + y * c)
+                                     for xx, y in ((x, d - pd), (x + half, d - pd), (x + half, d), (x, d))])
+                mine.append((q, x + half / 2, p))
+        pillars += [q for q, _, _ in mine]
+        for p in out:                                   # doors and shops sit under an arch, ground pieces clear
+            cat = kit.pieces[p.piece].category
+            if cat in ("door", "shop"):
+                front = _plan_box(kit, p, 0.0, d)           # the door and the walkway in front of it
+                assert all(front.intersection(q).area < 1e-6 for q, _, _ in mine), (k, p.piece)
+            elif p.on_ground and cat not in ("arcade", "tree"):
+                box = _plan_box(kit, p)
+                assert all(box.intersection(q).area < 1e-6 for q, _, _ in mine), (k, p.piece)
+        ring = np.asarray(orient(b.footprint, 1.0).exterior.coords)
+        fh = b.height / max(1, int(b.floors))
+        spans = {}
+        for a, c in zip(ring[:-1], ring[1:]):          # each wall on an arcaded street: bays end to end
+            length = float(np.hypot(*(c - a)))
+            u = (c - a) / max(length, 1e-9)
+            n = np.array([u[1], -u[0]])
+            on = sorted((float(np.dot((p.x, p.y) - a, u)), p.stretch * width) for p in bays
+                        if abs(float(np.dot((p.x, p.y) - a, n))) < 0.02 and np.dot((-math.sin(p.yaw), math.cos(p.yaw)), n) > 0.999)
+            spans[tuple(np.round(a, 6))] = (u, n, [(s - w / 2, s + w / 2) for s, w in on])
+            street = dresser.streets_at(((a + c) / 2 + n * 1.6)[None, :])[0]
+            if length < 4.0 or street < 0 or plan.streets[street].kind not in kinds:
+                continue
+            walls += 1
+            total += length
+            if not on:
+                continue
+            edges = [(s - w / 2, s + w / 2) for s, w in on]
+            assert all(abs(e0[1] - e1[0]) < 1e-6 for e0, e1 in zip(edges, edges[1:])), (k, edges)   # no gap
+            assert all(cfg["bay_relaxed"][0] - 1e-6 <= w <= cfg["bay_relaxed"][1] + 1e-6 for _, w in on)
+            strict += sum(cfg["bay"][0] - 1e-6 <= w <= cfg["bay"][1] + 1e-6 for _, w in on)
+            run = min(edges[-1][1], length) - max(edges[0][0], 0.0)
+            assert run >= length - cfg["bay_relaxed"][1] - 0.5, (k, run, length)   # at most a short plain end
+            covered += run
+        for p in out:
+            if not p.piece.startswith("balcony_iron"):
+                continue
+            balconies += 1
+            floor = (p.z - sill - high) / fh
+            assert floor > 0.99 and abs(floor - round(floor)) < 1e-6, (k, floor)         # upper floors only
+            if round(floor) == 1:                           # never on the arcade's terrace
+                for a, (u, n, edges) in spans.items():
+                    s = float(np.dot((p.x, p.y) - np.array(a), u))
+                    near = abs(float(np.dot((p.x, p.y) - np.array(a), n))) < 0.02 and np.dot(
+                        (-math.sin(p.yaw), math.cos(p.yaw)), n) > 0.999
+                    assert not (near and any(e0 < s < e1 for e0, e1 in edges)), (k, p.piece)
+    assert len(bays_all) > 250 and covered / total > 0.85 and corners > 10, (len(bays_all), covered / total, corners)
+    assert strict / len(bays_all) > 0.4 and balconies > 500   # about half the bays 3.5-4.0 m, all 3.2-4.4
+    for k, (_, on, _, _, _) in sample.items():          # no iron balcony outside the ville nouvelle
+        if plan.districts[plan.buildings[k].district].kind != "colonial":
+            assert not any(p.piece.startswith("balcony_iron") or p.piece.startswith("arcade") for p in on), k
+    tile = shapely.box(*plan.boundary.bounds)            # street lamps: none in or under an arcade
+    lamps = [p for k, st in enumerate(plan.streets) if st.kind in kinds
+             for p in dresser.street_props(k, tile) if p.piece == "street_lamp"]
+    assert len(lamps) > 20
+    tree = STRtree(roofs)
+    for p in lamps:
+        assert not len(tree.query(_plan_box(kit, p), predicate="intersects")), (p.x, p.y)
+    xy, kept, away = dresser.tree_spots(np.array([(t.x, t.y) for t in plan.trees]))   # planned trees as tiles draw them
+    assert away.any(axis=1).sum() >= 5 and np.allclose(xy[~away.any(axis=1)], [(t.x, t.y) for t, a in zip(plan.trees, away) if not a.any()])
+    trunks = shapely.buffer(shapely.points(xy[kept]), cfg["tree_trunk"])
+    assert not len(tree.query(trunks, predicate="intersects")[0])          # no trunk in or under an arcade
 
 
 def test_ground_drawn_is_the_terrain_mesh(world, plan, ground):

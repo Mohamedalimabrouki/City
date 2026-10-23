@@ -322,6 +322,27 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
   `m.fog = false` with `needsUpdate`, back on by day): fogged, lit windows faded toward the dark sky
   from the air, while real lit windows stay warm points across a city. The headless SwiftShader
   snapshot renders lit glass as grey dots at aerial distance; check night glass in a GPU browser.
+- **Arcades and iron balconies** (prompt 22, `city/arcades.py`, `Dresser._colonial`): a placed piece's
+  +x runs against its wall's direction `u` (+x = (cos yaw, sin yaw), front = (-sin yaw, cos yaw)), so a
+  piece that is not centered on its anchor (the corner piece) must be turned accordingly: the first
+  version laid every corner piece back over the last bay; the test now checks that corner pieces
+  overlap no bay. Symmetric pieces hide this mistake. Non-uniform instance scale (`Placement.stretch`,
+  along the wall only) is how one bay piece fits 3.2-4.4 m without changing its height; three.js and
+  Blender handle it. Layout the arcade before every home's new doors and give those doors the pillars'
+  boxes (wall to pillar), or the doors land behind pillars; the `every_home` prefix test stays exact
+  because the arcade depends only on the old street pieces. Doors on the same wall as a cafe need the
+  cafe tables pulled under the arcade (`cafe_reach`), else two tables spanning 3.7 m forbid every
+  pillar position. Collinear neighbours are not obstacles in front of a wall: find them behind the wall
+  line beyond its end (`_side_gap`) and meet half way across the 0.3 m gap between lots. Real wall
+  lengths often cannot be cut into 3.5-4.0 m bays (4-7 m, 8-10.5 m...): about half the bays use the
+  relaxed 3.2-4.4 m so the arcade stays continuous. Ground pieces must be measured from the drawn
+  surface under them, not from the building's highest ground point (wall lanterns were dropped by
+  mistake). A square corner piece on a corner 4 degrees off square leaves a sliver: turn it to the
+  bisector and close its inner sides. Boulevard palms stand 2.5 m inside the street edge, inside the
+  arcade: `tree_spots` moves them at tile level (plan untouched) and turns a moved date palm so its
+  lean (toward the piece's -x, about 0.1 m per meter) points over the street, else it can lean back
+  into the cornice. The bands must cover the bays turned into a side street too (a corniche palm stood
+  in one). Cost: worst quick tile +7.6%, full capital 44.1 -> 43.3 s (CPU +3.5%).
 - **Old-town tiles** reach about 5 MB on the quick build and 8 MB on the full capital
   (`tile_65_106`, mostly roofs since prompt 15); task Q5 (prompt 39) brings them down.
 

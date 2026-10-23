@@ -64,10 +64,11 @@ class Piece:
 
 class Kit:
     def __init__(self, seed: int, kits=(), palette: dict | None = None, trees: dict | None = None,
-                 climber: dict | None = None, lit: dict | None = None):
+                 climber: dict | None = None, lit: dict | None = None, arcade: dict | None = None,
+                 iron: dict | None = None):
         self.pieces: dict[str, Piece] = {}
         self.materials: dict = dict(palette or {})
-        table = catalog(stream(seed, "props"), seed, trees, climber)
+        table = catalog(stream(seed, "props"), seed, trees, climber, arcade, iron)
         for name, (mb, category, anchor) in table.items():
             self.pieces[name] = Piece(name, category, anchor, mb.gltf_parts(), "procedural")
         self.panes: dict = {}   # kit piece -> (x0, x1, y0, y1, z) of its glass, glTF axes (manifest "glass")
@@ -115,5 +116,6 @@ class Kit:
 def make_kit(seed: int, cfg: dict, style: dict) -> Kit:
     """The one place a Kit is built from a seed, the config and the style (tiles, kit sheet, tools)."""
     dressing = style.get("dressing", {})
+    iron = {**dressing.get("balcony_iron", {}), "sill": dressing.get("window_sill", 0.95)}
     return Kit(seed, cfg["build"].get("kits", []), style["palette"], dressing.get("trees"), dressing.get("climber"),
-               dressing.get("lit"))
+               dressing.get("lit"), dressing.get("arcade"), iron)

@@ -250,7 +250,7 @@ shaders (which ignore the image and the tint) and takes their palette color from
 - **Dresser** (`city/dressing.py`): per building (one random stream each) the main facade gets a
   shop (souks), a cafe (colonial) or a door with lamp, hood, pots, bench, cat, climber, parked
   moped; other walls get windows by floor (grilles, shutters, birdcage bays, one mashrabiya
-  balcony for rich households); flat roofs get tanks, dishes, laundry racks and pots inside the
+  balcony for rich households; in the colonial district a window with an iron balcony instead); flat roofs get tanks, dishes, laundry racks and pots inside the
   parapet and off the stair room. Per street:
   laundry, cables, lantern strings, bunting and sabats across alleys and souks, arches over alley
   mouths, gates and handcarts in souks, lamps along main streets. Impasses are dressed like alleys
@@ -299,6 +299,38 @@ shaders (which ignore the image and the tint) and takes their palette color from
   `range`. A lit piece becomes its twin; a kit window keeps its piece and gets its pane right after
   it. Quick capital: 40% of housing windows lit (medina 34%, colonial 39%, modern 41%). The glTF
   writer reuses the accessors of a part drawn twice, so a twin costs one mesh entry, not a copy.
+- **Colonial arcades and iron balconies** (prompt 22, `[dressing.arcade]`, `[dressing.balcony_iron]`,
+  layout in `city/arcades.py`, glue in `Dresser._colonial`): after the street walls and the roof (no
+  draw on `rng("b", k)`), every wall of a colonial building facing one of `kinds` (boulevard, arterial,
+  ring; the street 1.6 m in front of the wall decides, not `FRONT_PREF`) gets a ground-floor arcade over
+  its sidewalk: `arcade_bay` pieces (a round arch on two half pillars with base and capital, archivolt,
+  keystone, the walkway with its ceiling, a terrace slab and a cornice; 168 triangles), stretched along
+  the wall by `Placement.stretch` (an extra scale on the piece's x, written into the instance's SCALE)
+  so the bays fill the run end to end. A run is the part of the wall with nothing built within the
+  arcade's depth and sidewalk under its pillars; where the next building stands in line within
+  2 x `join` m it reaches half way across the gap, so neighbours' arcades meet. Bay edges (pillars) keep
+  `gap` m clear of every door and shop front on the wall and of any piece reaching the pillars' strip
+  (least squares on a 5 cm grid, `bay` 3.5-4.0 m, else `bay_relaxed` 3.2-4.4 m, else the run is
+  shortened at a free end); cafe tables on such walls stand `cafe_reach` m out, under the arcade. Each
+  run is made level in groups while its sidewalk rises less than `step`, never more than `above` over
+  the first floor line; pillars reach `sink` below street level. A square corner (within
+  `corner_angle`) between two arcades gets `arcade_corner` (narrow arches on both streets, an L-shaped
+  pier), a corner onto another street the corner piece and `wrap` bays into it; shallow convex bends
+  (under `bend`) carry one arcade round them. Old pieces the slab or pillars would cut (vines, hoods,
+  cascades, a clothesline under a first-floor window) are left out, doors and shops always stay; every
+  home's new doors avoid the pillars (their boxes run from the wall out to the pillars). Street lamps
+  standing in an arcade band (every such wall, and the first bays of a side street an arcade turns into,
+  out to the pillars plus `lamp_clear`) move `lamp_shift` m toward the curb, or are left out when that is
+  not on a sidewalk clear of it. Planned trees (the plan is unchanged; `Dresser.tree_spots`, used by the
+  tile) whose trunk falls within the pillars, cornice, `tree_trunk` and `tree_clear` of such a wall move
+  straight out toward the curb until clear, turned so a palm leans over the street; left out unless they
+  then stand `tree_curb` m inside the sidewalk. Iron balconies
+  (`balcony_iron` 1.2 x 0.6 m, 278 triangles; `balcony_iron_long` across two windows, stretched to their
+  spacing; a stone slab on consoles, bars with faces on both sides, a frieze of rings) go on street
+  windows of the upper floors, never on the floor right above an arcade: per floor of each facade one
+  draw on `rng("balcony-iron", k, wall, floor)` for the row (`row` + `wealth` x (wealth - 0.5)), then per
+  window. Quick capital: 312 bays on 95 facades, 17 corners, 1,523 + 335 balconies; 19 lamps and 10
+  palms moved to the curb, 2 palms left out.
 
 ## 7. Style pack (`styles/<name>.toml`)
 

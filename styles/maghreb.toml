@@ -690,6 +690,55 @@ stair = 0.55               # a staircase's windows and door, lit together
 other = 0.1                # a dressed building without a household
 pane_offset = 0.008        # meters a kit window's lit pane stands in front of its glass (behind the grille)
 
+# Colonial arcades (prompt 22, city/arcades.py): every colonial facade on one of `kinds` gets a
+# ground-floor arcade over its sidewalk, a continuous rhythm of bays from end to end, turning round
+# corners (a corner piece; `wrap` bays into a side street). Pillars stand clear of doors, shops and
+# cafe tables: the bays flex within `bay` (within `bay_relaxed` only when a wall's length or its doors
+# leave no other way). Sizes in meters; the piece is built from them (mesh/props.py arcade_bay).
+[dressing.arcade]
+districts = ["colonial"]
+kinds = ["boulevard", "arterial", "ring"]
+bay = [3.5, 4.0]           # bay widths along the wall
+bay_relaxed = [3.2, 4.4]
+nominal = 3.75             # the piece's own width (placements stretch it along the wall)
+depth = 2.5                # wall to the pillars' street face (the sidewalk is 3.2 m)
+height = 3.6               # street level to the terrace top: the colonial floor height
+pillar = [0.8, 0.45]       # pillar width along the wall, depth
+spring = 1.7               # where the arches spring (their crown is half an opening higher)
+sink = 0.6                 # pillars reach this far below street level, for sloping sidewalks
+cornice = 0.12             # how far the cornice stands out
+corner_pier = 0.8
+above = 0.5                # the terrace may stand at most this far above the first floor line
+step = 0.35                # a run of bays steps down where its sidewalk falls more than this
+gap = 0.08                 # free space between a pillar and a door, shop front or cafe table
+join = 0.3                 # a run reaches up to this far past its wall end to meet the next building's
+bend = 10.0                # degrees: walls meeting at a shallower angle carry one continuous arcade
+corner_angle = 5.0         # degrees off square that a corner piece still takes
+wrap = 1                   # bays turned into a side street at a corner
+cafe_reach = 1.25          # cafe tables under an arcade stand this far from the wall (1.7 elsewhere)
+lamp_shift = 2.25          # street lamps along arcaded walls move this far toward the curb
+lamp_clear = 0.3           # and must stand this far outside the pillars, or are left out
+tree_trunk = 0.3           # planned street trees by an arcade move out until trunk (this radius) and
+tree_clear = 0.05          # this clearance stand beyond the pillars and cornice; left out unless the
+tree_curb = 0.3            # trunk then stands this far inside the sidewalk's edge
+
+# Wrought-iron balconies on colonial facades (prompt 22): a floor of a facade has balconies with
+# chance row + wealth x (wealth - 0.5); then each of its windows with chance `window`, two neighbours
+# sharing one long balcony with chance `long` when their windows are `long_gap` apart. Never on the
+# floor right above an arcade (its terrace). A rich household's old mashrabiya spot (`balcony`)
+# becomes a window with an iron balcony in the ville nouvelle.
+[dressing.balcony_iron]
+districts = ["colonial"]
+row = 0.4
+wealth = 0.6
+window = 0.85
+long = 0.35
+long_gap = [3.0, 3.8]
+width = 1.2
+depth = 0.6
+rail = 1.0                 # rail height above the balcony floor
+span = 3.2                 # window spacing the long balcony is built for (stretched to the real one)
+
 # Bougainvillea climbers (citygen/mesh/climbers.py), the `climber` role. The piece hangs on a wall:
 # `top` is where the cascade starts, `drop` how far its hem hangs below it.
 # materials: deep, mid and pale bracts; leaves: share of green clumps.
@@ -820,3 +869,7 @@ slab_window_white = [["window_slab_white", 3], ["window_slab_white_shut", 1]]
 slab_window_blue = [["window_slab_blue", 3], ["window_slab_blue_shut", 1]]
 slab_window_green = [["window_slab_green", 3], ["window_slab_green_shut", 1]]
 slab_window_brown = [["window_slab_brown", 3], ["window_slab_brown_shut", 1]]
+arcade_bay = [["arcade_bay", 1]]
+arcade_corner = [["arcade_corner", 1]]
+balcony_iron = [["balcony_iron", 1]]
+balcony_iron_long = [["balcony_iron_long", 1]]

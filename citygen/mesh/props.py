@@ -553,12 +553,236 @@ def tree_piece(kind: str, height: float = 8.0) -> MeshBuilder:
     return mb
 
 
-def catalog(rng, seed: int = 0, trees: dict | None = None, climber: dict | None = None) -> dict:
+# --- colonial arcades and iron balconies (prompt 22): no random draws, sizes from the style --------
+ARCADE = {"bay": [3.5, 4.0], "nominal": 3.75, "depth": 2.5, "height": 3.6, "pillar": [0.8, 0.45], "spring": 1.7,
+          "sink": 0.6, "cornice": 0.12, "corner_pier": 0.8,           # the pieces; then the layout (city/dressing.py)
+          "districts": ["colonial"], "kinds": ["boulevard", "arterial", "ring"], "bay_relaxed": [3.2, 4.4],
+          "above": 0.5, "step": 0.35, "gap": 0.08, "join": 0.3, "bend": 10.0, "corner_angle": 5.0, "wrap": 1,
+          "cafe_reach": 1.25, "lamp_shift": 2.25, "lamp_clear": 0.3, "tree_trunk": 0.3, "tree_clear": 0.05,
+          "tree_curb": 0.3}
+IRON = {"width": 1.2, "depth": 0.6, "rail": 1.0, "span": 3.2, "sill": 0.95}
+
+
+def _orient(quads, normal) -> list:
+    """Quads turned (corner order reversed) where needed so each one faces `normal`."""
+    out = []
+    for q in quads:
+        q = np.asarray(q, dtype=np.float64)
+        n = np.cross(q[1] - q[0], q[3] - q[0])
+        out.append(q if np.dot(n, normal) >= 0 else q[::-1])
+    return out
+
+
+def _arc(cx: float, r: float, zs: float, segments: int) -> np.ndarray:
+    """(segments + 1, 2) points (x, z) of a half circle springing at zs, from its right foot over to its left."""
+    t = np.linspace(0.0, math.pi, segments + 1)
+    return np.stack([cx + r * np.cos(t), zs + r * np.sin(t)], axis=1)
+
+
+def _arch_wall(a: dict, x0, x1, o0, o1, back=None, ext=(0.0, 0.0), segments: int = 8) -> dict:
+    """One arched wall of an arcade, x from x0 to x1, its round arch between pillars [x0, o0] and [o1, x1]:
+    front (pillar faces at y = depth) seen from the street, back seen from the walkway up to the ceiling,
+    the spandrel up to the cornice, jambs, soffit, archivolt, keystone, pillar bases and capitals.
+
+    `back` limits the back faces along x (a corner pier's inner corner); `ext` stretches the trims of
+    the end pillars outward (a corner pier's outer corner, where the side wall's trims meet them).
+    Returns {material: quads}. No end caps: bays meeting in a run would show two faces in one plane.
+    """
+    d, pd, zs, sink, top, hc = a["depth"], a["pd"], a["spring"], a["sink"], a["top"], a["hc"]
+    y1, y0 = d, d - pd
+    bx0, bx1 = back if back is not None else (x0, x1)
+    cap, zb, e, eb = 0.16, 0.32, 0.04, 0.05
+    cx, r = (o0 + o1) / 2, (o1 - o0) / 2
+    pts = _arc(cx, r, zs, segments)
+    crown = zs + r
+    plaster, trim = [], []
+    for xa, xb, ba, bb in ((x0, o0, bx0, o0), (o1, x1, o1, bx1)):          # the two pillars and the wall above them
+        plaster += [_front(xa, xb, zb, zs - cap, y1), _front(xa, xb, zs, top, y1),
+                    _front(ba, bb, zb, zs - cap, y0, back=True), _front(ba, bb, zs, hc, y0, back=True)]
+    plaster += [_side(o0, y0, y1, zb, zs - cap), _side(o1, y0, y1, zb, zs - cap, left=True)]   # jambs
+    for k in range(segments):                                               # spandrel, front and back, and soffit
+        (xa, za), (xb, zb_) = pts[k], pts[k + 1]
+        plaster += [[(xa, y1, za), (xb, y1, zb_), (xb, y1, top), (xa, y1, top)],
+                    [(xa, y0, za), (xa, y0, hc), (xb, y0, hc), (xb, y0, zb_)]]
+        plaster += _orient([[(xa, y0, za), (xb, y0, zb_), (xb, y1, zb_), (xa, y1, za)]],
+                           (cx - (xa + xb) / 2, 0.0, zs - (za + zb_) / 2))
+    rw = 0.13                                                               # archivolt: a band round the arch
+    outer = _arc(cx, r + rw, zs, segments)
+    for k in range(segments):
+        trim += _orient([[(pts[k][0], y1 + 0.025, pts[k][1]), (pts[k + 1][0], y1 + 0.025, pts[k + 1][1]),
+                          (outer[k + 1][0], y1 + 0.025, outer[k + 1][1]), (outer[k][0], y1 + 0.025, outer[k][1])]],
+                        (0.0, 1.0, 0.0))
+    kw, ky = 0.15, y1 + 0.05                                                # keystone up to the cornice
+    trim += [_front(cx - kw, cx + kw, crown - 0.08, top, ky), _side(cx + kw, y1, ky, crown - 0.08, top),
+             _side(cx - kw, y1, ky, crown - 0.08, top, left=True), _flat(cx - kw, cx + kw, y1, ky, crown - 0.08, down=True)]
+    for z0, z1, p in ((zs - cap, zs, e), (-sink, zb, eb)):                 # capitals and bases, p proud of the pillar
+        # left pillar: its trims grow into the opening at the jamb o0; behind an L-shaped corner pier
+        # the back trim stops where the other wall's back trim meets it
+        fa, fb, ba = x0 - ext[0], o0 + p, (bx0 + p if bx0 > x0 else x0)
+        trim += [_front(fa, fb, z0, z1, y1 + p), _front(ba, fb, z0, z1, y0 - p, back=True),
+                 _side(fb, y0 - p, y1 + p, z0, z1), _flat(fa, fb, y0 - p, y1 + p, z1)]
+        trim += [_flat(fa, fb, y0 - p, y1 + p, z0, down=True)] if z0 > 0 else []
+        fa, fb, bb = o1 - p, x1 + ext[1], (bx1 - p if bx1 < x1 else x1)   # right pillar
+        trim += [_front(fa, fb, z0, z1, y1 + p), _front(fa, bb, z0, z1, y0 - p, back=True),
+                 _side(fa, y0 - p, y1 + p, z0, z1, left=True), _flat(fa, fb, y0 - p, y1 + p, z1)]
+        trim += [_flat(fa, fb, y0 - p, y1 + p, z0, down=True)] if z0 > 0 else []
+    return {"plaster": plaster, "trim": trim}
+
+
+def _arcade_dims(cfg: dict | None) -> dict:
+    """Arcade sizes from the style table [dressing.arcade], with the defaults above."""
+    c = {**ARCADE, **(cfg or {})}
+    pw, pd = (float(v) for v in c["pillar"])
+    h = float(c["height"])
+    return {"w": float(c["nominal"]), "depth": float(c["depth"]), "pw": pw, "pd": pd, "spring": float(c["spring"]),
+            "sink": float(c["sink"]), "cp": float(c["cornice"]), "H": h, "top": h - 0.22, "hc": h - 0.3,
+            "pier": float(c["corner_pier"])}
+
+
+def _arcade_slab(mb, x0, x1, a: dict, y_back: float = -0.1, side=None) -> None:
+    """Ceiling over the walkway, the terrace on top and the cornice (with a fillet) along the front."""
+    d, cp, top, hc, h = a["depth"], a["cp"], a["top"], a["hc"], a["H"]
+    _faces(mb, [_flat(x0, x1, y_back, d - a["pd"], hc, down=True)], "warm_white")
+    _faces(mb, [_flat(x0, x1, y_back, d + cp, h)], "roof_white")
+    _faces(mb, [_front(x0, x1, top, h, d + cp), _flat(x0, x1, d + 0.04, d + cp, top, down=True),
+                _front(x0, x1, top - 0.08, top, d + 0.04), _flat(x0, x1, d, d + 0.04, top - 0.08, down=True)], "stone_frame")
+
+
+def _arcade_cap(x: float, a: dict, left: bool, y_back: float = -0.1) -> tuple:
+    """End faces of a bay at x (its pillar, wall, slab and cornice in profile), facing -x with `left`."""
+    d, pd, zs, sink, top, hc, h, cp = a["depth"], a["pd"], a["spring"], a["sink"], a["top"], a["hc"], a["H"], a["cp"]
+    y0 = d - pd
+    plaster = [_side(x, y0, d, 0.32, zs - 0.16, left), _side(x, y0, d, zs, hc, left), _side(x, y_back, d, hc, h, left)]
+    trim = [_side(x, y0 - 0.05, d + 0.05, -sink, 0.32, left), _side(x, y0 - 0.04, d + 0.04, zs - 0.16, zs, left),
+            _side(x, d, d + cp, top, h, left), _side(x, d, d + 0.04, top - 0.08, top, left)]
+    return plaster, trim
+
+
+def arcade_bay(cfg: dict | None = None) -> MeshBuilder:
+    """One bay of a colonial arcade (the ville nouvelle of Tunis): a round arch on two half pillars,
+    the covered walkway behind it with its ceiling, the terrace on top level with the first floor,
+    and a cornice. The origin is on the wall face at street level, the bay centered on it, `nominal`
+    wide (placements stretch it along the wall to 3.5-4 m); the pillars reach `sink` below street
+    level so they meet a sloping sidewalk. Both ends are closed: inside a run they meet back to back."""
+    a = _arcade_dims(cfg)
+    mb = MeshBuilder()
+    w = a["w"] / 2
+    half = a["pw"] / 2
+    q = _arch_wall(a, -w, w, -w + half, w - half)
+    for x, left in ((-w, True), (w, False)):
+        p, t = _arcade_cap(x, a, left)
+        q["plaster"] += p
+        q["trim"] += t
+    _faces(mb, q["plaster"], "warm_white")
+    _faces(mb, q["trim"], "stone_frame")
+    _arcade_slab(mb, -w, w, a)
+    return mb
+
+
+def arcade_corner(cfg: dict | None = None) -> MeshBuilder:
+    """The corner of an arcade turning round a building: a square `depth` x `depth` in front of the
+    building corner (the origin; x from 0 to depth along the first facade's street front, y out toward
+    the second facade's street), with a narrower arch on each street side and an L-shaped corner pier.
+    Placed facing the second facade's street: its side x = 0 meets that facade's first bay, its side
+    y = 0 the first facade's last bay."""
+    a = _arcade_dims(cfg)
+    mb = MeshBuilder()
+    d, pd, half, pier = a["depth"], a["pd"], a["pw"] / 2, a["pier"]
+    front = _arch_wall(a, 0.0, d, half, d - pier, back=(0.0, d - pd), ext=(0.0, 0.04), segments=6)
+    side = _arch_wall(a, -d, 0.0, -d + pier, -half, back=(-d + pd, 0.0), ext=(0.04, 0.0), segments=6)
+    for wall, x, left in ((front, 0.0, True), (side, 0.0, False)):   # closed where it meets the bays: corners a
+        p, t = _arcade_cap(x, a, left, y_back=0.0)                     # few degrees off square leave a sliver
+        wall["plaster"] += p
+        wall["trim"] += t
+    for mat in ("plaster", "trim"):                     # the side wall, built along its own facade: (s, t) -> (t, -s)
+        side[mat] = [[(t, -s, z) for s, t, z in q] for q in side[mat]]
+    _faces(mb, front["plaster"] + side["plaster"], "warm_white")
+    _faces(mb, front["trim"] + side["trim"], "stone_frame")
+    cp, top, hc, h = a["cp"], a["top"], a["hc"], a["H"]
+    _faces(mb, [_flat(0.0, d - pd, 0.0, d - pd, hc, down=True)], "warm_white")
+    _faces(mb, [_flat(0.0, d + cp, 0.0, d + cp, h)], "roof_white")
+    _faces(mb, [_front(0.0, d + cp, top, h, d + cp), _flat(0.0, d + cp, d + 0.04, d + cp, top, down=True),
+                _front(0.0, d + 0.04, top - 0.08, top, d + 0.04), _flat(0.0, d + 0.04, d, d + 0.04, top - 0.08, down=True),
+                _side(d + cp, 0.0, d + cp, top, h), _flat(d + 0.04, d + cp, 0.0, d + 0.04, top, down=True),
+                _side(d + 0.04, 0.0, d + 0.04, top - 0.08, top), _flat(d, d + 0.04, 0.0, d, top - 0.08, down=True)],
+           "stone_frame")
+    return mb
+
+
+def _rail(x0, x1, y, z, t: float) -> list:
+    """A square iron bar along x at depth y and height z (its center), t thick: four faces."""
+    return [_front(x0, x1, z - t / 2, z + t / 2, y + t / 2), _front(x0, x1, z - t / 2, z + t / 2, y - t / 2, back=True),
+            _flat(x0, x1, y - t / 2, y + t / 2, z + t / 2), _flat(x0, x1, y - t / 2, y + t / 2, z - t / 2, down=True)]
+
+
+def _rail_side(x, y0, y1, z, t: float) -> list:
+    """A square iron bar from the wall outward (along y) at x and height z: four faces."""
+    return [_side(x + t / 2, y0, y1, z - t / 2, z + t / 2), _side(x - t / 2, y0, y1, z - t / 2, z + t / 2, left=True),
+            _flat(x - t / 2, x + t / 2, y0, y1, z + t / 2), _flat(x - t / 2, x + t / 2, y0, y1, z - t / 2, down=True)]
+
+
+def balcony_iron(cfg: dict | None = None, long: bool = False) -> MeshBuilder:
+    """A wrought-iron balcony of the ville nouvelle: a thin stone slab on two consoles and a rail of thin
+    bars under a frieze of rings (a simple scroll pattern), about 1.2 x 0.6 m, or `long` across two
+    windows `span` m apart. The origin is at the window sill on the wall face: the slab top is level with
+    the floor, `sill` m lower. Bars have faces on both sides (seen from the street and from the room)."""
+    c = {**IRON, **(cfg or {})}
+    d, rail, z0 = float(c["depth"]), float(c["rail"]), -float(c["sill"])
+    w = float(c["width"]) + (float(c["span"]) if long else 0.0)
+    x0, x1 = -w / 2, w / 2
+    mb = MeshBuilder()
+    slab = [_flat(x0, x1, -0.05, d, z0), _flat(x0, x1, 0.0, d, z0 - 0.1, down=True), _front(x0, x1, z0 - 0.1, z0, d),
+            _side(x1, 0.0, d, z0 - 0.1, z0), _side(x0, 0.0, d, z0 - 0.1, z0, left=True)]
+    consoles = np.linspace(x0 + 0.2, x1 - 0.2, 3 if long else 2)
+    for x in consoles:                                   # stone consoles under the slab, tapering to the front
+        lo, k = z0 - 0.1, 0.05
+        slab += _orient([[(x + k, 0.0, lo - 0.32), (x + k, d - 0.12, lo - 0.06), (x + k, d - 0.12, lo), (x + k, 0.0, lo)]],
+                        (1, 0, 0))
+        slab += _orient([[(x - k, 0.0, lo - 0.32), (x - k, d - 0.12, lo - 0.06), (x - k, d - 0.12, lo), (x - k, 0.0, lo)]],
+                        (-1, 0, 0))
+        slab += _orient([[(x - k, 0.0, lo - 0.32), (x + k, 0.0, lo - 0.32), (x + k, d - 0.12, lo - 0.06),
+                          (x - k, d - 0.12, lo - 0.06)]], (0, 0.3, -1))
+        slab.append(_front(x - k, x + k, lo - 0.06, lo, d - 0.12))
+    _faces(mb, slab, "stone_frame")
+    t, yb = 0.03, d - 0.05                               # rail bars: hand rail, frieze rail, foot rail
+    top, frieze, foot = z0 + rail, z0 + rail - 0.2, z0 + 0.08
+    iron = []
+    for z in (top, frieze, foot):
+        iron += _rail(x0 + 0.03, x1 - 0.03, yb, z, t if z == top else 0.02)
+        for x in (x0 + 0.03, x1 - 0.03):
+            iron += _rail_side(x, 0.0, yb - 0.01, z, t if z == top else 0.02)
+    posts = [x0 + 0.03, x1 - 0.03] + ([0.0] if long else [])
+    for x in posts:                                      # corner posts, both faces of each side
+        iron += [_front(x - 0.015, x + 0.015, z0, top, yb + 0.015), _front(x - 0.015, x + 0.015, z0, top, yb - 0.015, back=True),
+                 _side(x + 0.015, yb - 0.015, yb + 0.015, z0, top), _side(x - 0.015, yb - 0.015, yb + 0.015, z0, top, left=True)]
+    count = max(2, int(round((w - 0.06) / 0.11)))
+    for x in np.linspace(x0 + 0.03, x1 - 0.03, count + 1)[1:-1]:    # thin bars, both faces
+        iron += [_front(x - 0.008, x + 0.008, foot, frieze, yb + 0.004), _front(x - 0.008, x + 0.008, foot, frieze, yb - 0.004, back=True)]
+    for y in np.arange(0.12, yb - 0.05, 0.12):          # side panels back to the wall
+        for x in (x0 + 0.03, x1 - 0.03):
+            iron += [_side(x + 0.004, y - 0.008, y + 0.008, foot, top), _side(x - 0.004, y - 0.008, y + 0.008, foot, top, left=True)]
+    rings = max(3, int(round((w - 0.06) / 0.34)))        # the frieze: rings between frieze and hand rail, a ring's
+    radius, cz = 0.08, (frieze + top) / 2 - 0.0025       # width apart, touching both rails
+    for cx in np.linspace(x0 + 0.03, x1 - 0.03, rings + 1)[:-1] + (w - 0.06) / rings / 2:
+        ring_in, ring_out = _arc(cx, radius - 0.006, cz, 4), _arc(cx, radius + 0.006, cz, 4)
+        for sgn in (1.0, -1.0):                          # upper and lower half
+            pi_, po = ring_in * [1, sgn] + [0, cz * (1 - sgn)], ring_out * [1, sgn] + [0, cz * (1 - sgn)]
+            for k in range(4):
+                for y, face in ((yb + 0.004, 1.0), (yb - 0.004, -1.0)):
+                    iron += _orient([[(pi_[k][0], y, pi_[k][1]), (pi_[k + 1][0], y, pi_[k + 1][1]),
+                                      (po[k + 1][0], y, po[k + 1][1]), (po[k][0], y, po[k][1])]], (0, face, 0))
+    _faces(mb, iron, "iron")
+    return mb
+
+
+def catalog(rng, seed: int = 0, trees: dict | None = None, climber: dict | None = None,
+            arcade: dict | None = None, iron: dict | None = None) -> dict:
     """Every procedural piece: {name: (MeshBuilder, category, anchor)}.
 
     `trees` and `climber` are the style tables `[dressing.trees]` and `[dressing.climber]`; their
     shapes use their own random streams (from `seed`), never `rng`, so they cannot change any other
     piece. Without them the light tree pieces stay and no tree variants or climbers are made.
+    `arcade` and `iron` are `[dressing.arcade]` and `[dressing.balcony_iron]` (sizes only).
     """
     pieces = {}
     for color in DOOR_COLORS:
@@ -605,5 +829,11 @@ def catalog(rng, seed: int = 0, trees: dict | None = None, climber: dict | None 
         "window_stair": (window_stair(), "window", "wall"),
         "balcony_slab": (balcony_slab(), "balcony", "wall"),
         "stair_door": (stair_door(), "door", "wall"),
+    })
+    pieces.update({             # colonial arcades and iron balconies (prompt 22); no random draws
+        "arcade_bay": (arcade_bay(arcade), "arcade", "wall"),
+        "arcade_corner": (arcade_corner(arcade), "arcade", "wall"),
+        "balcony_iron": (balcony_iron(iron), "balcony", "wall"),
+        "balcony_iron_long": (balcony_iron(iron, long=True), "balcony", "wall"),
     })
     return pieces

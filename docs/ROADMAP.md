@@ -33,7 +33,7 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
 - [x] 20.1 AD1 Every home gets a door and windows
 - [x] 20.2 AD2 Impasses to landlocked houses
 - [x] 21 A9 Lit windows by household
-- [ ] 22 AR1 Arcades and iron balconies
+- [x] 22 AR1 Arcades and iron balconies
 - [ ] 23 AR2 Building massing
 - [ ] 24 A7 More greenery
 - [ ] 25 H3a Parked cars and taxis

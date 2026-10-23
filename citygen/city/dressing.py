@@ -19,7 +19,9 @@ import shapely
 from shapely.geometry import LineString
 from shapely.strtree import STRtree
 
+from ..mesh.props import ARCADE
 from ..rng import stream, weighted
+from .arcades import Run, band, free_spans, layout, level_steps, spans_of, turn
 from .geo import frame
 from .openings import DoorSpot, Walls, fits, joined, open_walls, path_to_street, piece_boxes, wall_arrays
 from .roofs import roof_layout, roof_stream
@@ -30,6 +32,7 @@ FRONT_PREF = {"souk": 3.0, "alley": 2.5, "street": 2.0, "boulevard": 1.5, "ring"
 LANES = ("alley", "impasse")   # narrow lanes: dressed alike (laundry, cables, arches)
 DOOR_WALL = 2.3                # shortest street wall that takes a door; the main facade is one if any is
 TRADITIONAL = {"medina", "village"}
+NO_BOXES = (np.array([], dtype=object), np.zeros(0), np.zeros(0))   # piece_boxes of nothing
 
 
 @dataclass
@@ -41,6 +44,7 @@ class Placement:
     yaw: float      # radians about up; the piece front turns to (-sin yaw, cos yaw)
     on_ground: bool = True
     scale: float = 1.0
+    stretch: float = 1.0   # extra scale along the wall (x) only: arcade bays and long balconies fit their wall
 
 
 @dataclass
@@ -100,6 +104,10 @@ class Dresser:
         self.slab_cfg = self.cfg.get("slab", {})
         self.path_cfg = self.cfg.get("paths", {})
         self.lit_cfg = self.cfg.get("lit", {})
+        self.arcade_cfg = {**ARCADE, **self.cfg["arcade"]} if "arcade" in self.cfg else {}
+        self.iron_cfg = self.cfg.get("balcony_iron", {})
+        self._zones = None                       # arcade bands of the whole city, for street lamps (lazy)
+        self._sidewalks = None                   # STRtree of the sidewalk polygons (lazy)
         self._stairs = {n for r in ("stair_window", "stair_door") for n in (self.roles[r][0] if r in self.roles else [r])}
         targets = self.surfaces + [w.polygon for w in getattr(plan, "walks", ())]
         self.target_tree = STRtree(targets) if targets else None   # where a garden path may end
@@ -167,9 +175,10 @@ class Dresser:
     def building(self, k: int, high: float, paths: list | None = None) -> list:
         """Placements dressing building k (`high`: highest ground under it, as the tile mesher uses).
 
-        The street walls, then the roof, draw from one stream `rng("b", k)` in a fixed order. Every
-        home's main door, open-wall windows and an apartment block's stair doors come after them,
-        on their own streams, so nothing placed before them moves. `paths` collects the paved
+        The street walls, then the roof, draw from one stream `rng("b", k)` in a fixed order. A colonial
+        building's arcade and iron balconies (prompt 22, no draw on that stream) come next; every
+        home's main door, open-wall windows and an apartment block's stair doors after them, on
+        their own streams, so nothing placed before them moves. `paths` collects the paved
         paths (point arrays) from doors on open ground to the street.
         """
         b = self.plan.buildings[k]
@@ -177,12 +186,15 @@ class Dresser:
             return []
         rng = self.rng("b", k)
         out: list = []
+        slots: list = []
         walls = self.walls(b, k if self.every_home else None)
-        front = self._street_side(b, k, self.facades(b, walls), high, rng, out)
-        dressed = len(out)
+        front = self._street_side(b, k, self.facades(b, walls), high, rng, out, slots)
+        street, arcade, iron, shadow = self._colonial(b, k, walls, high, out, slots)
+        out[:] = street
         self._roof(b, k, high, rng, out)
+        out += arcade + iron
         if self.every_home:
-            boxes = self._boxes(walls, front, out[:dressed])
+            boxes = self._boxes(walls, front, street + iron, shadow)
             spots = self._entrances(k, b, walls, front, boxes)
             self._homes(k, b, walls, spots, high, out, boxes)
             if paths is not None:
@@ -198,9 +210,11 @@ class Dresser:
             return []
         walls = self.walls(b, k)
         out: list = []
+        slots: list = []
         high = float(building_highs(self.ground, [b])[0])
-        front = self._street_side(b, k, self.facades(b, walls), high, self.rng("b", k), out)   # same draws
-        return self._entrances(k, b, walls, front, self._boxes(walls, front, out))
+        front = self._street_side(b, k, self.facades(b, walls), high, self.rng("b", k), out, slots)   # same draws
+        street, _, iron, shadow = self._colonial(b, k, walls, high, out, slots)
+        return self._entrances(k, b, walls, front, self._boxes(walls, front, street + iron, shadow))
 
     def door_spot(self, k: int) -> DoorSpot | None:
         """The main door of dwelling k, exactly where `building` puts it; None for other buildings.
@@ -210,10 +224,11 @@ class Dresser:
         spots = self.entrances(k)
         return spots[0] if spots else None
 
-    def _street_side(self, b, k: int, fac: list, high: float, rng, out: list) -> tuple:
+    def _street_side(self, b, k: int, fac: list, high: float, rng, out: list, slots: list | None = None) -> tuple:
         """The street walls' door or shop and windows, as dressed since the start (draws on `rng`).
 
         Returns (main facade, door or shop center, "front" | "shop" | "cafe" | None, door piece, threshold).
+        `slots` collects the windows placed (for the iron balconies).
         """
         if not fac:
             return None, None, None, None, None
@@ -224,7 +239,7 @@ class Dresser:
         floors = max(1, int(b.floors))
         main = max(fac, key=lambda f: (f.length >= DOOR_WALL, FRONT_PREF.get(f.kind, 0.0), f.length))
         door_at, kind, piece, z = self._front(main, district, color, wealth, b.height, rng, out)
-        self._windows(fac, district, color, wealth, floors, b.height / floors, high, door_at, rng, out)
+        self._windows(k, fac, district, color, wealth, floors, b.height / floors, high, door_at, rng, out, slots)
         return main, door_at, kind, piece, z
 
     def drawn(self, x, y) -> np.ndarray:
@@ -349,12 +364,13 @@ class Dresser:
         z = self.front_surface(c, n)
         self.put(out, "shop_front", rng, c, z, yaw, on_ground=False)
         self.put(out, "awning", rng, c, z, yaw, on_ground=False)
+        reach = self.arcade_cfg.get("cafe_reach", 1.7) if self._arcaded(f.kind, "colonial") else 1.7   # under an arcade
         for k in range(int(rng.integers(1, 3))):
-            p = c + u * (k - 0.5) * 1.9 + n * 1.7
+            p = c + u * (k - 0.5) * 1.9 + n * reach
             self.put(out, "cafe_set", rng, p, 0.0, yaw + rng.uniform(-0.4, 0.4))
         return c, z
 
-    def _windows(self, fac, district, color, wealth, floors, fh, high, door_at, rng, out) -> None:
+    def _windows(self, k, fac, district, color, wealth, floors, fh, high, door_at, rng, out, slots=None) -> None:
         cfg = self.cfg
         spacing = float(cfg.get("window_spacing", 3.2))
         sill = float(cfg.get("window_sill", 0.95))
@@ -379,14 +395,33 @@ class Dresser:
                     base = high + floor * fh
                     if floor >= 1 and balconies and balcony and f.length >= 4.0 and fh >= 2.6:
                         balconies -= 1
+                        if district in self.iron_cfg.get("districts", ()):   # ville nouvelle: no mashrabiya
+                            self._iron_window(k, f, i, count, floor, tint, p, base + sill, yaw, balcony, rng, out, slots)
+                            continue
                         self.put(out, balcony, rng, p, base + cfg.get("balcony_height", 0.45), yaw, on_ground=False)
                         continue
                     role = self._window_role(tint, traditional, bay, floor, rng.random())
                     if role:
                         self.put(out, role, rng, p, base + sill, yaw, on_ground=False)
+                        if slots is not None:
+                            slots.append([f, i, count, floor, p, False, False])
                     if laundry and floor >= 1 and count == 1 and f.length >= 3.6:
                         laundry -= 1
                         self.put(out, "wall_laundry", rng, p, base + sill - 0.15, yaw, on_ground=False)
+                        if role and slots is not None:
+                            slots[-1][6] = True
+
+    def _iron_window(self, k, f, i, count, floor, tint, p, z, yaw, balcony, rng, out, slots) -> None:
+        """A rich colonial household's balcony spot: a window that gets an iron balcony (in `_iron`).
+        The old mashrabiya took exactly one draw on `rng`; so does this, every other piece stays put."""
+        if balcony in self.roles:
+            rng.random()
+        wrng = self.rng("balcony-iron", k, "window", f.wall, floor, i)
+        role = self._window_role(tint, False, False, floor, wrng.random())
+        if role:
+            self.put(out, role, wrng, p, z, yaw, on_ground=False)
+            if slots is not None:
+                slots.append([f, i, count, floor, p, True, False])
 
     def _window_role(self, tint: str, traditional: bool, bay: bool, floor: int, roll: float) -> str | None:
         style = ("bay" if bay and floor >= 1 and roll < self.cfg.get("bay_window", 0.35) else
@@ -418,12 +453,425 @@ class Dresser:
                     self.put(out, role, rng, (x, y), top, rng.uniform(0, 6.28), on_ground=False)
                     break
 
+    # --- colonial arcades and iron balconies (prompt 22) ----------------------------------------
+    def _colonial(self, b, k: int, walls: Walls, high: float, street: list, slots: list) -> tuple:
+        """A colonial building's arcade and iron balconies, after its street walls are dressed (no draw on
+        `rng("b", k)`). Returns (street pieces kept, arcade pieces, balconies, pillar boxes): old pieces the
+        arcade's slab or pillars would cut (a vine or a hood over a door) are left out, and the pillar
+        boxes (from the wall out to each pillar) keep every home's new doors under the arches."""
+        district = self.kinds[b.district]
+        arcade, shadow, runs = [], NO_BOXES, []
+        if self.arcade_cfg and district in self.arcade_cfg.get("districts", ()):
+            runs, corners = self._arcade_runs(b, k, walls, street, high)
+            if runs:
+                arcade, shadow, solid = self._arcade_pieces(b, walls, high, runs, corners)
+                street = self._clear_of(street, solid)
+        iron = self._iron(k, b, high, runs, slots, street) if district in self.iron_cfg.get("districts", ()) else []
+        return street, arcade, iron, shadow
+
+    def _arcaded(self, kind: str, district: str) -> bool:
+        """Does a wall of this district facing a street of this kind carry an arcade?"""
+        cfg = self.arcade_cfg
+        return bool(cfg) and district in cfg.get("districts", ()) and kind in cfg.get("kinds", ())
+
+    def _first(self, role: str) -> str | None:
+        """The first piece listed for a role (no draw), or the piece of that name."""
+        found = self.roles.get(role)
+        return found[0][0] if found else (role if role in self.kit.pieces else None)
+
+    def _on_sidewalk(self, pts: np.ndarray) -> np.ndarray:
+        if self._sidewalks is None:
+            polys = [w.polygon for w in getattr(self.plan, "walks", ()) if w.kind == "sidewalk"]
+            self._sidewalks = STRtree(polys) if polys else False
+        out = np.zeros(len(pts), dtype=bool)
+        if self._sidewalks is not False and len(pts):
+            inp, _ = self._sidewalks.query(shapely.points(pts), predicate="within")
+            out[inp] = True
+        return out
+
+    def _arcade_runs(self, b, k: int, walls: Walls, street: list, high: float) -> tuple:
+        """The arcade runs of a colonial building, laid out in bays, and the walls whose end a corner piece
+        continues. Arcades go on every wall facing one of `kinds`; a square corner between two of them
+        gets a corner piece, a corner onto another street a corner piece and `wrap` bays round it; walls
+        meeting at a shallow convex bend carry one arcade round it."""
+        cfg = self.arcade_cfg
+        if self._first("arcade_bay") is None:
+            return [], []
+        m = len(walls.length)
+        arc = np.array([walls.street[i] >= 0 and walls.length[i] > 1.5 and
+                        self.plan.streets[walls.street[i]].kind in cfg["kinds"] for i in range(m)])
+        if not arc.any():
+            return [], []
+        runs = {int(i): r for i in np.nonzero(arc)[0]
+                if (r := self._free_run(k, walls, int(i), 0.0, float(walls.length[i]))) is not None}
+        corners, depth = [], float(cfg["depth"])
+        wrap = float(cfg["wrap"]) * float(cfg["nominal"])
+        for i in range(m):
+            j = (i + 1) % m
+            if not (arc[i] or arc[j]):
+                continue
+            t = turn(walls.u[i], walls.u[j])
+            ri, rj = runs.get(i), runs.get(j)
+            at_i = ri is not None and ri.s1 >= walls.length[i] - 1e-6
+            at_j = rj is not None and rj.s0 <= 1e-6
+            if 0.0 < t <= cfg["bend"] and at_i and at_j:          # a shallow convex bend: the fronts meet
+                e = depth * math.tan(math.radians(t) / 2)
+                ri.s1, rj.s0, ri.fix1, rj.fix0 = ri.s1 + e, rj.s0 - e, True, True
+            elif abs(t - 90.0) <= cfg["corner_angle"] and wrap > 0 and self._corner_free(k, walls, i):
+                if not at_j and not arc[j] and at_i and walls.street[j] >= 0:      # round into the side street
+                    rj = self._free_run(k, walls, j, 0.0, min(wrap, float(walls.length[j])))
+                    at_j = rj is not None and rj.s0 <= 1e-6
+                    if at_j:
+                        runs[j] = rj
+                elif not at_i and not arc[i] and at_j and walls.street[i] >= 0:
+                    li = float(walls.length[i])
+                    ri = self._free_run(k, walls, i, max(0.0, li - wrap), li)
+                    at_i = ri is not None and ri.s1 >= li - 1e-6
+                    if at_i:
+                        runs[i] = ri
+                if at_i and at_j:
+                    runs[i].fix1 = runs[j].fix0 = True
+                    corners.append(i)
+        bays = [(*cfg["bay"], float(cfg["nominal"])), (*cfg["bay_relaxed"], float(cfg["nominal"]))]
+        boxes = piece_boxes(self.kit, street, high) if street else NO_BOXES
+        out = []
+        for i, run in sorted(runs.items()):
+            run.cuts = layout(run, self._pillar_zones(walls, i, run, street, boxes), bays)
+            if run.cuts is not None:
+                out.append(run)
+        ends = {r.wall: r for r in out}
+        corners = [i for i in corners if i in ends and (i + 1) % m in ends
+                   and ends[i].cuts[-1] >= walls.length[i] - 1e-6 and ends[(i + 1) % m].cuts[0] <= 1e-6]
+        return out, corners
+
+    def _free_run(self, k: int, walls: Walls, i: int, lo: float, hi: float) -> Run | None:
+        """The part of wall i between lo and hi an arcade may cover: nothing built within its depth (this
+        building round a concave corner, a neighbour), sidewalk under its pillars. Where the next
+        building stands in line within 2 x `join` m, the run reaches half way across the gap to meet
+        that building's arcade."""
+        cfg = self.arcade_cfg
+        d, pd, reach = float(cfg["depth"]), float(cfg["pillar"][1]), 2 * float(cfg["join"])
+        a, u, n = walls.a[i], walls.u[i], walls.n[i]
+        poly = band(a, u, n, lo - reach, hi + reach, 0.02, d + float(cfg["cornice"]) + 0.05)
+        blocked = []
+        idx = self.fp_tree.query(poly, predicate="intersects")
+        if len(idx):
+            cut = shapely.intersection(poly, self.fp_tree.geometries[idx])
+            big = shapely.area(cut) > 1e-3
+            blocked += [(s0, s1, "built") for s0, s1 in spans_of(cut[big], a, u)]
+        s = np.arange(lo - reach, hi + reach + 1e-9, 0.25)
+        off = ~self._on_sidewalk(a + np.outer(s, u) + n * (d - pd / 2))
+        blocked += [(v - 0.13, v + 0.13, "walk") for v in s[off]]
+        spans = [(max(f0, lo), min(f1, hi), f0, f1) for f0, f1, _, _ in free_spans(lo - reach, hi + reach, blocked)]
+        spans = [sp for sp in spans if sp[1] - sp[0] > 0.5]
+        if not spans:
+            return None
+        s0, s1, f0, f1 = max(spans, key=lambda sp: sp[1] - sp[0])
+        run = Run(i, s0, s1)
+        for end, sign in ((lo, -1.0), (hi, 1.0)):
+            gap = self._side_gap(k, a, u, n, end, sign, reach)
+            if gap is None:
+                continue
+            if sign < 0 and s0 == lo and f0 <= lo - gap / 2:
+                run.s0, run.fix0 = lo - gap / 2, True
+            elif sign > 0 and s1 == hi and f1 >= hi + gap / 2:
+                run.s1, run.fix1 = hi + gap / 2, True
+        return run
+
+    def _side_gap(self, k: int, a, u, n, end: float, sign: float, reach: float) -> float | None:
+        """Meters from a wall end to the next building in line with it (its footprint just behind the
+        wall line, within `reach`), or None."""
+        s0, s1 = (end, end + reach) if sign > 0 else (end - reach, end)
+        probe = band(a, u, n, s0, s1, -1.0, -0.02)
+        idx = [j for j in self.fp_tree.query(probe, predicate="intersects") if j != k]
+        if not idx:
+            return None
+        cut = shapely.intersection(probe, self.fp_tree.geometries[idx])
+        cut = cut[shapely.area(cut) > 1e-4]
+        if not len(cut):
+            return None
+        ext = spans_of(cut, a, u)
+        return float(max(0.0, ext[:, 0].min() - end if sign > 0 else end - ext[:, 1].max()))
+
+    def _corner_free(self, k: int, walls: Walls, i: int) -> bool:
+        """Room for a corner piece past the end of wall i: nothing built there, its pier on the sidewalk."""
+        cfg = self.arcade_cfg
+        d, pd = float(cfg["depth"]), float(cfg["pillar"][1])
+        v, u, n = walls.b[i], walls.u[i], walls.n[i]
+        sq = band(v, u, n, 0.02, d + float(cfg["cornice"]), 0.02, d + float(cfg["cornice"]))
+        idx = self.fp_tree.query(sq, predicate="intersects")
+        if len(idx) and (shapely.area(shapely.intersection(sq, self.fp_tree.geometries[idx])) > 1e-3).any():
+            return False
+        return bool(self._on_sidewalk((v + (u + n) * (d - pd / 2))[None, :])[0])
+
+    def _pillar_zones(self, walls: Walls, i: int, run: Run, street: list, boxes: tuple) -> list:
+        """Spans of wall i where no pillar may stand: in front of a door or shop front on the wall, and
+        wherever a piece already placed (a cafe table) reaches into the pillars' strip."""
+        cfg = self.arcade_cfg
+        d, (pw, pd), gap = float(cfg["depth"]), cfg["pillar"], float(cfg["gap"])
+        if not street:
+            return []
+        a, u, n = walls.a[i], walls.u[i], walls.n[i]
+        grow = pw / 2 + gap
+        strip = band(a, u, n, run.s0 - 2.0, run.s1 + 2.0, d - pd - gap, d + gap)
+        hit = shapely.intersects(boxes[0], strip)
+        yaw = yaw_of(n)
+        zones = []
+        for m, p in enumerate(street):
+            pc = self.kit.pieces[p.piece]
+            xy = np.array([p.x, p.y]) - a
+            on_wall = (pc.category in ("door", "shop") and abs(float(xy @ n)) < 0.1
+                       and math.cos(p.yaw - yaw) > 0.99)
+            if on_wall:                                    # a piece's +x runs along -u
+                c = float(xy @ u)
+                zones.append((c - pc.bounds[1][0] * p.stretch - grow, c - pc.bounds[0][0] * p.stretch + grow))
+            elif hit[m]:
+                s0, s1 = spans_of(boxes[0][m:m + 1], a, u)[0]
+                zones.append((s0 - grow, s1 + grow))
+        return zones
+
+    def _arcade_pieces(self, b, walls: Walls, high: float, runs: list, corners: list) -> tuple:
+        """The bays (stretched along the wall) and corner pieces of laid-out runs, each run made level in
+        steps along its sidewalk, its terrace never more than `above` over the first floor line. Returns
+        (placements, pillar boxes from the wall out, solid boxes of pillars and slabs)."""
+        cfg = self.arcade_cfg
+        d, (pw, pd), cp = float(cfg["depth"]), cfg["pillar"], float(cfg["cornice"])
+        nominal, h, sink = float(cfg["nominal"]), float(cfg["height"]), float(cfg["sink"])
+        hc = h - 0.3                                       # the walkway ceiling (mesh/props._arcade_dims)
+        fh = b.height / max(1, int(b.floors))
+        zmax = high + fh + float(cfg["above"]) - h
+        mids = [(r.cuts[:-1] + r.cuts[1:]) / 2 for r in runs]
+        pts = np.concatenate([walls.a[r.wall] + np.outer(c, walls.u[r.wall]) + walls.n[r.wall] * (d - pd / 2)
+                              for r, c in zip(runs, mids)])
+        zs = np.atleast_1d(self.ground.surface(pts[:, 0], pts[:, 1]))
+        bay, out, shadow, solid = self._first("arcade_bay"), [], [], []
+        at = 0
+        for r, c in zip(runs, mids):
+            a, u, n = walls.a[r.wall], walls.u[r.wall], walls.n[r.wall]
+            r.z = np.minimum(level_steps(zs[at:at + len(c)], float(cfg["step"])), zmax) + 0.003 * (r.wall % 2)
+            at += len(c)
+            width = np.diff(r.cuts)
+            yaw = yaw_of(n)
+            for s, w, z in zip(c, width, r.z):
+                p = a + u * s
+                out.append(Placement(bay, float(p[0]), float(p[1]), float(z), yaw, on_ground=False,
+                                     stretch=float(w / nominal)))
+            half = pw / 2 * width / nominal
+            for e, s in enumerate(r.cuts):                 # each pillar: half of the bay before, half of the one after
+                left, right = (half[e - 1] if e > 0 else 0.0), (half[e] if e < len(half) else 0.0)
+                zz = r.z[max(e - 1, 0):e + 1]
+                lo, hi = float(zz.min()), float(zz.max())
+                shadow.append((band(a, u, n, s - left, s + right, 0.0, d), lo - sink, hi + hc))
+                solid.append((band(a, u, n, s - left, s + right, d - pd - 0.05, d + 0.05), lo - sink, hi + hc))
+            solid += [(band(a, u, n, s0, s1, -0.1, d + cp), float(z) + hc - 0.02, float(z) + h + 0.05)
+                      for s0, s1, z in zip(r.cuts[:-1], r.cuts[1:], r.z)]
+        ends = {r.wall: r for r in runs}
+        corner = self._first("arcade_corner")
+        for i in corners if corner else []:
+            j = (i + 1) % len(walls.length)
+            z = min(float(ends[i].z[-1]), float(ends[j].z[0])) + 0.004   # its terrace wins a sliver of overlap
+            v, u, n = walls.b[i], walls.u[i], walls.n[i]
+            # a piece's +x runs against its wall's direction, so turned to the next wall's street the corner
+            # piece lies past the end of wall i, in the square in front of the corner; a corner a few degrees
+            # off square splits the difference between the two walls
+            off = math.radians(turn(u, walls.u[j]) - 90.0) / 2
+            out.append(Placement(corner, float(v[0]), float(v[1]), z, yaw_of(walls.n[j]) - off, on_ground=False))
+            solid.append((band(v, u, n, 0.0, d + cp, 0.0, d + cp), z - sink, z + h + 0.05))
+        pack = lambda boxes: (np.array([q[0] for q in boxes], dtype=object), np.array([q[1] for q in boxes]),
+                              np.array([q[2] for q in boxes]))
+        return out, pack(shadow), pack(solid)
+
+    def _clear_of(self, pieces: list, solid: tuple) -> list:
+        """The pieces whose box cuts none of the arcade's solid parts (slab and pillars); doors and shop
+        fronts always stay (the pillars keep clear of them and the ceiling stands above them)."""
+        if not pieces or not len(solid[0]):
+            return pieces
+        polys, z0, z1 = piece_boxes(self.kit, pieces, 0.0)
+        rel = np.array([p.on_ground for p in pieces])
+        if rel.any():                                      # ground pieces: on the drawn surface under them
+            xy = np.array([(p.x, p.y) for p in pieces])[rel]
+            lift = np.atleast_1d(self.ground.surface(xy[:, 0], xy[:, 1]))
+            z0, z1 = z0.copy(), z1.copy()
+            z0[rel] += lift
+            z1[rel] += lift
+        keep = []
+        for m, p in enumerate(pieces):
+            if self.kit.pieces[p.piece].category in ("door", "shop"):
+                keep.append(p)
+                continue
+            near = (solid[1] < z1[m]) & (solid[2] > z0[m])
+            cut = near.any() and (shapely.area(shapely.intersection(polys[m], solid[0][near])) > 1e-4).any()
+            if not cut:
+                keep.append(p)
+        return keep
+
+    def _iron(self, k: int, b, high: float, runs: list, slots: list, street: list) -> list:
+        """Wrought-iron balconies on a colonial building's street windows (own streams, one per floor of
+        each facade): a floor has them with a chance that grows with the household's wealth, then each
+        window, two neighbours sometimes sharing one long balcony. A rich household's old mashrabiya
+        spot always gets one. None on the floor right above an arcade (its terrace), none where a
+        clothesline hangs or another piece is in the way."""
+        cfg = self.iron_cfg
+        single, long_ = self._first("balcony_iron"), self._first("balcony_iron_long")
+        if not slots or single is None:
+            return []
+        home = self.homes.get(k)
+        wealth = home.wealth if home else 0.4
+        chance = float(np.clip(cfg.get("row", 0.4) + cfg.get("wealth", 0.6) * (wealth - 0.5), 0.0, 1.0))
+        width, span = float(cfg.get("width", 1.2)), float(cfg.get("span", 3.2))
+        g0, g1 = cfg.get("long_gap", [3.0, 3.8])
+        fh = b.height / max(1, int(b.floors))
+        sill = float(self.cfg.get("window_sill", 0.95))
+        pw = float(self.arcade_cfg.get("pillar", [0.8])[0]) if self.arcade_cfg else 0.0
+        covered = {}
+        for r in runs:
+            covered.setdefault(r.wall, []).append((r.cuts[0] - pw, r.cuts[-1] + pw))
+        boxes = piece_boxes(self.kit, [p for p in street if self.kit.pieces[p.piece].category != "window"], high)
+        rows: dict = {}
+        for slot in slots:
+            rows.setdefault((slot[0].wall, slot[3]), {})[slot[1]] = slot
+        out = []
+        for (wall, floor), cols in rows.items():
+            f = next(iter(cols.values()))[0]
+            count = next(iter(cols.values()))[2]
+            gap = f.length / max(count, 1)
+            rng = self.rng("balcony-iron", k, wall, floor)
+            row = rng.random() < chance
+            draws = rng.random((count, 2))
+
+            def wanted(i: int) -> bool:
+                slot = cols.get(i)
+                if slot is None or slot[6] or not (slot[5] or (row and draws[i, 0] < cfg.get("window", 0.85))):
+                    return False
+                s = float(np.dot(slot[4] - f.a, f.u))
+                return not (floor == 1 and any(s0 < s < s1 for s0, s1 in covered.get(wall, ())))
+
+            z = high + floor * fh + sill
+            i = 0
+            while i < count:
+                if not wanted(i):
+                    i += 1
+                    continue
+                p = cols[i][4]
+                if (long_ and wanted(i + 1) and g0 <= gap <= g1 and draws[i, 1] < cfg.get("long", 0.35)):
+                    q = (p + cols[i + 1][4]) / 2
+                    cand = Placement(long_, float(q[0]), float(q[1]), z, yaw_of(f.n), False,
+                                     stretch=float((gap + width) / (span + width)))
+                    if self._clear(cand, boxes):
+                        out.append(cand)
+                        i += 2
+                        continue
+                cand = Placement(single, float(p[0]), float(p[1]), z, yaw_of(f.n), False)
+                if self._clear(cand, boxes):
+                    out.append(cand)
+                i += 1
+        return out
+
+    def _clear(self, cand: Placement, boxes: tuple) -> bool:
+        """Does a placed piece keep clear of every box (in plan and height)?"""
+        if not len(boxes[0]):
+            return True
+        poly, z0, z1 = piece_boxes(self.kit, [cand], 0.0)
+        near = (boxes[1] < z1[0] + 0.05) & (boxes[2] > z0[0] - 0.05)
+        return not (near.any() and shapely.intersects(poly[0], boxes[0][near]).any())
+
+    def _arcade_band(self, pts: np.ndarray) -> np.ndarray:
+        """True for points within the arcade bands of the city (every colonial wall on an arcaded street,
+        out to the pillars plus `lamp_clear`, and as far past each end): where no street lamp stands."""
+        return self._band_push(pts, float(self.arcade_cfg["depth"]) + float(self.arcade_cfg["lamp_clear"]))[0] >= 0
+
+    def _tree_reach(self) -> float:
+        cfg = self.arcade_cfg
+        return float(cfg["depth"]) + float(cfg["cornice"]) + float(cfg["tree_trunk"]) + float(cfg["tree_clear"])
+
+    def _band_push(self, pts: np.ndarray, reach: float) -> tuple:
+        """For points within `reach` m of an arcaded wall (its band, as far past each end): the wall's index
+        in the zones (-1 where none) and how far the point must move out along its normal to clear it."""
+        wall, push = np.full(len(pts), -1), np.zeros(len(pts))
+        if self._zones is None:
+            self._zones = self._arcade_zones()
+        if self._zones is False or not len(pts):
+            return wall, push
+        tree, a, n = self._zones
+        inp, hit = tree.query(shapely.points(pts), predicate="within")
+        need = reach - np.einsum("ij,ij->i", pts[inp] - a[hit], n[hit])
+        for i, j, e in zip(inp.tolist(), hit.tolist(), need.tolist()):
+            if e > push[i]:
+                wall[i], push[i] = j, e
+        return wall, push
+
+    def tree_spots(self, xy: np.ndarray) -> tuple:
+        """Where planned trees stand (prompt 22): a trunk inside an arcade band (wall to pillar face and
+        cornice, plus `tree_trunk` and `tree_clear`) moves straight out toward the curb until it clears;
+        it is left out when that point is not on a sidewalk at least `tree_curb` m inside its edge, or lies
+        in another arcade's band. The plan's trees never change. Returns (points, kept, away): `away` is
+        the outward normal of the arcade a moved tree stands by (zero for the others)."""
+        xy = np.array(xy, dtype=np.float64).reshape(-1, 2)
+        kept, away = np.ones(len(xy), dtype=bool), np.zeros((len(xy), 2))
+        if not self.arcade_cfg or not len(xy):
+            return xy, kept, away
+        reach = self._tree_reach()
+        wall, push = self._band_push(xy, reach)
+        moved = np.nonzero(wall >= 0)[0]
+        if not len(moved):
+            return xy, kept, away
+        away[moved] = self._zones[2][wall[moved]]
+        xy[moved] += away[moved] * (push[moved, None] + 1e-3)
+        again, _ = self._band_push(xy[moved], reach)
+        on = self._on_sidewalk(xy[moved])
+        for m, i in enumerate(moved.tolist()):
+            ok = again[m] < 0 and on[m]
+            if ok:
+                pt = shapely.Point(xy[i])
+                walk = self._sidewalks.geometries[self._sidewalks.query(pt, predicate="within")]
+                ok = bool(shapely.distance(shapely.boundary(walk), pt).min() >= float(self.arcade_cfg["tree_curb"]))
+            kept[i] = ok
+        return xy, kept, away
+
+    def _arcade_zones(self):
+        """(STRtree of the arcade bands, wall start points, outward normals) of the whole city, or False."""
+        cfg = self.arcade_cfg
+        if not cfg:
+            return False
+        reach = max(float(cfg["depth"]) + float(cfg["lamp_clear"]), self._tree_reach())
+        rows = [wall_arrays(b.footprint) for b in self.plan.buildings
+                if b.kind in DRESSED and self.kinds[b.district] in cfg["districts"]]
+        if not rows:
+            return False
+        a, q, n, length = (np.concatenate([r[m] for r in rows]) for m in range(4))
+        street = self.streets_at((a + q) / 2 + n * 1.6)
+        kinds = set(cfg["kinds"])
+        arc = np.array([street[m] >= 0 and length[m] > 1.5 and self.plan.streets[street[m]].kind in kinds
+                        for m in range(len(a))], dtype=bool)
+        u = (q - a) / np.maximum(length, 1e-9)[:, None]
+        wrap = float(cfg["wrap"]) * float(cfg["bay_relaxed"][1])
+        polys, keep, at = [], [], 0
+        for r in rows:                                    # each building's walls, as a ring
+            idx = np.arange(at, at + len(r[0]))
+            at += len(r[0])
+            for e, m in enumerate(idx):
+                lo, hi = None, None
+                if arc[m]:
+                    lo, hi = -reach, length[m] + reach
+                elif street[m] >= 0 and wrap > 0:         # the bays an arcade turns into a side street
+                    if arc[idx[(e - 1) % len(idx)]]:
+                        lo, hi = -reach, min(wrap, length[m]) + reach
+                    if arc[idx[(e + 1) % len(idx)]]:
+                        lo, hi = (-reach if lo is not None else max(0.0, length[m] - wrap) - reach), length[m] + reach
+                if lo is not None:
+                    polys.append(band(a[m], u[m], n[m], lo, hi, 0.0, reach))
+                    keep.append(m)
+        if not keep:
+            return False
+        return STRtree(polys), a[keep], n[keep]
+
     # --- every home: main doors, open walls, apartment blocks (prompt 20.1) -------------------
-    def _boxes(self, walls: Walls, front: tuple, dressed: list) -> tuple:
-        """Boxes of the street walls' pieces, when a new door or an open wall's windows must avoid them."""
+    def _boxes(self, walls: Walls, front: tuple, dressed: list, shadow: tuple = NO_BOXES) -> tuple:
+        """Boxes of the street walls' pieces, when a new door or an open wall's windows must avoid them
+        (`shadow`: an arcade's pillars, from the wall out to them)."""
         if front[2] == "front" and not (walls.open & (walls.street < 0)).any():
             return piece_boxes(self.kit, [], 0.0)
-        return piece_boxes(self.kit, dressed, front[4] or 0.0)   # ground pieces stand by the door or shop
+        return joined(piece_boxes(self.kit, dressed, front[4] or 0.0), shadow)   # ground pieces stand by the door or shop
 
     def _entrances(self, k: int, b, walls: Walls, front: tuple, boxes: tuple) -> list:
         """The doors of dwelling k, main door first. `boxes`: the street walls' pieces already placed."""
@@ -807,17 +1255,22 @@ class Dresser:
         return part
 
     # --- trees ------------------------------------------------------------------------------
-    def tree(self, k: int, t, z: float) -> Placement | None:
+    def tree(self, k: int, t, z: float, away=None) -> Placement | None:
         """A planned tree as a kit piece (a Tounes Rush palm, or the generator's own tree), scaled to its height.
 
-        None means the kit has no tree of that kind and the tile meshes it instead.
+        None means the kit has no tree of that kind and the tile meshes it instead. `away`: a tree moved
+        out of an arcade's way (`tree_spots`) turns so its lean (the date palm leans toward its -x) points
+        that way, over the street, never back into the arcade.
         """
         got = self.pick(f"tree_{t.kind}", self.rng("tree", k))
         if got is None:
             return None
         piece = self.kit.pieces[got[0]]
         scale = t.height / max(piece.top, 0.5)
-        return Placement(got[0], t.x, t.y, z, float(self.rng("tree-turn", k).uniform(0, 6.28)), False, scale)
+        yaw = float(self.rng("tree-turn", k).uniform(0, 6.28))
+        if away is not None and np.any(away):
+            yaw = math.atan2(-away[1], -away[0])
+        return Placement(got[0], t.x, t.y, z, yaw, False, scale)
 
     # --- spans across streets ----------------------------------------------------------------
     def spans(self, k: int, tile) -> list:
@@ -953,7 +1406,9 @@ class Dresser:
         return out
 
     def _lamps(self, k: int, spacing: float, tile, out: list) -> None:
-        """Street lamps along both edges, staggered, leaning over the street."""
+        """Street lamps along both edges, staggered, leaning over the street. Along a colonial arcade
+        (prompt 22) a lamp moves `lamp_shift` m out toward the curb, beyond the pillars, or is left out
+        when that is not on a sidewalk clear of them."""
         st = self.plan.streets[k]
         line, half = st.line, st.width / 2 - 0.6
         for i in range(int(line.length // spacing)):
@@ -967,6 +1422,10 @@ class Dresser:
             n = np.array([-t[1], t[0]]) * side            # from the center line toward this edge
             p = line.interpolate(d)
             q = np.array([p.x, p.y]) + n * half
+            if self.arcade_cfg and self._arcade_band(q[None, :])[0]:   # along an arcade: out to the curb
+                q = q - n * float(self.arcade_cfg["lamp_shift"])
+                if self._arcade_band(q[None, :])[0] or not self._on_sidewalk(q[None, :])[0]:
+                    continue
             if tile.covers(shapely.Point(q)) and self.streets_at(q[None, :])[0] >= 0:
                 self.put(out, "street_lamp", self.rng("lamp", k, i), q, 0.0, yaw_of(-n))
 
