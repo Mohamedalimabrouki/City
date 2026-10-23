@@ -50,6 +50,8 @@ The code builds the world; agents only improve the code. Keep every session smal
   `.venv/bin/python tools/make_blend.py` as a command of its own (no `cd`, redirect or `&&`, so
   Ali's sandbox exclusion matches it; Blender crashes inside the sandbox). It refreshes
   `output/<world>/<city>.blend`; name that file in your report.
+  Never start Blender any other way (for example `blender -b ...`): inside the sandbox it crashes
+  at start and macOS shows Ali a "Blender quit unexpectedly" message.
 - Finish: the checks above, a new entry at the top of `docs/WORKLOG.md`, lessons in
   `docs/HANDOFF.md`, commit, push, then report to Ali in under 10 plain lines: what changed,
   what to look at and where, any doubt.

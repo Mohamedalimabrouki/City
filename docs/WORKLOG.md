@@ -15,6 +15,15 @@ Entry format:
 - Doubts and questions for Ali: <none, or the question>
 ```
 
+## 2026-10-23 - Fix: no more "Blender quit unexpectedly" from agents
+- Commit: (see git log) | Model: Opus 5.5, medium
+- Changed: `tools/make_blend.py` (`sandboxed()`: stops before starting Blender inside a macOS
+  sandbox), tests (1 new), `CLAUDE.md` (never start Blender another way), `docs/HANDOFF.md`
+- Checks: tests 57 passed; `build --quick` 1.6 s (reused); sandboxed run stops with a clear
+  message and no new crash report; the exact `make_blend.py` command still saved the .blend
+  (20:00); Ali's terminal: `sandboxed()` is False
+- Doubts and questions for Ali: none
+
 ## 2026-10-23 - Prompt 20 A2d Ground textures
 - Commit: (see git log) | Model: Opus 5.5, medium (playbook: Sonnet, medium)
 - Changed: `citygen/mesh/builder.py` (optional `col` per piece, ribbon u along the street from a

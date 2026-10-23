@@ -941,6 +941,23 @@ def test_make_blend_command():
     assert '"CAMERA"' in cmd[cmd.index("--python-expr") + 1]           # opens looking through the camera
 
 
+def test_make_blend_stops_in_sandbox(tmp_path, monkeypatch):
+    import subprocess
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
+    import make_blend
+    assert isinstance(make_blend.sandboxed(), bool)
+    (tmp_path / "tiles").mkdir()
+    (tmp_path / "tiles" / "index.json").write_text(json.dumps({"focus": {"name": "X"}}))
+    monkeypatch.setattr(sys, "argv", ["make_blend.py", str(tmp_path)])
+    monkeypatch.setattr(make_blend, "sandboxed", lambda: True)
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: pytest.fail("Blender started in a sandbox"))
+    with pytest.raises(SystemExit) as stop:
+        make_blend.main()
+    assert "Not starting Blender" in str(stop.value)
+
+
 @pytest.mark.slow  # about 5 s and needs processes; run with: python -m pytest -q -m slow
 def test_parallel_tiles_match_one_process(world, plan, tmp_path):
     from citygen.build import export_tiles

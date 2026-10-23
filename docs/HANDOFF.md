@@ -147,6 +147,13 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
   `os.sysconf` call the executor makes. Capital on the M1: 71 s -> 25 s (2.8x); the 9 s of
   planning is now the biggest serial part. The parent's file writing runs while workers load.
   Slow tests: `python -m pytest -q -m slow` (default run skips them, see `pytest.ini`).
+- **Blender in the sandbox**: Blender 5.2 crashes in its first second inside any macOS sandbox
+  (Claude's or Codex's): it reads the GPU name, gets nothing, and `MTLBackend::metal_is_supported`
+  crashes; macOS then shows Ali "Blender quit unexpectedly". All 12 crash reports up to
+  2026-10-23 were agents, never Ali. `tools/make_blend.py` now asks macOS (`sandbox_check` via
+  ctypes, not an environment variable, which stays set in excluded commands) and stops before
+  starting Blender. Checked: sandboxed run stops, the exact excluded command still saves the
+  .blend, Ali's own terminal sees no sandbox. Direct `blender ...` calls are not guarded: never use them.
 - **Resumable builds** (`citygen/buildkey.py`, `build.py`): `build_key` = SHA-256 of settings (minus
   `output`, `workers`, `area`), style bytes, kit manifests and .glb files, every `citygen/**/*.py`
   and the sorted planned settlement ids, plus the Python and library versions; stored in `summary.json` and `tiles/index.json`. Plans

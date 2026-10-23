@@ -7,12 +7,15 @@ scene of tools/blender_beauty.py (built with --setup-only, nothing rendered) wit
 view of the tile index (aerial, street, souk, and any view later prompts add), saved next to the
 tiles as <focus city>.blend, for example output/bodjantouna-42/goumosbane.blend.
 
-Blender crashes at start inside the Claude sandbox (it probes the Metal GPU): run this outside it.
+Blender crashes at start inside the Claude sandbox (it probes the Metal GPU, and macOS shows Ali
+a "Blender quit unexpectedly" message): inside a sandbox this tool stops before starting Blender.
 """
 from __future__ import annotations
 
 import argparse
+import ctypes
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -26,6 +29,9 @@ from citygen.export.lore import slug  # noqa: E402
 BLENDER = "/Applications/Blender.app/Contents/MacOS/Blender"
 SANDBOX_HINT = ("Blender stopped before saving. If it crashed at start, it is probably running inside "
                 "the Claude sandbox, which hides the GPU from it: run this command outside the sandbox.")
+SANDBOXED = ("Not starting Blender: this command runs inside a sandbox, where Blender crashes at start "
+             "(it cannot see the GPU). Run exactly this, as a command of its own: "
+             ".venv/bin/python tools/make_blend.py")
 
 # Runs inside Blender after blender_beauty.py has built the scene: one camera per extra view, then save.
 SAVE = """
@@ -51,6 +57,18 @@ for screen in bpy.data.screens:  # open looking through the camera, lit by the g
 bpy.ops.wm.save_as_mainfile(filepath={out!r}, compress=True)
 print("make_blend: saved", {out!r}, flush=True)
 """
+
+
+def sandboxed() -> bool:
+    """True when macOS runs this process in a sandbox (Seatbelt); False elsewhere or when unsure."""
+    if sys.platform != "darwin":
+        return False
+    try:
+        check = ctypes.CDLL(None).sandbox_check
+    except (OSError, AttributeError):
+        return False
+    check.restype, check.argtypes = ctypes.c_int, [ctypes.c_int, ctypes.c_char_p, ctypes.c_int]
+    return check(os.getpid(), None, 0) == 1
 
 
 def latest_build() -> Path:
@@ -90,6 +108,8 @@ def main() -> None:
         sys.exit(f"No tiles in {folder}: build with 3D tiles first (python -m citygen build --quick).")
     index = json.loads(index_file.read_text(encoding="utf-8"))
     views, out = views_of(index), blend_path(folder, index)
+    if sandboxed():
+        sys.exit(SANDBOXED)
     run = subprocess.run(command(args.blender, folder, views, out), capture_output=True, text=True,
                          timeout=args.timeout)
     if "make_blend: saved" not in run.stdout:
