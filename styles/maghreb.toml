@@ -230,6 +230,43 @@ street = "asphalt"
 souk = "paving"
 alley = "paving"
 
+[impasse]                  # dead-end lanes cut to lots without a street (city/impasses.py)
+min_front = 3.0            # a lot needs a side this long facing a street, or it gets an impasse
+souk_front = 8.0           # on a souk the shop takes the middle: this much wall leaves room for the house door
+mouth_overlap = 1.0        # the lane's ribbon reaches this far into the street it opens on
+junction_clear = 2.0       # a mouth keeps this far (beyond half the lane) from any second street
+jitter = 0.15              # random share added to each lot line's length, so lanes vary
+new_mouth = 10.0           # meters a lane would rather run to branch off a lane already cut than open a new mouth
+mouth_penalty = { boulevard = 40.0, corniche = 40.0, arterial = 25.0, ring = 25.0, connector = 15.0 }
+
+[impasse.medina]           # the driba: narrow, paved, sometimes covered at its mouth
+width = [2.2, 3.0]         # meters, drawn per lane
+surface = "paving"
+max_length = 70.0          # meters from the mouth to the farthest dead end
+min_lot = 30.0             # lots the lanes leave smaller than this are dropped
+covered = 0.35             # chance a lane opening on a street is covered at its mouth
+covered_length = [3.0, 5.5]
+
+[impasse.village]
+width = [2.6, 3.4]
+surface = "earth"
+max_length = 70.0
+min_lot = 45.0
+covered = 0.12
+covered_length = [2.5, 4.0]
+
+[impasse.residential]      # the "impasse" of a modern neighborhood: a short asphalt cul-de-sac
+width = [3.5, 4.0]
+surface = "asphalt"
+max_length = 60.0
+min_lot = 45.0
+
+[impasse.suburb]
+width = [3.8, 4.4]
+surface = "asphalt"
+max_length = 70.0
+min_lot = 150.0
+
 # --- districts -------------------------------------------------------------------
 # floors/walls/roofs are weighted choices: [value, how often].
 [district.medina]          # the walled old town
@@ -595,6 +632,8 @@ sabat_clearance = 3.3      # meters of headroom under a sabat
 sabat_reach = 5.5          # widest gap a sabat bridges
 alley_arch = 0.12          # chance of an arch over each end of an alley
 alley_arch_scale = 1.6     # biggest size for an arch (it is sized to reach both walls)
+impasse_arch = 0.3         # chance of an arch just inside the mouth of an uncovered impasse (the
+                           # houses on both sides must stand taller than it, as for alleys)
 souk_gate = 0.5            # chance of a decorated gate at each end of a souk
 souk_gate_scale = 1.25
 souk_cart = 0.25           # chance, every 20 m along a souk, of a handcart

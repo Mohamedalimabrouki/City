@@ -285,17 +285,36 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
   repeat on every slab must be cheap: boxes cost five faces where one shows, and the first slab
   window (270 triangles, 8 variants) added 180 KB per estate tile; one-sided quads (`_faces`) cut
   that to about 30 KB. Instances cost 40 bytes each (translation, rotation, scale as floats).
+- **Impasses** (prompt 20.2, `city/impasses.py`, `[impasse]`): `Parcel.frontage` is not a "has a
+  street" flag (it measures the block edge, which in the old town is also the city wall and the
+  mosque site), so "landlocked" is decided exactly as the dresser sees a facade: the lot inset 0.15 m,
+  a wall of `min_front` m with a street surface 1.6 m in front of its middle; a souk wall needs
+  `souk_front` (8 m) because the shop takes its middle and the house door must fit beside it. A lane
+  runs along a whole lot side (the door may stand anywhere on the wall). One `_Block` per block cost
+  9 s on the full capital (per-call shapely overhead x 1,700 blocks); all blocks now advance together,
+  one lane per block per round, each step one vectorized call over the active blocks only (a medina
+  block needs up to about 300 rounds): 4.3 s. Cutting lots with round joins put arcs of 16 walls at
+  every lane bend: the old-town tile got +29% triangles (walls, plinths, parapets); cut with mitre
+  joins and simplify 2 cm: +11%. Aim the mouth's first point at the street's center line, not along
+  the lane: by an alley's flat dead end it ended outside the street. A branch never starts in a
+  mouth node (it would open on the street a second time). Recheck every lot a later cut changes: it
+  can take the wall a lot had its door on. Covered mouths and arches use the alley rules (both houses
+  tall enough), so few are drawn (quick capital: 39 lanes covered, 6 rooms, 1 arch). The main
+  facade is now the best street wall long enough for a door (`DOOR_WALL` 2.3 m): five residential
+  houses had a 2 m street wall as main facade and no room for a door on their long arterial wall.
+  Cost: full capital 34.8 s -> 42.5 s in the same minutes (planner 10.6 -> 15.5 s, tile work +12%),
+  `build --quick` 9.1 -> 9.4 s, old-town tile 6.06 -> 6.74 MB.
 - **Old-town tiles** reach about 5 MB on the quick build and 8 MB on the full capital
   (`tile_65_106`, mostly roofs since prompt 15); task Q5 (prompt 39) brings them down.
 
 ## Known weak spots
 
-Task Q5 in the roadmap: heavy old-town tiles. Since prompt 20.1 every dwelling has a door, but
-houses deep inside blocks only get a narrow door squeezed toward the nearest street: 322 on the
-quick capital, and on the full capital 1,781 medina houses and 7,802 residential houses (inner
-residential parcels without frontage; prompt 20.2 cuts impasses in medina and village blocks
-only). Modern-estate tiles grew +20% to +37% in bytes with their windows (instances plus piece
-meshes), over the +20% budget (prompt 39, Q5, can shrink instance data).
+Task Q5 in the roadmap: heavy old-town tiles. Since prompt 20.2 every dwelling in old towns,
+villages, residential and suburb districts opens on a street, alley or impasse (full capital: 6,641
+impasses, 160 km; none enclosed). The planner is 4.9 s slower for it (15.5 s on the full capital);
+cutting several far-apart lanes per block per round would shorten the old town's 300 rounds.
+Modern-estate tiles grew +20% to +37% in bytes with their windows (instances plus piece meshes),
+over the +20% budget (prompt 39, Q5, can shrink instance data).
 
 ## Checking the look without wasting tokens
 

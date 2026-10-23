@@ -132,7 +132,7 @@ def city_map(world, plan, path, meters_per_px: float | None = None, max_px: int 
     for d in plan.districts:
         fill_poly(d.polygon, DISTRICT_RGB.get(d.kind, (230, 230, 230)))
     for st in sorted(plan.streets, key=lambda s: s.width):
-        color = (250, 250, 248) if st.kind not in ("alley", "souk") else (252, 246, 232)
+        color = (250, 250, 248) if st.kind not in ("alley", "souk", "impasse") else (252, 246, 232)
         draw.line(ring(st.line.coords), fill=color, width=max(1, round(st.width / mpp)))
     kinds = {i: d.kind for i, d in enumerate(plan.districts)}
     for b in plan.buildings:

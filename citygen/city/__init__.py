@@ -5,6 +5,7 @@ Pipeline (each step is its own module):
   medina     great mosque, gates, souks and alleys, ramparts
   streets    arterials, ring road, boulevard, road links, local street grids, street trees
   parcels    blocks between streets, split into building lots
+  impasses   dead-end lanes to the lots without a street (old town and neighborhoods)
   buildings  a building per lot following the district rules, landmarks, parks, cemetery
 """
 from __future__ import annotations
@@ -19,6 +20,7 @@ from ..rng import stream
 from .buildings import cemetery_and_parks, make_buildings, neighborhood_mosques
 from .layout import assign_kinds, city_boundary, land_near, main_axis, medina_outline, neighborhoods
 from .life import households, souks
+from .impasses import cut_impasses
 from .medina import old_town
 from .model import CityPlan, District
 from .parcels import make_blocks, make_parcels
@@ -75,6 +77,8 @@ def plan_city(world, settlement) -> CityPlan:
     walks = make_walks(ctx, districts, streets, blocks)
     parcels = make_parcels(ctx, blocks, districts)
     mosques, mosque_marks, used = neighborhood_mosques(ctx, districts, parcels)
+    parcels, used, lanes = cut_impasses(ctx, blocks, districts, parcels, streets, used)
+    streets += lanes   # appended last: every earlier street keeps its index (walks, souks, paint)
     houses, trees = make_buildings(ctx, parcels, districts, used)
     green_buildings, green_trees = cemetery_and_parks(ctx, districts, blocks)
     buildings += houses + mosques + green_buildings
@@ -84,7 +88,8 @@ def plan_city(world, settlement) -> CityPlan:
     plan.households = households(ctx, buildings, districts)
     plan.souks = souks(ctx, streets)
     plan.paint = make_paint(world.style, streets, walks)
-    plan.stats = {"districts": len(districts), "streets": len(streets), "blocks": len(blocks),
+    plan.stats = {"districts": len(districts), "streets": len(streets), "impasses": len(lanes),
+                  "blocks": len(blocks),
                   "parcels": len(parcels), "buildings": len(buildings), "trees": len(trees),
                   "households": len(plan.households), "souks": len(plan.souks),
                   "seconds": round(time.perf_counter() - t0, 1)}

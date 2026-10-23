@@ -26,7 +26,9 @@ from .roofs import roof_layout, roof_stream
 
 DRESSED = {"house", "domed", "apartments", "villa"}
 FRONT_PREF = {"souk": 3.0, "alley": 2.5, "street": 2.0, "boulevard": 1.5, "ring": 1.0, "arterial": 1.0,
-              "corniche": 1.0, "connector": 0.5}
+              "corniche": 1.0, "connector": 0.5, "impasse": 0.3}   # an impasse door only when no street has room
+LANES = ("alley", "impasse")   # narrow lanes: dressed alike (laundry, cables, arches)
+DOOR_WALL = 2.3                # shortest street wall that takes a door; the main facade is one if any is
 TRADITIONAL = {"medina", "village"}
 
 
@@ -50,6 +52,7 @@ class Span:
     piece: str = ""     # lanterns: the piece hanging from the rope
     step: float = 1.6   # lanterns: meters between two of them
     top: float = 0.0    # sabat: height of its roof, absolute
+    depth: float = 3.4  # sabat: length of the room along the street
 
 
 @dataclass
@@ -215,7 +218,7 @@ class Dresser:
         wealth = home.wealth if home else 0.4
         district = self.kinds[b.district]
         floors = max(1, int(b.floors))
-        main = max(fac, key=lambda f: (FRONT_PREF.get(f.kind, 0.0), f.length))
+        main = max(fac, key=lambda f: (f.length >= DOOR_WALL, FRONT_PREF.get(f.kind, 0.0), f.length))
         door_at, kind, piece, z = self._front(main, district, color, wealth, b.height, rng, out)
         self._windows(fac, district, color, wealth, floors, b.height / floors, high, door_at, rng, out)
         return main, door_at, kind, piece, z
@@ -256,7 +259,7 @@ class Dresser:
         if district == "colonial" and f.length >= 3.2 and rng.random() < cfg.get("cafe", 0.3):
             c, z = self._cafe(f, rng, out)
             return c, "cafe", None, z
-        if f.length < 2.3:
+        if f.length < DOOR_WALL:
             return None, None, None, None
         yaw, u, n = yaw_of(f.n), f.u, f.n
         s = f.length * 0.5 + rng.uniform(-1.0, 1.0) * max(0.0, f.length * 0.5 - 1.2)   # door center along the wall
@@ -742,16 +745,16 @@ class Dresser:
     # --- spans across streets ----------------------------------------------------------------
     def spans(self, k: int, tile) -> list:
         st = self.plan.streets[k]
-        if st.kind not in ("alley", "souk", "street"):
+        if st.kind not in ("alley", "souk", "street", "impasse"):
             return []
         cfg = self.cfg
         step = 12.0 if st.kind == "souk" else 9.0
-        out = []
+        out = self._covered(k, tile) if st.covered > 0 else []
         line = st.line
         for i in range(int(line.length // step)):
             d = (i + 0.5) * step
             p = line.interpolate(d)
-            if not tile.covers(p):
+            if not tile.covers(p) or d < st.covered + 2.0 * bool(st.covered):   # nothing under the room
                 continue
             rng = self.rng("span", k, i)
             kind = self._span_kind(st.kind, rng.random())
@@ -788,9 +791,9 @@ class Dresser:
         cfg = self.cfg
         if street_kind == "souk":
             options = (("lanterns", cfg.get("souk_lanterns", 0.5)), ("bunting", cfg.get("bunting", 0.2)))
-        elif street_kind == "alley":
-            options = (("sabat", cfg.get("sabat", 0.05)), ("laundry", cfg.get("laundry", 0.35)),
-                       ("cable", cfg.get("cables", 0.1)))
+        elif street_kind in LANES:   # an impasse's only sabat is the planned one over its mouth
+            options = ((("sabat", cfg.get("sabat", 0.05)),) if street_kind == "alley" else ()) + (
+                ("laundry", cfg.get("laundry", 0.35)), ("cable", cfg.get("cables", 0.1)))
         else:
             options = (("cable", cfg.get("cables", 0.1)),)
         for kind, chance in options:
@@ -798,6 +801,37 @@ class Dresser:
                 return kind
             roll -= chance
         return None
+
+    def _mouth(self, k: int) -> float | None:
+        """Distance along impasse k from its first point (in the street it opens on) to its mouth on
+        the block's edge, its second point; None for a branch off another impasse."""
+        c = self.plan.streets[k].line.coords
+        if not any(self.plan.streets[int(j)].kind != "impasse"
+                   for j in self.surface_tree.query(shapely.Point(c[0]), predicate="within")):
+            return None
+        return math.dist(c[0], c[1])
+
+    def _covered(self, k: int, tile) -> list:
+        """The room over the first meters of a covered impasse, from wall to wall, when both houses
+        are tall enough to carry it with headroom below (the same rule as an alley's sabat)."""
+        st = self.plan.streets[k]
+        d0 = self._mouth(k)
+        if d0 is None:
+            return []
+        d = d0 + st.covered / 2
+        if d >= st.line.length or not tile.covers(st.line.interpolate(d)):
+            return []
+        ends = self._across(st.line, d)
+        if ends is None:
+            return []
+        (pa, top_a), (pb, top_b) = ends
+        mid = (pa + pb) / 2
+        ground = float(max(self.ground.surface(pa[0], pa[1]), self.ground.surface(pb[0], pb[1]),
+                           self.ground.surface(mid[0], mid[1])))
+        floor, roof = ground + self.cfg.get("sabat_clearance", 3.3), min(top_a, top_b)
+        if roof - floor < 2.4 or np.hypot(*(pb - pa)) > self.cfg.get("sabat_reach", 5.5):
+            return []
+        return [Span("sabat", (pa[0], pa[1], floor), (pb[0], pb[1], floor), top=roof, depth=st.covered)]
 
     def _across(self, line, d: float):
         """The two walls facing each other across a street at distance d along it: ((point, top), (point, top))."""
@@ -821,6 +855,10 @@ class Dresser:
             for end, d in ((0, 2.0), (1, st.line.length - 2.0)):
                 if tile.covers(st.line.interpolate(d)):
                     self._gate(k, end, d, role, out)
+        if st.kind == "impasse" and not st.covered and self.has("alley_arch"):
+            d = self._mouth(k)                    # an arch just inside the mouth, never over the dead end
+            if d is not None and st.line.length >= d + 4.0 and tile.covers(st.line.interpolate(d + 1.0)):
+                self._gate(k, 0, d + 1.0, "alley_arch", out, self.cfg.get("impasse_arch", 0.3))
         spacing = self.cfg.get("street_lamps", {}).get(st.kind)
         if spacing and self.has("street_lamp"):
             self._lamps(k, float(spacing), tile, out)
@@ -855,11 +893,11 @@ class Dresser:
             if tile.covers(shapely.Point(q)) and self.streets_at(q[None, :])[0] >= 0:
                 self.put(out, "street_lamp", self.rng("lamp", k, i), q, 0.0, yaw_of(-n))
 
-    def _gate(self, k: int, end: int, d: float, role: str, out: list) -> None:
+    def _gate(self, k: int, end: int, d: float, role: str, out: list, chance: float | None = None) -> None:
         """An arch over an alley mouth, sized from wall to wall, or a souk gate standing free in the souk."""
         st = self.plan.streets[k]
         rng = self.rng("gate", k, end)
-        if rng.random() >= self.cfg.get(role, 0.1):
+        if rng.random() >= (self.cfg.get(role, 0.1) if chance is None else chance):
             return
         ends = self._across(st.line, d)
         if ends is None:

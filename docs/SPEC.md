@@ -52,6 +52,8 @@ config.load_config()          defaults.toml + worlds/*.toml + CLI overrides
       streets                 arterials (neighborhood borders), ring road, boulevard,
                               corniche, links to country roads, local grids, street trees
       parcels                 blocks = district minus street surfaces; recursive lot split
+      impasses                dead-end lanes along lot lines to lots without a street door
+                              (old town, village, residential, suburb); appended to the streets
       walks                   raised sidewalks along blocks and the boulevard promenade
       buildings               per-district building rules, mosques, parks, cemetery
       life                    a household behind every house door, a trade for every souk
@@ -86,12 +88,30 @@ build.build()                 orchestrates the above into output/<country>-<seed
 | `citygen/city/dressing.py` | `Dresser`: which piece goes where, tile by tile |
 | `citygen/city/walks.py` | raised sidewalks along blocks, narrowed to keep a carriageway, and the boulevard promenade |
 | `citygen/city/paint.py` | street surfaces per kind, painted edge and lane lines, zebra crossings |
+| `citygen/city/impasses.py` | impasses: lanes cut along lot lines to landlocked lots, one round per lane for every block at once |
 | `citygen/city/roofs.py` | roof layout: parapet band and coping, stair room and its door, one random stream per building |
 | `citygen/kitsheet.py` | `python -m citygen kit-sheet`: every piece in one viewable grid |
 | `citygen/export/maps.py` | country and city PNG maps |
 | `citygen/export/lore.py` | JSON data files and the gazetteer |
 | `citygen/build.py` | area selection and the full build |
 | `citygen/view.py`, `tools/` | browser viewer, snapshot, Blender import |
+
+**Impasses** (prompt 20.2, `city/impasses.py`, `[impasse]`): after the lots and the neighborhood
+mosques' lots, before the buildings. A lot is landlocked when its house (the lot inset 0.15 m)
+would have no wall of `min_front` m with a street surface 1.6 m in front of its middle, exactly
+where the dresser looks (a souk wall needs `souk_front` m: the shop takes its middle). Per block,
+the lot outlines (snapped to 1 cm) form a graph; a lane may use a lot line that keeps half its
+width plus 0.2 m from the block's edge, or one leaving a mouth (a block-edge node next to exactly
+one street, `junction_clear` from any other) that enters the block at 30 degrees or more. A
+Dijkstra from all mouths (cost `mouth_penalty` by street kind plus `new_mouth`) and all lanes
+already cut (cost their length from the mouth) finds the cheapest lot side to run along, nearest
+lots first; the lane follows the path and the whole side, so it starts a new impasse, branches off
+one, or carries one on from its dead end, and grows into a tree. Past its mouth a lane may touch no
+street and no other lane but its parent, and stays within `max_length`. Lots lose the lane's
+surface (sharp corners outside bends, simplified 2 cm), lots under `min_lot` are dropped, and a
+lot no lane reaches joins the neighbour with a door it shares most boundary with. All blocks run
+together, one lane per block per round, so each step is one vectorized call (random choices per
+block on `rng("impasse", block)`: lot line jitter, widths, covered share and length).
 
 ## 5. Data model (`citygen/city/model.py`, `citygen/world.py`)
 
@@ -111,13 +131,21 @@ build.build()                 orchestrates the above into output/<country>-<seed
   apartment block and villa. `Souk(street, name, trade, ground, wall, shop)`: one per souk street.
 - `District.kind`: `medina`, `village`, `colonial`, `modern`, `residential`, `suburb`,
   `industrial`, `port`, `park`, `cemetery`.
-- `Street.kind`: `boulevard`, `arterial`, `ring`, `corniche`, `connector`, `street`, `souk`, `alley`;
-  `Street.surface` is the palette material of its ribbon from `[streets.surface]` (a village
-  street is `earth`).
+- `Street.kind`: `boulevard`, `arterial`, `ring`, `corniche`, `connector`, `street`, `souk`, `alley`,
+  `impasse`; `Street.surface` is the palette material of its ribbon from `[streets.surface]` (a
+  village street is `earth`; an impasse takes `[impasse.<district kind>] surface`). Impasses come
+  last in `CityPlan.streets`, so every other street keeps its index. An impasse's line runs from
+  its first point, `mouth_overlap` m inside the street it opens on (or on the impasse it branches
+  off), to its dead end; `Street.covered` is how many meters from its mouth a room covers it.
+- `Parcel(polygon, district, frontage, block)`: `block` indexes `CityPlan.blocks`; `frontage` is
+  also True for a lot an impasse reaches.
 - `Building`: `footprint` (holes = courtyards), `kind`, `height` (above the highest ground
   point), `wall`/`roof` material names, `floors`, `roof_shape` (`flat`/`hip`), `domes`, `top`.
 
-Invariants (tested): buildings are valid polygons inside the city and stay off street surfaces;
+Invariants (tested): buildings are valid polygons inside the city and stay off street surfaces
+(impasses included); every old-town dwelling's main door opens on a street, alley or impasse; an
+impasse lies inside its block past its mouth, opens on exactly one street (or branches off exactly
+one impasse) and touches no other street, so it is a dead end;
 flat roofs carry the parapet from `[roofs]` and, where the layout puts one, a stair room whose
 door opens on free roof; roof props always stand inside the parapet and outside the stair room;
 sidewalks never enter a building footprint, keep at least `min_carriageway` meters of asphalt,
@@ -225,7 +253,11 @@ shaders (which ignore the image and the tint) and takes their palette color from
   balcony for rich households); flat roofs get tanks, dishes, laundry racks and pots inside the
   parapet and off the stair room. Per street:
   laundry, cables, lantern strings, bunting and sabats across alleys and souks, arches over alley
-  mouths, gates and handcarts in souks, lamps along main streets. Planned trees become instances.
+  mouths, gates and handcarts in souks, lamps along main streets. Impasses are dressed like alleys
+  (laundry and cables; `FRONT_PREF` lowest, so a house with a street wall keeps its door there); a
+  covered impasse gets a sabat as long as `covered` over its mouth, an uncovered one sometimes an
+  arch just inside its mouth (`impasse_arch`); both need houses tall enough on both sides. The main
+  facade is the best street wall long enough for a door (2.3 m), if any is. Planned trees become instances.
   Nothing is stored in the plan: a tile asks for what it owns and always gets the same answer.
 - **Every home** (prompt 20.1, `[dressing] every_home`, `[dressing.open_walls]`, `[dressing.slab]`,
   `[dressing.paths]`, geometry helpers in `city/openings.py`): after the street walls and the roof
@@ -255,7 +287,8 @@ shaders (which ignore the image and the tint) and takes their palette color from
 
 `[names]` sounds and templates, `[lore]` eras and products, `[palette]` materials (color and
 optional `texture` + `texture_size`), `[textures]` generated-surface noise strengths, `[ground_tint]` the terrain `COLOR_0` tint,
-`[plinth]` the base material and height per district kind, `[streets]` curb height, minimum
+`[plinth]` the base material and height per district kind, `[impasse]` lane rules and, per
+district kind, width range, surface, `max_length`, `min_lot` and the covered share, `[streets]` curb height, minimum
 carriageway, promenade width, the paint numbers and the outline
 steps of drawn walks and paint (`walk_step`, `paint_step`: long pieces follow the ground),
 `[streets.surface]` the ribbon material per street kind, `[roofs]` parapet thickness, height by

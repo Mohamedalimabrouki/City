@@ -33,7 +33,7 @@ NO_TERRACE = ("park", "cemetery", "industrial", "port")
 
 # how far a street ribbon is drawn above the ground (mesh/tile.py uses the same numbers)
 STREET_LIFT = {"boulevard": 0.32, "arterial": 0.3, "ring": 0.3, "corniche": 0.3, "connector": 0.28,
-               "street": 0.24, "souk": 0.2, "alley": 0.18}
+               "street": 0.24, "souk": 0.2, "alley": 0.18, "impasse": 0.18}
 
 
 class _Blur:

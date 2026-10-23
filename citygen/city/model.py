@@ -15,17 +15,19 @@ class District:
 
 @dataclass
 class Street:
-    kind: str      # boulevard | arterial | ring | corniche | connector | street | souk | alley
+    kind: str      # boulevard | arterial | ring | corniche | connector | street | souk | alley | impasse
     width: float
-    line: object   # shapely LineString (center line)
+    line: object   # shapely LineString (center line); an impasse runs from its mouth to its dead end
     surface: str = ""  # palette material of the ribbon; style [streets.surface], village = earth
+    covered: float = 0.0  # impasse: meters covered by a room (a sabat) from the mouth inward
 
 
 @dataclass
 class Parcel:
     polygon: object
     district: int
-    frontage: bool = True  # touches a street
+    frontage: bool = True  # touches a street (or, after city/impasses.py, an impasse reaches it)
+    block: int = -1        # index in CityPlan.blocks
 
 
 @dataclass

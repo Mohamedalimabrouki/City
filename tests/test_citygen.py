@@ -613,7 +613,66 @@ def test_every_home_keeps_its_street_pieces_and_gets_a_door(plan, homes):
         placed = [p for p in on if p.piece == spot.piece and abs(p.x - spot.x) < 1e-6 and abs(p.y - spot.y) < 1e-6]
         assert placed and kit.pieces[spot.piece].category == "door", k   # the door really is drawn there
         assert abs(placed[0].z - spot.z) < 1e-6 and not placed[0].on_ground
-    assert reach["street"] > 50 and reach["open"] > 50 and reach["enclosed"] > 10
+    assert reach["street"] > 50 and reach["open"] > 50 and reach["enclosed"] == 0   # 20.2: impasses reach them
+
+
+def test_every_old_town_house_opens_on_a_street_or_an_impasse(plan, homes):
+    # prompt 20.2: the main door of every medina dwelling, as the dresser places it, opens on a
+    # street, an alley or an impasse; some of them only on an impasse
+    _, dresser, _ = homes
+    medina = {d.id for d in plan.districts if d.kind == "medina"}
+    spots = [dresser.door_spot(k) for k, b in enumerate(plan.buildings)
+             if b.district in medina and b.kind in ("house", "domed")]
+    assert len(spots) > 500
+    assert all(s.reach == "street" for s in spots), sum(s.reach != "street" for s in spots)
+    assert sum(plan.streets[s.street].kind == "impasse" for s in spots) > 100
+
+
+def test_impasses_are_dead_ends_inside_their_blocks(world, plan):
+    from shapely.ops import substring
+    lanes = [k for k, st in enumerate(plan.streets) if st.kind == "impasse"]
+    assert len(lanes) > 50
+    cfg = world.style["impasse"]
+    overlap = float(cfg["mouth_overlap"])
+    surf = [st.line.buffer(st.width / 2, cap_style="flat") for st in plan.streets]
+    other = [k for k, st in enumerate(plan.streets) if st.kind != "impasse"]
+    streets = STRtree([surf[k] for k in other])
+    blocks = STRtree([b for b, _ in plan.blocks])
+    roots = covered = 0
+    for k in lanes:
+        st = plan.streets[k]
+        kind = plan.districts[plan.blocks[int(blocks.query(st.line.interpolate(0.5, normalized=True),
+                                                          predicate="within")[0])][1]].kind
+        assert st.surface == cfg[kind]["surface"] and cfg[kind]["width"][0] <= st.width <= cfg[kind]["width"][1]
+        head = shapely.Point(st.line.coords[0])
+        mouth = [other[int(j)] for j in streets.query(head, predicate="within")]
+        if mouth:                                  # opens on exactly one street, leaves it at once
+            roots += 1
+            covered += st.covered > 0
+            assert len(mouth) == 1, (k, mouth)
+            body = substring(st.line, overlap, st.line.length)
+        else:                                      # or branches off exactly one other impasse
+            assert st.covered == 0
+            parents = [j for j in lanes if j != k and plan.streets[j].line.distance(head) < 1e-6]
+            assert len(parents) == 1, (k, parents)
+            body = st.line
+        assert any(plan.blocks[int(b)][0].buffer(0.05).contains(body)
+                   for b in blocks.query(body, predicate="intersects")), k
+        tail = substring(st.line, overlap + st.width / 2 + 0.3, st.line.length) if mouth else st.line
+        if tail.length > 0.1:                      # past its mouth it touches no street: a dead end
+            hit = streets.query(tail.buffer(st.width / 2, cap_style="flat"), predicate="intersects")
+            assert not len(hit), (k, [plan.streets[other[int(j)]].kind for j in hit])
+        assert st.line.length - (overlap if mouth else 0.0) <= cfg[kind]["max_length"] + 0.01
+    assert roots > 30 and covered > 5
+
+
+def test_no_building_stands_on_an_impasse(plan):
+    lanes = [st.line.buffer(st.width / 2, cap_style="flat") for st in plan.streets if st.kind == "impasse"]
+    tree = STRtree([b.footprint for b in plan.buildings])
+    left, right = tree.query(lanes, predicate="intersects")
+    overlap = shapely.area(shapely.intersection(np.array(lanes, dtype=object)[left],
+                                                np.array([b.footprint for b in plan.buildings], dtype=object)[right]))
+    assert not len(overlap) or overlap.max() < 0.01, overlap.max()
 
 
 def test_new_doors_and_windows_overlap_nothing(world, plan, ground, homes):
@@ -865,7 +924,7 @@ def test_street_surfaces_come_from_the_style(world, plan):
     from citygen.city.paint import street_surfaces
     table = world.style["streets"]["surface"]
     for st in plan.streets:
-        assert st.surface == table[st.kind]
+        assert st.kind == "impasse" or st.surface == table[st.kind]   # impasses: by district (test above)
     village = District(0, "village", "Test", shapely.box(0.0, 0.0, 300.0, 300.0))
     lane = Street("street", 9.0, shapely.LineString([(10.0, 10.0), (250.0, 250.0)]))
     street_surfaces([village], [lane], world.style)
@@ -1013,6 +1072,30 @@ def test_street_ribbons_run_u_along_the_street_and_continue_across_tiles(world, 
                 assert np.allclose(match, u, atol=1e-3), (name, p, u, match)
                 meets += 1
     assert meets >= 4                                     # some ribbons really cross the edge
+
+
+def test_impasse_ribbons_are_drawn_like_alleys(world, plan, ground, built_mesh):
+    # the ribbons as mesh/tile.py draws them: alley paving and lift in the old town, and the ground
+    # reads the same lift there (doors on an impasse stand on its ribbon)
+    from citygen.city.ground import STREET_LIFT
+    from citygen.mesh.builder import MeshBuilder as MB
+    from citygen.mesh.tile import street_meshes
+    tc = built_mesh[0]
+    lanes = [st for st in plan.streets if st.kind == "impasse"]
+    tree = STRtree([st.line for st in lanes])
+    sub = type("Lanes", (), {"streets": lanes})()
+    s = world.capital()
+    i, j = int(s.x // tc.size), int(s.y // tc.size)
+    mb = MB(origin=(i * tc.size, j * tc.size))
+    street_meshes(mb, tc, sub, tree, shapely.box(i * tc.size, j * tc.size, (i + 1) * tc.size, (j + 1) * tc.size))
+    parts = _world_parts(mb)
+    assert set(parts) == {"paving"}                       # the medina's lanes, paved like its alleys
+    xyz = parts["paving"][0]
+    assert len(xyz) > 400
+    lift = xyz[:, 2] - tc.height(xyz[:, 0], xyz[:, 1])
+    assert np.allclose(lift, STREET_LIFT["alley"], atol=1e-6) and STREET_LIFT["impasse"] == STREET_LIFT["alley"]
+    mid = np.array([st.line.interpolate(0.5, normalized=True).coords[0] for st in lanes])
+    assert np.median(ground.lift(mid[:, 0], mid[:, 1])) == pytest.approx(STREET_LIFT["alley"])
 
 
 def test_sidewalk_rows_follow_the_street_and_curb_faces_hang_from_the_top(world, plan):

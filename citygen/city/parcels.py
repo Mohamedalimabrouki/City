@@ -75,5 +75,5 @@ def make_parcels(ctx, blocks, districts) -> list:
         edge = block.boundary.buffer(0.4)
         front = shapely.length(shapely.intersection(np.array([p.exterior for p in pieces], dtype=object), edge))
         for p, f in zip(pieces, front):
-            out.append(Parcel(p, did, bool(f >= 3.5)))
+            out.append(Parcel(p, did, bool(f >= 3.5), k))
     return out

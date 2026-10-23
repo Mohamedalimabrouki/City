@@ -31,7 +31,7 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
 - [x] 19 A2c Textured walls and roofs
 - [x] 20 A2d Ground textures
 - [x] 20.1 AD1 Every home gets a door and windows
-- [ ] 20.2 AD2 Impasses to landlocked houses
+- [x] 20.2 AD2 Impasses to landlocked houses
 - [ ] 21 A9 Lit windows by household
 - [ ] 22 AR1 Arcades and iron balconies
 - [ ] 23 AR2 Building massing

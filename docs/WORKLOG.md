@@ -15,6 +15,41 @@ Entry format:
 - Doubts and questions for Ali: <none, or the question>
 ```
 
+## 2026-10-23 - Prompt 20.2 AD2 Impasses to landlocked houses
+- Commit: (see git log) | Model: Opus 5.5, high (playbook: Sonnet, high)
+- Scope: the lead extended the prompt from medina and village blocks to residential and suburb
+  blocks too (one mechanism, widths and surfaces per district kind), because the full capital had
+  7,802 enclosed residential houses and addresses, entrances and interiors need every home reachable.
+- Changed: `citygen/city/impasses.py` (new: landlocked test as the dresser sees facades, lot-line
+  graph, lanes cut nearest lots first and branching like a tree, all blocks in lockstep rounds),
+  `citygen/city/__init__.py` (after the mosques' lots, before buildings; lanes appended last; stats
+  `impasses`), `citygen/city/model.py` (`Street.covered`, `Parcel.block`), `citygen/city/parcels.py`,
+  `citygen/city/dressing.py` (`impasse` in `FRONT_PREF` lowest, laundry and cables, covered mouth as a
+  sabat of that length, arch inside some mouths, main facade long enough for a door), `citygen/city/ground.py`
+  (lift 0.18 like alleys), `citygen/mesh/tile.py` (sabat depth), `citygen/export/maps.py` (drawn like
+  alleys), `styles/maghreb.toml` (`[impasse]` and per kind: medina 2.2-3.0 m paving, village 2.6-3.4 m
+  earth, residential 3.5-4.0 m asphalt, suburb 3.8-4.4 m asphalt; `impasse_arch`), tests (4 new, 2
+  adjusted: no quick-capital dwelling is enclosed any more; impasse surfaces come from `[impasse]`),
+  `docs/SPEC.md`, `docs/ROADMAP.md`, `docs/HANDOFF.md`
+- Checks: tests 66 passed (21.2 s; HEAD 19.5 s); `build --quick` 9.4 s (HEAD 9.1 s); fingerprint
+  156 parts, 16 changed, all in `plan/*,tiles/*,maps/*,gazetteer`. Quick capital: streets 315 ->
+  488 (173 impasses: 116 open on a street, 57 branch off one; 39 covered, 6 drawn as rooms where
+  both houses are tall enough, 1 arch; 3.8 km), parcels 1,793 -> 1,756, buildings 1,742 -> 1,708,
+  households 1,401 -> 1,367 (all later households shift: one sequential stream), trees 7,927 ->
+  7,890. Medina dwellings 769 -> 735: doors 437 street + 10 open + 322 enclosed -> 735 street
+  (323 on an impasse, 267 on an alley, 145 on a souk). Full capital: 6,641 impasses (medina 939,
+  residential 5,101, suburb 601; 160 km), enclosed dwellings medina 1,781 -> 0, residential 7,802
+  -> 0, suburb 0; streets 4,761 -> 11,402, parcels 42,128 -> 41,947, buildings 39,555 -> 39,225,
+  households 38,898 -> 38,568. Full capital time in the same minutes: 34.8 -> 42.5 s (planner
+  10.6 -> 15.5 s; tiles +12%). Tiles: old town 13_23 6.06 -> 6.74 MB (+11%), 14_23 +13%,
+  14_24 +4%; 12_22 and 12_23 smaller (a shutter piece no longer used there after the household shift).
+- Look: `output/checks/20.2.png` (souk: shops now keep a house door beside them),
+  `output/checks/20.2-aerial.png` (old town from 100 m at 45 degrees: narrow paved lanes into the
+  blocks, windows on walls facing them); the quick map shows a web of dead ends off the alleys.
+  Blender: `output/bodjantouna-42/goumosbane.blend` refreshed.
+- Doubts and questions for Ali: the planner is 4.9 s slower on the full capital (vectorized from
+  9 s per-block); covered mouths are rarely drawn because both corner houses must have two floors.
+
 ## 2026-10-23 - Prompt 20.1 AD1 Every home gets a door and windows
 - Commit: (see git log) | Model: Opus 5.5, high (playbook: Sonnet, high)
 - Changed: `citygen/city/dressing.py` (`door_spot`, `entrances`, open-wall windows, slab windows,

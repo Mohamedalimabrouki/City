@@ -387,7 +387,8 @@ def span_mesh(mb: MeshBuilder, span, placements: list) -> None:
 
 
 def sabat_mesh(mb: MeshBuilder, span) -> None:
-    """A sabat: a room built across an alley from wall to wall, the alley running under it."""
+    """A sabat: a room built across an alley (or over an impasse's mouth) from wall to wall, the lane
+    running under it; `span.depth` meters long along the lane."""
     a, b = np.array(span.a[:2], dtype=float), np.array(span.b[:2], dtype=float)
     across = b - a
     gap = float(np.hypot(*across))
@@ -395,7 +396,7 @@ def sabat_mesh(mb: MeshBuilder, span) -> None:
         return
     w = across / gap
     a, b = a - w * 0.3, b + w * 0.3   # sink the ends into both walls
-    along = np.array([-w[1], w[0]]) * 1.7
+    along = np.array([-w[1], w[0]]) * (span.depth / 2)
     floor, top = span.a[2], span.top
     outline = Polygon([a - along, b - along, b + along, a + along])
     extrude(mb, outline, floor, top, "lime_white", "roof_white")
