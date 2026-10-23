@@ -43,6 +43,7 @@ class TileContext:
         self.step = float(world.cfg["tiles"]["terrain_step"])
         self.palette = world.style["palette"]
         self.roofs = world.style.get("roofs", {})
+        self.plinths = world.style.get("plinth", {})
         self.road_lines = [LineString(r.coords) for r in world.roads]
         self.road_tree = STRtree(self.road_lines) if self.road_lines else None
         self.plans = plans
@@ -183,21 +184,26 @@ def walk_meshes(mb: MeshBuilder, tc: TileContext, plan, tile) -> None:
             add_skirt(mb, pts, top, bottom, "curb")
 
 
-def building_mesh(mb: MeshBuilder, b, height_fn, roof: RoofLayout | None = None) -> None:
+PLINTH_KINDS = frozenset({"house", "domed", "apartments", "villa", "shed", "mosque_hall", "marabout"})
+
+
+def building_mesh(mb: MeshBuilder, b, height_fn, roof: RoofLayout | None = None,
+                  plinth: tuple[str, float] | None = None, frontage=None) -> None:
     fp = orient(b.footprint, sign=1.0)
     ring = np.asarray(fp.exterior.coords)
     ground = height_fn(ring[:, 0], ring[:, 1])
     low, high = float(ground.min()), float(ground.max())
     z0, z1 = low - 0.6, high + b.height
     if b.roof_shape == "hip":
-        extrude(mb, fp, z0, z1, b.wall, None, z_ref=high)
+        extrude(mb, fp, z0, z1, b.wall, None, z_ref=high, plinth=plinth, frontage=frontage)
         cx, cy, length, width, angle = frame(fp)
         corners = np.asarray(rectangle(cx, cy, length, width, angle).exterior.coords)[:4]
         add_hip_roof(mb, corners, z1, 0.32 * width, b.roof)
     else:
         parapet = roof is not None and roof.band is not None
         z_top = z1 + roof.height if parapet else z1
-        extrude(mb, fp, z0, z_top, b.wall, None if parapet else b.roof, z_ref=high)
+        extrude(mb, fp, z0, z_top, b.wall, None if parapet else b.roof, z_ref=high,
+                plinth=plinth, frontage=frontage)
         roof_mesh(mb, b, roof, z1)
     for x, y, r, mat in b.domes:
         extrude(mb, regular_polygon(x, y, r, 12), z1, z1 + 0.18 * r, b.wall, None, z_ref=high)
@@ -343,6 +349,29 @@ def sabat_mesh(mb: MeshBuilder, span) -> None:
             _quad(mb, (*(mid - half), z0), (*(mid + half), z0), (*(mid + half), z1), (*(mid - half), z1), "glass_dark")
 
 
+def street_frontage(ring, plan, walk_width: np.ndarray, street_tree, reach: float) -> np.ndarray:
+    """One bool per exterior wall segment: True where the wall faces a street or its sidewalk.
+
+    Party walls and block interiors stay plain, so the plinth costs bytes only where it can be
+    seen. Distances are measured from the wall midpoint to the street center line, allowing for
+    half the street plus the raised sidewalk on that street.
+    """
+    pts = np.asarray(ring, dtype=np.float64)[:, :2]
+    if len(pts) > 1 and np.allclose(pts[0], pts[-1]):
+        pts = pts[:-1]
+    if len(pts) < 2 or street_tree is None:
+        return np.zeros(max(len(pts), 0), dtype=bool)
+    a, b = pts, np.roll(pts, -1, axis=0)
+    mids = (a + b) / 2.0
+    lo, hi = mids.min(axis=0) - reach, mids.max(axis=0) + reach
+    mask = np.zeros(len(a), dtype=bool)
+    for k in street_tree.query(box(lo[0], lo[1], hi[0], hi[1])):
+        street = plan.streets[int(k)]
+        gap = street.width / 2.0 + walk_width[int(k)] + 0.6
+        mask |= shapely.distance(street.line, shapely.points(mids)) <= gap
+    return mask
+
+
 def build_tile(tc: TileContext, i: int, j: int) -> tuple:
     """Meshes of one tile, plus the dressing placements to draw as instances."""
     x0, y0, x1, y1 = tile_bounds(tc, i, j)
@@ -359,13 +388,26 @@ def build_tile(tc: TileContext, i: int, j: int) -> tuple:
         street_meshes(mb, tc, plan, street_tree, tile)
         paint_meshes(mb, tc, plan, tc.paint_trees[ci], tile)
         walk_meshes(mb, tc, plan, tile)
+        walk_width = np.zeros(len(plan.streets))
+        for walk in getattr(plan, "walks", ()):
+            if walk.kind == "sidewalk" and 0 <= walk.street < len(walk_width):
+                walk_width[walk.street] = max(walk_width[walk.street], float(walk.width))
+        reach = 0.6 + max((s.width / 2.0 + walk_width[k] for k, s in enumerate(plan.streets)),
+                          default=0.0)
         inside = (centers[:, 0] >= x0) & (centers[:, 0] < x1) & (centers[:, 1] >= y0) & (centers[:, 1] < y1)
         owned = np.nonzero(inside)[0]
         for k in owned:
             b = plan.buildings[int(k)]
-            roof = roof_layout(b, plan.districts[b.district].kind,
+            kind = plan.districts[b.district].kind
+            plinth = frontage = None
+            if b.kind in PLINTH_KINDS and kind in tc.plinths:
+                spec = tc.plinths[kind]
+                plinth = (str(spec["material"]), float(spec["height"]))
+                fp = orient(b.footprint, sign=1.0)
+                frontage = street_frontage(fp.exterior.coords, plan, walk_width, street_tree, reach)
+            roof = roof_layout(b, kind,
                                roof_stream(tc.world.seed, plan.settlement.id, int(k)), tc.roofs)
-            building_mesh(mb, b, tc.height, roof)
+            building_mesh(mb, b, tc.height, roof, plinth, frontage)
         if dresser is not None:
             highs = building_highs(tc.ground, [plan.buildings[int(k)] for k in owned])
             for k, high in zip(owned, highs):

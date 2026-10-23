@@ -15,6 +15,27 @@ Entry format:
 - Doubts and questions for Ali: <none, or the question>
 ```
 
+## 2026-10-23 - Prompt 19 A2c Textured walls and roofs
+- Commit: "Textured walls and roofs: plaster, plinths and roof tiles" (see git log) | Model:
+  DeepSeek V4.1 Flash, high (playbook: Sonnet, high)
+- Changed: `citygen/mesh/builder.py` (wall split at the plinth, `_wall_band` mask, planar
+  hip-roof UVs with a per-face slope length, degenerate roof triangles dropped),
+  `citygen/mesh/tile.py` (`[plinth]` lookup, street-facing mask from street center lines and
+  sidewalks), `styles/maghreb.toml` (palette textures and sizes, `plinth_blue`/`plinth_stone`,
+  `[plinth]`, stronger plaster/render strengths), `tools/viewer/index.html` (anisotropy),
+  tests (4 new/changed), `docs/SPEC.md`, `docs/ROADMAP.md`, `docs/HANDOFF.md`
+- Checks: tests 51 passed (15.1 s); `build --quick` 7.8 s, 9 tiles; fingerprint 140 parts,
+  9 changed, all `tiles/*`. Budgets: 7 shared images, 284 KB (limit 2 MB); full capital
+  `--area capital` 31.5 s, 168 tiles, tile bytes +2.21% total and +3.45% for the densest tile
+  (limit +10%); quick densest +2.82%. Plinth triangles fell from 9,634 to 2,208 on the
+  dense medina tile by keeping party walls plain.
+- Look: `output/checks/19.png` street before/after (mean difference 4.60) - stone plinths on
+  street walls, plaster grain, aligned bands; `output/checks/19-hip.png` on the `city:1` build -
+  tile rows running down every hip face, including the end triangles. Blender:
+  `output/bodjantouna-42/goumosbane.blend`.
+- Doubts and questions for Ali: none. The plinth is drawn only on street-facing exterior walls
+  (a party wall or courtyard side is never visible); the base band still follows the ground.
+
 ## 2026-10-23 - Prompt 18 A2b Generated textures
 - Commit: "Generated textures: plaster, stone, tiles and paving" (see git log) | Model: DeepSeek
   V4.1 Flash, high (playbook: Sonnet, high)

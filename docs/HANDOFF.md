@@ -108,6 +108,24 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
   appending one makes every tile "content differs" although the scene is identical. The viewer
   material cache keys on the texture URL and repeat; the phone page stores each image once as
   base64 JSON and maps `textures/<name>` to a blob URL.
+- **Plinths and wall UVs** (prompt 19, `mesh/builder.py`): `v = -(z - z_ref)` with `z_ref` the
+  highest ground under the building, so a street sees one continuous course. Splitting a wall at
+  `z_ref + height` doubles its vertices; on the dense medina tile that was +14% tile bytes. Apply
+  the plinth only to exterior segments within half the street width plus that street's sidewalk
+  plus 0.6 m of the wall midpoint (party walls are invisible): +3.5% on the same tile. Compute the
+  mask on the *oriented* ring, because `extrude` orients the polygon. Keep the old
+  `s1 = cumsum(length); s0 = s1 - length` arithmetic when no mask is given: computing `s0` from a
+  cumulative array instead changed two UV bits in every kit piece that uses `extrude`, and the
+  fingerprint flagged 47 kit parts as changed.
+- **Hip-roof UVs** (prompt 19): planar meter UVs (u along the eave, v up the slope) need the
+  slope of *that* face. Long faces use `hypot(W/2, height)`; end faces use
+  `hypot((L - W)/2, height)`. Reusing the long slope stretched the end triangles by 22% on a
+  10 x 6 m roof; the area test caught it. `np.cross` refuses 2D vectors in this NumPy, so test
+  UV area with the determinant `e1x*e2y - e1y*e2x`. A square roof has no ridge: drop triangles
+  whose 3D cross product is zero, or the degenerate end quads write NaNs.
+- **Texture strength** (prompt 19): plaster at grain 0.45 / mottle 0.5 read flat at street
+  level; 0.7 / 0.7 with stain 0.5 is visible but still neutral. The viewer sets anisotropy
+  `min(8, max)` on a computer and 2 in the phone/Fast path, with the sampler's mipmaps.
 - **Parallel tiles** (`TilePool` in `citygen/build.py`): spawn processes start while the parent
   plans and wait for one pickle file (world + plans); each builds its own `TileContext`. Use
   `multiprocessing.Pool`, not `ProcessPoolExecutor`: the Claude sandbox forbids the

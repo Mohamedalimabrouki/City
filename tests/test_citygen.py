@@ -10,7 +10,7 @@ from shapely.strtree import STRtree
 from citygen.__main__ import main
 from citygen.city import plan_city
 from citygen.config import load_config
-from citygen.mesh.builder import MeshBuilder, extrude, rectangle
+from citygen.mesh.builder import MeshBuilder, add_hip_roof, extrude, rectangle
 from citygen.mesh.gltf import read_glb, read_parts, triangle_count, write_glb
 from citygen.mesh.textures import (NAMES, PIXELS, encoded, images_for, spec_for, texture,
                                     texture_names, write_shared_textures)
@@ -165,6 +165,60 @@ def test_textures_off_leaves_flat_colors(tmp_path):
     assert "baseColorTexture" not in gltf["materials"][0]["pbrMetallicRoughness"]
 
 
+def test_palette_maps_walls_and_roofs_to_generated_textures():
+    from citygen.config import load_style
+    style = load_style("maghreb")
+    for name, spec in style["palette"].items():
+        texture = spec.get("texture")
+        if not texture:
+            continue
+        assert texture in NAMES, (name, texture)
+        assert texture in style["textures"], (name, texture)
+        w, h = spec["texture_size"]
+        assert 0.5 <= w <= 8.0 and 0.5 <= h <= 8.0, (name, w, h)
+    for name in ("lime_white", "cream", "concrete", "roof_tile", "roof_white", "rampart",
+                 "plinth_blue", "plinth_stone"):
+        assert style["palette"][name].get("texture"), name
+
+
+def test_walls_split_at_the_plinth_with_v_zero_at_the_ground():
+    mb = MeshBuilder()
+    extrude(mb, rectangle(5.0, 5.0, 10.0, 8.0, 0.0), -0.6, 4.0, "wall", None,
+            z_ref=1.5, plinth=("plinth", 0.8))
+    parts = mb.gltf_parts()
+    plinth, wall = parts["plinth"], parts["wall"]
+    assert plinth["pos"][:, 1].min() == pytest.approx(-0.6)
+    assert plinth["pos"][:, 1].max() == pytest.approx(2.3)
+    assert wall["pos"][:, 1].min() == pytest.approx(2.3)      # the split, not the buried foot
+    assert wall["pos"][:, 1].max() == pytest.approx(4.0)
+    split = np.isclose(plinth["pos"][:, 1], 2.3)
+    assert np.allclose(plinth["uv"][split, 1], -0.8)          # v = -(z - z_ref) is continuous
+
+
+def test_plinth_only_covers_frontage_segments():
+    mb = MeshBuilder()
+    extrude(mb, rectangle(5.0, 5.0, 10.0, 8.0, 0.0), -0.6, 4.0, "wall", None,
+            z_ref=1.5, plinth=("plinth", 0.8), frontage=[True, False, True, False])
+    parts = mb.gltf_parts()
+    assert len(parts["plinth"]["idx"]) // 3 == 4             # two sides, two triangles each
+    assert len(parts["wall"]["idx"]) // 3 == 8              # upper band on two sides + two plain sides
+    assert parts["plinth"]["pos"][:, 1].min() == pytest.approx(-0.6)
+    assert parts["plinth"]["pos"][:, 1].max() == pytest.approx(2.3)
+
+
+def test_hip_roof_uvs_are_planar_in_meters():
+    mb = MeshBuilder()
+    add_hip_roof(mb, rectangle(0.0, 0.0, 10.0, 6.0, 0.3).exterior.coords[:4], 2.0, 2.5, "roof")
+    part = mb.gltf_parts()["roof"]
+    pos, uv, idx = part["pos"], part["uv"], part["idx"].reshape(-1, 3)
+    a, b = pos[idx], uv[idx]
+    area3 = 0.5 * np.linalg.norm(np.cross(a[:, 1] - a[:, 0], a[:, 2] - a[:, 0]), axis=1)
+    e1, e2 = b[:, 1] - b[:, 0], b[:, 2] - b[:, 0]
+    area_uv = 0.5 * np.abs(e1[:, 0] * e2[:, 1] - e1[:, 1] * e2[:, 0])
+    assert np.allclose(area_uv, area3, rtol=1e-9, atol=1e-9)   # no smearing: 1 UV unit = 1 m
+    assert uv[:, 1].max() == pytest.approx(math.hypot(3.0, 2.5))
+
+
 def test_texture_images_are_deterministic():
     a = encoded("plaster", 9, {"pixels": 256})
     assert a.data == encoded("plaster", 9, {"pixels": 256}).data
@@ -219,7 +273,7 @@ def test_tile_is_valid_glb(world, plan, tmp_path):
     info = export_tile(tc, int(s.x // tc.size), int(s.y // tc.size), tmp_path)
     gltf, binary = read_glb(tmp_path / info["file"])
     assert triangle_count(gltf) == info["triangles"] > 1000
-    assert {"lime_white", "asphalt", "paving", "road_paint", "sidewalk", "curb"} <= {m["name"] for m in gltf["materials"]}
+    assert {"lime_white", "plinth_blue", "asphalt", "paving", "road_paint", "sidewalk", "curb"} <= {m["name"] for m in gltf["materials"]}
     for prim in gltf["meshes"][0]["primitives"]:
         count = gltf["accessors"][prim["attributes"]["POSITION"]]["count"]
         acc = gltf["accessors"][prim["indices"]]

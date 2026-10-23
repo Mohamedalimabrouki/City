@@ -446,6 +446,11 @@ function addSea(water) {
 // One material per look, shared by all tiles; water gets a glossy, slightly transparent finish.
 function shared(material) {
   const map = material.map;
+  if (map) {
+    // Walls are seen at grazing angles at street level: anisotropic filtering 8 (2 on a phone)
+    // keeps the plaster grain and roof-tile rows sharp instead of smearing them into a band.
+    map.anisotropy = coarse ? 2 : Math.min(8, renderer.capabilities.getMaxAnisotropy());
+  }
   const texture = map ? [map.image && map.image.src, map.repeat.x, map.repeat.y,
                          map.offset.x, map.offset.y].join(',') : '';
   const key = [material.name, material.color.getHex(), material.roughness, material.metalness,

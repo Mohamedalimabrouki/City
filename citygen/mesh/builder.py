@@ -72,8 +72,32 @@ def triangulate(poly: Polygon) -> np.ndarray:
     return tri[np.abs(cross) > 1e-9]
 
 
-def add_walls(mb: MeshBuilder, ring, z0: float, z1: float, material: str, z_ref: float) -> None:
-    """Vertical walls along a ring. Exterior rings must be CCW and holes CW (see shapely orient)."""
+def add_walls(mb: MeshBuilder, ring, z0: float, z1: float, material: str, z_ref: float,
+              plinth: tuple[str, float] | None = None, frontage=None) -> None:
+    """Vertical walls along a ring. Exterior rings must be CCW and holes CW (see shapely orient).
+
+    `plinth` = (material, height): the part of the wall from the bottom up to `height` meters
+    above `z_ref` (the building's highest ground point) is drawn in that material, so a base
+    band follows the street instead of the buried foot of the wall. `frontage`, when given, is
+    one bool per ring segment: only those segments get the plinth (street-facing walls), which
+    keeps party walls and block interiors out of the tile bytes.
+    """
+    if plinth is not None:
+        base_material, base_height = plinth
+        split = z_ref + float(base_height)
+        if z0 < split < z1:
+            mask = None if frontage is None else np.asarray(frontage, dtype=bool)
+            _wall_band(mb, ring, z0, split, base_material, z_ref, mask)
+            _wall_band(mb, ring, split, z1, material, z_ref, mask)
+            if mask is not None:
+                _wall_band(mb, ring, z0, z1, material, z_ref, ~mask)
+            return
+    _wall_band(mb, ring, z0, z1, material, z_ref)
+
+
+def _wall_band(mb: MeshBuilder, ring, z0: float, z1: float, material: str, z_ref: float,
+               mask=None) -> None:
+    """One vertical band of a wall; v = 0 at z_ref so wall textures line up along a street."""
     pts = np.asarray(ring, dtype=np.float64)[:, :2]
     if len(pts) > 1 and np.allclose(pts[0], pts[-1]):
         pts = pts[:-1]
@@ -83,10 +107,19 @@ def add_walls(mb: MeshBuilder, ring, z0: float, z1: float, material: str, z_ref:
     d = b - a
     length = np.hypot(d[:, 0], d[:, 1])
     keep = length > 1e-6
-    a, b, d, length = a[keep], b[keep], d[keep], length[keep]
+    if mask is None:
+        a, b, d, length = a[keep], b[keep], d[keep], length[keep]
+        s1 = np.cumsum(length)
+        s0 = s1 - length
+    else:
+        s_all = np.concatenate([[0.0], np.cumsum(length)])
+        s0_all, s1_all = s_all[:-1], s_all[1:]
+        keep &= np.asarray(mask, dtype=bool)
+        a, b, d, length = a[keep], b[keep], d[keep], length[keep]
+        s0, s1 = s0_all[keep], s1_all[keep]
     k = len(a)
-    s1 = np.cumsum(length)
-    s0 = s1 - length
+    if not k:
+        return
     pos = np.empty((k, 4, 3))
     pos[:, 0, :2], pos[:, 1, :2], pos[:, 2, :2], pos[:, 3, :2] = a, b, b, a
     pos[:, :2, 2], pos[:, 2:, 2] = z0, z1
@@ -195,11 +228,17 @@ def add_loft(mb: MeshBuilder, inner, z_inner: float, outer, z_outer: float, mate
 
 
 def extrude(mb: MeshBuilder, poly: Polygon, z0: float, z1: float, wall: str, roof: str | None,
-            z_ref: float | None = None) -> None:
-    """Solid prism: walls for every ring plus a flat roof (skip the roof with roof=None)."""
+            z_ref: float | None = None, plinth: tuple[str, float] | None = None,
+            frontage=None) -> None:
+    """Solid prism: walls for every ring plus a flat roof (skip the roof with roof=None).
+
+    A plinth goes on the outside ring only: courtyard walls keep their plain finish, which keeps
+    the dense old-town tiles inside the +10% byte budget of prompt 19. `frontage` selects the
+    exterior segments that get it (see add_walls); None means every exterior segment.
+    """
     poly = orient(poly, sign=1.0)
     z_ref = z0 if z_ref is None else z_ref
-    add_walls(mb, poly.exterior.coords, z0, z1, wall, z_ref)
+    add_walls(mb, poly.exterior.coords, z0, z1, wall, z_ref, plinth, frontage)
     for hole in poly.interiors:
         add_walls(mb, hole.coords, z0, z1, wall, z_ref)
     if roof:
@@ -256,21 +295,50 @@ def add_dome(mb: MeshBuilder, cx: float, cy: float, z: float, radius: float, mat
 
 
 def add_hip_roof(mb: MeshBuilder, corners, z: float, height: float, material: str) -> None:
-    """Hip roof on a rectangle given as 4 counter-clockwise corners."""
+    """Hip roof on a rectangle given as 4 counter-clockwise corners.
+
+    UVs are planar in meters: u along the eave, v up the slope, so roof-tile rows run down every
+    face (4.0 m of eave and 1.6 m of slope per texture repeat with the maghreb palette) instead
+    of smearing into stripes under the old (x + y, -z) projection.
+    """
     c = np.asarray(corners, dtype=np.float64)[:4, :2]
     if np.linalg.norm(c[1] - c[0]) < np.linalg.norm(c[2] - c[1]):
         c = np.roll(c, -1, axis=0)
-    long_len = np.linalg.norm(c[1] - c[0])
-    short_len = np.linalg.norm(c[2] - c[1])
-    u = (c[1] - c[0]) / max(long_len, 1e-9)
-    center = c.mean(axis=0)
-    half = max(long_len - short_len, 0.0) / 2
-    r0 = np.append(center - u * half, z + height)
-    r1 = np.append(center + u * half, z + height)
-    p = np.concatenate([c, np.full((4, 1), z)], axis=1)
-    tris = [[p[0], p[1], r1], [p[0], r1, r0], [p[1], p[2], r1],
-            [p[2], p[3], r0], [p[2], r0, r1], [p[3], p[0], r0]]
-    add_triangles(mb, tris, material)
+    long_len = float(np.linalg.norm(c[1] - c[0]))
+    short_len = float(np.linalg.norm(c[2] - c[1]))
+    if long_len < 1e-9 or short_len < 1e-9:
+        return
+    u = (c[1] - c[0]) / long_len
+    n = np.array([-u[1], u[0]])                     # into the rectangle, for counter-clockwise corners
+    hw = short_len / 2.0
+    slope = math.hypot(hw, height)
+    half = max(long_len - short_len, 0.0) / 2.0     # ridge end inset from each end eave
+    end_slope = math.hypot(half, height)
+
+    def at(x: float, y: float, zz: float) -> np.ndarray:
+        p = c[0] + u * x + n * y
+        return np.array([p[0], p[1], zz])
+
+    p00, p10 = at(0.0, 0.0, z), at(long_len, 0.0, z)
+    p01, p11 = at(0.0, short_len, z), at(long_len, short_len, z)
+    r0, r1 = at(half, hw, z + height), at(long_len - half, hw, z + height)
+    # (vertices, uvs): ridge vertices are `slope` meters up their face, eave vertices are 0
+    faces = (
+        ((p00, p10, r1, r0), ((0.0, 0.0), (long_len, 0.0), (long_len - half, slope), (half, slope))),
+        ((p11, p01, r0, r1), ((long_len, 0.0), (0.0, 0.0), (half, slope), (long_len - half, slope))),
+        ((p01, p00, r0), ((short_len, 0.0), (0.0, 0.0), (hw, end_slope))),
+        ((p10, p11, r1), ((0.0, 0.0), (short_len, 0.0), (hw, end_slope))),
+    )
+    for verts, uv in faces:
+        pos = np.asarray(verts)
+        nrm = np.cross(pos[1] - pos[0], pos[-1] - pos[0])
+        nrm /= max(float(np.linalg.norm(nrm)), 1e-12)
+        tris = _QUAD if len(pos) == 4 else np.array([[0, 1, 2]])
+        if len(tris) > 1:   # a square roof has no ridge: its two end quads collapse to triangles
+            area = np.cross(pos[tris[:, 1]] - pos[tris[:, 0]], pos[tris[:, 2]] - pos[tris[:, 0]])
+            tris = tris[np.linalg.norm(area, axis=1) > 1e-9]
+        if len(tris):
+            mb.add(material, pos, np.tile(nrm, (len(pos), 1)), np.asarray(uv), tris)
 
 
 def add_cone(mb: MeshBuilder, cx: float, cy: float, z0: float, radius: float, height: float,

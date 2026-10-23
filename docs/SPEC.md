@@ -168,8 +168,21 @@ and no palette color, window or door is baked in. Each texture owns
 `texture_size = [3.0, 3.6]` matches the colonial floor height. `python -m citygen
 texture-sheet` writes `output/checks/texture-sheet.png` with every texture tiled 2 x 2, tinted
 by its palette color (or its `tint` sample) and labelled with its name, size and repeat. Files
-are PNG or JPEG, whichever is smaller. Palette mapping is prompt 19, so builds stay unchanged
-until then.
+are PNG or JPEG, whichever is smaller.
+
+**Textured walls and roofs (prompt 19):** the maghreb palette maps plaster walls
+(`lime_white`, `warm_white`, `sand`, `ochre`, `dome_white`) to `plaster` at 3 m, colonial walls
+(`cream`, `pale_yellow`) to `render_cream` at 3 x 3.6 m, `pastel_blue` to `render`, modern slabs
+to `concrete` at 2.4 m, ramparts, minarets and stone plinths to `stone` at 2.4 x 1.8 m, flat
+roofs to `roof_flat` at 2.5 m and hip roofs to `roof_tile` at 2 x 1.6 m. Wall UVs put `v = 0` at
+`z_ref` (the highest ground under the building), so bands line up along a street. `add_walls`
+splits the wall at `z_ref + plinth height`; `[plinth]` gives each district kind its material and
+height (a blue-grey band in the medina, stone or concrete elsewhere). Only street-facing exterior
+segments get the plinth (distance to the street center line allows for half the street plus its
+sidewalk), and courtyard holes stay plain: party walls cannot be seen and would cost bytes. Hip
+roofs use planar meter UVs (u along the eave, v up the slope, each end face with its own slope
+length), so tile rows run down every face instead of smearing. The viewer sets anisotropy 8 on a
+computer (2 on phones, which keep the Fast quality) with mipmaps from the shared sampler.
 
 ## 6b. Kits and street dressing
 
@@ -197,8 +210,10 @@ until then.
 
 ## 7. Style pack (`styles/<name>.toml`)
 
-`[names]` sounds and templates, `[lore]` eras and products, `[palette]` materials,
-`[streets]` curb height, minimum carriageway, promenade width, the paint numbers and the outline
+`[names]` sounds and templates, `[lore]` eras and products, `[palette]` materials (color and
+optional `texture` + `texture_size`), `[textures]` generated-surface noise strengths,
+`[plinth]` the base material and height per district kind, `[streets]` curb height, minimum
+carriageway, promenade width, the paint numbers and the outline
 steps of drawn walks and paint (`walk_step`, `paint_step`: long pieces follow the ground),
 `[streets.surface]` the ribbon material per street kind, `[roofs]` parapet thickness, height by
 district kind and the stair room share and size, `[district.<kind>]` street

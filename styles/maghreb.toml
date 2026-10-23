@@ -61,22 +61,27 @@ products.mountain = ["cork", "marble", "pine honey", "goat cheese"]
 # --- colors and surfaces ---------------------------------------------------------
 # Every surface in the 3D files uses one of these materials (by name).
 [palette]
-lime_white = { color = "#F1EEE6", roughness = 0.92 }
-warm_white = { color = "#ECE4D3" }
-cream = { color = "#E8DCC0" }
-pale_yellow = { color = "#EAD9A6" }
-sand = { color = "#DEC79C" }
-ochre = { color = "#D2A46A" }
-pastel_blue = { color = "#C3D5E0" }
-concrete = { color = "#C9C3B8" }
-concrete_dark = { color = "#9A958C" }
+# Textures (prompt 19) are named with the meters one repeat covers: walls are textured in
+# meters, so the same plaster serves a medina wall and an apartment block. The palette color
+# still gives each material its hue.
+lime_white = { color = "#F1EEE6", roughness = 0.92, texture = "plaster", texture_size = [3.0, 3.0] }
+warm_white = { color = "#ECE4D3", texture = "plaster", texture_size = [3.0, 3.0] }
+cream = { color = "#E8DCC0", texture = "render_cream", texture_size = [3.0, 3.6] }
+pale_yellow = { color = "#EAD9A6", texture = "render_cream", texture_size = [3.0, 3.6] }
+sand = { color = "#DEC79C", texture = "plaster", texture_size = [3.0, 3.0] }
+ochre = { color = "#D2A46A", texture = "plaster", texture_size = [3.0, 3.0] }
+pastel_blue = { color = "#C3D5E0", texture = "render", texture_size = [3.0, 3.0] }
+concrete = { color = "#C9C3B8", texture = "concrete", texture_size = [2.4, 2.4] }
+concrete_dark = { color = "#9A958C", texture = "concrete", texture_size = [2.4, 2.4] }
 metal = { color = "#A6ACB1", roughness = 0.5, metallic = 0.3 }
-rampart = { color = "#CFAE7C" }
-minaret_stone = { color = "#D9C398" }
-roof_white = { color = "#E4DFD4" }
-roof_tile = { color = "#B5593B", roughness = 0.8 }
-dome_white = { color = "#F5F3EE" }
+rampart = { color = "#CFAE7C", texture = "stone", texture_size = [2.4, 1.8] }
+minaret_stone = { color = "#D9C398", texture = "stone", texture_size = [2.4, 1.8] }
+roof_white = { color = "#E4DFD4", texture = "roof_flat", texture_size = [2.5, 2.5] }
+roof_tile = { color = "#B5593B", roughness = 0.8, texture = "roof_tile", texture_size = [2.0, 1.6] }
+dome_white = { color = "#F5F3EE", texture = "plaster", texture_size = [2.0, 2.0] }
 dome_green = { color = "#3E7A57", roughness = 0.4 }
+plinth_blue = { color = "#70899A", roughness = 0.9, texture = "plaster", texture_size = [2.0, 2.0] }
+plinth_stone = { color = "#B3A48B", roughness = 0.92, texture = "stone", texture_size = [2.4, 1.8] }
 asphalt = { color = "#7A7874", roughness = 0.95 }   # sun-bleached
 paving = { color = "#BDB09A" }
 earth = { color = "#C4A87E", roughness = 0.98 }     # packed earth of village lanes
@@ -165,9 +170,9 @@ cloth_6 = { color = "#8E5AA8", double_sided = true }
 # medium and broad detail (0-1); `band` = strength of the colonial string course;
 # `tint` = palette color the texture sheet shows until the palette maps it (prompt 19).
 [textures]
-plaster = { pixels = 512, grain = 0.45, mottle = 0.5, stain = 0.45, tint = "cream" }
-render = { pixels = 512, grain = 0.5, mottle = 0.3, stain = 0.25, tint = "warm_white" }
-render_cream = { pixels = 512, grain = 0.5, mottle = 0.3, stain = 0.25, band = 0.7, tint = "cream" }
+plaster = { pixels = 512, grain = 0.7, mottle = 0.7, stain = 0.5, tint = "cream" }
+render = { pixels = 512, grain = 0.7, mottle = 0.45, stain = 0.3, tint = "warm_white" }
+render_cream = { pixels = 512, grain = 0.7, mottle = 0.45, stain = 0.3, band = 0.7, tint = "cream" }
 stone = { pixels = 512, grain = 0.5, mottle = 0.45, stain = 0.4, tint = "rampart" }
 concrete = { pixels = 512, grain = 0.4, mottle = 0.3, stain = 0.4, tint = "concrete" }
 roof_tile = { pixels = 512, grain = 0.35, mottle = 0.3, stain = 0.4, tint = "roof_tile" }
@@ -336,6 +341,19 @@ stair_gap = 0.25           # meters between the stair room and the parapet
 stair_door_width = 0.9
 stair_door_height = 1.95
 stair_door_reach = 0.8     # meters of free roof a side needs before it takes the door
+
+# --- plinths ------------------------------------------------------------------------
+# The base band of a building wall (prompt 19): everything within `height` meters of the
+# highest ground point under the building is drawn in another material, so a street sees a
+# clean base instead of the buried foot of the wall. Kinds not listed keep the plain wall;
+# ramparts, towers and minarets never get a base.
+[plinth]
+medina = { material = "plinth_blue", height = 0.8 }
+village = { material = "plinth_stone", height = 0.7 }
+colonial = { material = "plinth_stone", height = 0.9 }
+modern = { material = "concrete_dark", height = 0.6 }
+residential = { material = "plinth_stone", height = 0.7 }
+suburb = { material = "plinth_stone", height = 0.6 }
 
 # --- settlement kinds ---------------------------------------------------------------
 [settlement.capital]
