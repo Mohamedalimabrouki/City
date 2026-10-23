@@ -107,14 +107,20 @@ def tile_bounds(tc: TileContext, i: int, j: int) -> tuple:
     return i * t, j * t, (i + 1) * t, (j + 1) * t
 
 
-def terrain_mesh(mb: MeshBuilder, tc: TileContext, x0: float, y0: float) -> float:
-    """Height-field grid colored by biome (urban ground inside cities). Returns the lowest height."""
+def terrain_mesh(mb: MeshBuilder, tc: TileContext, x0: float, y0: float, corners: list = ()) -> float:
+    """Height-field grid colored by biome (urban ground inside cities). Returns the lowest height.
+
+    `corners`: dressers whose terrain-corner cache gets the grid's heights (doors and garden paths
+    on open ground follow the drawn mesh, see Dresser.drawn).
+    """
     s = tc.step
     n = int(round(tc.size / s))
     xs = x0 + np.arange(-1, n + 2) * s
     ys = y0 + np.arange(-1, n + 2) * s
     X, Y = np.meshgrid(xs, ys)
     He = tc.height(X, Y)
+    for dresser in corners:
+        dresser.seed_corners(int(round(xs[0] / s)), int(round(ys[0] / s)), He)
     H = He[1:-1, 1:-1]
     gx = (He[1:-1, 2:] - He[1:-1, :-2]) / (2 * s)
     gy = (He[2:, 1:-1] - He[:-2, 1:-1]) / (2 * s)
@@ -216,6 +222,15 @@ def walk_meshes(mb: MeshBuilder, tc: TileContext, plan, tile, street_tree=None) 
             top = tc.ground.walk_top(pts[:, 0], pts[:, 1])
             bottom = tc.height(pts[:, 0], pts[:, 1])
             add_skirt(mb, pts, top, bottom, "curb")
+
+
+def path_meshes(mb: MeshBuilder, tc: TileContext, paths: list, drawn) -> None:
+    """Paved paths from doors on open ground to the street, drawn by the tile owning their building,
+    draped on the terrain mesh (`drawn`: `Ground.drawn` or the dresser's cached copy)."""
+    cfg = tc.world.style.get("dressing", {}).get("paths", {})
+    width, lift = float(cfg.get("width", 1.4)), float(cfg.get("lift", 0.04))
+    for line in paths:
+        add_ribbon(mb, line, width, drawn, lift, str(cfg.get("material", "sidewalk")))
 
 
 def street_directions(street_tree, x, y) -> np.ndarray:
@@ -424,7 +439,8 @@ def build_tile(tc: TileContext, i: int, j: int) -> tuple:
     x0, y0, x1, y1 = tile_bounds(tc, i, j)
     tile = box(x0, y0, x1, y1)
     mb = MeshBuilder(origin=(x0, y0))
-    if terrain_mesh(mb, tc, x0, y0) < 0.0:
+    dressers = [c[4] for c in tc.cities if c[4] is not None and c[0].boundary.intersects(tile)]
+    if terrain_mesh(mb, tc, x0, y0, dressers) < 0.0:
         water_mesh(mb, x0, y0, x1, y1)
     road_meshes(mb, tc, tile)
     placements: list = []
@@ -457,8 +473,10 @@ def build_tile(tc: TileContext, i: int, j: int) -> tuple:
             building_mesh(mb, b, tc.height, roof, plinth, frontage)
         if dresser is not None:
             highs = building_highs(tc.ground, [plan.buildings[int(k)] for k in owned])
+            paths: list = []
             for k, high in zip(owned, highs):
-                placements += dresser.building(int(k), float(high))
+                placements += dresser.building(int(k), float(high), paths)
+            path_meshes(mb, tc, paths, dresser.drawn)
             if street_tree is not None:
                 for k in street_tree.query(tile, predicate="intersects"):
                     spans += dresser.spans(int(k), tile)

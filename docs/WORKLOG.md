@@ -15,6 +15,36 @@ Entry format:
 - Doubts and questions for Ali: <none, or the question>
 ```
 
+## 2026-10-23 - Prompt 20.1 AD1 Every home gets a door and windows
+- Commit: (see git log) | Model: Opus 5.5, high (playbook: Sonnet, high)
+- Changed: `citygen/city/dressing.py` (`door_spot`, `entrances`, open-wall windows, slab windows,
+  balconies, stair doors, house doors beside shops and cafes, corner-cached `drawn`; the street
+  walls' draws untouched), `citygen/city/openings.py` (new: walls, open-wall probes, piece boxes,
+  paths), `citygen/city/ground.py` (`Ground.drawn`: the terrain mesh's height), `citygen/mesh/props.py`
+  (new pieces from one-sided quads: `door_narrow_*`, `window_slab_*` and `_shut`, `window_stair`,
+  `balcony_slab`, `stair_door`), `citygen/mesh/tile.py` (paths drawn by the owning tile, terrain
+  grid seeds the dresser's corner cache), `styles/maghreb.toml` (`every_home`, `[dressing.open_walls]`,
+  `[dressing.slab]`, `[dressing.paths]`, roles), tests (5 new, 1 widened), `docs/SPEC.md`,
+  `docs/ROADMAP.md`, `docs/HANDOFF.md`
+- Checks: tests 62 passed (20.0 s; HEAD 17.7 s); `build --quick` 9.3 s; fingerprint 156 parts, 25
+  changed: `tiles/*` and the 16 new `kit/*` pieces by exact name (`kit/balcony_slab`,
+  `kit/door_narrow_{blue,brown,green,red,yellow}`, `kit/stair_door`,
+  `kit/window_slab_{white,blue,green,brown}` and their `_shut`, `kit/window_stair`). Quick capital:
+  1,401 dwellings, 1,401 main doors placed (713 on a street, 366 on open ground, 322 enclosed for
+  20.2); 225 house doors beside shops and cafes; 356 slabs with 471 stair doors, 412 with a path.
+  Tile bytes: three modern-estate tiles over the +20% budget (13_22 +36.6%, 14_22 +24.9%, 12_22
+  +20.5%), accepted by the lead: estate tiles had almost no dressing before; +0.26 MB at most;
+  instance bytes go to prompt 39. The others +0.9% to +3.0%. Level faces of the new pieces get
+  planar meter UVs (no smeared concrete stripes). Full capital `--force`: 37.0 s (HEAD measured 34.5 to 44.3 s
+  on this Mac; tile work single-process +12%).
+- Look: `output/checks/20.1.png` (modern estate from 150 m: window grids, balconies in columns,
+  shutter colors, blind gables), `output/checks/20.1-shops.png` (re-run after `door_clear` 0.9 ->
+  2.0: the blue house door stands 2.84 m from the cafe center, 0.9 m past the awning and clear of
+  the chairs; the fanlight glass then moved 1.5 cm off the wall, where it flickered)
+- Decision: tile byte budget on estate tiles accepted by the lead (see Checks).
+- Doubts and questions for Ali: none left. 7,802 residential houses on the full capital are
+  enclosed; the lead extends prompt 20.2's impasses beyond medina and village blocks to cover them.
+
 ## 2026-10-23 - Fix: no more "Blender quit unexpectedly" from agents
 - Commit: (see git log) | Model: Opus 5.5, medium
 - Changed: `tools/make_blend.py` (`sandboxed()`: stops before starting Blender inside a macOS

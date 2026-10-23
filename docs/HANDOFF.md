@@ -270,14 +270,32 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
   pixels, and the concrete seam is centred at +0.5 px. Keep every image neutral grey; the
   palette color supplies the color. `texture-sheet` is the visual check, and the encoder keeps
   the smaller of PNG and JPEG.
+- **Every home's door and windows** (prompt 20.1, `Dresser.door_spot`, `city/openings.py`): new
+  choices never draw from `rng("b", k)` and are appended after the old pieces, so a test can dress
+  with `every_home` off and on and require the old list as a prefix of the new one. `door_spot`
+  replays `_street_side` on a fresh `rng("b", k)` and goes through the same `_entrances` code the
+  dresser places doors with; prompts 44, 71 and 79 must read doors there. Ground pieces in the
+  overlap boxes count from the door or shop threshold (no ground call). Each `Ground.height` call
+  costs about 0.25 ms whatever the number of points (the city edge distance, terrace blocks), so
+  the first version made the capital's tile work +20%: thresholds on open ground and garden paths
+  now read `Dresser.drawn`, which caches the terrain mesh corners and is seeded by each tile's
+  terrain grid (no extra ground call); tile work is now about +12%. Draw paths on the terrain mesh
+  (`Ground.drawn`), not on `Ground.height`: the 8 m mesh lies up to 0.18 m above the true height
+  on steep terraces, and a ribbon draped on the true height sank under it. Instanced pieces that
+  repeat on every slab must be cheap: boxes cost five faces where one shows, and the first slab
+  window (270 triangles, 8 variants) added 180 KB per estate tile; one-sided quads (`_faces`) cut
+  that to about 30 KB. Instances cost 40 bytes each (translation, rotation, scale as floats).
 - **Old-town tiles** reach about 5 MB on the quick build and 8 MB on the full capital
   (`tile_65_106`, mostly roofs since prompt 15); task Q5 (prompt 39) brings them down.
 
 ## Known weak spots
 
-Task Q5 in the roadmap: heavy old-town tiles. Also: modern slabs and houses deep inside medina
-blocks have no door or windows, because the dressing only dresses walls within 1.6 m of a street
-(prompts 20.1 and 20.2).
+Task Q5 in the roadmap: heavy old-town tiles. Since prompt 20.1 every dwelling has a door, but
+houses deep inside blocks only get a narrow door squeezed toward the nearest street: 322 on the
+quick capital, and on the full capital 1,781 medina houses and 7,802 residential houses (inner
+residential parcels without frontage; prompt 20.2 cuts impasses in medina and village blocks
+only). Modern-estate tiles grew +20% to +37% in bytes with their windows (instances plus piece
+meshes), over the +20% budget (prompt 39, Q5, can shrink instance data).
 
 ## Checking the look without wasting tokens
 

@@ -257,7 +257,10 @@ tiles smaller.
      float);
    - keep float for materials with tiny offsets (`road_paint` 0.03 m above streets, `add_sheet`
      cloth 0.005-0.02 m thick), where 1-2 cm steps would break them;
-   - instance rotations as normalized int16 if precise enough.
+   - instance rotations as normalized int16 if precise enough;
+   - no instancing `SCALE` accessor for a piece whose instances all have scale 1 (windows,
+     doors, balconies): since prompt 20.1 the modern-estate tiles are mostly such instances
+     (40 bytes each today) and grew by up to +37% (accepted by the lead, CP3 rechecks).
 3. Teach both readers the new types: `read_parts` in `mesh/gltf.py` (int8 and int16 in its dtype
    table, normalization) and `instance_transforms` in `tools/blender_import.py` (used by
    `blender_beauty.py` too).

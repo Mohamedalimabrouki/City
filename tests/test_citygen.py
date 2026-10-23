@@ -378,7 +378,14 @@ def test_kit_names_and_roles(world):
     kit = Kit(world.seed, world.cfg["build"].get("kits", []), world.style["palette"],
                   world.style["dressing"].get("trees"), world.style["dressing"].get("climber"))
     assert kit.pieces["door_blue"].source == "procedural"
-    kit_pieces = [n for n, p in kit.pieces.items() if p.source != "procedural"]
+    slab = kit.pieces["balcony_slab"].parts["concrete"]                 # level faces get planar UVs
+    tri = slab["idx"].reshape(-1, 3)
+    level = np.abs(slab["nrm"][tri[:, 0], 1]) > 0.9                   # glTF y is up
+    uv = slab["uv"][tri[level]]
+    e1, e2 = uv[:, 1] - uv[:, 0], uv[:, 2] - uv[:, 0]
+    area = np.abs(e1[:, 0] * e2[:, 1] - e1[:, 1] * e2[:, 0]) / 2
+    assert level.sum() >= 4 and np.all(area > 1e-4)
+    kit_pieces =[n for n, p in kit.pieces.items() if p.source != "procedural"]
     assert all(n.startswith(kit.pieces[n].source + "/") for n in kit_pieces)   # kit pieces never replace ours
     for role, options in world.style["dressing"]["roles"].items():
         for option in options:
@@ -544,7 +551,8 @@ def test_wall_feet_stay_in_the_terrain_and_doors_meet_the_street(world, plan, gr
     assert doors
     front = np.array([(p.x - math.sin(p.yaw) * 0.5, p.y + math.cos(p.yaw) * 0.5) for p in doors])
     zs = np.array([p.z for p in doors])
-    assert np.all(np.abs(zs - ground.surface(front[:, 0], front[:, 1])) <= 0.05)
+    drawn = np.maximum(ground.surface(front[:, 0], front[:, 1]), ground.drawn(front[:, 0], front[:, 1]))
+    assert np.all(np.abs(zs - drawn) <= 0.05)    # street, walk, garden path, or the terrain mesh on open ground
 
 
 def test_dressing_ground_pieces_stand_on_the_surface(world, plan, ground):
@@ -564,6 +572,155 @@ def test_dressing_ground_pieces_stand_on_the_surface(world, plan, ground):
     for p in pieces:
         assert abs(p.z - ground.surface(p.x, p.y)) <= 0.05, p.piece
 
+
+def _footprint_box(kit, p, z):
+    """Plan rectangle and height range of a placed piece, straight from the kit bounds (test's own math)."""
+    lo, hi = kit.pieces[p.piece].bounds
+    c, s = math.cos(p.yaw), math.sin(p.yaw)
+    corners = [(x, y) for x, y in ((lo[0], -hi[2]), (hi[0], -hi[2]), (hi[0], -lo[2]), (lo[0], -lo[2]))]
+    poly = shapely.Polygon([(p.x + x * c - y * s, p.y + x * s + y * c) for x, y in corners])
+    return poly, z + lo[1], z + hi[1]
+
+
+@pytest.fixture(scope="module")
+def homes(world, plan, ground):
+    """A sample of dwellings dressed with the every-home rules on and off (every 3rd slab, every 6th other)."""
+    from citygen.city.dressing import DRESSED, Dresser, building_highs
+    from citygen.kit import make_kit
+    kit = make_kit(world.seed, world.cfg, world.style)
+    on, off = Dresser(world, plan, kit, ground), Dresser(world, plan, kit, ground)
+    off.every_home = False
+    slabs = [k for k, b in enumerate(plan.buildings) if on._is_slab(b)]
+    others = [k for k, b in enumerate(plan.buildings) if b.kind in DRESSED and not on._is_slab(b)]
+    sample = slabs[::3] + others[::6]
+    highs = building_highs(ground, [plan.buildings[k] for k in sample])
+    out = {}
+    for k, high in zip(sample, highs):
+        paths: list = []
+        out[k] = (float(high), on.building(k, float(high), paths), off.building(k, float(high)), paths,
+                  on.door_spot(k))
+    return kit, on, out
+
+
+def test_every_home_keeps_its_street_pieces_and_gets_a_door(plan, homes):
+    kit, dresser, out = homes
+    reach = {"street": 0, "open": 0, "enclosed": 0}
+    for k, (_, on, off, _, spot) in out.items():
+        assert on[:len(off)] == off, k                           # street walls and roofs dressed as before
+        assert spot is not None
+        reach[spot.reach] += 1
+        assert plan.buildings[k].footprint.exterior.distance(shapely.Point(spot.x, spot.y)) < 0.05
+        placed = [p for p in on if p.piece == spot.piece and abs(p.x - spot.x) < 1e-6 and abs(p.y - spot.y) < 1e-6]
+        assert placed and kit.pieces[spot.piece].category == "door", k   # the door really is drawn there
+        assert abs(placed[0].z - spot.z) < 1e-6 and not placed[0].on_ground
+    assert reach["street"] > 50 and reach["open"] > 50 and reach["enclosed"] > 10
+
+
+def test_new_doors_and_windows_overlap_nothing(world, plan, ground, homes):
+    kit, _, out = homes
+    clear = float(world.style["dressing"]["open_walls"]["door_clear"])
+    roof = {o[0] for r in ("roof_tank", "roof_dish", "roof_laundry", "roof_pot")
+            for o in world.style["dressing"]["roles"][r]}
+    checked = 0
+    for k, (_, on, off, _, _) in out.items():
+        olds = [p for p in off if p.piece not in roof]
+        zs = [p.z + (ground.surface(p.x, p.y) if p.on_ground else 0.0) for p in olds]
+        boxes = [_footprint_box(kit, p, z) for p, z in zip(olds, zs)]
+        standing = [b for p, b in zip(olds, boxes) if p.on_ground]
+        for p in on[len(off):]:
+            box = _footprint_box(kit, p, p.z)
+            for other in boxes:
+                if box[1] < other[2] - 1e-6 and other[1] < box[2] - 1e-6:
+                    assert box[0].intersection(other[0]).area < 1e-4, (k, p.piece)
+            if kit.pieces[p.piece].category == "door":            # free ground in front: no chair, goods or pot
+                n = np.array([-math.sin(p.yaw), math.cos(p.yaw)])
+                u = np.array([n[1], -n[0]]) * kit.pieces[p.piece].width / 2
+                front = shapely.Polygon([(p.x, p.y) + u, (p.x, p.y) - u, (p.x, p.y) - u + n * clear, (p.x, p.y) + u + n * clear])
+                assert all(front.intersection(g[0]).area < 1e-4 for g in standing), (k, p.piece)
+            boxes.append(box)
+            checked += 1
+    assert checked > 5000
+
+
+def test_every_slab_has_windows_on_each_floor_of_its_open_long_sides(plan, homes):
+    from citygen.city.geo import frame
+    kit, dresser, out = homes
+    footprints = STRtree([b.footprint for b in plan.buildings])
+    slabs = 0
+    for k, (high, on, _, _, spot) in out.items():
+        b = plan.buildings[k]
+        if not dresser._is_slab(b):
+            continue
+        slabs += 1
+        assert spot.kind == "stair" and kit.pieces[spot.piece].category == "door"
+        ring = np.asarray(shapely.geometry.polygon.orient(b.footprint, 1.0).exterior.coords)
+        floors, open_long = int(b.floors), 0
+        for a, c in zip(ring[:-1], ring[1:]):
+            wall = shapely.LineString([a, c])
+            if wall.length < 0.6 * frame(b.footprint)[2]:
+                continue
+            u = (c - a) / wall.length
+            n = np.array([u[1], -u[0]])
+            probe = shapely.Polygon([a + u * 0.3 + n * 0.05, c - u * 0.3 + n * 0.05, c - u * 0.3 + n * 3.0, a + u * 0.3 + n * 3.0])
+            if any(j != k for j in footprints.query(probe, predicate="intersects")):
+                continue                                         # a neighbour stands within 3 m
+            open_long += 1
+            on_wall = [p for p in on if kit.pieces[p.piece].category in ("window", "balcony")
+                       and wall.distance(shapely.Point(p.x, p.y)) < 0.05]
+            seen = {int((p.z - high) // (b.height / floors)) for p in on_wall}
+            assert seen >= set(range(floors)), (k, sorted(seen), floors)
+        assert open_long >= 1, k
+    assert slabs > 80
+
+
+def test_ground_drawn_is_the_terrain_mesh(world, plan, ground):
+    from citygen.mesh.tile import terrain_mesh
+    tc = TileContext(world, [plan])
+    s = world.capital()
+    x0, y0 = tc.size * (s.x // tc.size), tc.size * (s.y // tc.size)
+    mb = MeshBuilder(origin=(x0, y0))
+    terrain_mesh(mb, tc, x0, y0)
+    tris = np.concatenate([(np.concatenate(part[0]) + [x0, y0, 0.0])[np.concatenate(part[3])]
+                           for part in mb._parts.values()])                       # (T, 3, 3) drawn triangles
+    pts = np.random.default_rng(3).uniform([x0 + 1, y0 + 1], [x0 + tc.size - 1, y0 + tc.size - 1], (300, 2))
+    hit = STRtree(shapely.polygons(tris[:, :, :2])).query(shapely.points(pts), predicate="intersects")
+    first = np.unique(hit[0], return_index=True)[1]
+    k, t = hit[0][first], tris[hit[1][first]]
+    a, b, c = t[:, 0], t[:, 1], t[:, 2]                                           # barycentric heights
+    det = (b[:, 0] - a[:, 0]) * (c[:, 1] - a[:, 1]) - (c[:, 0] - a[:, 0]) * (b[:, 1] - a[:, 1])
+    wb = ((pts[k, 0] - a[:, 0]) * (c[:, 1] - a[:, 1]) - (c[:, 0] - a[:, 0]) * (pts[k, 1] - a[:, 1])) / det
+    wc = ((b[:, 0] - a[:, 0]) * (pts[k, 1] - a[:, 1]) - (pts[k, 0] - a[:, 0]) * (b[:, 1] - a[:, 1])) / det
+    mesh = a[:, 2] + wb * (b[:, 2] - a[:, 2]) + wc * (c[:, 2] - a[:, 2])
+    assert len(k) == len(pts)
+    assert np.max(np.abs(ground.drawn(pts[k, 0], pts[k, 1]) - mesh)) < 1e-6
+
+
+def test_paths_reach_the_street_and_cross_no_building(world, plan, ground, homes):
+    from citygen.mesh.builder import add_ribbon
+    cfg = world.style["dressing"]["paths"]
+    width, lift = float(cfg["width"]), float(cfg["lift"])
+    ends = [st.line.buffer(st.width / 2, cap_style="flat") for st in plan.streets] + [w.polygon for w in plan.walks]
+    ends_tree, footprints = STRtree(ends), STRtree([b.footprint for b in plan.buildings])
+    _, _, out = homes
+    count = 0
+    for k, (_, on, _, paths, spot) in out.items():
+        for line in paths:
+            count += 1
+            end = shapely.Point(line[-1])
+            assert ends_tree.query(end.buffer(0.05), predicate="intersects").size, k   # stops at a street or walk
+            band = shapely.LineString(line[1:]).buffer(width / 2 - 0.01, cap_style="flat")
+            assert not footprints.query(band, predicate="intersects").size, k
+            mb = MeshBuilder()
+            add_ribbon(mb, line, width, ground.drawn, lift, "sidewalk")       # as path_meshes draws it
+            pos = np.concatenate(mb._parts["sidewalk"][0])
+            edges = np.concatenate([pos, (pos[:-2] + pos[2:]) / 2])           # corners and edge midpoints
+            assert np.all(edges[:, 2] >= ground.drawn(edges[:, 0], edges[:, 1]) + 0.01), k
+        if spot.path is not None:                                # the threshold meets the drawn path
+            mb = MeshBuilder()
+            add_ribbon(mb, spot.path, width, ground.drawn, lift, "sidewalk")
+            pos = np.concatenate(mb._parts["sidewalk"][0])
+            assert abs(pos[2:4, 2].mean() - spot.z) < 1e-6
+    assert count > 80
 
 def test_parapets_and_stair_rooms_follow_the_style(world, plan):
     from citygen.city.roofs import roof_layout, roof_stream

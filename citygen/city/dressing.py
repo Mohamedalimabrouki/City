@@ -17,10 +17,11 @@ from dataclasses import dataclass
 import numpy as np
 import shapely
 from shapely.geometry import LineString
-from shapely.geometry.polygon import orient
 from shapely.strtree import STRtree
 
 from ..rng import stream, weighted
+from .geo import frame
+from .openings import DoorSpot, Walls, fits, joined, open_walls, path_to_street, piece_boxes, wall_arrays
 from .roofs import roof_layout, roof_stream
 
 DRESSED = {"house", "domed", "apartments", "villa"}
@@ -59,6 +60,7 @@ class Facade:
     length: float
     street: int
     kind: str
+    wall: int = -1  # index in the counter-clockwise exterior ring
 
     def at(self, t: float) -> np.ndarray:
         return self.a + (self.b - self.a) * t
@@ -88,6 +90,14 @@ class Dresser:
         self.souk_of = {s.street: s for s in getattr(plan, "souks", [])}
         self.kinds = [d.kind for d in plan.districts]
         self.roles = self._roles(self.cfg.get("roles", {}))
+        self.every_home = bool(self.cfg.get("every_home", True))
+        self._tables: dict = {}                  # role -> pieces, odds and sizes (_role_table)
+        self._corners: dict = {}                 # terrain mesh corner heights near doors (drawn)
+        self.open_cfg = self.cfg.get("open_walls", {})
+        self.slab_cfg = self.cfg.get("slab", {})
+        self.path_cfg = self.cfg.get("paths", {})
+        targets = self.surfaces + [w.polygon for w in getattr(plan, "walks", ())]
+        self.target_tree = STRtree(targets) if targets else None   # where a garden path may end
 
     def rng(self, *path):
         return stream(self.seed, "city", self.sid, "dress", *path)
@@ -133,53 +143,121 @@ class Dresser:
         out[inp] = hit
         return out
 
-    def facades(self, b) -> list:
-        ring = np.asarray(orient(b.footprint, 1.0).exterior.coords)[:-1]
-        p, q = ring, np.roll(ring, -1, axis=0)
-        d = q - p
-        length = np.hypot(d[:, 0], d[:, 1])
-        ok = length > 1.5
-        n = np.stack([d[:, 1], -d[:, 0]], 1) / np.maximum(length, 1e-9)[:, None]
+    def walls(self, b, k: int | None = None) -> Walls:
+        """Exterior walls with the street in front of each; with `k`, also which ones face open ground."""
+        p, q, n, length = wall_arrays(b.footprint)
         street = self.streets_at((p + q) / 2 + n * 1.6)
-        return [Facade(p[k], q[k], n[k], float(length[k]), int(street[k]), self.plan.streets[street[k]].kind)
-                for k in np.nonzero(ok & (street >= 0))[0]]
+        opened = (open_walls(self.fp_tree, k, p, q, n, length, float(self.open_cfg.get("clear", 3.0)))
+                  if k is not None else np.zeros(len(p), dtype=bool))
+        return Walls(p, q, n, length, street, opened)
+
+    def facades(self, b, walls: Walls | None = None) -> list:
+        """Walls with a street surface 1.6 m in front of their middle: the ones dressed since the start."""
+        w = walls if walls is not None else self.walls(b)
+        return [Facade(w.a[k], w.b[k], w.n[k], float(w.length[k]), int(w.street[k]),
+                       self.plan.streets[w.street[k]].kind, int(k))
+                for k in np.nonzero((w.length > 1.5) & (w.street >= 0))[0]]
 
     # --- buildings ------------------------------------------------------------------------
-    def building(self, k: int, high: float) -> list:
+    def building(self, k: int, high: float, paths: list | None = None) -> list:
+        """Placements dressing building k (`high`: highest ground under it, as the tile mesher uses).
+
+        The street walls, then the roof, draw from one stream `rng("b", k)` in a fixed order. Every
+        home's main door, open-wall windows and an apartment block's stair doors come after them,
+        on their own streams, so nothing placed before them moves. `paths` collects the paved
+        paths (point arrays) from doors on open ground to the street.
+        """
         b = self.plan.buildings[k]
         if b.kind not in DRESSED:
             return []
         rng = self.rng("b", k)
         out: list = []
-        fac = self.facades(b)
+        walls = self.walls(b, k if self.every_home else None)
+        front = self._street_side(b, k, self.facades(b, walls), high, rng, out)
+        dressed = len(out)
+        self._roof(b, k, high, rng, out)
+        if self.every_home:
+            boxes = self._boxes(walls, front, out[:dressed])
+            spots = self._entrances(k, b, walls, front, boxes)
+            self._homes(k, b, walls, spots, high, out, boxes)
+            if paths is not None:
+                paths += [s.path for s in spots if s.path is not None]
+        return out
+
+    def entrances(self, k: int) -> list:
+        """Every door into dwelling k, main door first (one, or one per stair of an apartment block)."""
+        b = self.plan.buildings[k]
+        if b.kind not in DRESSED:
+            return []
+        walls = self.walls(b, k)
+        out: list = []
+        high = float(building_highs(self.ground, [b])[0])
+        front = self._street_side(b, k, self.facades(b, walls), high, self.rng("b", k), out)   # same draws
+        return self._entrances(k, b, walls, front, self._boxes(walls, front, out))
+
+    def door_spot(self, k: int) -> DoorSpot | None:
+        """The main door of dwelling k, exactly where `building` puts it; None for other buildings.
+
+        Interiors (prompt 44), entrances (71) and addresses (79) read doors here.
+        """
+        spots = self.entrances(k)
+        return spots[0] if spots else None
+
+    def _street_side(self, b, k: int, fac: list, high: float, rng, out: list) -> tuple:
+        """The street walls' door or shop and windows, as dressed since the start (draws on `rng`).
+
+        Returns (main facade, door or shop center, "front" | "shop" | "cafe" | None, door piece, threshold).
+        """
+        if not fac:
+            return None, None, None, None, None
         home = self.homes.get(k)
         color = home.door if home else "door_blue"
         wealth = home.wealth if home else 0.4
         district = self.kinds[b.district]
         floors = max(1, int(b.floors))
-        fh = b.height / floors
-        door_at = None
-        if fac:
-            main = max(fac, key=lambda f: (FRONT_PREF.get(f.kind, 0.0), f.length))
-            door_at = self._front(main, district, color, wealth, b.height, rng, out)
-            self._windows(fac, district, color, wealth, floors, fh, high, door_at, rng, out)
-        self._roof(b, k, high, rng, out)
-        return out
+        main = max(fac, key=lambda f: (FRONT_PREF.get(f.kind, 0.0), f.length))
+        door_at, kind, piece, z = self._front(main, district, color, wealth, b.height, rng, out)
+        self._windows(fac, district, color, wealth, floors, b.height / floors, high, door_at, rng, out)
+        return main, door_at, kind, piece, z
+
+    def drawn(self, x, y) -> np.ndarray:
+        """`Ground.drawn` (the terrain mesh's height), with the mesh corners' heights cached: the doors
+        and paths of neighbouring houses share corners, and each ground call costs the same for 1 or 100 points."""
+        return self.ground.drawn(x, y, self._corner_heights)
+
+    def seed_corners(self, i0: int, j0: int, heights: np.ndarray) -> None:
+        """Store terrain mesh heights already computed by a tile: heights[r, c] at corner (i0 + c, j0 + r)."""
+        rows, cols = heights.shape
+        i, j = np.meshgrid(np.arange(i0, i0 + cols), np.arange(j0, j0 + rows))
+        self._corners.update(zip(zip(i.ravel().tolist(), j.ravel().tolist()), heights.ravel().tolist()))
+
+    def _corner_heights(self, i: np.ndarray, j: np.ndarray) -> np.ndarray:
+        keys = list(zip(i.tolist(), j.tolist()))
+        miss = [k for k in dict.fromkeys(keys) if k not in self._corners]
+        if miss:
+            m = np.array(miss, dtype=np.int64)
+            for k, h in zip(miss, np.atleast_1d(self.ground.height(m[:, 0] * self.ground.step,
+                                                                   m[:, 1] * self.ground.step)).tolist()):
+                self._corners[k] = h
+        return np.array([self._corners[k] for k in keys])
 
     def front_surface(self, c: np.ndarray, n: np.ndarray) -> float:
         """Height of the drawn street surface just in front of a wall (the door threshold's level)."""
         q = c + n * self.cfg.get("threshold_reach", 0.5)
         return float(self.ground.surface(float(q[0]), float(q[1])))
 
-    def _front(self, f: Facade, district, color, wealth, height, rng, out) -> np.ndarray | None:
+    def _front(self, f: Facade, district, color, wealth, height, rng, out) -> tuple:
+        """(center, "shop" | "cafe" | "front", door piece, threshold) of the main facade; Nones when too short."""
         cfg = self.cfg
         souk = self.souk_of.get(f.street) if f.kind == "souk" else None
         if souk is not None and f.length >= 3.0 and rng.random() < cfg.get("shop_on_souk", 0.85):
-            return self._shop(f, souk, rng, out)
+            c, z = self._shop(f, souk, rng, out)
+            return c, "shop", None, z
         if district == "colonial" and f.length >= 3.2 and rng.random() < cfg.get("cafe", 0.3):
-            return self._cafe(f, rng, out)
+            c, z = self._cafe(f, rng, out)
+            return c, "cafe", None, z
         if f.length < 2.3:
-            return None
+            return None, None, None, None
         yaw, u, n = yaw_of(f.n), f.u, f.n
         s = f.length * 0.5 + rng.uniform(-1.0, 1.0) * max(0.0, f.length * 0.5 - 1.2)   # door center along the wall
         c = f.at(s / f.length)
@@ -191,7 +269,8 @@ class Dresser:
             return 1.0 if rng.random() < 0.5 else -1.0
 
         rich = wealth > cfg.get("rich_door", 0.72) and district in TRADITIONAL | {"colonial", "residential"}
-        self.put(out, color + "_rich" if rich else color, rng, c, self.front_surface(c, n), yaw, on_ground=False)
+        z = self.front_surface(c, n)
+        piece = self.put(out, color + "_rich" if rich else color, rng, c, z, yaw, on_ground=False)
         if rng.random() < cfg.get("door_hood", 0.15) * (0.5 + wealth):
             self.put(out, "door_hood", rng, c, cfg.get("hood_height", 3.15), yaw)
         if rng.random() < cfg.get("door_lantern", 0.35):
@@ -220,7 +299,7 @@ class Dresser:
             off = side() * 2.0
             if room(off, 1.15):
                 self.put(out, "planter", rng, c + u * off + n * 0.45, 0.0, yaw)
-        return c
+        return c, "front", piece, z
 
     def _plant(self, f, c, yaw, height, room, sd, rng, out) -> None:
         """A climber by the door: a vine over it, a cascade beside it, or a bougainvillea rooted in the street."""
@@ -235,7 +314,8 @@ class Dresser:
         elif room(sd * 1.9, 0.9):
             self.put(out, "climber", rng, c + u * sd * 1.9, 0.0, yaw)
 
-    def _shop(self, f: Facade, souk, rng, out) -> np.ndarray:
+    def _shop(self, f: Facade, souk, rng, out) -> tuple:
+        """A souk shop front with its goods: (center, threshold)."""
         yaw, u, n = yaw_of(f.n), f.u, f.n
         c = f.at(0.5)
         shop = f"shop_front_{souk.shop}"
@@ -253,9 +333,10 @@ class Dresser:
         if f.length >= 4.2 and rng.random() < self.cfg.get("shop_lamp", 0.3):
             side = 1.0 if rng.random() < 0.5 else -1.0
             self.put(out, "lamp", rng, c + u * side * 1.75, self.cfg.get("lamp_height", 2.95), yaw)
-        return c
+        return c, z
 
-    def _cafe(self, f: Facade, rng, out) -> np.ndarray:
+    def _cafe(self, f: Facade, rng, out) -> tuple:
+        """A cafe front with tables outside: (center, threshold)."""
         yaw, u, n = yaw_of(f.n), f.u, f.n
         c = f.at(0.5)
         z = self.front_surface(c, n)
@@ -264,7 +345,7 @@ class Dresser:
         for k in range(int(rng.integers(1, 3))):
             p = c + u * (k - 0.5) * 1.9 + n * 1.7
             self.put(out, "cafe_set", rng, p, 0.0, yaw + rng.uniform(-0.4, 0.4))
-        return c
+        return c, z
 
     def _windows(self, fac, district, color, wealth, floors, fh, high, door_at, rng, out) -> None:
         cfg = self.cfg
@@ -293,15 +374,17 @@ class Dresser:
                         balconies -= 1
                         self.put(out, balcony, rng, p, base + cfg.get("balcony_height", 0.45), yaw, on_ground=False)
                         continue
-                    roll = rng.random()
-                    style = ("bay" if bay and floor >= 1 and roll < cfg.get("bay_window", 0.35) else
-                             "grille" if (traditional and roll < 0.7) or roll < 0.2 else "shutter")
-                    role = next((r for r in (f"window_{style}_{tint}", f"window_grille_{tint}") if self.has(r)), None)
+                    role = self._window_role(tint, traditional, bay, floor, rng.random())
                     if role:
                         self.put(out, role, rng, p, base + sill, yaw, on_ground=False)
                     if laundry and floor >= 1 and count == 1 and f.length >= 3.6:
                         laundry -= 1
                         self.put(out, "wall_laundry", rng, p, base + sill - 0.15, yaw, on_ground=False)
+
+    def _window_role(self, tint: str, traditional: bool, bay: bool, floor: int, roll: float) -> str | None:
+        style = ("bay" if bay and floor >= 1 and roll < self.cfg.get("bay_window", 0.35) else
+                 "grille" if (traditional and roll < 0.7) or roll < 0.2 else "shutter")
+        return next((r for r in (f"window_{style}_{tint}", f"window_grille_{tint}") if self.has(r)), None)
 
     def _roof(self, b, k: int, high: float, rng, out) -> None:
         if b.roof_shape != "flat" or b.kind not in DRESSED:
@@ -327,6 +410,321 @@ class Dresser:
                 if shapely.contains_xy(free, x, y):
                     self.put(out, role, rng, (x, y), top, rng.uniform(0, 6.28), on_ground=False)
                     break
+
+    # --- every home: main doors, open walls, apartment blocks (prompt 20.1) -------------------
+    def _boxes(self, walls: Walls, front: tuple, dressed: list) -> tuple:
+        """Boxes of the street walls' pieces, when a new door or an open wall's windows must avoid them."""
+        if front[2] == "front" and not (walls.open & (walls.street < 0)).any():
+            return piece_boxes(self.kit, [], 0.0)
+        return piece_boxes(self.kit, dressed, front[4] or 0.0)   # ground pieces stand by the door or shop
+
+    def _entrances(self, k: int, b, walls: Walls, front: tuple, boxes: tuple) -> list:
+        """The doors of dwelling k, main door first. `boxes`: the street walls' pieces already placed."""
+        main, door_at, kind, piece, z = front
+        if kind == "front":                       # the street door, exactly as dressed since the start
+            return [DoorSpot(float(door_at[0]), float(door_at[1]), float(main.n[0]), float(main.n[1]),
+                             z, main.street, "street", "front", main.wall, piece=piece)]
+        near = self._nearest_street(b)
+        if kind is None and self._is_slab(b):
+            return self._stair_doors(k, b, walls, near)
+        if z is None and main is not None:        # a street wall too short for a door: its windows still count
+            z = self.front_surface(main.at(0.5), main.n)
+        return [self._house_door(k, b, walls, main, door_at, kind, z or 0.0, near, boxes)]
+
+    def _is_slab(self, b) -> bool:
+        return b.kind == "apartments" and self.kinds[b.district] == "modern"
+
+    def _nearest_street(self, b) -> tuple:
+        """(index, nearest point on its surface) of the street nearest to a footprint; (-1, None) without streets."""
+        if self.surface_tree is None:
+            return -1, None
+        j = int(min(self.surface_tree.query_nearest(b.footprint)))
+        q = shapely.get_coordinates(shapely.shortest_line(b.footprint, self.surfaces[j]))[1]
+        return j, q
+
+    def _toward(self, walls: Walls, idx, q) -> list:
+        """Wall indices sorted so the ones facing point q come first, nearest first."""
+        if q is None:
+            return sorted(idx, key=lambda i: -walls.length[i])
+        keys = []
+        for i in idx:
+            u = walls.u[i]
+            s = float(np.clip(np.dot(q - walls.a[i], u), 0.0, walls.length[i]))
+            d = q - (walls.a[i] + u * s)
+            dist = float(np.hypot(*d))
+            keys.append((float(np.dot(walls.n[i], d)) <= 0.3 * dist, dist, int(i)))
+        return [i for _, _, i in sorted(keys)]
+
+    @staticmethod
+    def _positions(length: float, half: float, corner: float, s0: float, step: float = 0.25, side: float = 0.0) -> list:
+        """Door centers along a wall: from s0 outward both ways (or only toward `side`), corners kept free."""
+        lo, hi = half + corner, length - half - corner
+        if lo > hi:
+            return []
+        out = [] if side else [min(max(s0, lo), hi)]
+        for i in range(1, int((hi - lo) / step) + 2):
+            for s in ((s0 + side * i * step,) if side else (s0 + i * step, s0 - i * step)):
+                if lo <= s <= hi:
+                    out.append(s)
+        return out
+
+    def _house_door(self, k: int, b, walls: Walls, main, door_at, kind, base, near: tuple, boxes) -> DoorSpot:
+        """The main door of a home without a street door: beside its shop or cafe, on another street
+        wall, on a wall facing open ground toward the nearest street, or squeezed toward that street."""
+        cfg = self.open_cfg
+        home = self.homes.get(k)
+        color = home.door if home else "door_blue"
+        wealth = home.wealth if home else 0.4
+        district = self.kinds[b.district]
+        rich = wealth > self.cfg.get("rich_door", 0.72) and district in TRADITIONAL | {"colonial", "residential"}
+        drng = self.rng("house-door", k)
+        narrow = self.pick(f"house_door_{color[5:]}", drng) or self.pick(color, drng)
+        corner, gap, clear = cfg.get("corner", 0.3), cfg.get("gap", 0.2), cfg.get("door_clear", 0.9)
+        j, q = near
+        tries = []                                 # (wall, positions, reach, piece)
+        if kind in ("shop", "cafe"):
+            s0 = float(np.dot(door_at - walls.a[main.wall], walls.u[main.wall]))
+            half = self.kit.pieces[narrow[0]].width / 2
+            sides = (1.0, -1.0) if drng.random() < 0.5 else (-1.0, 1.0)
+            spots = [s for sd in sides for s in self._positions(walls.length[main.wall], half, corner,
+                                                                 s0 + sd * half, side=sd)]
+            tries.append((main.wall, spots, "street", narrow))
+        others = [i for i in np.nonzero((walls.street >= 0) & (walls.length > 1.5))[0]
+                  if main is None or i != main.wall]
+        opened = self._toward(walls, np.nonzero(walls.open & (walls.street < 0))[0], q)
+        if others or opened:                       # a full house door, unless it belongs beside a shop
+            piece = narrow if kind in ("shop", "cafe") else (
+                self.pick(color + "_rich" if rich else color, self.rng("door", k)) or narrow)
+            others.sort(key=lambda i: (-FRONT_PREF.get(self.plan.streets[walls.street[i]].kind, 0.0), -walls.length[i]))
+            tries += [(i, None, "street", piece) for i in others] + [(i, None, "open", piece) for i in opened]
+        tries += [(i, None, "enclosed", narrow) for i in self._toward(walls, range(len(walls.length)), q)]
+        for i, spots, reach, (name, _) in tries:
+            pc = self.kit.pieces[name]
+            a, u, n, length = walls.a[i], walls.u[i], walls.n[i], walls.length[i]
+            if spots is None:
+                s0 = length / 2 if reach == "street" or q is None else float(np.dot(q - a, u))
+                spots = self._positions(length, pc.width / 2, corner, s0)
+            for s in spots:
+                c = a + u * s                      # near enough in height to test overlaps: the shop's threshold
+                if reach == "enclosed" or fits(pc, c[0], c[1], yaw_of(n), base, boxes, grow=gap, depth=clear):
+                    street = int(walls.street[i]) if reach == "street" else j
+                    return self._spots([c], n, i, street, reach, "house" if kind else "door", [name], district)[0]
+        i = int(np.argmax(walls.length))           # no wall long enough anywhere: the middle of the longest
+        return self._spots([walls.a[i] + walls.u[i] * walls.length[i] / 2], walls.n[i], i, j, "enclosed", "door",
+                           [narrow[0]], district)[0]
+
+    def _spots(self, cs, n, wall: int, street: int, reach: str, kind: str, pieces: list, district: str) -> list:
+        """DoorSpots for doors at points `cs` on one wall, their thresholds read in one go. A door on
+        open ground in a garden district gets a paved path to the street; its threshold is the path's top."""
+        cfg = self.path_cfg
+        width, lift = float(cfg.get("width", 1.4)), float(cfg.get("lift", 0.04))
+        paths = [None] * len(cs)
+        if reach == "open" and district in cfg.get("districts", ()) and self.target_tree is not None:
+            paths = [path_to_street(c, n, self.target_tree, self.fp_tree, width, float(cfg.get("reach", 40.0)),
+                                    float(cfg.get("step", 4.0)), self.ground.step) for c in cs]
+        front = np.array([c + n * self.cfg.get("threshold_reach", 0.5) for c in cs])
+        z = np.zeros(len(cs))
+        for m, path in enumerate(paths):          # on a path: its top, as drawn on the terrain mesh
+            if path is not None:
+                sides = self._path_sides(path, width)
+                z[m] = float(np.mean(self.drawn(sides[:, 0], sides[:, 1]))) + lift
+        bare = np.array([path is None for path in paths])
+        paved = bare & (self.streets_at(front) >= 0) if reach != "street" else bare
+        if paved.any():                           # on a street or its sidewalk: as the street doors
+            z[paved] = self.ground.surface(front[paved, 0], front[paved, 1])
+        ground = bare & ~paved
+        if ground.any():                          # on open ground: the terrain as drawn
+            z[ground] = self.drawn(front[ground, 0], front[ground, 1])
+        return [DoorSpot(float(c[0]), float(c[1]), float(n[0]), float(n[1]), float(zz), int(street), reach, kind,
+                         int(wall), path, piece) for c, zz, path, piece in zip(cs, z, paths, pieces)]
+
+    @staticmethod
+    def _path_sides(path: np.ndarray, width: float) -> np.ndarray:
+        """The two edge points of a path 0.5 m in front of the door (its second point), where add_ribbon
+        drapes it on the terrain mesh (`Ground.drawn`): the threshold is their mean height plus the lift."""
+        t0, t1 = path[1] - path[0], path[2] - path[1] if len(path) > 2 else path[1] - path[0]
+        t0, t1 = t0 / np.hypot(*t0), t1 / np.hypot(*t1)
+        vt = (t0 + t1) / np.hypot(*(t0 + t1))
+        side = np.array([-vt[1], vt[0]]) * width / 2 / float(np.clip(np.dot(vt, t0), 0.5, 1.0))
+        return np.array([path[1] + side, path[1] - side])
+
+    def _stair_doors(self, k: int, b, walls: Walls, near: tuple) -> list:
+        """An apartment block's stair doors, every 20-25 m along the long side facing the nearest street,
+        each in a window column (the column above it holds the staircase windows). When neighbours
+        leave no straight path from that side, the other long side is used if it has one."""
+        cfg = self.slab_cfg
+        long = walls.length >= float(cfg.get("long", 0.6)) * frame(b.footprint)[2]
+        idx = np.nonzero(long)[0] if long.any() else [int(np.argmax(walls.length))]
+        order = self._toward(walls, idx, near[1])
+        order = [i for i in order if walls.open[i]] + [i for i in order if not walls.open[i]]
+        best = None
+        for i in order:
+            doors = self._stair_row(k, b, walls, i, near[0])
+            if best is None or sum(d.path is not None for d in doors) > sum(d.path is not None for d in best):
+                best = doors
+            if all(d.path is not None for d in best) or not walls.open[i]:
+                break
+        return best
+
+    def _stair_row(self, k: int, b, walls: Walls, i: int, nearest: int) -> list:
+        """The stair doors along wall i: one per 20-25 m, each in the window column nearest its share's middle."""
+        cfg = self.slab_cfg
+        length = float(walls.length[i])
+        cols = self._columns(length, float(cfg.get("bay", 3.2)))
+        lo, hi = cfg.get("stair_spacing", [20.0, 25.0])
+        count = max(1, int(length / ((lo + hi) / 2) + 0.5))
+        picks = sorted({int(np.argmin(np.abs(cols - (d + 0.5) * length / count))) for d in range(count)})
+        reach = "street" if walls.street[i] >= 0 else "open" if walls.open[i] else "enclosed"
+        street = int(walls.street[i]) if reach == "street" else nearest
+        names = [(self.pick("stair_door", self.rng("stair", k, d)) or self.pick("door_blue", self.rng("stair", k, d)))[0]
+                 for d in range(len(picks))]
+        cs = [walls.a[i] + walls.u[i] * cols[col] for col in picks]
+        return self._spots(cs, walls.n[i], i, street, reach, "stair", names, self.kinds[b.district])
+
+    @staticmethod
+    def _columns(length: float, bay: float) -> np.ndarray:
+        """Centers of evenly spaced window columns, at least `bay` apart, half a bay from each end."""
+        count = int(length // bay)
+        return (np.arange(count) + 0.5) * length / count if count else np.array([length / 2])
+
+    def _homes(self, k: int, b, walls: Walls, spots: list, high: float, out: list, boxes: tuple) -> None:
+        """Place the new doors, then windows on the walls facing open ground (all after the old pieces)."""
+        doors = [Placement(s.piece, s.x, s.y, s.z, yaw_of(s.normal), on_ground=False)
+                 for s in spots if s.kind != "front" and s.piece]
+        out += doors
+        if not (walls.open & (walls.street < 0)).any():
+            return
+        boxes = joined(boxes, piece_boxes(self.kit, doors, 0.0))
+        if self._is_slab(b):
+            self._slab_windows(k, b, walls, spots, high, boxes, out)
+        else:
+            self._open_windows(k, b, walls, high, boxes, out)
+
+    def _role_table(self, role: str):
+        """(names, cumulative odds, extra heights, half widths, bottoms) of a role or piece, cached;
+        None when the kit has nothing for it. Picks agree with `pick` for the same random number."""
+        if role not in self._tables:
+            found = self.roles.get(role)
+            if found is None and role in self.kit.pieces:
+                found = ([role], np.ones(1), [0.0])
+            if found is not None:
+                names, odds, heights = found
+                pcs = [self.kit.pieces[n] for n in names]
+                found = (names, np.asarray(odds), np.asarray(heights, dtype=np.float64),
+                         np.array([pc.width / 2 for pc in pcs]), np.array([pc.bottom for pc in pcs]))
+            self._tables[role] = found
+        return self._tables[role]
+
+    def _wall_pieces(self, out: list, cells: list, rng, walls: Walls, i: int, boxes) -> None:
+        """Windows and balcony pieces on wall i: one (s along the wall, z, roles to try) per cell.
+
+        A cell takes its first role whose piece keeps clear of the corners and of every piece already
+        on the building (a balcony that does not fit falls back to a window). One draw per cell;
+        placements keep the order of the cells.
+        """
+        if not cells:
+            return
+        cfg = self.open_cfg
+        corner, grow = float(cfg.get("corner", 0.3)), float(cfg.get("gap", 0.2)) / 2
+        a, u, length, yaw = walls.a[i], walls.u[i], float(walls.length[i]), yaw_of(walls.n[i])
+        top = float(boxes[2].max()) + 0.1 if len(boxes[0]) else -np.inf
+        xs = rng.random(len(cells))
+        s = np.array([c[0] for c in cells])
+        z = np.array([c[1] for c in cells])
+        pts = a + np.outer(s, u)
+        placed: dict = {}
+        todo = list(range(len(cells)))
+        for level in range(max(len(c[2]) for c in cells)):
+            groups: dict = {}
+            for idx in todo:
+                if level < len(cells[idx][2]):
+                    groups.setdefault(cells[idx][2][level], []).append(idx)
+            todo = []
+            for (role, dz), idx in groups.items():
+                table = self._role_table(role)
+                if table is None:
+                    todo += idx
+                    continue
+                names, odds, heights, halves, bottoms = table
+                idx = np.array(idx)
+                m = np.minimum(np.searchsorted(odds, xs[idx], side="right"), len(names) - 1)
+                zz = z[idx] + dz + heights[m]
+                ok = (halves[m] + corner <= s[idx]) & (s[idx] <= length - halves[m] - corner)
+                for q, cell in enumerate(idx):
+                    pc = self.kit.pieces[names[m[q]]]
+                    x, y = pts[cell]
+                    if ok[q] and (zz[q] + bottoms[m[q]] > top or fits(pc, x, y, yaw, zz[q], boxes, grow=grow)):
+                        placed[cell] = Placement(names[m[q]], float(x), float(y), float(zz[q]), yaw, on_ground=False)
+                    else:
+                        todo.append(cell)
+        out += [placed[cell] for cell in sorted(placed)]
+
+    def _slab_windows(self, k: int, b, walls: Walls, spots: list, high: float, boxes, out: list) -> None:
+        """A modern block's open walls: a window in every column on every floor (ground floor too),
+        balconies stacked in a regular rhythm of columns, staircase windows above each stair door."""
+        cfg = self.slab_cfg
+        rng = self.rng("open", k)
+        tint = weighted(rng, cfg.get("tints", [["white", 1]]))
+        window = [(f"slab_window_{tint}", float(self.cfg.get("window_sill", 0.95)))]
+        period = offset = 0
+        if rng.random() < cfg.get("balconies", 0.85):
+            lo, hi = cfg.get("balcony_period", [2, 3])
+            period = int(rng.integers(lo, hi + 1))
+            offset = int(rng.integers(period))
+        floors = max(1, int(b.floors))
+        fh = b.height / floors
+        landing = fh / 2 + float(cfg.get("stair_window", 0.55))
+        flen = frame(b.footprint)[2]
+        for i in np.nonzero(walls.open & (walls.street < 0) & (walls.length > 1.5))[0]:
+            length = float(walls.length[i])
+            long = length >= float(cfg.get("long", 0.6)) * flen
+            bay = float(cfg.get("bay" if long else "gable_bay", 3.2))
+            if bay <= 0:
+                continue                              # blind gable ends
+            cols = self._columns(length, bay)
+            stairs = {int(np.argmin(np.abs(cols - np.dot(s.point - walls.a[i], walls.u[i])))) for s in spots
+                      if s.kind == "stair" and s.wall == i}
+            cells = []
+            for col, s in enumerate(cols):
+                if col in stairs:                     # half landings above the stair door
+                    cells += [(s, high + f * fh, [("stair_window", landing)]) for f in range(1, floors - 1)]
+                    continue
+                balcony = long and period and (col - offset) % period == 0
+                cells += [(s, high + f * fh, [("slab_balcony", 0.0)] + window if balcony and f >= 1 else window)
+                          for f in range(floors)]
+            self._wall_pieces(out, cells, rng, walls, int(i), boxes)
+
+    def _open_windows(self, k: int, b, walls: Walls, high: float, boxes, out: list) -> None:
+        """Windows on walls facing open ground, by the district's rules (traditional houses look inward:
+        upper floors only, about one window in two)."""
+        cfg = self.open_cfg
+        district = self.kinds[b.district]
+        first = int(cfg.get("first", {}).get(district, 1))
+        share = float(cfg.get("share", {}).get(district, 0.5))
+        floors = max(1, int(b.floors))
+        if first >= floors:
+            return
+        home = self.homes.get(k)
+        color = home.door if home else "door_blue"
+        wealth = home.wealth if home else 0.4
+        traditional = district in TRADITIONAL
+        bay = traditional and wealth > self.cfg.get("bay_wealth", 0.55)
+        fh = b.height / floors
+        sill = float(self.cfg.get("window_sill", 0.95))
+        spacing = float(self.cfg.get("window_spacing", 3.2))
+        rng = self.rng("open", k)
+        for i in np.nonzero(walls.open & (walls.street < 0) & (walls.length > 1.5))[0]:
+            length = float(walls.length[i])
+            count = int(length // spacing)
+            cells = []
+            for col in range(count):
+                for floor in range(first, floors):
+                    if rng.random() > share:
+                        continue
+                    role = self._window_role(color[5:], traditional, bay, floor, rng.random())
+                    if role is not None:
+                        cells.append(((col + 0.5) * length / count, high + floor * fh, [(role, sill)]))
+            self._wall_pieces(out, cells, rng, walls, int(i), boxes)
 
     # --- trees ------------------------------------------------------------------------------
     def tree(self, k: int, t, z: float) -> Placement | None:

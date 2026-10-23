@@ -601,6 +601,37 @@ souk_cart = 0.25           # chance, every 20 m along a souk, of a handcart
 souk_lanterns = 0.55       # chance, every 12 m along a souk, of a string of lanterns
 bunting = 0.2
 street_lamps = { boulevard = 26.0, corniche = 24.0, arterial = 32.0, ring = 34.0, street = 30.0 }   # meters between lamps
+every_home = true          # every dwelling gets a main door, open walls get windows (false: street walls only, as before 20.1)
+
+# Walls facing open ground (no building within `clear` m in front of them) get windows too, by district.
+[dressing.open_walls]
+clear = 3.0                # meters of free ground in front of a wall
+corner = 0.3               # meters kept free beyond half a window or door at each end of a wall
+gap = 0.2                  # meters between a new window or door and any other piece on the wall
+door_clear = 2.0           # meters of free ground in front of a new door (goods, cafe chairs and pots stay out)
+first = { medina = 1, village = 1, colonial = 1, residential = 0, suburb = 0 }        # lowest floor with windows
+share = { medina = 0.45, village = 0.45, colonial = 0.85, residential = 0.7, suburb = 0.85 }   # chance per window
+
+# Modern apartment blocks: a regular grid of windows on every floor, balconies stacked in columns,
+# stair doors along the long side facing the nearest street.
+[dressing.slab]
+bay = 3.2                  # meters per window column on a long side
+gable_bay = 0.0            # meters per window column on a short end (0: blind gable ends, as on most blocks)
+long = 0.6                 # a wall at least this share of the block's length is a long side
+tints = [["white", 3], ["blue", 2], ["green", 2], ["brown", 1.5]]   # shutter color, one per block
+balconies = 0.85           # share of blocks with balconies
+balcony_period = [2, 3]    # one balcony column in every 2 or 3 columns, on every upper floor
+stair_spacing = [20.0, 25.0]   # meters between two stair doors
+stair_window = 0.55        # meters from a half landing up to its stair window's sill
+
+# Paved paths from doors that open onto open ground to the nearest sidewalk or street edge.
+[dressing.paths]
+districts = ["modern", "suburb"]
+width = 1.4
+lift = 0.04                # above the ground, so it never flickers through the terrain
+reach = 40.0               # longest path in meters
+step = 4.0                 # meters between draped points (the city ground is smooth)
+material = "sidewalk"
 
 # Bougainvillea climbers (citygen/mesh/climbers.py), the `climber` role. The piece hangs on a wall:
 # `top` is where the cascade starts, `drop` how far its hem hangs below it.
@@ -720,3 +751,15 @@ tree_broadleaf = [["tree_broadleaf", 1], ["tree_broadleaf_b", 1], ["tree_broadle
 tree_olive = [["tree_olive", 1], ["tree_olive_b", 1], ["tree_olive_c", 1]]
 alley_arch = [["tounes/arch_sbs", 1]]
 souk_gate = [["tounes/souk_gate_lanterns", 1], ["tounes/souk_gate_rugs", 1]]
+house_door_blue = [["door_narrow_blue", 1]]
+house_door_green = [["door_narrow_green", 1]]
+house_door_yellow = [["door_narrow_yellow", 1]]
+house_door_brown = [["door_narrow_brown", 1]]
+house_door_red = [["door_narrow_red", 1]]
+stair_door = [["stair_door", 1]]
+stair_window = [["window_stair", 1]]
+slab_balcony = [["balcony_slab", 1]]
+slab_window_white = [["window_slab_white", 3], ["window_slab_white_shut", 1]]
+slab_window_blue = [["window_slab_blue", 3], ["window_slab_blue_shut", 1]]
+slab_window_green = [["window_slab_green", 3], ["window_slab_green_shut", 1]]
+slab_window_brown = [["window_slab_brown", 3], ["window_slab_brown_shut", 1]]

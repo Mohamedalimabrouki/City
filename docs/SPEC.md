@@ -227,6 +227,29 @@ shaders (which ignore the image and the tint) and takes their palette color from
   laundry, cables, lantern strings, bunting and sabats across alleys and souks, arches over alley
   mouths, gates and handcarts in souks, lamps along main streets. Planned trees become instances.
   Nothing is stored in the plan: a tile asks for what it owns and always gets the same answer.
+- **Every home** (prompt 20.1, `[dressing] every_home`, `[dressing.open_walls]`, `[dressing.slab]`,
+  `[dressing.paths]`, geometry helpers in `city/openings.py`): after the street walls and the roof
+  (which keep their one stream `rng("b", k)` and so every piece placed before), each dwelling gets
+  its main door from `Dresser.door_spot(k)` (all its doors: `entrances(k)`), the one function the
+  dressing itself places doors through. A `DoorSpot` holds the point on the wall, the outward
+  normal, the threshold height, the wall index, the piece, how it is reached (`street` with the
+  street index, `open` ground with the nearest street, or `enclosed`) and an optional paved path.
+  Order: the street door as before; beside a shop or cafe a narrow house door (`house_door_*`,
+  own stream `house-door`) where the wall has room clear of the shop, awning, goods, lamps and a
+  `door_clear` zone in front; else another street wall, a wall facing open ground toward the
+  nearest street (`door` stream), or, fully enclosed, the wall toward the nearest street (prompt
+  20.2 cuts an impasse to it). Walls with no other building (ramparts and towers included) within
+  `clear` m in front are open: one probe rectangle per wall against the footprint STRtree. Open
+  walls get windows by district (`first` floor, `share`, `open` stream), never cutting a corner or
+  overlapping any piece already on the building. Modern slabs: a window in every `bay` column on
+  every floor, ground floor too (`slab_window_<tint>`, one tint per block, some shutters closed),
+  concrete balconies stacked in a rhythm of columns, blind gable ends; stair doors (`stair_door`,
+  glazed, with a canopy and light; `stair` stream) every `stair_spacing` m on the long side facing
+  the nearest street, each in a window column whose stair windows sit half a floor up. Doors on
+  open ground in `[dressing.paths] districts` get a paving ribbon straight to the nearest
+  sidewalk or street edge that crosses no building; it is draped on `Ground.drawn` (the terrain
+  mesh as drawn) with a small lift, and the door threshold is the path top. Other doors on open
+  ground also stand on `Ground.drawn`; doors on a street or walk on `Ground.surface`.
 
 ## 7. Style pack (`styles/<name>.toml`)
 

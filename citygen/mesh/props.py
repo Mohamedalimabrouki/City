@@ -27,6 +27,7 @@ SPICES = ("spice_red", "spice_orange", "spice_yellow", "spice_brown", "spice_gre
 RUGS = (("rug_red", "rug_cream", "rug_black"), ("rug_blue", "rug_cream", "rug_red"),
         ("rug_green", "rug_orange", "rug_cream"))
 CATS = ("cat_ginger", "cat_white", "cat_black", "cat_grey")
+SLAB_TINTS = {"white": "plastic_white", "blue": "door_blue", "green": "door_green", "brown": "door_brown"}
 SHOP_GOODS = {   # what fills a shop's shelves, by trade
     "spices": ("spice_red", "spice_orange", "spice_yellow", "spice_brown", "spice_green", "spice_ochre"),
     "perfume": ("glass_dark", "copper", "tile_panel", "spice_yellow"),
@@ -121,6 +122,172 @@ def window(color: str, style: str = "grille") -> MeshBuilder:
             x0, x1 = sorted((side * w / 2, side * (w / 2 + w / 2 * 0.95)))
             _box(mb, x0, x1, 0.06, 0.1, 0.0, h, color)
     _box(mb, -w / 2 - 0.14, w / 2 + 0.14, 0.0, 0.16, -0.12, -0.04, "stone_frame")
+    return mb
+
+
+def _faces(mb, quads, mat: str) -> None:
+    """Flat one-sided quads (Q, 4, 3), counter-clockwise seen from their front: 4 corners, 2 triangles each.
+
+    The pieces of every home's openings (prompt 20.1) are built from these instead of boxes: a box
+    costs five faces where one shows, and a slab block repeats these pieces on every tile.
+    """
+    q = np.asarray(quads, dtype=np.float64).reshape(-1, 4, 3)
+    if not len(q):
+        return
+    n = np.cross(q[:, 1] - q[:, 0], q[:, 3] - q[:, 0])
+    n /= np.maximum(np.linalg.norm(n, axis=1), 1e-12)[:, None]
+    pos = q.reshape(-1, 3)
+    base = np.arange(len(q))[:, None] * 4
+    tris = np.concatenate([base + [0, 1, 2], base + [0, 2, 3]])
+    level = np.repeat(np.abs(n[:, 2]) >= np.abs(n[:, :2]).max(axis=1), 4)   # sills, slabs, canopies
+    uv = np.where(level[:, None], np.stack([pos[:, 0], -pos[:, 1]], axis=1),   # planar meters, as on roofs
+                  np.stack([pos[:, 0] + pos[:, 1], -pos[:, 2]], axis=1))
+    mb.add(mat, pos, np.repeat(n, 4, axis=0), uv, tris)
+
+
+def _front(x0, x1, z0, z1, y, back: bool = False) -> list:
+    """A face in the wall plane at depth y, seen from the street (or from the wall, with `back`)."""
+    q = [(x1, y, z0), (x0, y, z0), (x0, y, z1), (x1, y, z1)]
+    return q[::-1] if back else q
+
+
+def _flat(x0, x1, y0, y1, z, down: bool = False) -> list:
+    """A level face at height z, seen from above (or from below, with `down`)."""
+    q = [(x0, y0, z), (x1, y0, z), (x1, y1, z), (x0, y1, z)]
+    return q[::-1] if down else q
+
+
+def _side(x, y0, y1, z0, z1, left: bool = False) -> list:
+    """A face across the wall at x, seen from +x (or from -x, with `left`)."""
+    q = [(x, y0, z0), (x, y1, z0), (x, y1, z1), (x, y0, z1)]
+    return q[::-1] if left else q
+
+
+def _slats(x0, x1, z0, z1, y, count: int, depth: float = 0.025) -> list:
+    """Louver slats of a shutter leaf: strips tilted down and out, seen from the street and above."""
+    step = (z1 - z0) / count
+    out = []
+    for k in range(count):
+        top = z1 - step * k - 0.01
+        out.append([(x1, y + depth, top - step * 0.8), (x0, y + depth, top - step * 0.8), (x0, y, top), (x1, y, top)])
+    return out
+
+
+def _opening(x0, x1, z0, z1, y, rim: float) -> list:
+    """A frame around an opening: two jambs and a head, their faces at depth y, with reveals and soffit."""
+    return [_front(x0 - rim, x0, z0, z1 + rim, y), _front(x1, x1 + rim, z0, z1 + rim, y), _front(x0, x1, z1, z1 + rim, y),
+            _side(x0, 0.0, y, z0, z1), _side(x1, 0.0, y, z0, z1, left=True), _flat(x0, x1, 0.0, y, z1, down=True)]
+
+
+def door_narrow(color: str) -> MeshBuilder:
+    """A narrow plank house door (0.95 x 2.2 m) with a barred fanlight in a stone frame.
+
+    The door to the homes upstairs beside a shop or a cafe, and the door of a house squeezed into
+    a gap between neighbours: it stands less than 0.1 m proud of the wall.
+    """
+    mb = MeshBuilder()
+    w, h, fan = 0.95, 2.2, 0.38
+    top = h + 0.06 + fan
+    _faces(mb, _opening(-w / 2, w / 2, 0.0, top, 0.08, 0.12) + [_front(-w / 2, w / 2, h, h + 0.06, 0.06)], "stone_frame")
+    _faces(mb, [_front(-w / 2, w / 2, 0.0, h, 0.04)], color)
+    _faces(mb, [_front(-w / 2, w / 2, h + 0.06, top, 0.015)], "glass_dark")   # off the wall face: no flicker
+    bars = [_front(-w / 2 + w * k / 5 - 0.012, -w / 2 + w * k / 5 + 0.012, h + 0.06, top, 0.03) for k in range(1, 5)]
+    studs = [_front(sd * 0.3 - 0.022, sd * 0.3 + 0.022, 0.45 + 0.42 * k - 0.022, 0.45 + 0.42 * k + 0.022, 0.05)
+             for k in range(4) for sd in (-1, 1)]
+    _faces(mb, bars + studs + [_front(0.3, 0.34, 1.0, 1.12, 0.06)], "iron")
+    return mb
+
+
+def window_slab(color: str, shut: bool = False) -> MeshBuilder:
+    """A plain apartment window (1.2 x 1.35 m) of a modern block: concrete sill and lintel, white
+    frame, and louvered shutters (persiennes) folded back against the wall, or closed against the sun."""
+    mb = MeshBuilder()
+    w, h, f = 1.2, 1.35, 0.05
+    sill = [_flat(-w / 2 - 0.1, w / 2 + 0.1, 0.0, 0.15, 0.0), _front(-w / 2 - 0.1, w / 2 + 0.1, -0.08, 0.0, 0.15),
+            _flat(-w / 2 - 0.1, w / 2 + 0.1, 0.0, 0.15, -0.08, down=True)]
+    _faces(mb, sill + [_front(-w / 2 - 0.06, w / 2 + 0.06, h, h + 0.08, 0.04)], "concrete")
+    frame = [_front(-w / 2 - f, -w / 2, 0.0, h, 0.05), _front(w / 2, w / 2 + f, 0.0, h, 0.05),
+             _front(-w / 2, w / 2, h - f, h, 0.05), _front(-w / 2, w / 2, 0.0, f, 0.05)]
+    if shut:
+        _faces(mb, frame, "plastic_white")
+        leaves = [(-w / 2, -0.01), (0.01, w / 2)]
+        _faces(mb, [_front(x0, x1, f, h - f, 0.07) for x0, x1 in leaves], color)
+        _faces(mb, [q for x0, x1 in leaves for q in _slats(x0, x1, f, h - f, 0.07, 9)], color)
+        return mb
+    _faces(mb, frame + [_front(-0.025, 0.025, f, h - f, 0.05)], "plastic_white")
+    _faces(mb, [_front(-w / 2, w / 2, 0.0, h, 0.03)], "glass_dark")
+    leaves = [(w / 2 + 0.07, w + 0.07), (-w - 0.07, -w / 2 - 0.07)]
+    _faces(mb, [_front(x0, x1, 0.0, h, 0.02) for x0, x1 in leaves], color)
+    _faces(mb, [q for x0, x1 in leaves for q in _slats(x0, x1, 0.0, h, 0.02, 7)], color)
+    return mb
+
+
+def window_stair() -> MeshBuilder:
+    """A small barred window lighting a staircase (0.7 x 0.9 m), set half a floor off the flats' windows."""
+    mb = MeshBuilder()
+    w, h = 0.7, 0.9
+    _faces(mb, [_flat(-w / 2 - 0.08, w / 2 + 0.08, 0.0, 0.12, 0.0), _front(-w / 2 - 0.08, w / 2 + 0.08, -0.07, 0.0, 0.12),
+                _front(-w / 2 - 0.06, w / 2 + 0.06, h, h + 0.07, 0.04)], "concrete")
+    _faces(mb, [_front(-w / 2, w / 2, 0.0, h, 0.03)], "glass_dark")
+    bars = [_front(-w / 2 + w * (k + 0.5) / 4 - 0.012, -w / 2 + w * (k + 0.5) / 4 + 0.012, 0.0, h, 0.06) for k in range(4)]
+    _faces(mb, bars + [_front(-w / 2, w / 2, h / 2 - 0.012, h / 2 + 0.012, 0.065)], "iron")
+    return mb
+
+
+def balcony_slab() -> MeshBuilder:
+    """A concrete balcony of a modern block with a plain iron rail and a glazed door behind it.
+
+    The origin is on the wall face at the floor of its storey: the slab top is level with it.
+    """
+    mb = MeshBuilder()
+    w, d, rail, up = 2.6, 1.1, 1.0, 0.12
+    x0, x1 = -w / 2, w / 2
+    gw, gh = 1.0, 2.15                                                           # the door onto the balcony
+    _faces(mb, [_front(-gw / 2, gw / 2, 0.0, gh, 0.03)], "glass_dark")
+    _faces(mb, [_front(-gw / 2 - 0.06, -gw / 2, 0.0, gh + 0.06, 0.05), _front(gw / 2, gw / 2 + 0.06, 0.0, gh + 0.06, 0.05),
+                _front(-gw / 2, gw / 2, gh, gh + 0.06, 0.05), _front(-0.025, 0.025, 0.0, gh, 0.05)], "plastic_white")
+    t = 0.08
+    slab = [_flat(x0, x1, 0.0, d, 0.0), _flat(x0, x1, 0.0, d, -0.16, down=True), _front(x0, x1, -0.16, up, d),
+            _side(x1, 0.0, d, -0.16, up), _side(x0, 0.0, d, -0.16, up, left=True),
+            _flat(x0, x1, d - t, d, up), _front(x0 + t, x1 - t, 0.0, up, d - t, back=True),          # upstand
+            _flat(x0, x0 + t, 0.0, d - t, up), _side(x0 + t, 0.0, d - t, 0.0, up),
+            _flat(x1 - t, x1, 0.0, d - t, up), _side(x1 - t, 0.0, d - t, 0.0, up, left=True)]
+    _faces(mb, slab, "concrete")
+    iron = []
+    for z0, z1 in ((rail - 0.05, rail), (up + 0.08, up + 0.11)):                # hand rail and foot rail
+        iron += [_front(x0, x1, z0, z1, d - 0.02), _front(x0, x1, z0, z1, d - 0.06, back=True),
+                 _side(x1 - 0.02, 0.0, d - 0.02, z0, z1), _side(x1 - 0.06, 0.0, d - 0.06, z0, z1, left=True),
+                 _side(x0 + 0.02, 0.0, d - 0.02, z0, z1, left=True), _side(x0 + 0.06, 0.0, d - 0.06, z0, z1)]
+    iron += [_flat(x0 + 0.02, x1 - 0.02, d - 0.06, d - 0.02, rail), _flat(x0 + 0.02, x0 + 0.06, 0.0, d - 0.06, rail),
+             _flat(x1 - 0.06, x1 - 0.02, 0.0, d - 0.06, rail)]
+    for x in np.arange(x0 + 0.1, x1 - 0.05, 0.2):                               # balusters, both faces
+        iron += [_front(x - 0.01, x + 0.01, up, rail - 0.05, d - 0.035), _front(x - 0.01, x + 0.01, up, rail - 0.05, d - 0.045, back=True)]
+    for y in np.arange(0.15, d - 0.1, 0.2):
+        for x, sgn in ((x1 - 0.04, False), (x0 + 0.04, True)):
+            iron += [_side(x + 0.005, y - 0.01, y + 0.01, up, rail - 0.05, left=sgn),
+                     _side(x - 0.005, y - 0.01, y + 0.01, up, rail - 0.05, left=not sgn)]
+    _faces(mb, iron, "iron")
+    return mb
+
+
+def stair_door() -> MeshBuilder:
+    """The glazed entrance to the staircase of an apartment block, under a small concrete canopy
+    with a light (origin at the threshold)."""
+    mb = MeshBuilder()
+    w, h, fan, rim = 1.5, 2.3, 0.45, 0.16
+    top = h + fan
+    _faces(mb, _opening(-w / 2, w / 2, 0.0, top, 0.07, rim), "concrete")
+    _faces(mb, [_front(-w / 2, w / 2, 0.0, top, 0.01)], "glass_dark")
+    stiles = [_front(-w / 2, -w / 2 + 0.07, 0.0, top, 0.04), _front(w / 2 - 0.07, w / 2, 0.0, top, 0.04),
+              _front(-0.035, 0.035, 0.0, h, 0.04)]
+    rails = [_front(-w / 2 + 0.07, w / 2 - 0.07, z0, z1, 0.045) for z0, z1 in
+             ((0.0, 0.25), (0.95, 1.02), (h - 0.03, h + 0.04), (top - 0.06, top))]
+    _faces(mb, stiles + rails, "metal")
+    _faces(mb, [_front(-0.2, -0.17, 0.9, 1.3, 0.08), _front(0.17, 0.2, 0.9, 1.3, 0.08)], "iron")   # pull handles
+    cz, x = top + rim + 0.12, 1.15
+    _faces(mb, [_flat(-x, x, 0.0, 1.05, cz + 0.14), _flat(-x, x, 0.0, 1.05, cz, down=True), _front(-x, x, cz, cz + 0.14, 1.05),
+                _side(x, 0.0, 1.05, cz, cz + 0.14), _side(-x, 0.0, 1.05, cz, cz + 0.14, left=True)], "concrete")
+    _faces(mb, [_flat(-0.12, 0.12, 0.18, 0.3, cz - 0.07, down=True), _front(-0.12, 0.12, cz - 0.07, cz, 0.3)], "lantern_glow")
     return mb
 
 
@@ -421,4 +588,14 @@ def catalog(rng, seed: int = 0, trees: dict | None = None, climber: dict | None 
         pieces[name] = (mb, "tree", "ground")
     for name, mb in climber_pieces(seed, climber).items():
         pieces[name] = (mb, "plant", "wall")
+    for color in DOOR_COLORS:   # every home's door and open walls (prompt 20.1); no random draws
+        pieces["door_narrow_" + color[5:]] = (door_narrow(color), "door", "wall")
+    for tint, mat in SLAB_TINTS.items():
+        pieces["window_slab_" + tint] = (window_slab(mat), "window", "wall")
+        pieces["window_slab_" + tint + "_shut"] = (window_slab(mat, shut=True), "window", "wall")
+    pieces.update({
+        "window_stair": (window_stair(), "window", "wall"),
+        "balcony_slab": (balcony_slab(), "balcony", "wall"),
+        "stair_door": (stair_door(), "door", "wall"),
+    })
     return pieces

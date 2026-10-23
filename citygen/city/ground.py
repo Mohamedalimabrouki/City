@@ -173,6 +173,7 @@ class Ground:
         self.edge = max(float(cfg["edge"]), 2.0 * float(world.cfg["tiles"]["terrain_step"]))
         self.terrace_max_area = float(cfg["terrace_max_area"])
         self.edge_band = float(cfg["edge_band"])
+        self.step = float(world.cfg["tiles"]["terrain_step"])   # the terrain mesh's grid (mesh/tile.py)
         self.cities = [_City(p, self) for p in plans]
         self.area = unary_union([p.boundary for p in plans]) if plans else None
         if self.area is not None:
@@ -301,6 +302,26 @@ class Ground:
         if h.ndim == 0:
             return float(out[0])
         return out.reshape(h.shape)
+
+    def drawn(self, x, y, corners=None):
+        """Height of the terrain mesh as the tiles draw it, in arrays out for arrays in.
+
+        The mesh samples `height` on a world-aligned grid of `terrain_step` cells and splits each
+        cell into two triangles along its south-west to north-east diagonal (mesh/tile.terrain_mesh).
+        On curved ground it can lie a few centimeters off `height`, up to about 0.2 m on steep
+        terraces: thin things laid on open ground (garden paths, doorsteps) follow this instead.
+        `corners(i, j)` may supply the heights at grid corners (i * step, j * step), from a cache.
+        """
+        x = np.asarray(x, dtype=np.float64)
+        y = np.asarray(y, dtype=np.float64)
+        s = self.step
+        i, j = np.floor(np.ravel(x) / s).astype(np.int64), np.floor(np.ravel(y) / s).astype(np.int64)
+        ci, cj = np.concatenate([i, i + 1, i, i + 1]), np.concatenate([j, j, j + 1, j + 1])
+        h = corners(ci, cj) if corners is not None else self.height(ci * s, cj * s)
+        h00, h10, h01, h11 = np.split(np.asarray(h, dtype=np.float64), 4)
+        tx, ty = (np.ravel(x) - i * s) / s, (np.ravel(y) - j * s) / s
+        out = np.where(tx >= ty, h00 + tx * (h10 - h00) + ty * (h11 - h10), h00 + ty * (h01 - h00) + tx * (h11 - h01))
+        return float(out[0]) if np.ndim(x) == 0 else out.reshape(np.shape(x))
 
     def _walk_top(self, x: np.ndarray, y: np.ndarray, h: np.ndarray) -> np.ndarray:
         return h + np.ravel(np.asarray(self.lift(x, y, self.walk_reach), dtype=np.float64)) + self.curb_height
