@@ -74,8 +74,8 @@ def yaw_of(n) -> float:
 class Dresser:
     """Everything one city needs to dress its tiles: street lookup, households, souks, the kit."""
 
-    def __init__(self, world, plan, kit):
-        self.world, self.plan, self.kit = world, plan, kit
+    def __init__(self, world, plan, kit, ground):
+        self.world, self.plan, self.kit, self.ground = world, plan, kit, ground
         self.cfg = world.style.get("dressing", {})
         self.seed, self.sid = world.seed, plan.settlement.id
         self.surfaces = [st.line.buffer(st.width / 2, cap_style="flat") for st in plan.streets]
@@ -164,6 +164,11 @@ class Dresser:
         self._roof(b, high, rng, out)
         return out
 
+    def front_surface(self, c: np.ndarray, n: np.ndarray) -> float:
+        """Height of the drawn street surface just in front of a wall (the door threshold's level)."""
+        q = c + n * self.cfg.get("threshold_reach", 0.5)
+        return float(self.ground.surface(float(q[0]), float(q[1])))
+
     def _front(self, f: Facade, district, color, wealth, height, rng, out) -> np.ndarray | None:
         cfg = self.cfg
         souk = self.souk_of.get(f.street) if f.kind == "souk" else None
@@ -184,7 +189,7 @@ class Dresser:
             return 1.0 if rng.random() < 0.5 else -1.0
 
         rich = wealth > cfg.get("rich_door", 0.72) and district in TRADITIONAL | {"colonial", "residential"}
-        self.put(out, color + "_rich" if rich else color, rng, c, 0.0, yaw)
+        self.put(out, color + "_rich" if rich else color, rng, c, self.front_surface(c, n), yaw, on_ground=False)
         if rng.random() < cfg.get("door_hood", 0.15) * (0.5 + wealth):
             self.put(out, "door_hood", rng, c, cfg.get("hood_height", 3.15), yaw)
         if rng.random() < cfg.get("door_lantern", 0.35):
@@ -232,8 +237,9 @@ class Dresser:
         yaw, u, n = yaw_of(f.n), f.u, f.n
         c = f.at(0.5)
         shop = f"shop_front_{souk.shop}"
-        self.put(out, shop if self.has(shop) else "shop_front", rng, c, 0.0, yaw)
-        self.put(out, "souk_awning", rng, c, 0.0, yaw)
+        z = self.front_surface(c, n)
+        self.put(out, shop if self.has(shop) else "shop_front", rng, c, z, yaw, on_ground=False)
+        self.put(out, "souk_awning", rng, c, z, yaw, on_ground=False)
         for _ in range(int(rng.integers(1, 3)) if souk.ground else 0):
             role = str(souk.ground[int(rng.integers(len(souk.ground)))])
             p = c + u * rng.uniform(-0.6, 0.6) + n * rng.uniform(0.75, 1.0)
@@ -250,8 +256,9 @@ class Dresser:
     def _cafe(self, f: Facade, rng, out) -> np.ndarray:
         yaw, u, n = yaw_of(f.n), f.u, f.n
         c = f.at(0.5)
-        self.put(out, "shop_front", rng, c, 0.0, yaw)
-        self.put(out, "awning", rng, c, 0.0, yaw)
+        z = self.front_surface(c, n)
+        self.put(out, "shop_front", rng, c, z, yaw, on_ground=False)
+        self.put(out, "awning", rng, c, z, yaw, on_ground=False)
         for k in range(int(rng.integers(1, 3))):
             p = c + u * (k - 0.5) * 1.9 + n * 1.7
             self.put(out, "cafe_set", rng, p, 0.0, yaw + rng.uniform(-0.4, 0.4))
@@ -350,7 +357,9 @@ class Dresser:
             if ends is None:
                 continue
             (pa, top_a), (pb, top_b) = ends
-            ground = float(max(self.world.terrain.height(pa[0], pa[1]), self.world.terrain.height(pb[0], pb[1])))
+            mid = (pa + pb) / 2
+            ground = float(max(self.ground.surface(pa[0], pa[1]), self.ground.surface(pb[0], pb[1]),
+                               self.ground.surface(mid[0], mid[1])))
             if kind == "sabat":
                 floor, roof = ground + cfg.get("sabat_clearance", 3.3), min(top_a, top_b)
                 if roof - floor >= 2.4 and np.hypot(*(pb - pa)) <= cfg.get("sabat_reach", 5.5):
@@ -462,7 +471,7 @@ class Dresser:
             scale = self.cfg.get("souk_gate_scale", 1.25)
             fits = gap >= piece.width * scale + 1.2
         mid = (pa + pb) / 2
-        ground = float(self.world.terrain.height(mid[0], mid[1]))
+        ground = float(self.ground.surface(mid[0], mid[1]))
         if not fits or ground + piece.height * scale > min(top_a, top_b):
             return
         w = (pb - pa) / gap   # the width runs across the street, the front along it
@@ -482,28 +491,28 @@ class Dresser:
         if best is None or best[0] < 0.8:
             return None
         b = self.plan.buildings[best[1]]
-        top = float(self.world.terrain.height(best[2][0], best[2][1])) + b.height
+        top = float(self.ground.height(best[2][0], best[2][1])) + b.height
         return best[2], top
 
 
-def ground_heights(terrain, placements) -> None:
-    """Turn ground-relative heights into absolute ones with a single terrain lookup."""
+def ground_heights(ground, placements) -> None:
+    """Turn ground-relative heights into absolute ones on the drawn surface (street or ground)."""
     rel = [p for p in placements if p.on_ground]
     if not rel:
         return
     xy = np.array([(p.x, p.y) for p in rel])
-    zs = terrain.height(xy[:, 0], xy[:, 1])
+    zs = ground.surface(xy[:, 0], xy[:, 1])
     for p, z in zip(rel, zs):
         p.z += float(z)
         p.on_ground = False
 
 
-def building_highs(terrain, buildings) -> np.ndarray:
-    """Highest ground point under each footprint, in one terrain lookup (as the tile mesher uses)."""
+def building_highs(ground, buildings) -> np.ndarray:
+    """Highest ground point under each footprint (as the tile mesher uses). Walls stay on the ground."""
     if not buildings:
         return np.zeros(0)
     rings = [np.asarray(b.footprint.exterior.coords) for b in buildings]
     counts = np.array([len(r) for r in rings])
     pts = np.concatenate(rings)
-    hz = terrain.height(pts[:, 0], pts[:, 1])
+    hz = ground.height(pts[:, 0], pts[:, 1])
     return np.maximum.reduceat(hz, np.concatenate([[0], np.cumsum(counts)[:-1]]))

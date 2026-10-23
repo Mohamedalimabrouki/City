@@ -34,7 +34,8 @@ This is the contract every change must respect. Read the sections your task touc
 - The graded city ground (`citygen/city/ground.py`) is a pure function of position too: its blur
   is sampled on a world-aligned `[ground] lattice` (8 m) and interpolated bilinearly, so two
   tiles that share an edge compute exactly the same height there. The lattice cells are filled
-  lazily and cached per process, never stored.
+  lazily and cached per process, never stored. `Ground.surface` is pure as well: it adds the
+  street-ribbon lift (`STREET_LIFT`, highest where streets overlap) to that height.
 
 ## 4. Pipeline and modules
 
@@ -50,7 +51,8 @@ config.load_config()          defaults.toml + worlds/*.toml + CLI overrides
       buildings               per-district building rules, mosques, parks, cemetery
       life                    a household behind every house door, a trade for every souk
   city.ground.Ground()        graded ground inside cities: smoothed, terraced under blocks,
-                              blended into natural terrain at the city limit
+                              blended into natural terrain at the city limit; `height` is the
+                              ground, `surface` the top of the drawn street ribbon or ground
   mesh.tile.export_tile()     one 512 m square -> .glb (terrain, water, roads, city)
     city.dressing             doors, windows, shops, goods, lamps, plants, spans, sabats, trees,
                               placed from kit pieces (kit.Kit) and drawn as instances
@@ -75,7 +77,7 @@ build.build()                 orchestrates the above into output/<country>-<seed
 | `citygen/mesh/climbers.py` | bougainvillea curtains (2 variants, 250 triangles each) from `[dressing.climber]` |
 | `citygen/kit.py` | `Kit`: procedural pieces plus kits from `kits/<name>/` |
 | `citygen/city/life.py` | households and souk trades (story data that also drives the dressing) |
-| `citygen/city/ground.py` | `Ground`: graded city ground (blurred, terraced, blended into the terrain) |
+| `citygen/city/ground.py` | `Ground`: graded city ground (blurred, terraced, blended into the terrain), and `surface` for the top of street ribbons |
 | `citygen/city/dressing.py` | `Dresser`: which piece goes where, tile by tile |
 | `citygen/kitsheet.py` | `python -m citygen kit-sheet`: every piece in one viewable grid |
 | `citygen/export/maps.py` | country and city PNG maps |
@@ -127,8 +129,9 @@ piece; `tools/blender_import.py` and `tools/blender_beauty.py` place all copies 
 
 - **Pieces** are small meshes in their own space: x along the wall, front toward the street
   (generator +y, glTF -Z), up z. Ground pieces have their origin at the bottom-center on the
-  ground; wall pieces on the wall face: at street level for doors, shop fronts and awnings, at the
-  sill for windows, at the hook for lamps and anything hanging.
+  drawn surface (`Ground.surface`: ground or street ribbon); wall pieces on the wall face at
+  street level for doors, shop fronts and awnings (the surface 0.5 m in front), at the sill for
+  windows, at the hook for lamps and anything hanging.
 - **Procedural pieces** (`mesh/props.py`) keep plain names (`door_blue`, `shop_front_spices`,
   `tree_palm`). **Kit pieces** load from `kits/<kit>/manifest.json` (`citygen-kit/1`: materials,
   then pieces with file, category, anchor, tags, optional `materials_map`) and are named

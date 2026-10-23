@@ -15,6 +15,7 @@ from shapely.geometry import Point, box
 
 from .buildkey import build_key
 from .city import plan_city
+from .city.ground import Ground
 from .export.lore import gazetteer, plan_json, slug, write_json
 from .export.maps import city_map, country_map
 from .mesh.tile import TileContext, export_tile
@@ -51,7 +52,7 @@ def select_area(world, area: str) -> tuple:
     return region, focus, needed
 
 
-def camera_views(plan, terrain, reach: float = 600.0) -> dict:
+def camera_views(plan, ground, reach: float = 600.0) -> dict:
     """Eye-level camera spots near the city center (generator coords): the boulevard, a souk."""
     center = Point(plan.settlement.x, plan.settlement.y)
     views = {}
@@ -70,7 +71,7 @@ def camera_views(plan, terrain, reach: float = 600.0) -> dict:
         d = min(max(line.project(center), 10.0), line.length - 10.0)
         step = 50.0 if line.length - d >= d else -50.0  # look along the longer side
         a, b = line.interpolate(d), line.interpolate(min(max(d + step, 0.0), line.length))
-        ga, gb = float(terrain.height(a.x, a.y)), float(terrain.height(b.x, b.y))
+        ga, gb = float(ground.surface(a.x, a.y)), float(ground.surface(b.x, b.y))
         views[name] = {"cam": [round(a.x, 1), round(a.y, 1), round(ga + 1.7, 1)],
                        "look": [round(b.x, 1), round(b.y, 1), round(gb + 4.0, 1)]}
     return views
@@ -315,12 +316,13 @@ def build(cfg: dict, area: str | None = None, log=print, force: bool = False) ->
 
             built = iter(pool.export(world, plans, todo, folder, progress, write_files, journal))
             tiles = [done[k] if k in done else next(built) for k in keys]
+            ground = Ground(world, plans)
             write_json(folder / "index.json", {
                 "format": "citygen-tiles/1", "build_key": key, "seed": world.seed, "world_name": world.name,
                 "tile_size": size, "world_size": [world.size, world.size],
                 "focus": {"x": round(focus.x, 1), "y": round(focus.y, 1),
-                          "z": round(float(world.terrain.height(focus.x, focus.y)), 1), "name": focus.name},
-                "views": next((camera_views(p, world.terrain) for p in plans if p.settlement is focus), {}),
+                          "z": round(float(ground.surface(focus.x, focus.y)), 1), "name": focus.name},
+                "views": next((camera_views(p, ground) for p in plans if p.settlement is focus), {}),
                 "cities": [{"name": p.settlement.name, "plan": f"cities/{slug(p.settlement.name)}/plan.json",
                             "bounds": [round(v, 1) for v in p.boundary.bounds]} for p in plans],
                 "tiles": tiles})

@@ -21,7 +21,7 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
 - [x] 9 V2 Ambient occlusion
 - [x] 10 Q4 Blender 5 haze
 - [x] 11 A4a City ground
-- [ ] 12 A4b Everything on the graded ground
+- [x] 12 A4b Everything on the graded ground
 - [ ] 13 A3 Sidewalks and curbs
 - [ ] 14 S1 Street surfaces and markings
 - [ ] 15 A1 Roof life
@@ -184,13 +184,14 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
 - [ ] **A3 Sidewalks and curbs** (M; prompt 13) - Raised sidewalks (0.15 m) inside the street
   surface along the blocks outside the old town, and a raised central promenade on boulevards,
   so streets have crisp edges. Done when: snapshot shows curbs, no z-fighting with road ribbons.
-- [ ] **A4 Terrain grading** (M; prompts 11-12) - A4a done (prompt 11): `[ground]` grading in
+- [x] **A4 Terrain grading** (M; prompts 11-12) - done. `[ground]` grading in
   `citygen/city/ground.py` drives `TileContext.height`, so terrain, ribbons and building bases
-  sit on the smoothed, terraced ground. Left for A4b (prompt 12): dressing, doors, cameras and
-  `Ground.surface`. Inside city limits, smooth the ground so
-  streets and buildings sit flush: terrain blurred over about 60 m, gently flattened under blocks
-  (full terraces would make cliffs on these slopes). Used for terrain, ribbons, buildings and
-  dressing. Done when: no road below the drawn ground, no floating wall foot, door or prop.
+  sit on the smoothed, terraced ground. `Ground.surface` adds the street-ribbon lift where a
+  street is drawn, and every ground reader uses it: dressing, door thresholds, gates, street
+  trees, cameras and the index focus. Inside city limits, smooth the ground so streets and
+  buildings sit flush: terrain blurred over about 60 m, gently flattened under blocks (full
+  terraces would make cliffs on these slopes). Done when: no road below the drawn ground, no
+  floating wall foot, door or prop.
 - [ ] **A5 Landmarks pack** (M) - Kasbah (walled citadel with towers) on the old town's highest
   edge; a colonial cathedral and a theatre on the boulevard; covered souk roofs (vaults) over
   the main souks; a train station; a lighthouse at the port. Each is a function returning

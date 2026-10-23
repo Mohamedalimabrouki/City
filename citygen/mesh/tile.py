@@ -20,7 +20,7 @@ from shapely.strtree import STRtree
 
 from ..city.dressing import Dresser, Placement, building_highs, ground_heights
 from ..city.geo import frame, lines
-from ..city.ground import Ground
+from ..city.ground import STREET_LIFT, Ground
 from ..kit import make_kit
 from ..terrain import BIOME_MATERIAL, SEA, classify
 from .builder import (MeshBuilder, add_cap, add_dome, add_hip_roof, add_ribbon, add_sheet, extrude, rectangle,
@@ -28,8 +28,6 @@ from .builder import (MeshBuilder, add_cap, add_dome, add_hip_roof, add_ribbon, 
 from .gltf import write_glb
 from .props import tree_mesh
 
-STREET_LIFT = {"boulevard": 0.32, "arterial": 0.3, "ring": 0.3, "corniche": 0.3, "connector": 0.28,
-               "street": 0.24, "souk": 0.2, "alley": 0.18}
 ROAD_LIFT = 0.34
 
 
@@ -62,7 +60,7 @@ class TileContext:
             centers = shapely.get_coordinates(shapely.centroid(fps)) if fps else np.zeros((0, 2))
             trees = np.array([(t.x, t.y) for t in p.trees]) if p.trees else np.zeros((0, 2))
             street_tree = STRtree([s.line for s in p.streets]) if p.streets else None
-            dresser = Dresser(world, p, self.kit) if self.dress else None
+            dresser = Dresser(world, p, self.kit, self.ground) if self.dress else None
             self.cities.append((p, centers, trees, street_tree, dresser))
 
     def height(self, x, y):
@@ -276,7 +274,7 @@ def build_tile(tc: TileContext, i: int, j: int) -> tuple:
         for k in owned:
             building_mesh(mb, plan.buildings[int(k)], tc.height)
         if dresser is not None:
-            highs = building_highs(tc.terrain, [plan.buildings[int(k)] for k in owned])
+            highs = building_highs(tc.ground, [plan.buildings[int(k)] for k in owned])
             for k, high in zip(owned, highs):
                 placements += dresser.building(int(k), float(high))
             if street_tree is not None:
@@ -287,14 +285,14 @@ def build_tile(tc: TileContext, i: int, j: int) -> tuple:
             inside = (trees[:, 0] >= x0) & (trees[:, 0] < x1) & (trees[:, 1] >= y0) & (trees[:, 1] < y1)
             ks = np.nonzero(inside)[0]
             if len(ks):
-                zs = tc.height(trees[ks, 0], trees[ks, 1])
+                zs = tc.ground.surface(trees[ks, 0], trees[ks, 1])
                 for k, z in zip(ks, zs):
                     kit_tree = dresser.tree(int(k), plan.trees[int(k)], float(z)) if dresser is not None else None
                     if kit_tree is not None:
                         placements.append(kit_tree)
                     else:
                         tree_mesh(mb, plan.trees[int(k)], float(z))
-    ground_heights(tc.terrain, placements)
+    ground_heights(tc.ground, placements)
     for span in spans:
         if span.kind == "sabat":
             sabat_mesh(mb, span)

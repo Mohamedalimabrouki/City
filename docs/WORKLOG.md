@@ -15,6 +15,28 @@ Entry format:
 - Doubts and questions for Ali: <none, or the question>
 ```
 
+## 2026-10-23 - Prompt 12 A4b Everything on the graded ground
+- Commit: "Dressing and cameras stand on the drawn surface" (see git log) | Model: DeepSeek
+  V4.1 Flash, high (playbook: Sonnet, high)
+- Changed: `citygen/city/ground.py` (`STREET_LIFT` moved here, `Ground.surface`: ground or the
+  highest street ribbon), `citygen/city/dressing.py` (`Dresser` takes the ground; spans, gates,
+  wall tops, `ground_heights` and `building_highs`; doors, shop fronts and awnings use the
+  surface 0.5 m in front of the wall), `citygen/mesh/tile.py` (dresser ground, building highs,
+  ground pieces, street trees), `citygen/build.py` (camera views and index focus on the surface),
+  tests (3 new), `docs/SPEC.md`, `docs/ROADMAP.md`, `docs/HANDOFF.md`
+- Checks: tests 30 passed (about 16 s; the new tile fixture reuses one build, so the suite stays
+  close to its old time); `build --quick --force` 9.7 s, 9 tiles; fingerprint 140 parts, 9 changed, all
+  allowed: `tiles/index` plus 8 `tiles/*.glb` (tile_13_23 loses 888 triangles: one sabat no
+  longer clears the raised alley surface, so it is correctly not built). Plans, world, maps,
+  gazetteer and kit identical.
+- Look: `output/checks/12.png` - top: HEAD, bottom: working tree. The camera rises by the street
+  lift (0.2 m in the souk), so the whole frame shifts down slightly; no sunken or floating shop
+  fronts or goods at the lane edges. Numeric checks: every door threshold within 0.05 m of the
+  surface 0.5 m in front, every sampled wall foot in the terrain, every ground piece within
+  0.05 m of `surface`.
+- Doubts and questions for Ali: none. One unavoidable look change: cameras now stand on the
+  ribbon, so before/after frames cannot be pixel-aligned at the same camera height by design.
+
 ## 2026-10-23 - Prompt 11 A4a City ground
 - Commit: "Graded city ground inside cities" (see git log) | Model: DeepSeek V4.1 Flash, high
   (playbook: Sonnet, high)

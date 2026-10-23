@@ -53,6 +53,9 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
   2026): fingerprint, before/after pictures, parallel and resumable builds all work as
   documented. Reference for checkpoint 16: `output/checks/fp-cp1.json` (quick build) and the
   pictures `output/checks/cp1-street.png`, `cp1-aerial.png`.
+- Prompts 6-12 are done: bougainvillea, golden hour, ambient occlusion, Blender 5 haze, A4a and
+  A4b (graded ground, and every prop, door, tree and camera on its surface). Next: prompt 13,
+  sidewalks and curbs.
 - Seed 42 makes the country **Bodjantouna** with the capital **Goumosbane**.
   `python -m citygen build --quick` writes it to `output/bodjantouna-42/` in about 7 seconds on
   Ali's Mac (20 seconds in the cloud).
@@ -97,8 +100,12 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
   samples per cell: that costs about +40% per tile (budget +30%); this way it is +16%. Only
   blocks up to 6000 m2 outside park/cemetery/industrial/port are terraced (0.4 m at most, faded
   over 18 m); bigger blocks would make cliffs. Tiles changed because the whole city ground shifts
-  by up to 0.75 m. `TileContext.height` is now `Ground.height`; the dressing still reads raw
-  terrain until prompt 12, which also adds `Ground.surface()` for doors and props.
+  by up to 0.75 m. `TileContext.height` is `Ground.height`; `Ground.surface` adds the street
+  ribbon lift (`STREET_LIFT`, highest where streets overlap) and is now the one height reader for
+  dressing, gates, street trees, cameras and the index focus. Doors, shop fronts and awnings use
+  the surface 0.5 m in front of the wall, because buildings stand 0.15 m back from the street
+  edge: sampling at the wall would leave the threshold one lift below the pavement. Walls and
+  wall-mounted pieces stay on `Ground.height`.
 - **Family names** mix real lists with made-up nisba names built from Arabic roots and patterns
   (Hamdi = 1a23i from H-M-D), with sound rules and a rude-word blocklist, because random syllables
   sounded Japanese or Italian. D5 can map roots and patterns to Arabic script.

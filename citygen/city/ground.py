@@ -9,9 +9,10 @@ graded one:
                          flattened under each block (at most `terrace_max` meters), blended
                          back to the natural terrain over `edge_band` meters at the city limit
 
-Everything is a pure function of position. The blur is sampled on a world-aligned lattice and
-interpolated bilinearly, so two neighbouring tiles compute exactly the same height on their
-shared edge and no seam can appear.
+`height` is the ground itself; `surface` is the top of what is drawn there, adding the street
+ribbon's lift. Everything is a pure function of position. The blur is sampled on a world-aligned
+lattice and interpolated bilinearly, so two neighbouring tiles compute exactly the same height on
+their shared edge and no seam can appear.
 """
 from __future__ import annotations
 
@@ -28,6 +29,10 @@ from ..noise import smoothstep
 # districts whose blocks are left alone: open land or very large plots, where a terrace would
 # only cut a cliff into the slope
 NO_TERRACE = ("park", "cemetery", "industrial", "port")
+
+# how far a street ribbon is drawn above the ground (mesh/tile.py uses the same numbers)
+STREET_LIFT = {"boulevard": 0.32, "arterial": 0.3, "ring": 0.3, "corniche": 0.3, "connector": 0.28,
+               "street": 0.24, "souk": 0.2, "alley": 0.18}
 
 
 class _Blur:
@@ -171,6 +176,13 @@ class Ground:
         self.area = unary_union([p.boundary for p in plans]) if plans else None
         if self.area is not None:
             shapely.prepare(self.area)
+        surfaces, lifts = [], []
+        for plan in plans:
+            for st in plan.streets:
+                surfaces.append(st.line.buffer(st.width / 2, cap_style="flat"))
+                lifts.append(STREET_LIFT.get(st.kind, 0.24))
+        self.street_lift = np.asarray(lifts, dtype=np.float64)
+        self.street_tree = STRtree(surfaces) if surfaces else None
 
     def _select(self, x: np.ndarray, y: np.ndarray) -> list:
         """(city, indices) for the points inside each city; cities never overlap."""
@@ -222,6 +234,26 @@ class Ground:
         out = hf.copy()
         for city, sel in self._select(xf, yf):
             out[sel] = self._graded(city, xf[sel], yf[sel], hf[sel])
+        if h.ndim == 0:
+            return float(out[0])
+        return out.reshape(h.shape)
+
+    def surface(self, x, y):
+        """Top of what is drawn at each point: the street ribbon where one lies, else the ground.
+
+        Overlapping streets take the highest ribbon. Like `height`, this is a pure function of
+        position, so neighbouring tiles agree on every shared point.
+        """
+        x = np.asarray(x, dtype=np.float64)
+        y = np.asarray(y, dtype=np.float64)
+        h = np.asarray(self.height(x, y), dtype=np.float64)
+        if self.street_tree is None or h.size == 0:
+            return float(h) if h.ndim == 0 else h
+        xf, yf, hf = np.ravel(x), np.ravel(y), np.ravel(h)
+        out = hf.copy()
+        inp, hit = self.street_tree.query(shapely.points(xf, yf), predicate="intersects")
+        if len(inp):
+            np.maximum.at(out, inp, hf[inp] + self.street_lift[hit])
         if h.ndim == 0:
             return float(out[0])
         return out.reshape(h.shape)

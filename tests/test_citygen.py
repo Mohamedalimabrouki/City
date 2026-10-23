@@ -1,8 +1,10 @@
 """Fast checks for the whole pipeline (about 20 seconds). Run: python -m pytest -q"""
 import json
+import math
 
 import numpy as np
 import pytest
+import shapely
 from shapely.strtree import STRtree
 
 from citygen.__main__ import main
@@ -223,13 +225,10 @@ def test_kit_names_and_roles(world):
             assert name in world.style["dressing"]["roles"] or name in kit.pieces or "/" in name, name
 
 
-def test_dressing_is_deterministic_and_on_the_walls(world, plan):
+def test_dressing_is_deterministic_and_on_the_walls(world, plan, built_tile):
     from shapely.geometry import Point
     from citygen.mesh.tile import build_tile
-    tc = TileContext(world, [plan])
-    s = world.capital()
-    i, j = int(s.x // tc.size), int(s.y // tc.size)
-    _, first = build_tile(tc, i, j)
+    tc, i, j, first = built_tile
     _, again = build_tile(tc, i, j)
     assert len(first) > 200 and [(p.piece, p.x, p.y, p.z) for p in first] == [(p.piece, p.x, p.y, p.z) for p in again]
     assert all(p.piece in tc.kit.pieces and np.isfinite([p.x, p.y, p.z, p.yaw, p.scale]).all() for p in first)
@@ -312,6 +311,87 @@ def test_terraced_blocks_stay_within_terrace_max(plan, ground):
         if checked == 4:
             break
     assert checked >= 2
+
+
+def _drawn_height(ground, step: float, x, y):
+    """Bilinear height of the terrain mesh as drawn, on the world-aligned `terrain_step` grid."""
+    x, y = np.asarray(x, dtype=np.float64), np.asarray(y, dtype=np.float64)
+    gx, gy = np.floor(x / step) * step, np.floor(y / step) * step
+    tx, ty = (x - gx) / step, (y - gy) / step
+    h00 = ground.height(gx, gy)
+    h10 = ground.height(gx + step, gy)
+    h01 = ground.height(gx, gy + step)
+    h11 = ground.height(gx + step, gy + step)
+    top = h00 * (1.0 - tx) + h10 * tx
+    bottom = h01 * (1.0 - tx) + h11 * tx
+    return top * (1.0 - ty) + bottom * ty
+
+
+def test_every_street_ribbon_stays_above_the_drawn_terrain(world, plan, ground):
+    from shapely import line_interpolate_point
+    step = float(world.cfg["tiles"]["terrain_step"])
+    pts = []
+    for st in plan.streets:
+        d = np.arange(0.0, st.line.length, 4.0)
+        pts.append(shapely.get_coordinates(line_interpolate_point(st.line, d)))
+    pts = np.concatenate(pts)
+    drawn = _drawn_height(ground, step, pts[:, 0], pts[:, 1])
+    top = ground.surface(pts[:, 0], pts[:, 1])
+    assert len(pts) > 1000
+    assert np.all(drawn <= top + 1e-6), np.max(drawn - top)
+    assert np.max(top - ground.height(pts[:, 0], pts[:, 1])) >= 0.18 - 1e-6   # ribbons really were sampled
+
+
+@pytest.fixture(scope="module")
+def built_tile(world, plan, ground):
+    from citygen.mesh.tile import build_tile
+    tc = TileContext(world, [plan])
+    s = world.capital()
+    i, j = int(s.x // tc.size), int(s.y // tc.size)
+    _, placements = build_tile(tc, i, j)
+    return tc, i, j, placements
+
+
+def test_wall_feet_stay_in_the_terrain_and_doors_meet_the_street(world, plan, ground, built_tile):
+    from shapely.geometry.polygon import orient
+    tc, _, _, placements = built_tile
+    rings = [np.asarray(orient(b.footprint, 1.0).exterior.coords) for b in plan.buildings]
+    counts = np.array([len(r) for r in rings])
+    starts = np.concatenate([[0], np.cumsum(counts)[:-1]])
+    pts = np.concatenate(rings)
+    low = np.minimum.reduceat(tc.height(pts[:, 0], pts[:, 1]), starts)
+    rings = [(k, ring) for k, b in enumerate(plan.buildings)
+             for ring in (b.footprint.exterior, *b.footprint.interiors)]
+    lines = shapely.segmentize(np.array([ring for _, ring in rings], dtype=object), 1.0)
+    n = shapely.get_num_coordinates(lines)
+    starts = np.concatenate([[0], np.cumsum(n)[:-1]])
+    pts = shapely.get_coordinates(lines)
+    drawn = np.minimum.reduceat(tc.height(pts[:, 0], pts[:, 1]), starts)
+    bottom = low[np.array([k for k, _ in rings])] - 0.6
+    assert np.all(drawn >= bottom - 1e-6), float(np.min(drawn - bottom))
+    doors = [p for p in placements if tc.kit.pieces[p.piece].category == "door"]
+    assert doors
+    front = np.array([(p.x - math.sin(p.yaw) * 0.5, p.y + math.cos(p.yaw) * 0.5) for p in doors])
+    zs = np.array([p.z for p in doors])
+    assert np.all(np.abs(zs - ground.surface(front[:, 0], front[:, 1])) <= 0.05)
+
+
+def test_dressing_ground_pieces_stand_on_the_surface(world, plan, ground):
+    from citygen.city.dressing import DRESSED, Dresser, ground_heights
+    from citygen.kit import make_kit
+    kit = make_kit(world.seed, world.cfg, world.style)
+    dresser = Dresser(world, plan, kit, ground)
+    chosen = next((k for k, b in enumerate(plan.buildings)
+                   if b.kind in DRESSED and any(f.kind == "souk" for f in dresser.facades(b))), None)
+    assert chosen is not None
+    b = plan.buildings[chosen]
+    ring = np.asarray(b.footprint.exterior.coords)
+    out = dresser.building(chosen, float(ground.height(ring[:, 0], ring[:, 1]).max()))
+    pieces = [p for p in out if p.on_ground and abs(p.z) < 1e-9]   # bottoms that stand on the ground
+    assert pieces and any(ground.surface(p.x, p.y) - ground.height(p.x, p.y) > 0.1 for p in pieces)
+    ground_heights(ground, pieces)
+    for p in pieces:
+        assert abs(p.z - ground.surface(p.x, p.y)) <= 0.05, p.piece
 
 
 def test_households_and_souks(plan):
