@@ -7,6 +7,8 @@ Pipeline (each step is its own module):
   parcels    blocks between streets, split into building lots
   impasses   dead-end lanes to the lots without a street (old town and neighborhoods)
   buildings  a building per lot following the district rules, landmarks, parks, cemetery
+  massing    rows, cut corners, domes, set-back top floors, stepped slabs, villa L's, roof rooms
+             (after households and souks: it never adds, removes or reorders a building)
 """
 from __future__ import annotations
 
@@ -20,6 +22,7 @@ from ..rng import stream
 from .buildings import cemetery_and_parks, make_buildings, neighborhood_mosques
 from .layout import assign_kinds, city_boundary, land_near, main_axis, medina_outline, neighborhoods
 from .life import households, souks
+from .massing import apply_massing
 from .impasses import cut_impasses
 from .medina import old_town
 from .model import CityPlan, District
@@ -87,6 +90,7 @@ def plan_city(world, settlement) -> CityPlan:
                     trees, landmarks + mosque_marks, walks)
     plan.households = households(ctx, buildings, districts)
     plan.souks = souks(ctx, streets)
+    apply_massing(ctx, plan)
     plan.paint = make_paint(world.style, streets, walks)
     plan.stats = {"districts": len(districts), "streets": len(streets), "impasses": len(lanes),
                   "blocks": len(blocks),

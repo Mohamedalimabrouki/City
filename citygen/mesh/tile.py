@@ -21,8 +21,9 @@ from shapely.strtree import STRtree
 
 from ..city.dressing import Dresser, Placement, building_highs, ground_heights
 from ..city.geo import frame, lines, polygons
-from ..city.ground import STREET_LIFT, Ground
-from ..city.roofs import RoofLayout, roof_layout, roof_stream
+from ..city.ground import STREET_LIFT, Ground, apron_cells
+from ..city.massing import inner_walls, massed, outline
+from ..city.roofs import RoofLayout, roof_layouts, roof_stream
 from ..kit import make_kit
 from ..noise import Fractal
 from ..terrain import BIOME_MATERIAL, SEA, classify
@@ -225,6 +226,38 @@ def walk_meshes(mb: MeshBuilder, tc: TileContext, plan, tile, street_tree=None) 
             add_skirt(mb, pts, top, bottom, "curb")
 
 
+def apron_mesh(mb: MeshBuilder, tc: TileContext, b, street_tree=None) -> None:
+    """The paved lot corner of a cut street corner (prompt 23): sidewalk paving on the triangles of
+    `ground.apron_cells`, each corner at `Ground.apron_top` (what `Ground.surface` interpolates there, so
+    doors, arcade pillars and trees stand on it), the paving rows along the nearest street, and a curb
+    where it meets lower ground (not along the sidewalk, met at the same height, nor the building)."""
+    walks = tc.ground.walk_tree
+    for poly in polygons(b.apron):
+        poly = orient(poly, sign=1.0)
+        tri = apron_cells(poly, tc.ground.apron_cell)
+        if len(tri):
+            pts, inv = np.unique(tri.reshape(-1, 2), axis=0, return_inverse=True)
+            z = tc.ground.apron_top(pts[:, 0], pts[:, 1])
+            c = poly.representative_point()
+            ux, uy = (street_directions(street_tree, [c.x], [c.y])[0] if street_tree is not None else (1.0, 0.0))
+            uv = np.stack([pts[:, 0] * ux + pts[:, 1] * uy, pts[:, 0] * uy - pts[:, 1] * ux], axis=1)
+            mb.add("sidewalk", np.column_stack([pts, z]), np.tile([0.0, 0.0, 1.0], (len(pts), 1)), uv,
+                   np.asarray(inv).reshape(-1, 3))
+        for ring in (poly.exterior, *poly.interiors):
+            ends = np.asarray(ring.coords)[:, :2]
+            ends = ends[np.r_[True, np.hypot(*np.diff(ends, axis=0).T) > 1e-9]]   # no repeated point
+            if len(ends) < 4:
+                continue
+            mids = shapely.points((ends[:-1] + ends[1:]) / 2)
+            curb = shapely.distance(b.footprint, mids) > 1e-3
+            if walks is not None:
+                curb[walks.query(mids, predicate="dwithin", distance=1e-3)[0]] = False
+            top = tc.ground.apron_top(ends[:-1, 0], ends[:-1, 1])
+            # the closed ring: add_skirt drops its closing point (np.allclose would also merge two open
+            # ends a few centimeters apart, 7000 m from the origin)
+            add_skirt(mb, ends, top, tc.height(ends[:-1, 0], ends[:-1, 1]), "curb", only=curb)
+
+
 def path_meshes(mb: MeshBuilder, tc: TileContext, paths: list, drawn) -> None:
     """Paved paths from doors on open ground to the street, drawn by the tile owning their building,
     draped on the terrain mesh (`drawn`: `Ground.drawn` or the dresser's cached copy)."""
@@ -251,12 +284,21 @@ PLINTH_KINDS = frozenset({"house", "domed", "apartments", "villa", "shed", "mosq
 
 
 def building_mesh(mb: MeshBuilder, b, height_fn, roof: RoofLayout | None = None,
-                  plinth: tuple[str, float] | None = None, frontage=None) -> None:
+                  plinth: tuple[str, float] | None = None, frontage=None, roofs: list | None = None) -> None:
+    """One building. `roofs` ([(Mass, RoofLayout)], roofs.roof_layouts) draws a massed building (prompt
+    23); otherwise `roof` is its one flat roof's layout. `frontage` is one bool per segment of
+    `massing.outline(b)` (the footprint ring for a plain building): the walls that get the plinth."""
     fp = orient(b.footprint, sign=1.0)
     ring = np.asarray(fp.exterior.coords)
     ground = height_fn(ring[:, 0], ring[:, 1])
     low, high = float(ground.min()), float(ground.max())
     z0, z1 = low - 0.6, high + b.height
+    if roofs is not None and massed(b):
+        _masses_mesh(mb, b, roofs, z0, high, plinth, frontage)
+        _roof_things(mb, b, high, next(m for m, _ in roofs if m.main).top + high)
+        return
+    if roofs is not None:
+        roof = roofs[0][1]
     if b.roof_shape == "hip":
         extrude(mb, fp, z0, z1, b.wall, None, z_ref=high, plinth=plinth, frontage=frontage)
         cx, cy, length, width, angle = frame(fp)
@@ -271,7 +313,9 @@ def building_mesh(mb: MeshBuilder, b, height_fn, roof: RoofLayout | None = None,
     for x, y, r, mat in b.domes:
         extrude(mb, regular_polygon(x, y, r, 12), z1, z1 + 0.18 * r, b.wall, None, z_ref=high)
         add_dome(mb, x, y, z1 + 0.18 * r, r, mat)
-    if b.top:
+    if b.machines or (b.top and "x" in b.top):
+        _roof_things(mb, b, high, z1)
+    elif b.top:
         cx, cy, _, _, angle = frame(fp)
         side, h = b.top["side"], b.top["height"]
         extrude(mb, rectangle(cx, cy, side * 1.35, side * 1.35, angle), z1, z1 + 0.6,
@@ -279,6 +323,70 @@ def building_mesh(mb: MeshBuilder, b, height_fn, roof: RoofLayout | None = None,
         extrude(mb, rectangle(cx, cy, side, side, angle), z1 + 0.6, z1 + h, b.top["material"],
                 b.top["material"], z_ref=high)
         add_dome(mb, cx, cy, z1 + h, side * 0.5, b.top["cap"], height=side * 0.62)
+
+
+def _masses_mesh(mb: MeshBuilder, b, roofs: list, z0: float, high: float, plinth, frontage) -> None:
+    """A massed building drawn as one solid: the outer walls once round the footprint, each segment up
+    to the tallest mass standing on it (one ring, so the texture runs on across a step and the plinth
+    stays one course), the walls where a taller mass rises over a neighbour or a terrace, and every
+    roof: hip, or the deck, parapet and rooms of a flat one (`roof_mesh`)."""
+    ms = [m for m, _ in roofs]
+    tops = [high + m.top + (lay.height if lay.band is not None else 0.0) for m, lay in roofs]
+    ring = outline(b)
+    seg = _segment_tops(ring, ms, tops)
+    for z in np.unique(seg):
+        add_walls(mb, ring, z0, float(z), b.wall, high, plinth, frontage, only=seg == z)
+    for hole in orient(b.footprint, sign=1.0).interiors:
+        hr = np.asarray(hole.coords)
+        hs = _segment_tops(hr, ms, tops)
+        for z in np.unique(hs):
+            add_walls(mb, hr, z0, float(z), b.wall, high, only=hs == z)
+    for _k, mring, mask, lo, hi in inner_walls(b, [t - high for t in tops]):
+        add_walls(mb, mring, high + lo, high + hi, b.wall, high, only=mask)
+    for m, lay in roofs:
+        z = high + m.top
+        if m.shape == "hip":
+            cx, cy, length, width, angle = frame(m.polygon)
+            corners = np.asarray(rectangle(cx, cy, length, width, angle).exterior.coords)[:4]
+            add_hip_roof(mb, corners, z, 0.32 * width, m.roof)
+        elif lay.band is not None:
+            roof_mesh(mb, b, lay, z, m.roof)
+        else:
+            add_cap(mb, m.polygon, z, m.roof)
+
+
+def _segment_tops(ring: np.ndarray, ms: list, tops: list) -> np.ndarray:
+    """Top of the outer wall on each segment of a closed ring: the tallest mass whose outline runs there."""
+    a, c = ring[:-1, :2], ring[1:, :2]
+    mid = shapely.points((a + c) / 2)
+    out = np.full(len(a), -np.inf)
+    for m, top in zip(ms, tops):
+        on = shapely.distance(m.polygon.boundary, mid) < 1e-3
+        out = np.where(on, np.maximum(out, top), out)
+    return np.where(np.isfinite(out), out, max(tops))
+
+
+def _roof_things(mb: MeshBuilder, b, high: float, z_roof: float) -> None:
+    """What massing puts on the main roof: lift motor rooms (a box with a steel door) and a corner dome
+    or turret (a drum and a dome). Water tanks on stands are kit pieces (Dresser._machines)."""
+    for m in b.machines:
+        if m["kind"] != "lift":
+            continue
+        z = high + float(m["z"])
+        room = rectangle(m["x"], m["y"], m["length"], m["width"], m["angle"])
+        extrude(mb, room, z, z + m["height"], b.wall, b.roof, z_ref=high)
+        u = np.array([math.cos(m["angle"]), math.sin(m["angle"])])
+        n = np.array([-u[1], u[0]])
+        c = np.array([m["x"], m["y"]]) + n * (m["width"] / 2 + 0.02)
+        _quad(mb, (*(c + u * 0.45), z + 0.02), (*(c - u * 0.45), z + 0.02), (*(c - u * 0.45), z + 2.0),
+              (*(c + u * 0.45), z + 2.0), "iron")
+    if b.top and "x" in b.top:
+        t = b.top
+        x, y, r, h = t["x"], t["y"], t["radius"], t["height"]
+        extrude(mb, regular_polygon(x, y, r, 12), z_roof, z_roof + h, t["material"], None, z_ref=high)
+        extrude(mb, regular_polygon(x, y, r + 0.12, 12), z_roof + h, z_roof + h + 0.18, "stone_frame",
+                "stone_frame", z_ref=high)
+        add_dome(mb, x, y, z_roof + h + 0.18, r + 0.05, t["cap"], height=t["rise"])
 
 
 CLOTHS = ("cloth_1", "cloth_2", "cloth_3", "cloth_4", "cloth_5", "cloth_6")
@@ -292,30 +400,37 @@ def _quad(mb: MeshBuilder, a, b, c, d, mat: str) -> None:
     mb.add(mat, pos, np.tile(n, (4, 1)), np.zeros((4, 2)), [[0, 1, 2], [0, 2, 3]])
 
 
-def roof_mesh(mb: MeshBuilder, b, layout: RoofLayout | None, z: float) -> None:
-    """The parapet coping, the stair room and the roof deck of a flat roof (deck at z)."""
+def roof_mesh(mb: MeshBuilder, b, layout: RoofLayout | None, z: float, roof: str | None = None) -> None:
+    """The parapet coping, the stair room, the menzah and the roof deck of a flat roof (deck at z)."""
     if layout is None or layout.band is None:
         return
+    roof = b.roof if roof is None else roof
     for poly in polygons(layout.inner):
-        add_cap(mb, poly, z, b.roof)                       # the deck inside the parapet
+        add_cap(mb, poly, z, roof)                         # the deck inside the parapet
     z_top = z + layout.height
     for band in polygons(layout.band):
-        _coping(mb, b, band, z, z_top)
-    if layout.stair is None:
-        return
-    extrude(mb, layout.stair, z, z + layout.stair_height, b.wall, b.roof, z_ref=z)
-    x, y, yaw = layout.door
-    half = layout.door_width / 2
-    t = np.array([-math.sin(yaw), math.cos(yaw)])       # along the stair room wall
+        _coping(mb, b, band, z, z_top, roof)
+    if layout.stair is not None:
+        extrude(mb, layout.stair, z, z + layout.stair_height, b.wall, roof, z_ref=z)
+        _opening(mb, layout.door, z + 0.02, z + layout.door_height, layout.door_width, "wood")
+    if layout.menzah is not None:
+        extrude(mb, layout.menzah, z, z + layout.menzah_height, b.wall, roof, z_ref=z)
+        _opening(mb, layout.menzah_door, z + 0.02, z + layout.door_height, layout.door_width, "wood")
+        for spot in layout.menzah_windows:
+            _opening(mb, spot, z + 1.0, z + 1.8, 0.7, "glass_dark")
+
+
+def _opening(mb: MeshBuilder, spot: tuple, z0: float, z1: float, width: float, mat: str) -> None:
+    """A door or window panel just in front of a roof room's wall: spot = (x, y, outward yaw)."""
+    x, y, yaw = spot
+    half = width / 2
+    t = np.array([-math.sin(yaw), math.cos(yaw)])       # along the wall
     c = np.array([x, y]) + np.array([math.cos(yaw), math.sin(yaw)]) * 0.02
-    h = layout.door_height
-    _quad(mb, (c[0] - t[0] * half, c[1] - t[1] * half, z + 0.02),
-          (c[0] + t[0] * half, c[1] + t[1] * half, z + 0.02),
-          (c[0] + t[0] * half, c[1] + t[1] * half, z + h),
-          (c[0] - t[0] * half, c[1] - t[1] * half, z + h), "wood")
+    _quad(mb, (c[0] - t[0] * half, c[1] - t[1] * half, z0), (c[0] + t[0] * half, c[1] + t[1] * half, z0),
+          (c[0] + t[0] * half, c[1] + t[1] * half, z1), (c[0] - t[0] * half, c[1] - t[1] * half, z1), mat)
 
 
-def _coping(mb: MeshBuilder, b, band, z: float, z_top: float) -> None:
+def _coping(mb: MeshBuilder, b, band, z: float, z_top: float, roof: str | None = None) -> None:
     """The sloped top of one parapet band: from its outer ring at z_top down to its inner ring at z.
 
     The outer face of the parapet is the building wall itself, drawn up to z_top, so only this
@@ -326,14 +441,15 @@ def _coping(mb: MeshBuilder, b, band, z: float, z_top: float) -> None:
     holes = [np.asarray(h.coords)[:, :2] for h in band.interiors]
     outer = outer[:-1] if len(outer) > 1 and np.allclose(outer[0], outer[-1]) else outer
     holes = [h[:-1] if len(h) > 1 and np.allclose(h[0], h[-1]) else h for h in holes]
+    roof = b.roof if roof is None else roof
     if len(holes) != 1 or len(holes[0]) != len(outer):
-        add_cap(mb, band, z_top, b.roof)                 # rare outline the offset could not pair
+        add_cap(mb, band, z_top, roof)                   # rare outline the offset could not pair
         for hole in band.interiors:
             add_walls(mb, hole.coords[::-1], z, z_top, b.wall, z)
         return
     inner = holes[0][::-1]                               # same direction as the counter-clockwise outer ring
     k = int(np.argmin(((inner - outer[0]) ** 2).sum(axis=1)))
-    add_loft(mb, np.roll(inner, -k, axis=0), z, outer, z_top, b.roof)
+    add_loft(mb, np.roll(inner, -k, axis=0), z, outer, z_top, roof)
 
 
 def span_mesh(mb: MeshBuilder, span, placements: list) -> None:
@@ -468,11 +584,11 @@ def build_tile(tc: TileContext, i: int, j: int) -> tuple:
             if b.kind in PLINTH_KINDS and kind in tc.plinths:
                 spec = tc.plinths[kind]
                 plinth = (str(spec["material"]), float(spec["height"]))
-                fp = orient(b.footprint, sign=1.0)
-                frontage = street_frontage(fp.exterior.coords, plan, walk_width, street_tree, reach)
-            roof = roof_layout(b, kind,
-                               roof_stream(tc.world.seed, plan.settlement.id, int(k)), tc.roofs)
-            building_mesh(mb, b, tc.height, roof, plinth, frontage)
+                frontage = street_frontage(outline(b), plan, walk_width, street_tree, reach)
+            roofs = roof_layouts(b, kind, roof_stream(tc.world.seed, plan.settlement.id, int(k)), tc.roofs)
+            building_mesh(mb, b, tc.height, plinth=plinth, frontage=frontage, roofs=roofs)
+            if b.apron is not None:
+                apron_mesh(mb, tc, b, street_tree)
         if dresser is not None:
             highs = building_highs(tc.ground, [plan.buildings[int(k)] for k in owned])
             paths: list = []

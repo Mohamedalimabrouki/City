@@ -41,7 +41,19 @@ class Building:
     floors: int = 1
     roof_shape: str = "flat"  # flat | hip
     domes: list = field(default_factory=list)  # [(x, y, radius, material)] sitting on the roof
-    top: dict | None = None   # minaret lantern {"side", "height", "material", "cap"}
+    top: dict | None = None   # minaret lantern {"side", "height", "material", "cap"}; a colonial corner
+                              # dome or turret adds "x", "y", "shape": "drum" (city/massing.py)
+    # massing (prompt 23, city/massing.py): what makes a building more than one box
+    setback: object = None    # footprint of a top floor standing back from the street walls (a Polygon)
+    steps: list = field(default_factory=list)     # [(polygon, floors, roof_shape, roof)] parts of the
+                              # footprint with their own floor count and roof (a stepped slab, a villa's L)
+    machines: list = field(default_factory=list)  # roof machinery [{"kind", "x", "y", "angle", "length",
+                              # "width", "height", "z"}]: "lift" motor rooms (drawn), "tank" stands (a piece)
+    menzah: bool = False      # a small roof room, placed by roof_layout (old-town courtyard houses)
+    corners: list = field(default_factory=list)   # [(x, y, "chamfer" | "round", reach)]: street corners
+                              # cut, at the old corner point
+    apron: object = None      # the lot corner a cut leaves open, paved like the sidewalk (a Polygon or
+                              # MultiPolygon inside the block, drawn by the tile owning the building)
 
 
 @dataclass

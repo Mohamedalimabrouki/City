@@ -208,6 +208,8 @@ walk_step = 15.0            # meters between outline points, so a long sidewalk 
 min_carriageway = 5.5       # a sidewalk is narrowed until this much asphalt remains
 promenade_width = 8.0       # the raised island under the boulevard's middle tree row
 promenade_piece = 64.0      # meters; short pieces keep a tile's mesh local
+apron_reach = 6.0           # a paved lot corner (prompt 23) blends the lifts of the streets this close
+apron_cell = 2.0            # meters: its paving is cut in squares this big on the world grid, to follow the ground
 
 # painted markings (S1): flat polygons just above the ribbon
 marking_min_width = 8.0     # only streets wider than this get paint
@@ -283,6 +285,7 @@ roofs = [["roof_white", 1.0]]
 courtyard_min_area = 110.0
 dome_chance = 0.035
 courtyard_tree_chance = 0.3
+menzah = 0.08              # share of courtyard houses with a menzah, a small room on the roof (prompt 23)
 wall_height = 8.0          # city walls (ramparts)
 wall_thickness = 3.0
 tower_spacing = 55.0
@@ -302,6 +305,7 @@ roofs = [["roof_white", 0.8], ["sand", 0.2]]
 courtyard_min_area = 140.0
 dome_chance = 0.02
 courtyard_tree_chance = 0.45
+menzah = 0.04
 
 [district.colonial]        # the "ville nouvelle": boulevards and apartment buildings from the protectorate era
 grid = [96.0, 72.0]        # block length and width
@@ -313,6 +317,28 @@ floor_height = 3.6
 walls = [["cream", 0.4], ["warm_white", 0.35], ["pale_yellow", 0.25]]
 roofs = [["roof_white", 1.0]]
 perimeter = true           # buildings line the street, block interiors stay open as courtyards
+# massing (prompt 23, city/massing.py): rows, corners, domes and set-back top floors
+row_step = [[-1, 0.22], [0, 0.56], [1, 0.22]]   # floors a building differs from its block's row (the median)
+corner_step = [[0, 0.4], [1, 0.6]]               # ... a building on a street corner: corners stand taller
+row_floors = [3, 7]
+corner_angle = 4.0         # degrees off square a street corner may be and still be cut
+corner_cut = 0.8           # share of street corners cut: a pan coupe, or rounded
+corner_round = 0.25        # share of the cut corners rounded (three faces), when the walls are long enough
+chamfer = [3.5, 3.95]      # meters, the pan coupe face: one arcade bay
+round_segment = [3.5, 3.8]    # meters, each face of a rounded corner: one window, one arcade bay
+corner_rest = 2.5          # meters of straight wall kept beyond a cut
+apron_grow = 0.3           # the lot corner a cut leaves open is paved: grown this far to meet the sidewalk
+dome_floors = 4            # fewest floors for a corner dome or turret
+corner_dome = 0.35         # chance a building with a cut corner carries a dome or a turret over it
+corner_top = [["dome", 0.6], ["turret", 0.4]]
+dome = { radius = [2.2, 2.8], drum = [0.9, 1.4], rise = 0.85 }     # meters; rise = dome height / radius
+turret = { radius = [1.3, 1.6], drum = [3.0, 3.8], rise = 1.15 }
+drum_material = [["wall", 0.6], ["minaret_stone", 0.4]]          # "wall": the building's own plaster
+dome_cap = [["dome_white", 0.65], ["dome_green", 0.35]]
+setback_floors = 4         # fewest floors for a set-back top floor
+setback_share = 0.3        # share of those whose top floor stands back from the street walls
+setback_depth = 2.0        # meters: the terrace in front of it
+setback_min_share = 0.4    # the top floor keeps at least this share of the footprint
 
 [district.modern]          # post-independence housing estates: apartment slabs
 grid = [150.0, 110.0]
@@ -326,6 +352,18 @@ floors = [[4, 0.3], [5, 0.3], [6, 0.2], [8, 0.12], [10, 0.08]]
 floor_height = 3.0
 walls = [["warm_white", 0.4], ["concrete", 0.25], ["sand", 0.2], ["pastel_blue", 0.15]]
 roofs = [["roof_white", 1.0]]
+# massing (prompt 23): slabs stepping along their length, at window column joints, and roof machinery
+step_share = 0.5           # share of long slabs that step
+step_min_length = 30.0     # meters
+step_parts = [[2, 0.6], [3, 0.4]]
+step_drop = [[1, 0.65], [2, 0.35]]                # floors from one part to the next
+step_min_part = 12.0       # meters
+step_min_floors = 3
+machine_floors = 5         # fewest floors for a lift and its motor room
+lift = 0.75                # chance of a lift motor room over the middle of each roof part
+lift_room = [3.0, 2.4, 2.4]   # meters: length, width, height
+tank_stands = [0, 2]       # water tanks on a steel stand per slab
+tank_stand = 1.8           # meters, the stand's square footprint
 
 [district.residential]     # dense neighborhoods of attached family houses
 grid = [92.0, 52.0]
@@ -350,6 +388,12 @@ walls = [["lime_white", 0.6], ["warm_white", 0.2], ["cream", 0.2]]
 roofs = [["roof_white", 1.0]]
 hip_roof_chance = 0.18
 garden_trees = [0, 3]
+# massing (prompt 23): villas as an L, a hip-roofed part and a flat terrace wing one floor lower
+l_share = 0.8                # share of the two-storey villas (on a plain rectangle) built as an L
+l_min_floors = 2
+l_main = [0.55, 0.65]      # share of the house's length under the hip roof
+l_wing = [0.5, 0.65]       # share of its depth the wing keeps
+terrace_roof = "roof_white"
 
 [district.industrial]
 grid = [230.0, 160.0]
@@ -392,6 +436,10 @@ stair_gap = 0.25           # meters between the stair room and the parapet
 stair_door_width = 0.9
 stair_door_height = 1.95
 stair_door_reach = 0.8     # meters of free roof a side needs before it takes the door
+menzah_size = [3.0, 2.4]   # meters: a menzah, the old-town roof room (prompt 23)
+menzah_height = 2.3
+menzah_gap = 0.6           # meters of roof kept between it and the stair room or anything else
+menzah_windows = 2
 
 # --- plinths ------------------------------------------------------------------------
 # The base band of a building wall (prompt 19): everything within `height` meters of the
@@ -599,6 +647,8 @@ wall = ["rug_wall"]
 [dressing]
 window_spacing = 3.2
 window_sill = 0.95         # meters from a floor to the bottom of its windows
+window_half = 1.3          # meters each side of a window center that must have wall at its floor (prompt 23:
+                           # a set-back top floor, a slab's lower step); the widest window is 2.54 m
 door_lantern = 0.35        # chance of a lamp beside a house door
 lamp_height = 2.95         # hook height of wall lamps
 door_hood = 0.15           # chance of a tiled hood over the door (more for richer households)
@@ -713,6 +763,8 @@ step = 0.35                # a run of bays steps down where its sidewalk falls m
 gap = 0.08                 # free space between a pillar and a door, shop front or cafe table
 join = 0.3                 # a run reaches up to this far past its wall end to meet the next building's
 bend = 10.0                # degrees: walls meeting at a shallower angle carry one continuous arcade
+bend_tol = 2.5             # degrees off 45 (a pan coupe) or 22.5 (a rounded corner) a turn may be and still
+                           # get a pier piece (arcade_bend, arcade_bend_round; prompt 23)
 corner_angle = 5.0         # degrees off square that a corner piece still takes
 wrap = 1                   # bays turned into a side street at a corner
 cafe_reach = 1.25          # cafe tables under an arcade stand this far from the wall (1.7 elsewhere)

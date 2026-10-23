@@ -57,6 +57,8 @@ config.load_config()          defaults.toml + worlds/*.toml + CLI overrides
       walks                   raised sidewalks along blocks and the boulevard promenade
       buildings               per-district building rules, mosques, parks, cemetery
       life                    a household behind every house door, a trade for every souk
+      massing                 rows, cut corners, domes, set-back top floors, stepped slabs, villa
+                              L's, roof machinery and roof rooms (never adds or moves a building)
   city.ground.Ground()        graded ground inside cities: smoothed, terraced under blocks,
                               blended into natural terrain at the city limit; `height` is the
                               ground, `surface` the top of the ground, street ribbon or walk
@@ -89,7 +91,8 @@ build.build()                 orchestrates the above into output/<country>-<seed
 | `citygen/city/walks.py` | raised sidewalks along blocks, narrowed to keep a carriageway, and the boulevard promenade |
 | `citygen/city/paint.py` | street surfaces per kind, painted edge and lane lines, zebra crossings |
 | `citygen/city/impasses.py` | impasses: lanes cut along lot lines to landlocked lots, one round per lane for every block at once |
-| `citygen/city/roofs.py` | roof layout: parapet band and coping, stair room and its door, one random stream per building |
+| `citygen/city/roofs.py` | roof layout: parapet band and coping, stair room and its door, menzah, one random stream per building; `roof_layouts` for every roof of a massed building |
+| `citygen/city/massing.py` | building massing (prompt 23): the planning step, `masses(b)` (the volumes drawn and dressed), `floors_at`/`wall_height` (floors and wall height at a point of the outer wall), `outline`, `inner_walls`, `terrace_walls` |
 | `citygen/kitsheet.py` | `python -m citygen kit-sheet`: every piece in one viewable grid |
 | `citygen/export/maps.py` | country and city PNG maps |
 | `citygen/export/lore.py` | JSON data files and the gazetteer |
@@ -141,6 +144,35 @@ block on `rng("impasse", block)`: lot line jitter, widths, covered share and len
   also True for a lot an impasse reaches.
 - `Building`: `footprint` (holes = courtyards), `kind`, `height` (above the highest ground
   point), `wall`/`roof` material names, `floors`, `roof_shape` (`flat`/`hip`), `domes`, `top`.
+  Massing fields (prompt 23, `city/massing.py`, all empty by default): `setback` (the footprint of
+  a top floor standing back from the street walls), `steps` ([(polygon, floors, roof_shape, roof)]:
+  parts of the footprint with their own floor count, a stepped slab or a villa's hip part and flat
+  wing), `machines` (roof machinery dicts: `lift` motor rooms, `tank` stands, with their position,
+  size and roof height `z`), `menzah` (a roof room is wanted; `roof_layout` places it), `corners`
+  ([(x, y, kind, reach)]: street corners cut, `chamfer` or `round`, at the old corner point; a cut's
+  faces are the walls with both ends within `reach` of it), `apron` (the lot corner the cuts leave
+  open, grown `apron_grow` m to the block edge, inside the block: paved like the sidewalk, as a pan
+  coupe widens it), and `top` with `x`, `y`, `shape: "drum"`,
+  `radius`, `height`, `rise` for a corner dome or turret. `height` and `floors` stay the tallest
+  part's; `masses(b)` gives the volumes: one box; or the footprint up to `floors - 1` (its roof a
+  terrace) and the set-back floor on it; or the steps side by side. The main mass (the top floor,
+  the tallest step, else the box) carries the stair room, menzah, machinery and roof props.
+  **Massing** (`apply_massing`, after households and souks, every choice on `ctx.rng("massing",
+  feature, k)`, numbers in `[district.<kind>]`): colonial buildings of one block share a row height
+  (the median of their floors) plus `row_step` (`corner_step` on a street corner, taller); street
+  corners within `corner_angle` of square are cut with chance `corner_cut`: a pan coupe face of
+  `chamfer` m or, `corner_round` of them when the walls are long enough, three faces of
+  `round_segment` m turning 22.5 degrees each (one window and one arcade bay per face); `corner_dome`
+  of the cut buildings of `dome_floors`+ floors get a `dome` or a taller `turret` on a drum right
+  behind the cut; `setback_share` of the others with `setback_floors`+ floors set the top floor
+  `setback_depth` m back from every street wall (party and back walls stay flush). Modern slabs of
+  `step_min_length`+ m step (`step_share`): 2 or 3 parts cut between window columns, floors dropping
+  by `step_drop` (descending or the middle part highest), each at least `step_min_part` m; slabs of
+  `machine_floors`+ floors get a lift motor room over the middle of each roof part (`lift`) and
+  `tank_stands` water tanks on stands. Two-storey suburb villas on a plain rectangle become an L
+  (`l_share`): the hip-roofed part across one end (`l_main` of the length), a flat terrace wing one
+  floor lower (`l_wing` of the depth, `terrace_roof`). Old-town courtyard houses get a menzah with
+  chance `menzah`.
 
 Invariants (tested): buildings are valid polygons inside the city and stay off street surfaces
 (impasses included); every old-town dwelling's main door opens on a street, alley or impasse; an
@@ -148,6 +180,12 @@ impasse lies inside its block past its mouth, opens on exactly one street (or br
 one impasse) and touches no other street, so it is a dead end;
 flat roofs carry the parapet from `[roofs]` and, where the layout puts one, a stair room whose
 door opens on free roof; roof props always stand inside the parapet and outside the stair room;
+massing keeps every building, household, souk, street and tree, and every new footprint lies inside
+the old one; windows and balconies stand only on walls drawn at their height; roof props and tank
+stands stand on the topmost roof deck drawn at their position, never in a roof room, a lift room or
+a corner dome; a massed building draws no face twice in one plane; a cut colonial corner carries
+the arcade round it when both its facades have one; its paved lot corner meets the sidewalk at the
+sidewalk's height and `Ground.surface` there is what is drawn;
 sidewalks never enter a building footprint, keep at least `min_carriageway` meters of asphalt,
 and stand `curb_height` above the street ribbon; every road marking lies inside its street's
 carriageway; everything is deterministic.
@@ -212,6 +250,26 @@ sidewalk), and courtyard holes stay plain: party walls cannot be seen and would 
 roofs use planar meter UVs (u along the eave, v up the slope, each end face with its own slope
 length), so tile rows run down every face instead of smearing. The viewer sets anisotropy 8 on a
 computer (2 on phones, which keep the Fast quality) with mipmaps from the shared sampler.
+
+**Massed buildings (prompt 23, `mesh/tile.building_mesh` with `roofs`):** a building that is more
+than one box is drawn as one solid. The outer walls go once round `massing.outline(b)` (the
+footprint ring with every mass corner on it inserted), each segment up to the tallest mass whose
+outline runs there plus its parapet, drawn in groups of one height with `add_walls(only=...)`: u
+stays measured along the whole ring and `z_ref` is the building's highest ground point, so the
+plaster bands and the plinth run on unbroken across a step or under a set-back floor. Inside the
+footprint, `inner_walls` draws where a taller mass rises over a neighbour (from the neighbour's
+parapet top) or over the terrace it stands on (from the deck). Each roof is drawn by its kind: a hip
+roof on its part's rectangle, or the deck (leaving out a mass standing on it), parapet coping and
+rooms of `roof_layouts`. Lift motor rooms are boxes in the wall and roof materials with a steel door;
+a corner dome or turret is a 12-sided drum, a stone ring and a dome (`_roof_things`). A menzah is a
+box like the stair room with a door and up to two windows (glass panels) on its outer walls.
+A cut corner's `apron` is drawn by the tile owning the building (`apron_mesh`): sidewalk paving on
+the triangles of `ground.apron_cells` (the polygon cut in `[streets] apron_cell` m squares on the
+world grid), corners at `Ground.apron_top` (ground height, a blend of the lifts of the streets within
+`apron_reach` weighted (1 - d / reach)^2 / (d + 1 m)^2, the sidewalk's own rule within `walk_reach` so it meets the
+sidewalk at its height, plus the curb), rows along the nearest street, a curb skirt where it meets
+lower ground. `Ground.surface` interpolates those same triangles there, so doors, arcade pillars and
+trees stand exactly on what is drawn.
 
 **Ground textures (prompt 20):** every terrain material is textured (`beach` sand 6 m, `desert`
 sand 8 m, `steppe` scrub 5 m, `grass` grass 3 m, `forest` scrub 4 m, `rock` rock 8 m,
@@ -330,7 +388,21 @@ shaders (which ignore the image and the tint) and takes their palette color from
   windows of the upper floors, never on the floor right above an arcade: per floor of each facade one
   draw on `rng("balcony-iron", k, wall, floor)` for the row (`row` + `wealth` x (wealth - 0.5)), then per
   window. Quick capital: 312 bays on 95 facades, 17 corners, 1,523 + 335 balconies; 19 lamps and 10
-  palms moved to the curb, 2 palms left out.
+  palms moved to the curb, 2 palms left out. Cut corners (prompt 23): a cut's faces read their street
+  from the old corner point (`massing.probes`) and carry the arcade of a facade they turn from; each
+  face gets its bays, each turn of 45 degrees (`arcade_bend`) or 22.5 degrees (`arcade_bend_round`,
+  within `bend_tol`) a pier piece on the bisector (a wedge: pillar faces, trims, cornice, ceiling and
+  terrace mitred; 72 triangles), and `wrap` bays turn into a side street without an arcade. Their
+  pillars may stand on the lot's open corner in front of the cut. A run whose end meets a corner or
+  bend piece gives way at its other end first when it must be shortened.
+- **Massed buildings** (prompt 23, `city/massing.py`): the street windows, open-wall windows and slab
+  windows of each column go up to the floors of the wall there (`floors_at` under the window's whole
+  width, `[dressing] window_half` m each side), so none floats above a lower step or on a set-back
+  terrace's edge; staircase windows stop below their part's roof. Walls of a set-back floor or of a
+  villa's main part facing their terrace get windows on every floor above it (`terrace` stream).
+  Props stand on the main roof (`main_mass`), off the stair room, menzah, machinery and a corner dome
+  (`RoofLayout.rooms`); tank stands are the `tank_stand` piece (110 triangles) where massing put them.
+  A door's climber and a span's height read the wall height there (`wall_height`).
 
 ## 7. Style pack (`styles/<name>.toml`)
 
@@ -388,7 +460,8 @@ changed part with a short detail and exits with code 1 when a part outside the p
 - **New district kind:** add `[district.<kind>]` to the style, a branch in
   `city/buildings.make_buildings`, a color in `export/maps.py`, and put it in a settlement's
   `rings` mix or in `layout.assign_kinds`.
-- **New building shape:** a function in `mesh/builder.py`, used from `mesh/tile.building_mesh`
+- **New building shape:** a function in `mesh/builder.py`, used from `mesh/tile.building_mesh`; a
+  new massing feature: fields on `Building`, set in `city/massing.py`, drawn through `masses(b)`
   via a new `roof_shape` or field on `Building`.
 - **New street piece:** a builder in `mesh/props.py` added to `catalog()`, or a `.glb` in a kit
   with a manifest entry; then name it in a role in `[dressing.roles]` (or place it from

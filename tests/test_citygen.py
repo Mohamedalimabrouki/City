@@ -812,7 +812,17 @@ def _plan_box(kit, p, out0=None, out1=None):
     return shapely.Polygon([(p.x + x * c - y * s, p.y + x * s + y * c) for x, y in ((x0, y0), (x1, y0), (x1, y1), (x0, y1))])
 
 
-def test_colonial_arcades_and_iron_balconies(world, plan, ground, homes):
+@pytest.fixture(scope="module")
+def colonial(plan, ground, homes):
+    """Every colonial dwelling dressed once: {k: (high, placements)} (prompts 22 and 23)."""
+    from citygen.city.dressing import DRESSED, building_highs
+    dresser = homes[1]
+    ks = [k for k, b in enumerate(plan.buildings) if b.kind in DRESSED and plan.districts[b.district].kind == "colonial"]
+    highs = building_highs(ground, [plan.buildings[k] for k in ks])
+    return {k: (float(high), dresser.building(k, float(high))) for k, high in zip(ks, highs)}
+
+
+def test_colonial_arcades_and_iron_balconies(world, plan, ground, homes, colonial):
     # prompt 22: an arcade along every colonial facade on a boulevard, arterial or ring, its bays end to
     # end along the whole wall; no pillar in front of a door or shop front, in a cafe table or other
     # ground piece, no street lamp or planted tree trunk in or under an arcade; iron balconies only on the upper floors of
@@ -824,17 +834,14 @@ def test_colonial_arcades_and_iron_balconies(world, plan, ground, homes):
     d, (pw, pd), kinds = cfg["depth"], cfg["pillar"], set(cfg["kinds"])
     sill = world.style["dressing"]["window_sill"]
     width = kit.pieces["arcade_bay"].width
-    colonial = [k for k, b in enumerate(plan.buildings)
-                if b.kind in DRESSED and plan.districts[b.district].kind == "colonial"]
-    highs = building_highs(ground, [plan.buildings[k] for k in colonial])
     pillars, roofs, bays_all, walls, corners = [], [], [], 0, 0
     covered = total = strict = balconies = 0
-    for k, high in zip(colonial, highs):
+    for k, (high, out) in colonial.items():
         b = plan.buildings[k]
-        out = dresser.building(k, float(high))
         bays = [p for p in out if p.piece == "arcade_bay"]
         bays_all += bays
         roofs += [_plan_box(kit, p) for p in out if kit.pieces[p.piece].category == "arcade"]
+        corners += sum(p.piece.startswith("arcade_bend") for p in out)   # turns round a cut corner (23)
         for c in [p for p in out if p.piece == "arcade_corner"]:   # in the square past the corner, on no bay
             corners += 1                                    # (a sliver where the corner is a few degrees off square)
             assert all(_plan_box(kit, c).intersection(_plan_box(kit, p)).area < 0.2 for p in bays), k
@@ -959,6 +966,7 @@ def test_paths_reach_the_street_and_cross_no_building(world, plan, ground, homes
     assert count > 80
 
 def test_parapets_and_stair_rooms_follow_the_style(world, plan):
+    from citygen.city.massing import main_mass
     from citygen.city.roofs import roof_layout, roof_stream
     from shapely.geometry import Point
     cfg = world.style["roofs"]
@@ -974,7 +982,7 @@ def test_parapets_and_stair_rooms_follow_the_style(world, plan):
         assert layout.band is not None and layout.inner is not None
         assert layout.height == pytest.approx(cfg["parapet_height"].get(kind, cfg["parapet_fallback"]))
         assert 0.6 <= layout.height <= 1.0
-        thin = b.footprint.buffer(-thick, join_style="mitre")
+        thin = main_mass(b).polygon.buffer(-thick, join_style="mitre")   # the main roof (prompt 23)
         assert layout.inner.symmetric_difference(thin).area < 1e-6      # a 0.2 m band
         if b.kind in seen:
             seen[b.kind].append(layout.stair is not None)
@@ -1502,3 +1510,288 @@ def test_resumed_builds_match_and_a_changed_setting_rebuilds(world, plan, tmp_pa
     monkeypatch.setattr(builder, "country_map", country_map)
     out, messages = _tiny_build(tmp_path, monkeypatch, plan, calls, terrain_step=20.0)
     assert "maps and data files reused" not in messages   # the cut-short maps are written again
+
+
+# --- building massing (prompt 23) ---------------------------------------------------------------
+
+def test_massing_keeps_every_building_household_and_street(world, plan, monkeypatch):
+    # the plan before massing: same buildings in the same order, same households, souks, streets and
+    # trees; every new footprint inside the old one (so inside its lot and off the streets)
+    import citygen.city as city
+    monkeypatch.setattr(city, "apply_massing", lambda ctx, plan: None)
+    before = city.plan_city(world, world.capital())
+    assert [b.kind for b in before.buildings] == [b.kind for b in plan.buildings]
+    assert before.households == plan.households and before.souks == plan.souks
+    assert [(t.x, t.y, t.kind) for t in before.trees] == [(t.x, t.y, t.kind) for t in plan.trees]
+    assert [s.line.wkb for s in before.streets] == [s.line.wkb for s in plan.streets]
+    assert {k: v for k, v in before.stats.items() if k != "seconds"} == {k: v for k, v in plan.stats.items() if k != "seconds"}
+    count = {"chamfer": 0, "round": 0, "top": 0, "setback": 0, "steps": 0, "lift": 0, "tank": 0, "menzah": 0}
+    for old, b in zip(before.buildings, plan.buildings):
+        assert b.footprint.is_valid and old.footprint.buffer(1e-6).contains(b.footprint)
+        for _x, _y, kind, _reach in b.corners:
+            count[kind] += 1
+        count["top"] += bool(b.top and "x" in b.top)
+        count["menzah"] += b.menzah
+        if b.setback is not None:
+            count["setback"] += 1
+            assert b.setback.is_valid and b.footprint.buffer(1e-6).contains(b.setback)
+            assert b.floors == old.floors or abs(b.floors - old.floors) <= 3
+        if b.steps:
+            count["steps"] += plan.districts[b.district].kind == "modern"
+            assert all(p.is_valid and b.footprint.buffer(1e-6).contains(p) for p, _, _, _ in b.steps)
+            assert abs(sum(p.area for p, _, _, _ in b.steps) - b.footprint.area) < 0.05
+            assert max(f for _, f, _, _ in b.steps) == b.floors and len({f for _, f, _, _ in b.steps}) > 1
+        for m in b.machines:
+            count[m["kind"]] += 1
+    assert count["chamfer"] > 30 and count["round"] > 8 and count["top"] > 8 and count["setback"] > 30, count
+    assert count["steps"] > 40 and count["lift"] > 100 and count["tank"] > 50 and count["menzah"] > 10, count
+
+
+def _wall_triangles(mb):
+    """(T, 3, 3) world-space vertical triangles of a mesh, every material."""
+    out = []
+    for part in mb._parts.values():
+        pos = np.concatenate(part[0]) + mb.origin
+        tris = np.concatenate(part[3])
+        t = pos[tris]
+        n = np.cross(t[:, 1] - t[:, 0], t[:, 2] - t[:, 0])
+        norm = np.linalg.norm(n, axis=1)
+        keep = (norm > 1e-9) & (np.abs(n[:, 2]) < 0.05 * np.maximum(norm, 1e-12))
+        out.append(t[keep])
+    return np.concatenate(out) if out else np.zeros((0, 3, 3))
+
+
+def _on_wall(tris, pts) -> np.ndarray:
+    """For each 3D point: does a vertical triangle pass within 6 cm of it, the point inside its outline?"""
+    a, b, c = tris[:, 0], tris[:, 1], tris[:, 2]
+    n = np.cross(b - a, c - a)
+    n /= np.linalg.norm(n, axis=1)[:, None]
+    out = []
+    for p in pts:
+        d = np.einsum("ij,ij->i", p - a, n)
+        q = p - n * d[:, None]
+        v0, v1, v2 = c - a, b - a, q - a
+        d00, d01, d11 = np.einsum("ij,ij->i", v0, v0), np.einsum("ij,ij->i", v0, v1), np.einsum("ij,ij->i", v1, v1)
+        d20, d21 = np.einsum("ij,ij->i", v2, v0), np.einsum("ij,ij->i", v2, v1)
+        den = np.maximum(d00 * d11 - d01 * d01, 1e-12)
+        u, v = (d11 * d20 - d01 * d21) / den, (d00 * d21 - d01 * d20) / den
+        out.append(bool(((np.abs(d) < 0.06) & (u >= -1e-6) & (v >= -1e-6) & (u + v <= 1 + 1e-6)).any()))
+    return np.array(out)
+
+
+def _coplanar_overlap(mb) -> float:
+    """Largest area (m2) two faces of a mesh share in one plane facing the same way: z-fighting."""
+    from collections import defaultdict
+    t = np.concatenate([(np.concatenate(part[0]) + mb.origin)[np.concatenate(part[3])] for part in mb._parts.values()])
+    n = np.cross(t[:, 1] - t[:, 0], t[:, 2] - t[:, 0])
+    area = np.linalg.norm(n, axis=1)
+    t, n = t[area > 1e-8], n[area > 1e-8] / area[area > 1e-8, None]
+    planes = defaultdict(list)
+    for i, key in enumerate(map(tuple, np.round(np.c_[n * 1000, np.einsum("ij,ij->i", n, t[:, 0]) * 100]).astype(int))):
+        planes[key].append(i)
+    worst = 0.0
+    for idx in planes.values():
+        if len(idx) < 2:
+            continue
+        e1 = np.cross(n[idx[0]], [0.0, 0.0, 1.0]) if abs(n[idx[0]][2]) < 0.9 else np.array([1.0, 0.0, 0.0])
+        e1 /= np.linalg.norm(e1)
+        e2 = np.cross(n[idx[0]], e1)
+        polys = [shapely.Polygon(t[i] @ np.c_[e1, e2]) for i in idx]
+        worst = max(worst, sum(q.area for q in polys) - shapely.union_all(polys).area)
+    return worst
+
+
+def test_massed_buildings_dress_only_walls_and_roofs_that_exist(world, plan, ground, homes, colonial):
+    # windows and balconies only on walls drawn at their height (none above a lower step's roof, none
+    # on a set-back terrace's edge); roof props and tank stands on a roof deck drawn at their height,
+    # never in a stair room, a menzah, a lift room or a corner dome; a cut colonial corner carries the
+    # arcade on round it when both its facades have one
+    from citygen.city.dressing import building_highs
+    from citygen.city.massing import corner_faces, main_mass, massed
+    from citygen.city.openings import wall_arrays
+    from citygen.city.roofs import roof_layouts, roof_stream
+    from citygen.mesh.builder import MeshBuilder
+    from citygen.mesh.tile import building_mesh
+    kit, dresser = homes[0], homes[1]
+    roof_pieces = {o[0] for r in ("roof_tank", "roof_dish", "roof_laundry", "roof_pot")
+                   for o in world.style["dressing"]["roles"][r]} | {"tank_stand"}
+    ks = [k for k, b in enumerate(plan.buildings) if massed(b) or b.menzah or b.machines or b.corners]
+    other = [k for k in ks if k not in colonial][::3]
+    highs = building_highs(ground, [plan.buildings[k] for k in other])
+    dressed = {k: v for k, v in colonial.items() if k in set(ks)}
+    dressed.update({k: (float(h), dresser.building(k, float(h))) for k, h in zip(other, highs)})
+    seen = {"window": 0, "upper": 0, "prop": 0, "tank_stand": 0, "menzah": 0, "bend": 0, "cut": 0}
+    for k, (high, out) in dressed.items():
+        b = plan.buildings[k]
+        kind = plan.districts[b.district].kind
+        roofs = roof_layouts(b, kind, roof_stream(world.seed, plan.settlement.id, k), world.style["roofs"])
+        mb = MeshBuilder()
+        building_mesh(mb, b, ground.height, roofs=roofs)
+        walls = _wall_triangles(mb)
+        if massed(b):
+            assert _coplanar_overlap(mb) < 1e-3, k                  # no face drawn twice in one plane
+        top_floor = high + (b.floors - 1) * b.height / b.floors
+        for p in out:
+            pc = kit.pieces[p.piece]
+            if pc.category in ("window", "balcony") and p.z > high + 0.5 and massed(b):
+                lo, hi = pc.bounds
+                zc = p.z + (lo[1] + hi[1]) / 2 * p.scale
+                u = np.array([math.cos(p.yaw), math.sin(p.yaw)]) * (pc.width / 2 * p.stretch - 0.1)
+                pts = [(p.x + s * u[0], p.y + s * u[1], zc) for s in (-1.0, 1.0)]
+                assert _on_wall(walls, pts).all(), (k, p.piece, round(p.z - high, 2))
+                seen["window"] += 1
+                seen["upper"] += b.setback is not None and p.z > top_floor
+            pt = shapely.Point(p.x, p.y)
+            if p.piece in roof_pieces and p.z > high + 2.5 and b.footprint.contains(pt):
+                m, lay = max(((m, lay) for m, lay in roofs if m.polygon.contains(pt)), key=lambda r: r[0].top)
+                assert abs(p.z - (high + m.top)) < 1e-6 and lay.inner.contains(pt), (k, p.piece)   # the top roof there
+                inside = sum(r.buffer(0.05).contains(pt) for r in lay.rooms)   # a tank stand is a room itself
+                assert inside == (p.piece == "tank_stand"), (k, p.piece)
+                seen["tank_stand" if p.piece == "tank_stand" else "prop"] += 1
+        main = [lay for m, lay in roofs if m.main][0]
+        if main.menzah is not None:
+            seen["menzah"] += 1
+            assert main.inner.contains(main.menzah)
+            assert main.stair is None or main.stair.distance(main.menzah) >= world.style["roofs"]["menzah_gap"] - 1e-6
+        if kind == "colonial" and b.corners:
+            p0, q0, _, length = wall_arrays(b.footprint)
+            bays = [p for p in out if p.piece == "arcade_bay"]
+            bends = [p for p in out if p.piece.startswith("arcade_bend")]
+            for face in corner_faces(b, p0, q0):
+                idx = np.nonzero(face)[0]
+                before, after = (idx[0] - 1) % len(face), (idx[-1] + 1) % len(face)
+
+                def bays_on(i):
+                    u = (q0[i] - p0[i]) / length[i]
+                    n = np.array([u[1], -u[0]])
+                    return sorted((float(np.dot((p.x, p.y) - p0[i], u)) - p.stretch * kit.pieces["arcade_bay"].width / 2,
+                                   float(np.dot((p.x, p.y) - p0[i], u)) + p.stretch * kit.pieces["arcade_bay"].width / 2)
+                                  for p in bays if abs(float(np.dot((p.x, p.y) - p0[i], n))) < 0.02)
+                if not (bays_on(before) and bays_on(after)):
+                    continue
+                seen["cut"] += 1
+                for i in idx:                                       # every face covered end to end
+                    on = bays_on(i)
+                    assert on and on[0][0] < 1e-6 and on[-1][1] > length[i] - 1e-6, (k, i, on)
+                    assert all(abs(e0[1] - e1[0]) < 1e-6 for e0, e1 in zip(on, on[1:])), (k, on)
+                assert bays_on(before)[-1][1] > length[before] - 1e-6 and bays_on(after)[0][0] < 1e-6, k
+                for v in [q0[before]] + [q0[i] for i in idx]:       # a pier piece at every turn
+                    assert any(math.hypot(p.x - v[0], p.y - v[1]) < 1e-6 for p in bends), (k, v)
+                    seen["bend"] += 1
+    assert seen["window"] > 1500 and seen["upper"] > 50 and seen["prop"] > 20 and seen["tank_stand"] > 10, seen
+    assert seen["menzah"] > 3 and seen["cut"] > 5 and seen["bend"] > 10, seen
+
+
+def test_villa_l_is_a_hip_part_and_a_terrace_wing(world):
+    # villas exist only outside the quick capital: one drawn here, its L inside the old rectangle,
+    # the hip part one floor above the wing, windows over the terrace, no face drawn twice
+    from citygen.city.massing import _villa, masses, terrace_walls
+    from citygen.city.model import Building
+    from citygen.city.roofs import roof_layouts
+    from citygen.mesh.builder import MeshBuilder
+    from citygen.mesh.tile import building_mesh
+
+    class Ctx:
+        def rng(self, *path):
+            return stream(5, *path)
+    dc = {**world.style["district"]["suburb"], "l_share": 1.0}
+    old = rectangle(10.0, 20.0, 15.0, 11.0, 0.4)
+    b = Building(old, "villa", 0, 6.4, "lime_white", "roof_white", 2)
+    _villa(Ctx(), 3, b, dc)
+    assert b.roof_shape == "hip" and len(b.footprint.exterior.coords) == 7 and old.buffer(1e-6).contains(b.footprint)
+    hip, wing = masses(b)
+    assert (hip.shape, hip.floors, wing.shape, wing.floors, wing.terrace) == ("hip", 2, "flat", 1, True)
+    assert abs(hip.polygon.area + wing.polygon.area - b.footprint.area) < 1e-6
+    assert [(w[4], w[5]) for w in terrace_walls(b)] == [(1, 2)]     # the upper floor opens onto the wing's roof
+    roofs = roof_layouts(b, "suburb", stream(5, "roof"), world.style["roofs"])
+    mb = MeshBuilder()
+    building_mesh(mb, b, lambda x, y: np.zeros_like(np.asarray(x, dtype=float)), roofs=roofs)
+    assert _coplanar_overlap(mb) < 1e-3
+    tile = np.concatenate(mb._parts["roof_tile"][0])
+    assert abs(tile[:, 2].min() - 6.4) < 1e-9 and tile[:, 2].max() > 6.4 + 1.0      # the hip roof on its part
+    deck = np.concatenate(mb._parts[dc["terrace_roof"]][0])
+    assert abs(deck[:, 2].min() - 3.2) < 1e-9                                       # the terrace one floor lower
+
+
+def _drawn_z(tris, pt) -> float | None:
+    """Height of the up-facing triangle under a plan point (barycentric), or None."""
+    a, b, c = tris[:, 0], tris[:, 1], tris[:, 2]
+    v0, v1 = b[:, :2] - a[:, :2], c[:, :2] - a[:, :2]
+    v2 = np.asarray(pt, dtype=float)[None, :] - a[:, :2]
+    den = v0[:, 0] * v1[:, 1] - v0[:, 1] * v1[:, 0]
+    ok = np.abs(den) > 1e-12
+    u = np.where(ok, (v2[:, 0] * v1[:, 1] - v2[:, 1] * v1[:, 0]) / np.where(ok, den, 1.0), -1.0)
+    v = np.where(ok, (v0[:, 0] * v2[:, 1] - v0[:, 1] * v2[:, 0]) / np.where(ok, den, 1.0), -1.0)
+    hit = np.nonzero(ok & (u >= -1e-9) & (v >= -1e-9) & (u + v <= 1 + 1e-9))[0]
+    if not len(hit):
+        return None
+    i = hit[0]
+    return float(a[i, 2] + u[i] * (b[i, 2] - a[i, 2]) + v[i] * (c[i, 2] - a[i, 2]))
+
+
+def test_cut_corners_are_paved_and_pillars_and_doors_stand_on_the_paving(world, plan, built_tile, colonial, homes):
+    # prompt 23 (lead review): the lot corner a cut leaves open is paved like the sidewalk, meets it at
+    # the same height, and arcade pillars and corner doors stand on the paving as drawn
+    from citygen.city.massing import corner_faces
+    from citygen.city.openings import wall_arrays
+    from citygen.mesh.builder import MeshBuilder
+    from citygen.mesh.tile import apron_mesh
+    tc = built_tile[0]
+    kit, dresser = homes[0], homes[1]
+    cfg = dresser.arcade_cfg
+    d, pd, sink = cfg["depth"], cfg["pillar"][1], cfg["sink"]
+    walks = tc.ground.walk_tree
+    street_tree = STRtree([st.line for st in plan.streets])
+    seen = {"apron": 0, "seam": 0, "pillar": 0, "door": 0, "face": 0}
+    for k, (high, out) in colonial.items():
+        b = plan.buildings[k]
+        if b.apron is None:
+            continue
+        seen["apron"] += 1
+        assert b.apron.is_valid and b.apron.intersection(b.footprint).area < 1e-6
+        assert all(w.intersection(b.apron).area < 1e-6 for w in walks.geometries[walks.query(b.apron)])
+        mb = MeshBuilder()
+        apron_mesh(mb, tc, b, street_tree)
+        part = mb._parts["sidewalk"]
+        pos = np.concatenate(part[0]) + mb.origin
+        tris = pos[np.concatenate(part[3])]
+        on_walk = walks.query(shapely.points(pos[:, :2]), predicate="dwithin", distance=1e-4)[0]
+        if len(on_walk):                                        # the seam: the sidewalk's own height
+            q = pos[np.unique(on_walk)]
+            assert np.abs(q[:, 2] - tc.ground.walk_top(q[:, 0], q[:, 1])).max() < 1e-6, k
+            seen["seam"] += 1
+        p0, q0, n0, length = wall_arrays(b.footprint)
+        face = np.any(corner_faces(b, p0, q0), axis=0)
+        feet = []
+        for p in out:
+            yaw_n = np.array([-math.sin(p.yaw), math.cos(p.yaw)])
+            if p.piece == "arcade_bay":
+                u = np.array([math.cos(p.yaw), math.sin(p.yaw)]) * (kit.pieces["arcade_bay"].width / 2 * p.stretch - 0.2)
+                feet += [(p, np.array([p.x, p.y]) + yaw_n * (d - pd / 2) + s * u) for s in (-1.0, 1.0)]
+            elif p.piece.startswith("arcade_bend"):
+                half = math.radians(45.0 if p.piece == "arcade_bend" else 22.5) / 2
+                feet.append((p, np.array([p.x, p.y]) + yaw_n * (d - pd / 2) / math.cos(half)))
+            elif kit.pieces[p.piece].category in ("door", "shop"):
+                i = int(np.argmin([shapely.LineString([a, c]).distance(shapely.Point(p.x, p.y)) for a, c in zip(p0, q0)]))
+                t = np.array([p.x, p.y]) + yaw_n * 0.5
+                if face[i] and b.apron.contains(shapely.Point(*t)):
+                    z = _drawn_z(tris, t)
+                    assert z is not None and abs(p.z - z) < 0.01, (k, p.piece, p.z, z)   # on the paving
+                    seen["door"] += 1
+        for i in np.nonzero(face)[0]:                          # a door on a face reads its threshold here
+            mid = (p0[i] + q0[i]) / 2
+            t = mid + n0[i] * dresser.cfg.get("threshold_reach", 0.5)
+            if b.apron.contains(shapely.Point(*t)):
+                z = _drawn_z(tris, t)
+                assert z is not None and abs(dresser.front_surface(mid, n0[i]) - z) < 1e-4, k
+                seen["face"] += 1
+        for p, f in feet:
+            if not b.apron.buffer(-0.05).contains(shapely.Point(*f)):
+                continue
+            z = _drawn_z(tris, f)
+            assert z is not None and abs(float(tc.ground.surface(f[0], f[1])) - z) < 1e-4, k  # surface = drawn
+            # the pillar foot (reaching `sink` below the bay's level) is buried in the paving, never floating,
+            # and the paving stays below the top of the pillar's base, never swallowing it
+            assert p.z - sink < z - 0.05 and z - p.z < 0.3, (k, p.piece, p.z, z)
+            seen["pillar"] += 1
+    assert seen["apron"] > 30 and seen["seam"] > 30 and seen["pillar"] > 5 and seen["face"] > 50, seen

@@ -343,6 +343,35 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
   lean (toward the piece's -x, about 0.1 m per meter) points over the street, else it can lean back
   into the cornice. The bands must cover the bays turned into a side street too (a corniche palm stood
   in one). Cost: worst quick tile +7.6%, full capital 44.1 -> 43.3 s (CPU +3.5%).
+- **Building massing** (prompt 23, `city/massing.py`): runs after households and souks and only sets
+  `Building` fields or cuts a footprint inside its old outline, so a test re-plans with `apply_massing`
+  patched out and compares buildings, households, souks, streets, trees and stats. Everything that
+  reads height or floors goes through `masses(b)`, `floors_at`, `wall_height` (plain buildings return
+  `b.height` exactly, so their spans and pieces do not move by a float bit). Draw a massed building as
+  one solid: the footprint ring once (mass corners inserted), each segment to the tallest mass there,
+  in groups with `add_walls(only=...)`; u stays measured along the whole ring, so bands and plinth
+  run on across a step. Drawing each mass as its own box put the base wall (up to its terrace parapet)
+  and the set-back floor's wall in one plane, same facing: z-fighting. `_coplanar_overlap` in the tests
+  catches it, and it caught a shapely `union` of two rectangles sharing an edge that left a valid
+  zero-area spike (villa walls drawn twice): build such outlines from exact corners. A cut corner's
+  face stands back from the street, so the dresser's 1.6 m probe missed it (no windows, no arcade):
+  faces probe from the old corner point (`massing.probes`, also in `_arcade_zones`). A mitred arcade
+  at a 45-degree turn would overlap its terraces by m2 at 3 mm apart: a pier piece (`arcade_bend`,
+  `arcade_bend_round`) fills the wedge instead; a run ending at a corner or bend piece holds that end
+  when it must shrink (an 8.8 m wall between a neighbour join and a bend lost its bend). A rounded
+  corner's middle face stands about 3 m inside the block corner, so its pillars fall on the lot, not
+  the sidewalk: allowed for faces. Window walls are checked `window_half` 1.3 m each side: at 0.7 m a
+  2.54 m slab window hung past a step joint on a clipped slab. Lead review: the lot corner a cut
+  leaves open is paved (`Building.apron`, `apron_mesh`, `Ground.apron_top`). Draping it on its outline
+  missed `surface` by up to 5 cm (the two streets' lifts blend over it) and finer cells did not fix it
+  (the sidewalk rule at the street edge is a step): `Ground.surface` now interpolates the drawn
+  triangles themselves (`ground.apron_cells`, shared with the mesher), so they agree exactly. Draping
+  each cell with `add_draped_cap` cost +16% on a tile and a street-direction query per cell: one
+  shared-vertex mesh per apron, one paving direction. Give `add_skirt` a closed ring: on an open one
+  its `np.allclose` end check (relative tolerance 1e-5, so 7 cm at x = 7000 m) merged two real corners
+  and crashed the full capital. Tank stands are an instanced piece
+  (as geometry, about 6 KB each); lift rooms are boxes. Cost: worst quick tile +6.8% with the aprons, full capital
+  47.0 -> 48.3 s back to back (planner 15.8 -> 16.3 s, CPU +7%).
 - **Old-town tiles** reach about 5 MB on the quick build and 8 MB on the full capital
   (`tile_65_106`, mostly roofs since prompt 15); task Q5 (prompt 39) brings them down.
 

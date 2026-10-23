@@ -25,6 +25,7 @@ from shapely.geometry import box
 from shapely.ops import unary_union
 from shapely.strtree import STRtree
 
+from ..mesh.builder import triangulate
 from ..noise import smoothstep
 
 # districts whose blocks are left alone: open land or very large plots, where a terrace would
@@ -190,6 +191,11 @@ class Ground:
         self.walk_reach = float(streets_cfg.get("walk_reach", 0.05))
         walks = [w.polygon for plan in plans for w in getattr(plan, "walks", [])]
         self.walk_tree = STRtree(walks) if walks else None
+        aprons = [b.apron for plan in plans for b in plan.buildings if getattr(b, "apron", None) is not None]
+        self.apron_tree = STRtree(aprons) if aprons else None   # paved lot corners at cut corners (prompt 23)
+        self.apron_reach = float(streets_cfg.get("apron_reach", 6.0))
+        self.apron_cell = float(streets_cfg.get("apron_cell", 2.0))
+        self._apron_tris = None                                  # their drawn triangles (lazy, _apron_drawn)
 
     def _select(self, x: np.ndarray, y: np.ndarray) -> list:
         """(city, indices) for the points inside each city; cities never overlap."""
@@ -294,11 +300,17 @@ class Ground:
         xf, yf, hf = np.ravel(x), np.ravel(y), np.ravel(h)
         lift = np.ravel(np.asarray(self.lift(xf, yf), dtype=np.float64))
         out = hf + lift
+        pts = shapely.points(xf, yf)
         if self.walk_tree is not None:
-            inp, _hit = self.walk_tree.query(shapely.points(xf, yf), predicate="intersects")
+            inp, _hit = self.walk_tree.query(pts, predicate="intersects")
             if len(inp):
                 on = np.unique(inp)
                 out[on] = self._walk_top(xf[on], yf[on], hf[on])
+        if self.apron_tree is not None:
+            inp, _hit = self.apron_tree.query(pts, predicate="intersects")
+            if len(inp):
+                on = np.unique(inp)
+                out[on] = self._apron_drawn(xf[on], yf[on])
         if h.ndim == 0:
             return float(out[0])
         return out.reshape(h.shape)
@@ -326,6 +338,62 @@ class Ground:
     def _walk_top(self, x: np.ndarray, y: np.ndarray, h: np.ndarray) -> np.ndarray:
         return h + np.ravel(np.asarray(self.lift(x, y, self.walk_reach), dtype=np.float64)) + self.curb_height
 
+    def _apron_lift(self, x: np.ndarray, y: np.ndarray) -> np.ndarray:
+        """Street lift a paved lot corner takes: the lifts of the streets within `apron_reach`, weighted by
+        (1 - d / reach)^2 / (d + 1 m)^2, so it blends smoothly between the two streets of a corner; within
+        `walk_reach` of a street the highest such lift, exactly as the sidewalk it meets there."""
+        out = np.zeros(len(x))
+        if self.street_tree is None or not len(x):
+            return out
+        pts = shapely.points(x, y)
+        inp, hit = self.street_tree.query(pts, predicate="dwithin", distance=self.apron_reach)
+        if not len(inp):
+            return out
+        dist = shapely.distance(self.street_tree.geometries[hit], pts[inp])
+        w = (1.0 - np.minimum(dist / self.apron_reach, 1.0)) ** 2 / (dist + 1.0) ** 2   # fades out at the reach
+        num, den = np.zeros(len(x)), np.zeros(len(x))
+        np.add.at(num, inp, w * self.street_lift[hit])
+        np.add.at(den, inp, w)
+        out = np.where(den > 0, num / np.maximum(den, 1e-12), 0.0)
+        edge = dist <= self.walk_reach                     # on a sidewalk's edge: the sidewalk's own rule
+        if edge.any():
+            top = np.full(len(x), -np.inf)
+            np.maximum.at(top, inp[edge], self.street_lift[hit[edge]])
+            out = np.where(np.isfinite(top), top, out)
+        return out
+
+    def _apron_drawn(self, x: np.ndarray, y: np.ndarray) -> np.ndarray:
+        """Height of the paved lot corners as drawn: `apron_top` at the corners of their triangles
+        (`apron_cells`, the same ones mesh/tile.apron_mesh draws), interpolated inside each one."""
+        if self._apron_tris is None:
+            tris = np.concatenate([apron_cells(p, self.apron_cell) for g in self.apron_tree.geometries
+                                   for p in getattr(g, "geoms", [g])])
+            z = self.apron_top(tris[..., 0].ravel(), tris[..., 1].ravel()).reshape(-1, 3)
+            self._apron_tris = (tris, z, STRtree(shapely.polygons(tris)))
+        tris, z, tree = self._apron_tris
+        out = self.apron_top(x, y)                         # on an outline point no triangle claims
+        inp, hit = tree.query(shapely.points(x, y), predicate="intersects")
+        if len(inp):
+            first = np.unique(inp, return_index=True)[1]
+            inp, hit = inp[first], hit[first]
+            a, b, c = tris[hit, 0], tris[hit, 1], tris[hit, 2]
+            p = np.stack([x[inp], y[inp]], axis=1)
+            v0, v1, v2 = b - a, c - a, p - a
+            den = v0[:, 0] * v1[:, 1] - v0[:, 1] * v1[:, 0]
+            u = (v2[:, 0] * v1[:, 1] - v2[:, 1] * v1[:, 0]) / den
+            v = (v0[:, 0] * v2[:, 1] - v0[:, 1] * v2[:, 0]) / den
+            zz = z[hit]
+            out[inp] = zz[:, 0] + u * (zz[:, 1] - zz[:, 0]) + v * (zz[:, 2] - zz[:, 0])
+        return out
+
+    def apron_top(self, x, y):
+        """Top of a paved lot corner (`Building.apron`) at points on it: as a sidewalk, curb above the
+        ribbon of the streets beside it."""
+        x = np.ravel(np.asarray(x, dtype=np.float64))
+        y = np.ravel(np.asarray(y, dtype=np.float64))
+        h = np.ravel(np.asarray(self.height(x, y), dtype=np.float64))
+        return h + self._apron_lift(x, y) + self.curb_height
+
     def walk_top(self, x, y):
         """Top of a sidewalk or promenade at points known to lie on one (its outline included).
 
@@ -336,3 +404,15 @@ class Ground:
         x = np.ravel(np.asarray(x, dtype=np.float64))
         y = np.ravel(np.asarray(y, dtype=np.float64))
         return self._walk_top(x, y, np.ravel(np.asarray(self.height(x, y), dtype=np.float64)))
+
+
+def apron_cells(poly, cell: float) -> np.ndarray:
+    """(T, 3, 2) triangles of a paved lot corner: the polygon cut in `cell` m squares on the world grid,
+    each piece triangulated, so the paving follows the ground and its two streets closely."""
+    x0, y0, x1, y1 = poly.bounds
+    xs = np.arange(math.floor(x0 / cell), math.ceil(x1 / cell)) * cell
+    ys = np.arange(math.floor(y0 / cell), math.ceil(y1 / cell)) * cell
+    cells = shapely.intersection(np.array([box(x, y, x + cell, y + cell) for x in xs for y in ys]), poly)
+    parts = [p for g in cells for p in getattr(g, "geoms", [g]) if p.geom_type == "Polygon" and p.area > 1e-6]
+    tris = [triangulate(p) for p in parts]
+    return np.concatenate(tris) if tris else np.zeros((0, 3, 2))

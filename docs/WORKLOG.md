@@ -15,6 +15,46 @@ Entry format:
 - Doubts and questions for Ali: <none, or the question>
 ```
 
+## 2026-10-24 - Prompt 23 AR2 Building massing with character
+- Commit: (see git log) | Model: Opus 5.5, high (playbook: Sonnet, high)
+- Changed: `citygen/city/massing.py` (new: the planning step after households and souks, `masses`,
+  `floors_at`, `wall_height`, `outline`, `inner_walls`, `terrace_walls`), `citygen/city/model.py`
+  (`Building.setback`, `steps`, `machines`, `menzah`, `corners`; `top` with a position),
+  `citygen/city/__init__.py`, `citygen/city/roofs.py` (main roof of the masses, `roof_layouts`, menzah,
+  `RoofLayout.rooms`), `citygen/mesh/tile.py` (massed buildings drawn as one solid, lift rooms, corner
+  domes and turrets, menzah), `citygen/mesh/builder.py` (`add_walls(only=)`), `citygen/city/dressing.py`
+  (window floors per wall, terrace windows, tank stands, props on the main roof, corner probes, arcade
+  bend pieces and wrap at cut corners, wall heights for climbers and spans), `citygen/city/arcades.py`
+  (`hold0/hold1`), `citygen/mesh/props.py` (`arcade_bend`, `tank_stand`), `citygen/export/lore.py`
+  (massing in plan.json), `styles/maghreb.toml` (`[district.*]` massing numbers, `[roofs]` menzah,
+  `window_half`, `bend_tol`, `[streets] apron_*`), `citygen/city/ground.py` (paved lot corners:
+  `apron_top`, `apron_cells`, `surface` there interpolates the drawn triangles), `apron_mesh` in
+  `citygen/mesh/tile.py`, `add_skirt(only=)`, tests (4 new, 2 adjusted:
+  arcade turns count bend pieces, the stair room test reads the main roof), `docs/SPEC.md`,
+  `docs/HANDOFF.md`, `docs/ROADMAP.md`
+- Checks: tests 73 passed (28.1 s; HEAD 25.2 s back to back; the 4 new tests 2.6 s); `build --quick`
+  10.8 s; fingerprint 14 changed: `plan/goumosbane/buildings`, `maps/goumosbane.png`, `tiles/*`, new
+  `kit/arcade_bend`, `kit/arcade_bend_round` (pier pieces for cut corners) and `kit/tank_stand`;
+  households, souks, streets, trees and stats unchanged. Worst tile +6.8% (`tile_13_24`, with the paved
+  corners), old-town tile +3.5%. Full capital 47.0 -> 48.3 s back to back with HEAD (planner 15.8 -> 16.3 s, CPU 193 -> 207 s). Quick capital: 78 cut
+  corners (58 pan coupes, 20 rounded), 18 corner tops (8 domes, 10 turrets), 59 set-back top floors,
+  183 of 276 colonial buildings moved to their block's row (+-1: 122, +-2: 48, +-3: 13), 79 of 356 slabs
+  stepped (70 in two parts, 9 in three), 245 lift rooms, 149 tank stands, 20 menzahs. Full capital:
+  261 cut corners, 86 tops, 262 set-backs, 151 stepped slabs, 2,900 villas of which 1,020 L-shaped.
+- Look: `output/checks/23.png` (colonial blocks from about 150 m: rounded corner with a dome by the
+  boulevard, turrets, set-back top floors behind their terraces, steadier rows),
+  `output/checks/23-villas.png` (city 1 suburb: hip-roofed villas with flat terrace wings),
+  `output/checks/23-corner.png` (building 1071: pan coupe arch between two bend piers, a bay into the
+  side street, paving under it), `output/checks/23-corner-round.png` (building 972: an arcade round
+  three faces with slim 22.5-degree piers). Blender:
+  `output/bodjantouna-42/goumosbane.blend`.
+- Doubts and questions for Ali: the rows now follow each block's median floor count (one floor up or
+  down, corners taller), so most colonial heights changed (lead: keep). Lead review added the paved
+  lot corners and the close corner pictures. The 45-degree corner piers are massive (about 2.9 m of
+  solid front with the half pillars); they read as strong corner piers, but slimmer ones would need
+  the bays to take the corner. No door or shop lands on a cut face yet (the long walls win the main
+  facade); the test checks a face's threshold height instead.
+
 ## 2026-10-23 - Prompt 22 AR1 Colonial arcades and iron balconies
 - Commit: (see git log) | Model: Opus 5.5, high (playbook: Sonnet, high)
 - Changed: `citygen/city/arcades.py` (new: free runs, bay layout around doors on a 5 cm grid, level

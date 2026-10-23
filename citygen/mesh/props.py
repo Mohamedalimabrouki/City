@@ -334,6 +334,19 @@ def tank(color: str) -> MeshBuilder:
     return mb
 
 
+def tank_stand() -> MeshBuilder:
+    """A building's water tank on a steel stand, for the roofs of the housing estates (prompt 23): four
+    legs, a grating and a big white tank. 1.8 m square, about 2.9 m high."""
+    mb = MeshBuilder()
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            _box(mb, sx * 0.8 - 0.05, sx * 0.8 + 0.05, sy * 0.8 - 0.05, sy * 0.8 + 0.05, 0.0, 1.1, "iron", top=False)
+    _box(mb, -0.9, 0.9, -0.9, 0.9, 1.1, 1.18, "iron")
+    extrude(mb, regular_polygon(0, 0, 0.82, 10), 1.18, 2.75, "tank_white", "tank_white")
+    add_dome(mb, 0, 0, 2.75, 0.82, "tank_white", height=0.15, segments=10, rings=2)
+    return mb
+
+
 def dish() -> MeshBuilder:
     """Satellite dish on a short pole, looking up and outward."""
     mb = MeshBuilder()
@@ -709,6 +722,54 @@ def arcade_corner(cfg: dict | None = None) -> MeshBuilder:
     return mb
 
 
+def arcade_bend(cfg: dict | None = None, angle: float = 45.0) -> MeshBuilder:
+    """The pier of an arcade turning a cut street corner (prompt 23): a wedge in front of the corner
+    where two faces meet at a convex turn of `angle` degrees (45 for a pan coupe, 22.5 between the
+    faces of a rounded corner). The origin is the corner on the wall line, +y the bisector out to the
+    street; each side meets its facade's last bay in the plane square to that facade, and the pillar
+    face, trims, cornice, ceiling and terrace run on mitred to the other side. Symmetric."""
+    a = _arcade_dims(cfg)
+    mb = MeshBuilder()
+    d, pd, zs, sink, top, hc, h, cp = a["depth"], a["pd"], a["spring"], a["sink"], a["top"], a["hc"], a["H"], a["cp"]
+    d0, half = d - pd, math.radians(angle) / 2
+    ni, nj = np.array([math.sin(half), math.cos(half)]), np.array([-math.sin(half), math.cos(half)])
+
+    def line(o: float) -> list:                     # the faces' line o m out from both walls, mitred
+        return [ni * o, np.array([0.0, o / math.cos(half)]), nj * o]
+
+    def wall(o: float, z0: float, z1: float, out: bool = True) -> list:
+        pts = line(o) if out else line(o)[::-1]     # seen from the street, or from the walkway
+        return [[(*p, z0), (*q, z0), (*q, z1), (*p, z1)] for p, q in zip(pts[:-1], pts[1:])]
+
+    def flat(o0: float, o1: float, z: float, up: bool = True) -> list:
+        if o0 <= 0.0:
+            p = line(o1)
+            q = [[(0.0, 0.0, z), (*p[0], z), (*p[1], z), (*p[2], z)]]
+        else:
+            p, r = line(o0), line(o1)
+            q = [[(*p[0], z), (*r[0], z), (*r[1], z), (*p[1], z)], [(*p[1], z), (*r[1], z), (*r[2], z), (*p[2], z)]]
+        return _orient(q, (0.0, 0.0, 1.0 if up else -1.0))
+
+    def cap(o0: float, o1: float, z0: float, z1: float) -> list:   # the ends that meet the bays
+        out = []
+        for n, toward in ((ni, (math.cos(half), -math.sin(half), 0.0)), (nj, (-math.cos(half), -math.sin(half), 0.0))):
+            out += _orient([[(*(n * o0), z0), (*(n * o1), z0), (*(n * o1), z1), (*(n * o0), z1)]], toward)
+        return out
+
+    wall_q = lambda o, z0, z1, out=True: _orient(wall(o, z0, z1, out), (0.0, 1.0 if out else -1.0, 0.0))
+    plaster = wall_q(d, 0.32, top) + wall_q(d0, 0.32, hc, out=False) + cap(d0, d, 0.32, hc) + cap(0.0, d + cp, hc, h)
+    trim = []
+    for z0, z1, e in ((-sink, 0.32, 0.05), (zs - 0.16, zs, 0.04)):          # base and capital, proud of the pier
+        trim += wall_q(d + e, z0, z1) + wall_q(d0 - e, z0, z1, out=False) + flat(d0 - e, d + e, z1)
+        trim += (flat(d0 - e, d + e, z0, up=False) if z0 > 0 else []) + cap(d0 - e, d + e, z0, z1)
+    _faces(mb, plaster + flat(0.0, d0, hc, up=False), "warm_white")
+    _faces(mb, trim, "stone_frame")
+    _faces(mb, flat(0.0, d + cp, h), "roof_white")
+    _faces(mb, wall_q(d + cp, top, h) + flat(d + 0.04, d + cp, top, up=False) + wall_q(d + 0.04, top - 0.08, top)
+           + flat(d, d + 0.04, top - 0.08, up=False), "stone_frame")
+    return mb
+
+
 def _rail(x0, x1, y, z, t: float) -> list:
     """A square iron bar along x at depth y and height z (its center), t thick: four faces."""
     return [_front(x0, x1, z - t / 2, z + t / 2, y + t / 2), _front(x0, x1, z - t / 2, z + t / 2, y - t / 2, back=True),
@@ -833,6 +894,9 @@ def catalog(rng, seed: int = 0, trees: dict | None = None, climber: dict | None 
     pieces.update({             # colonial arcades and iron balconies (prompt 22); no random draws
         "arcade_bay": (arcade_bay(arcade), "arcade", "wall"),
         "arcade_corner": (arcade_corner(arcade), "arcade", "wall"),
+        "arcade_bend": (arcade_bend(arcade, 45.0), "arcade", "wall"),           # prompt 23: cut street corners
+        "arcade_bend_round": (arcade_bend(arcade, 22.5), "arcade", "wall"),
+        "tank_stand": (tank_stand(), "roof", "ground"),                         # prompt 23: estate roofs
         "balcony_iron": (balcony_iron(iron), "balcony", "wall"),
         "balcony_iron_long": (balcony_iron(iron, long=True), "balcony", "wall"),
     })

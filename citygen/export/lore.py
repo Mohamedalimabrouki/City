@@ -47,7 +47,8 @@ def plan_json(plan) -> dict:
                        "floors": b.floors, "wall": b.wall, "roof": b.roof, "roof_shape": b.roof_shape,
                        "footprint": _rings(b.footprint),
                        **({"domes": [[round(x, 2), round(y, 2), round(r, 2), m] for x, y, r, m in b.domes]}
-                          if b.domes else {})}
+                          if b.domes else {}),
+                       **_massing_json(b)}
                       for b in plan.buildings],
         "trees": [[round(t.x, 2), round(t.y, 2), t.kind, round(t.height, 1)] for t in plan.trees],
         "landmarks": [{"kind": m.kind, "name": m.name, "x": round(m.x, 1), "y": round(m.y, 1)}
@@ -56,6 +57,27 @@ def plan_json(plan) -> dict:
                         "door": h.door, "members": h.members} for h in plan.households],
         "souks": [{"street": k.street, "name": k.name, "trade": k.trade} for k in plan.souks],
     }
+
+
+def _massing_json(b) -> dict:
+    """The massing fields of a building (prompt 23), only those it uses."""
+    out = {}
+    if b.setback is not None:
+        out["setback"] = _rings(b.setback)
+    if b.steps:
+        out["steps"] = [{"footprint": _rings(p), "floors": f, "roof_shape": shape, "roof": roof}
+                        for p, f, shape, roof in b.steps]
+    if b.top and "x" in b.top:
+        out["top"] = {k: (round(v, 2) if isinstance(v, float) else v) for k, v in b.top.items()}
+    if b.machines:
+        out["machines"] = [{k: (round(v, 2) if isinstance(v, float) else v) for k, v in m.items()} for m in b.machines]
+    if b.menzah:
+        out["menzah"] = True
+    if b.corners:
+        out["corners"] = [[round(x, 2), round(y, 2), kind] for x, y, kind, _reach in b.corners]
+    if b.apron is not None:
+        out["apron"] = [_rings(p) for p in polygons(b.apron)]
+    return out
 
 
 def gazetteer(world, plans) -> str:

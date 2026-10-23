@@ -77,15 +77,28 @@ def triangulate(poly: Polygon) -> np.ndarray:
 
 
 def add_walls(mb: MeshBuilder, ring, z0: float, z1: float, material: str, z_ref: float,
-              plinth: tuple[str, float] | None = None, frontage=None) -> None:
+              plinth: tuple[str, float] | None = None, frontage=None, only=None) -> None:
     """Vertical walls along a ring. Exterior rings must be CCW and holes CW (see shapely orient).
 
     `plinth` = (material, height): the part of the wall from the bottom up to `height` meters
     above `z_ref` (the building's highest ground point) is drawn in that material, so a base
     band follows the street instead of the buried foot of the wall. `frontage`, when given, is
     one bool per ring segment: only those segments get the plinth (street-facing walls), which
-    keeps party walls and block interiors out of the tile bytes.
+    keeps party walls and block interiors out of the tile bytes. `only` (one bool per segment) draws
+    just those segments, their u still measured along the whole ring (a massed building's walls are
+    drawn in groups of one height, the texture running on across them).
     """
+    if only is not None:
+        only = np.asarray(only, dtype=bool)
+        front = only if frontage is None else only & np.asarray(frontage, dtype=bool)
+        split = z_ref + float(plinth[1]) if plinth is not None else z0
+        if plinth is not None and z0 < split < z1:
+            _wall_band(mb, ring, z0, split, plinth[0], z_ref, front)
+            _wall_band(mb, ring, split, z1, material, z_ref, front)
+            _wall_band(mb, ring, z0, z1, material, z_ref, only & ~front)
+        else:
+            _wall_band(mb, ring, z0, z1, material, z_ref, only)
+        return
     if plinth is not None:
         base_material, base_height = plinth
         split = z_ref + float(base_height)
@@ -171,12 +184,13 @@ def add_draped_cap(mb: MeshBuilder, poly: Polygon, height_fn, material: str, alo
     mb.add(material, pos, nrm, uv, np.arange(len(pos)).reshape(-1, 3))
 
 
-def add_skirt(mb: MeshBuilder, ring, top, bottom, material: str) -> None:
+def add_skirt(mb: MeshBuilder, ring, top, bottom, material: str, only=None) -> None:
     """Vertical face around a ring, with a different height at every vertex.
 
     `ring` is an open coordinate ring (the closing point is optional). The caller orients
     exterior rings counter-clockwise and holes clockwise, so the normal points out of the solid.
     UVs are meters: u along the ring, v down from the top edge (a curb stone's top is v = 0).
+    `only` (one bool per segment) draws just those segments.
     """
     pts = np.asarray(ring, dtype=np.float64)[:, :2]
     if len(pts) > 1 and np.allclose(pts[0], pts[-1]):
@@ -190,6 +204,8 @@ def add_skirt(mb: MeshBuilder, ring, top, bottom, material: str) -> None:
     d = b - a
     length = np.hypot(d[:, 0], d[:, 1])
     keep = length > 1e-6
+    if only is not None:
+        keep &= np.asarray(only, dtype=bool)
     a, b, d, length = a[keep], b[keep], d[keep], length[keep]
     ta, tb, ba, bb = top[keep], np.roll(top, -1)[keep], bottom[keep], np.roll(bottom, -1)[keep]
     k = len(a)

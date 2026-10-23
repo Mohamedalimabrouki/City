@@ -23,6 +23,8 @@ class Run:
     s1: float
     fix0: bool = False          # the arcade goes on past s0 (a corner, a bend, the next building's arcade)
     fix1: bool = False          # ... past s1
+    hold0: bool = False         # s0 meets a corner or bend piece: when both ends are fixed, s1 gives way first
+    hold1: bool = False         # ... s1 does: s0 gives way first
     cuts: np.ndarray | None = None                       # bay edges along the wall, s0 ... s1
     z: np.ndarray = field(default_factory=lambda: np.zeros(0))   # each bay's street level (its anchor)
 
@@ -122,15 +124,16 @@ def flex_cuts(s0: float, s1: float, zones: list, bay, step: float = 0.05) -> np.
 def layout(run: Run, zones: list, bays: list, shrink: float = 3.0, step: float = 0.25) -> np.ndarray | None:
     """Bay edges for a run: the whole run with each width range in `bays` (strict first, then relaxed);
     else the run shortened at its free end(s) a step at a time, at most `shrink` m, so its fixed end
-    keeps meeting the corner or the next building (when both ends are fixed, one of them gives way,
-    s1 first). None when nothing fits."""
+    keeps meeting the corner or the next building (when both ends are fixed, one of them gives way:
+    s1 first, unless only s1 meets a corner or bend piece). None when nothing fits."""
     for bay in bays:
         cuts = flex_cuts(run.s0, run.s1, zones, bay)
         if cuts is not None:
             return cuts
     a, b = run.s0, run.s1
     for cut in np.arange(step, shrink + 1e-9, step):
-        tries = {"s0": [(a, b - cut)], "s1": [(a + cut, b)], "both": [(a, b - cut), (a + cut, b)],
+        both = [(a + cut, b), (a, b - cut)] if run.hold1 and not run.hold0 else [(a, b - cut), (a + cut, b)]
+        tries = {"s0": [(a, b - cut)], "s1": [(a + cut, b)], "both": both,
                  "none": [(a + cut / 2, b - cut / 2), (a, b - cut), (a + cut, b)]}[run.keep]
         for s0, s1 in tries:
             if s1 - s0 < bays[-1][0]:
