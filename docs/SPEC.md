@@ -82,6 +82,7 @@ build.build()                 orchestrates the above into output/<country>-<seed
 | `citygen/city/ground.py` | `Ground`: graded city ground (blurred, terraced, blended into the terrain), and `surface` for the top of ground, street ribbons and raised walks |
 | `citygen/city/dressing.py` | `Dresser`: which piece goes where, tile by tile |
 | `citygen/city/walks.py` | raised sidewalks along blocks, narrowed to keep a carriageway, and the boulevard promenade |
+| `citygen/city/paint.py` | street surfaces per kind, painted edge and lane lines, zebra crossings |
 | `citygen/kitsheet.py` | `python -m citygen kit-sheet`: every piece in one viewable grid |
 | `citygen/export/maps.py` | country and city PNG maps |
 | `citygen/export/lore.py` | JSON data files and the gazetteer |
@@ -94,22 +95,28 @@ build.build()                 orchestrates the above into output/<country>-<seed
   kinds: `capital`, `city`, `town`, `village`. Ids are stable for a given seed and settings.
 - `Road(id, kind, width, coords, ends)`; kinds `national`, `regional`, `local`.
 - `CityPlan`: `boundary`, `land`, `medina`, `districts`, `streets`, `blocks`, `parcels`,
-  `buildings`, `trees`, `landmarks`, `walks`, `households`, `souks`, `stats`.
+  `buildings`, `trees`, `landmarks`, `walks`, `households`, `souks`, `paint`, `stats`.
 - `Walk(kind, polygon, width, street, side, district, block)`: a raised sidewalk (`sidewalk`)
   or the boulevard's central promenade (`promenade`). `width` is the actual width after a tight
   street narrows it; `street` and `side` (`+1` left, `-1` right) let later street features find
   the carriageway edge.
+- `Paint(polygon, street)`: one painted marking, a flat polygon over the carriageway of a street.
+  `make_paint` builds edge and lane lines, dashes and zebra crossings once per plan; a tile only
+  clips the polygons it touches.
 - `Household(building, family, trade, wealth 0..1, door, members)`: one per house, domed house,
   apartment block and villa. `Souk(street, name, trade, ground, wall, shop)`: one per souk street.
 - `District.kind`: `medina`, `village`, `colonial`, `modern`, `residential`, `suburb`,
   `industrial`, `port`, `park`, `cemetery`.
-- `Street.kind`: `boulevard`, `arterial`, `ring`, `corniche`, `connector`, `street`, `souk`, `alley`.
+- `Street.kind`: `boulevard`, `arterial`, `ring`, `corniche`, `connector`, `street`, `souk`, `alley`;
+  `Street.surface` is the palette material of its ribbon from `[streets.surface]` (a village
+  street is `earth`).
 - `Building`: `footprint` (holes = courtyards), `kind`, `height` (above the highest ground
   point), `wall`/`roof` material names, `floors`, `roof_shape` (`flat`/`hip`), `domes`, `top`.
 
 Invariants (tested): buildings are valid polygons inside the city and stay off street surfaces;
 sidewalks never enter a building footprint, keep at least `min_carriageway` meters of asphalt,
-and stand `curb_height` above the street ribbon; everything is deterministic.
+and stand `curb_height` above the street ribbon; every road marking lies inside its street's
+carriageway; everything is deterministic.
 
 ## 6. Output files (`output/<country>-<seed>/`)
 
@@ -159,7 +166,8 @@ piece; `tools/blender_import.py` and `tools/blender_beauty.py` place all copies 
 ## 7. Style pack (`styles/<name>.toml`)
 
 `[names]` sounds and templates, `[lore]` eras and products, `[palette]` materials,
-`[streets]` curb height, minimum carriageway and promenade width, `[district.<kind>]` street
+`[streets]` curb height, minimum carriageway, promenade width and the paint numbers,
+`[streets.surface]` the ribbon material per street kind, `[district.<kind>]` street
 grid, sidewalk width, lot size, floors, materials and special rules,
 `[settlement.<kind>]` population, density, old town size, which district kinds exist and the
 `rings` mix by distance from the center. `[life]` door colors, family name patterns, real name

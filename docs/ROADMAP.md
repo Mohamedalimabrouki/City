@@ -23,7 +23,7 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
 - [x] 11 A4a City ground
 - [x] 12 A4b Everything on the graded ground
 - [x] 13 A3 Sidewalks and curbs
-- [ ] 14 S1 Street surfaces and markings
+- [x] 14 S1 Street surfaces and markings
 - [ ] 15 A1 Roof life
 - [ ] 16 CP2 Checkpoint: light and ground
 - [ ] 17 A2a Textures in the 3D files

@@ -15,6 +15,22 @@ Entry format:
 - Doubts and questions for Ali: <none, or the question>
 ```
 
+## 2026-10-23 - Prompt 14 S1 Street surfaces and markings
+- Commit: "Street surfaces: asphalt, stone, earth and painted markings" (see git log) | Model:
+  DeepSeek V4.1 Flash, high (playbook: Sonnet, medium)
+- Changed: `citygen/city/paint.py` (new: surface table, carriageway, edge/lane lines, dashes,
+  zebra crossings), `citygen/city/model.py` (`Street.surface`, `Paint`, `CityPlan.paint`),
+  `citygen/city/__init__.py`, `citygen/mesh/tile.py` (`street_meshes` material, `paint_meshes`,
+  paint STRtree), style (`[streets.surface]`, paint numbers, `earth` and `road_paint` colors),
+  tests (2 new plus one material), `docs/SPEC.md`, `docs/ROADMAP.md`, `docs/HANDOFF.md`
+- Checks: tests 35 passed (17.8 s); `build --quick` 10.4 s, 9 tiles; fingerprint 140 parts,
+  9 changed, all allowed (`tiles/index` plus 8 `tiles/*.glb`). Tiles grew 1.9-14.9% in bytes and
+  at most 5.3% in triangles; plans, world and maps unchanged. Every one of the 3,047 marks lies
+  inside its street's carriageway. Village Hirzabouane: 7 earth alleys, no paint.
+- Look: `output/checks/14.png` (street, mean pixel difference 0.62). After half: dashed lane
+  lines, solid edge lines and a zebra crossing just before the side-street junction.
+- Doubts and questions for Ali: none.
+
 ## 2026-10-23 - Prompt 13 A3 Sidewalks, curbs and the boulevard promenade
 - Commit: "Raised sidewalks, curbs and a boulevard promenade" (see git log) | Model: DeepSeek
   V4.1 Flash, high (playbook: Sonnet, high)

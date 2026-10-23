@@ -53,11 +53,12 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
   2026): fingerprint, before/after pictures, parallel and resumable builds all work as
   documented. Reference for checkpoint 16: `output/checks/fp-cp1.json` (quick build) and the
   pictures `output/checks/cp1-street.png`, `cp1-aerial.png`.
-- Prompts 6-13 are done: bougainvillea, golden hour, ambient occlusion, Blender 5 haze, A4a and
-  A4b (graded ground, and every prop, door, tree and camera on its surface), and A3 (raised
-  sidewalks, curbs and the boulevard promenade). Next: prompt 14, street surfaces and markings.
+- Prompts 6-14 are done: bougainvillea, golden hour, ambient occlusion, Blender 5 haze, A4a and
+  A4b (graded ground, and every prop, door, tree and camera on its surface), A3 (raised
+  sidewalks, curbs and the boulevard promenade) and S1 (street surfaces and painted markings).
+  Next: prompt 15, roof life (parapets and stair rooms).
 - Seed 42 makes the country **Bodjantouna** with the capital **Goumosbane**.
-  `python -m citygen build --quick` writes it to `output/bodjantouna-42/` in about 7 seconds on
+  `python -m citygen build --quick` writes it to `output/bodjantouna-42/` in about 10 seconds on
   Ali's Mac (20 seconds in the cloud).
 - All work is on the git branch `claude/procedural-city-generator-xop72h`. Keep working on it and
   push at the end of every task (GitHub is the backup).
@@ -106,6 +107,17 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
   the surface 0.5 m in front of the wall, because buildings stand 0.15 m back from the street
   edge: sampling at the wall would leave the threshold one lift below the pavement. Walls and
   wall-mounted pieces stay on `Ground.height`.
+- **Street surfaces and paint** (prompt 14, `city/paint.py`, `[streets]` and `[streets.surface]`):
+  a street ribbon takes its material from its kind; a street whose representative point is in a
+  village district gets `earth`. Paint is a list of flat polygons in `plan.paint`, not ribbons:
+  a marking is clipped once to the carriageway (`street buffer - sidewalk polygons - the
+  promenade strip`), so the test can prove every piece lies inside it. Edge lines use the widest
+  sidewalk on each side, not the designed width, because walks narrow at tight streets. A zebra
+  bar runs along the street (3 m long, 0.55 m wide) and repeats across the carriageway, so a
+  boulevard gets one set on each side of the promenade; crossings sit just outside the interval
+  where the other street's ribbon covers the center line. Lift paint 0.03 m above the ribbon
+  (0.01 m flickers in aerial views). `plan.json` does not list paint or surfaces, so the
+  fingerprint stays on `tiles/*`.
 - **Raised walks** (prompt 13, `city/walks.py`, `[streets]`): a sidewalk is `block.buffer(width)
   - block` clipped to the streets' side strips; the side strips leave 5.5 m of asphalt, so a 9 m
   street gets 1.75 m walks and a 12 m street keeps the 3.2 m design width. `CityPlan.walks` stores

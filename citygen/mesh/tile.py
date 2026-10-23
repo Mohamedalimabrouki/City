@@ -19,7 +19,7 @@ from shapely.ops import unary_union
 from shapely.strtree import STRtree
 
 from ..city.dressing import Dresser, Placement, building_highs, ground_heights
-from ..city.geo import frame, lines
+from ..city.geo import frame, lines, polygons
 from ..city.ground import STREET_LIFT, Ground
 from ..kit import make_kit
 from ..terrain import BIOME_MATERIAL, SEA, classify
@@ -55,6 +55,7 @@ class TileContext:
         self.kit = make_kit(world.seed, world.cfg, world.style) if self.dress else None
         self.materials = self.kit.materials if self.kit else self.palette
         self.cities = []
+        self.paint_trees = []
         for p in plans:
             fps = [b.footprint for b in p.buildings]
             centers = shapely.get_coordinates(shapely.centroid(fps)) if fps else np.zeros((0, 2))
@@ -62,6 +63,8 @@ class TileContext:
             street_tree = STRtree([s.line for s in p.streets]) if p.streets else None
             dresser = Dresser(world, p, self.kit, self.ground) if self.dress else None
             self.cities.append((p, centers, trees, street_tree, dresser))
+            paint = [m.polygon for m in getattr(p, "paint", ())]
+            self.paint_trees.append(STRtree(paint) if paint else None)
 
     def height(self, x, y):
         return self.ground.height(x, y)
@@ -135,11 +138,25 @@ def street_meshes(mb: MeshBuilder, tc: TileContext, plan, street_tree, tile) -> 
         return
     for k in street_tree.query(tile, predicate="intersects"):
         st = plan.streets[int(k)]
-        mat = "paving" if st.kind in ("souk", "alley") else "asphalt"
+        mat = st.surface or "asphalt"
         for seg in lines(st.line.intersection(tile)):
             if seg.length > 0.05:
                 add_ribbon(mb, shapely.segmentize(seg, 6.0).coords, st.width, tc.height,
                            STREET_LIFT.get(st.kind, 0.24), mat)
+
+
+def paint_meshes(mb: MeshBuilder, tc: TileContext, plan, paint_tree, tile) -> None:
+    """Painted lines and crossings owned by this tile, a few centimeters above the ribbon."""
+    if paint_tree is None:
+        return
+    lift = float(tc.world.style.get("streets", {}).get("paint_lift", 0.03))
+    for k in paint_tree.query(tile, predicate="intersects"):
+        mark = plan.paint[int(k)]
+        st = plan.streets[mark.street]
+        z = STREET_LIFT.get(st.kind, 0.24) + lift
+        for poly in polygons(mark.polygon.intersection(tile)):
+            if poly.area > 0.005:
+                add_draped_cap(mb, poly, lambda x, y, z=z: tc.height(x, y) + z, "road_paint")
 
 
 def walk_meshes(mb: MeshBuilder, tc: TileContext, plan, tile) -> None:
@@ -281,10 +298,11 @@ def build_tile(tc: TileContext, i: int, j: int) -> tuple:
     road_meshes(mb, tc, tile)
     placements: list = []
     spans: list = []
-    for plan, centers, trees, street_tree, dresser in tc.cities:
+    for ci, (plan, centers, trees, street_tree, dresser) in enumerate(tc.cities):
         if not plan.boundary.intersects(tile):
             continue
         street_meshes(mb, tc, plan, street_tree, tile)
+        paint_meshes(mb, tc, plan, tc.paint_trees[ci], tile)
         walk_meshes(mb, tc, plan, tile)
         inside = (centers[:, 0] >= x0) & (centers[:, 0] < x1) & (centers[:, 1] >= y0) & (centers[:, 1] < y1)
         owned = np.nonzero(inside)[0]

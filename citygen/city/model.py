@@ -18,6 +18,7 @@ class Street:
     kind: str      # boulevard | arterial | ring | corniche | connector | street | souk | alley
     width: float
     line: object   # shapely LineString (center line)
+    surface: str = ""  # palette material of the ribbon; style [streets.surface], village = earth
 
 
 @dataclass
@@ -70,6 +71,13 @@ class Walk:
 
 
 @dataclass
+class Paint:
+    """One painted road marking: a flat polygon over the carriageway."""
+    polygon: object   # shapely Polygon in world meters
+    street: int       # index in CityPlan.streets
+
+
+@dataclass
 class CityPlan:
     settlement: object
     boundary: object
@@ -86,3 +94,4 @@ class CityPlan:
     stats: dict = field(default_factory=dict)
     households: list = field(default_factory=list)  # city/life.py: who lives behind each door
     souks: list = field(default_factory=list)       # city/life.py: the trade of each market street
+    paint: list = field(default_factory=list)       # city/paint.py: road markings

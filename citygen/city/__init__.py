@@ -22,6 +22,7 @@ from .life import households, souks
 from .medina import old_town
 from .model import CityPlan, District
 from .parcels import make_blocks, make_parcels
+from .paint import make_paint, street_surfaces
 from .streets import local_streets, major_streets, road_links, street_trees
 from .walks import make_walks
 
@@ -69,6 +70,7 @@ def plan_city(world, settlement) -> CityPlan:
     streets += major_streets(ctx, districts, medina, axis, land)
     streets += road_links(ctx, roads, streets)
     streets += local_streets(ctx, districts)
+    street_surfaces(districts, streets, world.style)
     blocks = make_blocks(ctx, districts, streets, cut)
     walks = make_walks(ctx, districts, streets, blocks)
     parcels = make_parcels(ctx, blocks, districts)
@@ -81,6 +83,7 @@ def plan_city(world, settlement) -> CityPlan:
                     trees, landmarks + mosque_marks, walks)
     plan.households = households(ctx, buildings, districts)
     plan.souks = souks(ctx, streets)
+    plan.paint = make_paint(world.style, streets, walks)
     plan.stats = {"districts": len(districts), "streets": len(streets), "blocks": len(blocks),
                   "parcels": len(parcels), "buildings": len(buildings), "trees": len(trees),
                   "households": len(plan.households), "souks": len(plan.souks),

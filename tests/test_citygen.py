@@ -110,7 +110,7 @@ def test_tile_is_valid_glb(world, plan, tmp_path):
     info = export_tile(tc, int(s.x // tc.size), int(s.y // tc.size), tmp_path)
     gltf, binary = read_glb(tmp_path / info["file"])
     assert triangle_count(gltf) == info["triangles"] > 1000
-    assert {"lime_white", "asphalt", "paving", "sidewalk", "curb"} <= {m["name"] for m in gltf["materials"]}
+    assert {"lime_white", "asphalt", "paving", "road_paint", "sidewalk", "curb"} <= {m["name"] for m in gltf["materials"]}
     for prim in gltf["meshes"][0]["primitives"]:
         count = gltf["accessors"][prim["attributes"]["POSITION"]]["count"]
         acc = gltf["accessors"][prim["indices"]]
@@ -420,6 +420,35 @@ def test_sidewalks_are_raised_and_leave_a_carriageway(world, plan, ground):
         assert np.all(np.abs(top - expect) < 1e-6)
         for k in footprints.query(w.polygon, predicate="intersects"):
             assert w.polygon.intersection(plan.buildings[int(k)].footprint).area < 0.05
+
+
+def test_street_paint_stays_inside_its_carriageway(world, plan):
+    from citygen.city.paint import carriageway
+    promenade = float(world.style["streets"]["promenade_width"])
+    min_width = float(world.style["streets"]["marking_min_width"])
+    assert plan.paint
+    areas = {}
+    for mark in plan.paint:
+        k = mark.street
+        if k not in areas:
+            areas[k] = carriageway(plan, k, promenade)
+        assert plan.streets[k].width > min_width
+        assert plan.streets[k].kind in ("boulevard", "arterial", "connector")
+        assert areas[k].buffer(0.01).contains(mark.polygon)
+    kinds = {plan.streets[m.street].kind for m in plan.paint}
+    assert {"boulevard", "arterial"} <= kinds
+
+
+def test_street_surfaces_come_from_the_style(world, plan):
+    from citygen.city.model import District, Street
+    from citygen.city.paint import street_surfaces
+    table = world.style["streets"]["surface"]
+    for st in plan.streets:
+        assert st.surface == table[st.kind]
+    village = District(0, "village", "Test", shapely.box(0.0, 0.0, 300.0, 300.0))
+    lane = Street("street", 9.0, shapely.LineString([(10.0, 10.0), (250.0, 250.0)]))
+    street_surfaces([village], [lane], world.style)
+    assert lane.surface == "earth"
 
 
 def test_boulevard_gets_a_raised_promenade(world, plan, ground):

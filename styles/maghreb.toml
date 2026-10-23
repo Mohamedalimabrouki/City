@@ -79,6 +79,8 @@ dome_white = { color = "#F5F3EE" }
 dome_green = { color = "#3E7A57", roughness = 0.4 }
 asphalt = { color = "#7A7874", roughness = 0.95 }   # sun-bleached
 paving = { color = "#BDB09A" }
+earth = { color = "#C4A87E", roughness = 0.98 }     # packed earth of village lanes
+road_paint = { color = "#E4DECD", roughness = 0.85 }  # worn white road paint
 sidewalk = { color = "#CFC7B6", roughness = 0.9 }   # raised walk beside the asphalt
 curb = { color = "#A29B8E", roughness = 0.85 }      # its vertical stone edge
 urban_ground = { color = "#CDBE9C" }
@@ -163,6 +165,27 @@ curb_height = 0.15          # meters above the street ribbon
 min_carriageway = 5.5       # a sidewalk is narrowed until this much asphalt remains
 promenade_width = 8.0       # the raised island under the boulevard's middle tree row
 promenade_piece = 64.0      # meters; short pieces keep a tile's mesh local
+
+# painted markings (S1): flat polygons just above the ribbon
+marking_min_width = 8.0     # only streets wider than this get paint
+paint_width = 0.12          # a line's width in meters
+paint_lift = 0.03           # above the street ribbon (at 0.01 it flickers in aerial views)
+paint_edge_inset = 0.4      # an edge line sits this far inside the carriageway edge
+paint_dash = [3.0, 4.5]     # dash and gap of a center or lane line
+crossing_length = 3.0       # zebra bar length along the street
+crossing_stripe = 0.55      # zebra bar width
+crossing_gap = 0.55         # gap between zebra bars
+crossing_junction_gap = 1.0 # the first bar starts this far outside the junction
+
+[streets.surface]           # ribbon material per street kind; village streets become earth
+boulevard = "asphalt"
+arterial = "asphalt"
+ring = "asphalt"
+corniche = "asphalt"
+connector = "asphalt"
+street = "asphalt"
+souk = "paving"
+alley = "paving"
 
 # --- districts -------------------------------------------------------------------
 # floors/walls/roofs are weighted choices: [value, how often].
