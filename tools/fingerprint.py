@@ -102,7 +102,7 @@ def _tile_parts(folder: Path) -> dict:
     for path in sorted((folder / "tiles").glob("*")):
         if path.name == "index.json":
             out["tiles/index"] = _file_part(path)
-        elif path.is_file():
+        elif path.is_file() and not path.name.startswith("."):   # Finder's .DS_Store is not the build
             part = _file_part(path)
             part["d"]["triangles"] = tris.get(path.name)
             out[f"tiles/{path.name}"] = part
