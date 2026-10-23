@@ -15,6 +15,23 @@ Entry format:
 - Doubts and questions for Ali: <none, or the question>
 ```
 
+## 2026-10-23 - Prompt 18 A2b Generated textures
+- Commit: "Generated textures: plaster, stone, tiles and paving" (see git log) | Model: DeepSeek
+  V4.1 Flash, high (playbook: Sonnet, high)
+- Changed: `citygen/mesh/textures.py` (rewritten: 14 seamless surfaces, periodic value noise,
+  wrapped strokes, Fourier blur, one stream per texture, PNG/JPEG encoder and cache),
+  `citygen/texturesheet.py` (new), `citygen/__main__.py` (`texture-sheet`), `styles/maghreb.toml`
+  (`[textures]` table), tests (4 new, prompt 17 tests migrated), `docs/SPEC.md`,
+  `docs/ROADMAP.md`, `docs/HANDOFF.md`
+- Checks: tests 47 passed (14.5 s); `build --quick` 7.0 s, 9 tiles; fingerprint 140 parts,
+  0 changed (no palette entry names a texture yet). Seam check at 256 px: every texture's
+  left/right and top/bottom edge difference is within 1.2 x the mean neighbour difference
+  inside the image. Sheet: 2.1 MB PNG, 14 textures at 512 px.
+- Look: `output/checks/texture-sheet.png` - each surface tiled 2 x 2, name/size/repeat below.
+  Weak ones were reworked twice (stone, concrete, roof tiles, paving, asphalt, ground).
+- Doubts and questions for Ali: none. "not mapped" is expected until prompt 19; `render_cream`
+  already carries its string course at the floor line.
+
 ## 2026-10-23 - Prompt 17 A2a Textures in the 3D files
 - Commit: "Textures in the 3D files: shared, embedded or off" (see git log) | Model: DeepSeek
   V4.1 Flash, high (playbook: Sonnet, high)

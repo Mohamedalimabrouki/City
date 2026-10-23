@@ -27,7 +27,7 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
 - [x] 15 A1 Roof life
 - [x] 16 CP2 Checkpoint: light and ground
 - [x] 17 A2a Textures in the 3D files
-- [ ] 18 A2b Generated textures
+- [x] 18 A2b Generated textures
 - [ ] 19 A2c Textured walls and roofs
 - [ ] 20 A2d Ground textures
 - [ ] 20.1 AD1 Every home gets a door and windows
@@ -180,12 +180,13 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
   `"parapets": true` and `tools/blender_beauty.py` skips its own parapets. `Dresser._roof`
   uses the same layout, so tanks, dishes, laundry and pots stay inside the parapet and off
   the stair room.
-- [ ] **A2 Facade textures** (M, Sonnet high; prompts 17-20) - Base-color textures in the glb
-  writer (shared or embedded images, `KHR_texture_transform` scale so UVs stay meters) and
-  generated tileable textures (plaster, stone, render, concrete, roof tiles, paving, ground) as
-  neutral detail tinted by the palette colors. Windows and doors stay 3D pieces of the dressing,
-  never painted. Done when: walls, roofs and ground read as materials in the viewer and Blender,
-  and tests check the glb images are valid.
+- [ ] **A2 Facade textures** (M, Sonnet high; prompts 17-20) - 17 (writer) and 18 (generated
+  images) are done. Base-color textures in the glb writer (shared or embedded images,
+  `KHR_texture_transform` scale so UVs stay meters) and generated tileable textures (plaster,
+  stone, render, concrete, roof tiles, paving, ground) as neutral detail tinted by the palette
+  colors. Windows and doors stay 3D pieces of the dressing, never painted. Done when: walls,
+  roofs and ground read as materials in the viewer and Blender, and tests check the glb images
+  are valid.
 - [x] **A3 Sidewalks and curbs** (M; prompt 13) - Done. `city/walks.py` grows each block of a
   district other than medina, village, park and cemetery by the district's `sidewalk_width`,
   removes the block and clips the band to the streets' side strips. A strip keeps at least

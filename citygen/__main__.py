@@ -6,7 +6,7 @@ import json
 import sys
 from pathlib import Path
 
-from .config import load_config
+from .config import load_config, load_style
 
 
 def _world_args(p: argparse.ArgumentParser) -> None:
@@ -69,6 +69,10 @@ def main(argv=None) -> None:
     ks = sub.add_parser("kit-sheet", help="every 3D piece (doors, shops, goods...) in one viewable grid")
     ks.add_argument("--out", default="output/kit-sheet")
 
+    ts = sub.add_parser("texture-sheet", help="every generated texture tiled 2 x 2, tinted, with its name")
+    ts.add_argument("--out", default="output/checks/texture-sheet.png")
+    ts.add_argument("--seed", type=int, help="texture seed (default: the world seed)")
+
     st = sub.add_parser("stats", help="short summary of a built world (cheap for agents to read)")
     st.add_argument("folder", nargs="?", help="a built world folder (default: the latest build)")
 
@@ -96,6 +100,12 @@ def main(argv=None) -> None:
     elif args.cmd == "kit-sheet":
         from .kitsheet import kit_sheet
         print(kit_sheet(args.out))
+    elif args.cmd == "texture-sheet":
+        from .texturesheet import texture_sheet
+        cfg = load_config()
+        style = load_style(cfg["world"]["style"])
+        seed = cfg["world"]["seed"] if args.seed is None else args.seed
+        print(texture_sheet(args.out, style, seed))
     elif args.cmd == "stats":
         folder = _latest(args.folder)
         summary = json.loads((folder / "summary.json").read_text(encoding="utf-8"))

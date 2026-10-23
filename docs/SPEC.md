@@ -158,6 +158,19 @@ files in its entry exist), `"embedded"` (bytes inside every .glb, for single-fil
 `"off"` (flat colors). The phone page (`tools/make_artifact.py`) stores each image once as
 base64 JSON and maps `textures/<name>` to blob URLs with `loader.manager.setURLModifier`.
 
+**Generated surfaces (prompt 18):** `citygen/mesh/textures.py` makes the images with code:
+plaster, render, render_cream, stone, concrete, roof_tile, roof_flat, paving, asphalt, earth,
+sand, grass, rock and scrub. Each is 256 or 512 px square, seamless (periodic noise, a wrapped
+stroke canvas, a Fourier blur) and near-neutral grey around white: the palette color tints it,
+and no palette color, window or door is baked in. Each texture owns
+`stream(seed, "texture", name)`. Sizes and noise strengths live in `[textures]` of the style;
+`band` adds the colonial string course to `render_cream`, one per repeat, and its palette
+`texture_size = [3.0, 3.6]` matches the colonial floor height. `python -m citygen
+texture-sheet` writes `output/checks/texture-sheet.png` with every texture tiled 2 x 2, tinted
+by its palette color (or its `tint` sample) and labelled with its name, size and repeat. Files
+are PNG or JPEG, whichever is smaller. Palette mapping is prompt 19, so builds stay unchanged
+until then.
+
 ## 6b. Kits and street dressing
 
 - **Pieces** are small meshes in their own space: x along the wall, front toward the street

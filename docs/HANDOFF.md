@@ -223,6 +223,13 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
   clump and tube helpers moved from `trees.py` to `mesh/plants.py`; `clump(..., turn=0, roll=...)`
   keeps wall pieces thin in y. Big clumps spaced apart look like leaves, so density comes from
   overlap, not size. Numbers are in `[dressing.climber]`.
+- **Generated textures** (prompt 18, `mesh/textures.py`) wrap only if every step wraps: value
+  noise interpolates on a periodic lattice, `_blur` is an FFT Gaussian (Pillow's `GaussianBlur`
+  refuses mode `F` on Pillow 13), and strokes go through `_WrapCanvas` at nine offsets. Pattern
+  phases matter too: roof tiles start half a tile in from the edge, joints are measured in
+  pixels, and the concrete seam is centred at +0.5 px. Keep every image neutral grey; the
+  palette color supplies the color. `texture-sheet` is the visual check, and the encoder keeps
+  the smaller of PNG and JPEG.
 - **Old-town tiles** reach about 5 MB on the quick build and 8 MB on the full capital
   (`tile_65_106`, mostly roofs since prompt 15); task Q5 (prompt 39) brings them down.
 

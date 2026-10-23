@@ -158,6 +158,28 @@ cloth_4 = { color = "#E3B23C", double_sided = true }
 cloth_5 = { color = "#5A8F4E", double_sided = true }
 cloth_6 = { color = "#8E5AA8", double_sided = true }
 
+# --- generated textures (prompt 18) ----------------------------------------------
+# One code-made image per surface: near-neutral grey detail around white, seamless. The palette
+# color of the material that names it multiplies the image, so one plaster serves every wall
+# color. `pixels` = image side (256 or 512); `grain`, `mottle`, `stain` = strength of fine,
+# medium and broad detail (0-1); `band` = strength of the colonial string course;
+# `tint` = palette color the texture sheet shows until the palette maps it (prompt 19).
+[textures]
+plaster = { pixels = 512, grain = 0.45, mottle = 0.5, stain = 0.45, tint = "cream" }
+render = { pixels = 512, grain = 0.5, mottle = 0.3, stain = 0.25, tint = "warm_white" }
+render_cream = { pixels = 512, grain = 0.5, mottle = 0.3, stain = 0.25, band = 0.7, tint = "cream" }
+stone = { pixels = 512, grain = 0.5, mottle = 0.45, stain = 0.4, tint = "rampart" }
+concrete = { pixels = 512, grain = 0.4, mottle = 0.3, stain = 0.4, tint = "concrete" }
+roof_tile = { pixels = 512, grain = 0.35, mottle = 0.3, stain = 0.4, tint = "roof_tile" }
+roof_flat = { pixels = 512, grain = 0.5, mottle = 0.35, stain = 0.5, tint = "roof_white" }
+paving = { pixels = 512, grain = 0.45, mottle = 0.4, stain = 0.4, tint = "paving" }
+asphalt = { pixels = 512, grain = 0.6, mottle = 0.35, stain = 0.3, tint = "asphalt" }
+earth = { pixels = 512, grain = 0.5, mottle = 0.45, stain = 0.35, tint = "earth" }
+sand = { pixels = 512, grain = 0.4, mottle = 0.35, stain = 0.3, tint = "beach" }
+grass = { pixels = 512, grain = 0.6, mottle = 0.5, stain = 0.35, tint = "grass" }
+rock = { pixels = 512, grain = 0.5, mottle = 0.5, stain = 0.4, tint = "rock" }
+scrub = { pixels = 512, grain = 0.55, mottle = 0.5, stain = 0.35, tint = "steppe" }
+
 # --- streets ---------------------------------------------------------------------
 # Raised sidewalks (prompt 13) and their crisp curb. Widths per district are below.
 [streets]

@@ -12,7 +12,8 @@ from citygen.city import plan_city
 from citygen.config import load_config
 from citygen.mesh.builder import MeshBuilder, extrude, rectangle
 from citygen.mesh.gltf import read_glb, read_parts, triangle_count, write_glb
-from citygen.mesh.textures import TEST_SIZE, images_for, png_bytes, texture, write_shared_textures
+from citygen.mesh.textures import (NAMES, PIXELS, encoded, images_for, spec_for, texture,
+                                    texture_names, write_shared_textures)
 from citygen.mesh.tile import TileContext, export_tile, texture_files
 from citygen.rng import stream
 from citygen.world import generate_world
@@ -111,10 +112,10 @@ def test_textured_glb_embeds_a_valid_image(tmp_path):
     mb = MeshBuilder()
     mb.add("wall", [[0, 0, 0], [1, 0, 0], [1, 0, 1], [0, 0, 1]], [[0, 1, 0]] * 4,
            [[0, 0], [1, 0], [1, 1], [0, 1]], [[0, 1, 2], [0, 2, 3]])
-    png = png_bytes(texture("test", 3))
+    enc = encoded("plaster", 3, {"pixels": 256})
     write_glb(tmp_path / "t.glb", mb.gltf_parts(),
-              {"wall": {"color": "#ffffff", "texture": "test", "texture_size": [4.0, 2.0]}},
-              images={"test": {"bytes": png}})
+              {"wall": {"color": "#ffffff", "texture": "plaster", "texture_size": [4.0, 2.0]}},
+              images={"plaster": {"bytes": enc.data, "mime": enc.mime}})
     gltf, binary = read_glb(tmp_path / "t.glb")
     assert gltf["extensionsUsed"] == ["KHR_texture_transform"]
     assert gltf["samplers"] == [{"magFilter": 9729, "minFilter": 9987, "wrapS": 10497, "wrapT": 10497}]
@@ -123,47 +124,81 @@ def test_textured_glb_embeds_a_valid_image(tmp_path):
     assert gltf["textures"][info["index"]]["source"] == 0 and gltf["textures"][info["index"]]["sampler"] == 0
     image = gltf["images"][0]
     view = gltf["bufferViews"][image["bufferView"]]
-    assert image["mimeType"] == "image/png" and "uri" not in image
-    assert binary[view["byteOffset"]:view["byteOffset"] + view["byteLength"]] == png
-    assert Image.open(io.BytesIO(png)).size == (TEST_SIZE, TEST_SIZE)
+    assert image["mimeType"] == enc.mime and "uri" not in image
+    assert binary[view["byteOffset"]:view["byteOffset"] + view["byteLength"]] == enc.data
+    assert Image.open(io.BytesIO(enc.data)).size == (256, 256)
     assert read_parts(tmp_path / "t.glb")["wall"]["uv"].tolist() == [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]]
 
 
 def test_shared_texture_files_are_written_once(tmp_path):
-    style = {"palette": {"wall": {"color": "#ffffff", "texture": "test", "texture_size": [3.0, 3.0]},
+    style = {"textures": {"plaster": {"pixels": 256}},
+             "palette": {"wall": {"color": "#ffffff", "texture": "plaster", "texture_size": [3.0, 3.0]},
                          "roof": {"color": "#ffffff"}}}
-    assert write_shared_textures(style, 5, tmp_path) == ["test.png"]
-    assert write_shared_textures(style, 5, tmp_path) == ["test.png"]   # again: same bytes, no race
-    image = tmp_path / "textures" / "test.png"
-    assert image.is_file() and image.read_bytes() == png_bytes(texture("test", 5))
+    enc = encoded("plaster", 5, spec_for(style, "plaster"))
+    file = f"plaster.{enc.ext}"
+    assert write_shared_textures(style, 5, tmp_path) == [file]
+    assert write_shared_textures(style, 5, tmp_path) == [file]   # again: same bytes, no race
+    image = tmp_path / "textures" / file
+    assert image.is_file() and image.read_bytes() == enc.data
     images = images_for(style, 5, "shared")
-    assert images == {"test": {"uri": "textures/test.png"}}
+    assert images == {"plaster": {"uri": f"textures/{file}"}}
     mb = MeshBuilder()
     mb.add("wall", [[0, 0, 0], [1, 0, 0], [1, 0, 1]], [[0, 1, 0]] * 3,
            [[0, 0], [1, 0], [1, 1]], [[0, 1, 2]])
     write_glb(tmp_path / "tile_0_0.glb", mb.gltf_parts(),
-              {"wall": {"color": "#ffffff", "texture": "test"}}, images=images)
+              {"wall": {"color": "#ffffff", "texture": "plaster"}}, images=images)
     gltf, _ = read_glb(tmp_path / "tile_0_0.glb")
-    assert gltf["images"] == [{"uri": "textures/test.png"}]
+    assert gltf["images"] == [{"uri": f"textures/{file}"}]
     assert (tmp_path / gltf["images"][0]["uri"]).is_file()   # the URI resolves next to the tile
 
 
 def test_textures_off_leaves_flat_colors(tmp_path):
-    style = {"palette": {"wall": {"color": "#ffffff", "texture": "test", "texture_size": [3.0, 3.0]}}}
+    style = {"palette": {"wall": {"color": "#ffffff", "texture": "plaster", "texture_size": [3.0, 3.0]}}}
     assert images_for(style, 5, "off") == {}
     mb = MeshBuilder()
     mb.add("wall", [[0, 0, 0], [1, 0, 0], [1, 0, 1]], [[0, 1, 0]] * 3,
            [[0, 0], [1, 0], [1, 1]], [[0, 1, 2]])
     write_glb(tmp_path / "t.glb", mb.gltf_parts(),
-              {"wall": {"color": "#ffffff", "texture": "test"}}, images={})
+              {"wall": {"color": "#ffffff", "texture": "plaster"}}, images={})
     gltf, _ = read_glb(tmp_path / "t.glb")
     assert "images" not in gltf and "textures" not in gltf and "extensionsUsed" not in gltf
     assert "baseColorTexture" not in gltf["materials"][0]["pbrMetallicRoughness"]
 
 
 def test_texture_images_are_deterministic():
-    assert png_bytes(texture("test", 9)) == png_bytes(texture("test", 9))
-    assert png_bytes(texture("test", 9)) != png_bytes(texture("test", 10))
+    a = encoded("plaster", 9, {"pixels": 256})
+    assert a.data == encoded("plaster", 9, {"pixels": 256}).data
+    assert a.data != encoded("plaster", 10, {"pixels": 256}).data
+
+
+def test_texture_sizes_follow_the_style():
+    for name in NAMES:
+        for size in PIXELS:
+            assert texture(name, 4, {"pixels": size}).size == (size, size)
+    with pytest.raises(ValueError):
+        texture("unobtainium", 4)
+
+
+def test_textures_are_seamless():
+    """The last column/row is as close to the first as any two neighbours inside the image."""
+    for name in NAMES:
+        a = np.asarray(texture(name, 42, {"pixels": 256}), dtype=np.float64)
+        lr = np.abs(a[:, 0] - a[:, -1]).mean()
+        tb = np.abs(a[0, :] - a[-1, :]).mean()
+        inner = (np.abs(np.diff(a, axis=1)).mean() + np.abs(np.diff(a, axis=0)).mean()) / 2.0
+        assert max(lr, tb) <= 1.5 * inner + 1.5, (name, lr, tb, inner)
+
+
+def test_texture_sheet_lists_every_texture(tmp_path):
+    from PIL import Image
+    from citygen.texturesheet import texture_sheet
+    style = {"textures": {"plaster": {"pixels": 256}, "stone": {"pixels": 256}},
+             "palette": {"wall": {"color": "#e8ddc8", "texture": "plaster"},
+                         "kerb": {"color": "#b8b0a2", "texture": "stone"}}}
+    assert texture_names(style) == ["plaster", "stone"]
+    out = texture_sheet(tmp_path / "sheet.png", style, 42, columns=2)
+    image = Image.open(out)
+    assert image.format == "PNG" and image.width > 800 and image.height > 400
 
 
 def test_tile_entry_lists_shared_textures():
