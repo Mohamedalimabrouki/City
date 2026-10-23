@@ -58,6 +58,18 @@ class Landmark:
 
 
 @dataclass
+class Walk:
+    """A raised sidewalk or the boulevard's central promenade, in world meters."""
+    kind: str          # sidewalk | promenade
+    polygon: object    # shapely Polygon of the raised top
+    width: float       # actual width in meters (after narrowing at tight streets)
+    street: int = -1   # nearest street; the boulevard for a promenade
+    side: int = 0      # +1 left of the street line, -1 right, 0 the middle (promenade)
+    district: int = -1 # district of the block behind a sidewalk
+    block: int = -1    # index in CityPlan.blocks
+
+
+@dataclass
 class CityPlan:
     settlement: object
     boundary: object
@@ -70,6 +82,7 @@ class CityPlan:
     buildings: list
     trees: list
     landmarks: list
+    walks: list = field(default_factory=list)       # city/walks.py: raised sidewalks and promenades
     stats: dict = field(default_factory=dict)
     households: list = field(default_factory=list)  # city/life.py: who lives behind each door
     souks: list = field(default_factory=list)       # city/life.py: the trade of each market street

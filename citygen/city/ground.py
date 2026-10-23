@@ -10,7 +10,8 @@ graded one:
                          back to the natural terrain over `edge_band` meters at the city limit
 
 `height` is the ground itself; `surface` is the top of what is drawn there, adding the street
-ribbon's lift. Everything is a pure function of position. The blur is sampled on a world-aligned
+ribbon's lift and the curb of a raised sidewalk or promenade. Everything is a pure function of
+position. The blur is sampled on a world-aligned
 lattice and interpolated bilinearly, so two neighbouring tiles compute exactly the same height on
 their shared edge and no seam can appear.
 """
@@ -183,6 +184,9 @@ class Ground:
                 lifts.append(STREET_LIFT.get(st.kind, 0.24))
         self.street_lift = np.asarray(lifts, dtype=np.float64)
         self.street_tree = STRtree(surfaces) if surfaces else None
+        self.curb_height = float(world.style.get("streets", {}).get("curb_height", 0.15))
+        walks = [w.polygon for plan in plans for w in getattr(plan, "walks", [])]
+        self.walk_tree = STRtree(walks) if walks else None
 
     def _select(self, x: np.ndarray, y: np.ndarray) -> list:
         """(city, indices) for the points inside each city; cities never overlap."""
@@ -238,22 +242,40 @@ class Ground:
             return float(out[0])
         return out.reshape(h.shape)
 
-    def surface(self, x, y):
-        """Top of what is drawn at each point: the street ribbon where one lies, else the ground.
+    def lift(self, x, y):
+        """Highest street-ribbon lift at each point (0 where no street lies)."""
+        x = np.asarray(x, dtype=np.float64)
+        y = np.asarray(y, dtype=np.float64)
+        out = np.zeros(x.shape)
+        if self.street_tree is None or x.size == 0:
+            return float(out) if out.ndim == 0 else out
+        xf, yf, of = np.ravel(x), np.ravel(y), np.ravel(out)
+        inp, hit = self.street_tree.query(shapely.points(xf, yf), predicate="intersects")
+        if len(inp):
+            np.maximum.at(of, inp, self.street_lift[hit])
+        if out.ndim == 0:
+            return float(of[0])
+        return out
 
-        Overlapping streets take the highest ribbon. Like `height`, this is a pure function of
-        position, so neighbouring tiles agree on every shared point.
+    def surface(self, x, y):
+        """Top of what is drawn at each point: ground, street ribbon, or a raised walk.
+
+        Overlapping streets take the highest ribbon; a sidewalk or promenade adds the curb
+        height above that ribbon. Like `height`, this is a pure function of position, so
+        neighbouring tiles agree on every shared point.
         """
         x = np.asarray(x, dtype=np.float64)
         y = np.asarray(y, dtype=np.float64)
         h = np.asarray(self.height(x, y), dtype=np.float64)
-        if self.street_tree is None or h.size == 0:
+        if (self.street_tree is None and self.walk_tree is None) or h.size == 0:
             return float(h) if h.ndim == 0 else h
         xf, yf, hf = np.ravel(x), np.ravel(y), np.ravel(h)
-        out = hf.copy()
-        inp, hit = self.street_tree.query(shapely.points(xf, yf), predicate="intersects")
-        if len(inp):
-            np.maximum.at(out, inp, hf[inp] + self.street_lift[hit])
+        lift = np.ravel(np.asarray(self.lift(xf, yf), dtype=np.float64))
+        out = hf + lift
+        if self.walk_tree is not None:
+            inp, _hit = self.walk_tree.query(shapely.points(xf, yf), predicate="intersects")
+            if len(inp):
+                np.maximum.at(out, inp, hf[inp] + lift[inp] + self.curb_height)
         if h.ndim == 0:
             return float(out[0])
         return out.reshape(h.shape)

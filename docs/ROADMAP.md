@@ -22,7 +22,7 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
 - [x] 10 Q4 Blender 5 haze
 - [x] 11 A4a City ground
 - [x] 12 A4b Everything on the graded ground
-- [ ] 13 A3 Sidewalks and curbs
+- [x] 13 A3 Sidewalks and curbs
 - [ ] 14 S1 Street surfaces and markings
 - [ ] 15 A1 Roof life
 - [ ] 16 CP2 Checkpoint: light and ground
@@ -181,9 +181,16 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
   neutral detail tinted by the palette colors. Windows and doors stay 3D pieces of the dressing,
   never painted. Done when: walls, roofs and ground read as materials in the viewer and Blender,
   and tests check the glb images are valid.
-- [ ] **A3 Sidewalks and curbs** (M; prompt 13) - Raised sidewalks (0.15 m) inside the street
-  surface along the blocks outside the old town, and a raised central promenade on boulevards,
-  so streets have crisp edges. Done when: snapshot shows curbs, no z-fighting with road ribbons.
+- [x] **A3 Sidewalks and curbs** (M; prompt 13) - Done. `city/walks.py` grows each block of a
+  district other than medina, village, park and cemetery by the district's `sidewalk_width`,
+  removes the block and clips the band to the streets' side strips. A strip keeps at least
+  `[streets] min_carriageway` (5.5 m) of asphalt, so a 9 m street gets 1.75 m walks and wider
+  streets keep up to 3.2 m. Each piece is stored in `CityPlan.walks` with its street, side and
+  actual width. Tops sit `curb_height` (0.15 m) above the ribbon, with a vertical `curb` face;
+  `Ground.surface` returns the raised top, so doors, trees and lamps stand on it (a 0.15 m
+  plinth shows under doors because the building base is not raised). Boulevards get an 8 m
+  central promenade in 64 m pieces under the middle tree row. Tiles grew 3.3% at most; the
+  street picture shows crisp curbs and the promenade with its trees.
 - [x] **A4 Terrain grading** (M; prompts 11-12) - done. `[ground]` grading in
   `citygen/city/ground.py` drives `TileContext.height`, so terrain, ribbons and building bases
   sit on the smoothed, terraced ground. `Ground.surface` adds the street-ribbon lift where a

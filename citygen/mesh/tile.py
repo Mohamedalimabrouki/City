@@ -23,8 +23,8 @@ from ..city.geo import frame, lines
 from ..city.ground import STREET_LIFT, Ground
 from ..kit import make_kit
 from ..terrain import BIOME_MATERIAL, SEA, classify
-from .builder import (MeshBuilder, add_cap, add_dome, add_hip_roof, add_ribbon, add_sheet, extrude, rectangle,
-                      regular_polygon)
+from .builder import (MeshBuilder, add_cap, add_dome, add_draped_cap, add_hip_roof, add_ribbon, add_sheet,
+                      add_skirt, extrude, rectangle, regular_polygon)
 from .gltf import write_glb
 from .props import tree_mesh
 
@@ -140,6 +140,22 @@ def street_meshes(mb: MeshBuilder, tc: TileContext, plan, street_tree, tile) -> 
             if seg.length > 0.05:
                 add_ribbon(mb, shapely.segmentize(seg, 6.0).coords, st.width, tc.height,
                            STREET_LIFT.get(st.kind, 0.24), mat)
+
+
+def walk_meshes(mb: MeshBuilder, tc: TileContext, plan, tile) -> None:
+    """Raised sidewalks and promenades owned by this tile (the tile holding their centroid)."""
+    x0, y0, x1, y1 = tile.bounds
+    for walk in getattr(plan, "walks", ()):
+        c = walk.polygon.centroid
+        if not (x0 <= c.x < x1 and y0 <= c.y < y1):
+            continue
+        poly = orient(walk.polygon, sign=1.0)
+        add_draped_cap(mb, poly, tc.ground.surface, "sidewalk")
+        for ring in (poly.exterior, *poly.interiors):
+            pts = np.asarray(ring.coords)[:-1]
+            top = tc.ground.surface(pts[:, 0], pts[:, 1])
+            bottom = tc.height(pts[:, 0], pts[:, 1])
+            add_skirt(mb, pts, top, bottom, "curb")
 
 
 def building_mesh(mb: MeshBuilder, b, height_fn) -> None:
@@ -269,6 +285,7 @@ def build_tile(tc: TileContext, i: int, j: int) -> tuple:
         if not plan.boundary.intersects(tile):
             continue
         street_meshes(mb, tc, plan, street_tree, tile)
+        walk_meshes(mb, tc, plan, tile)
         inside = (centers[:, 0] >= x0) & (centers[:, 0] < x1) & (centers[:, 1] >= y0) & (centers[:, 1] < y1)
         owned = np.nonzero(inside)[0]
         for k in owned:

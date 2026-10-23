@@ -79,6 +79,8 @@ dome_white = { color = "#F5F3EE" }
 dome_green = { color = "#3E7A57", roughness = 0.4 }
 asphalt = { color = "#7A7874", roughness = 0.95 }   # sun-bleached
 paving = { color = "#BDB09A" }
+sidewalk = { color = "#CFC7B6", roughness = 0.9 }   # raised walk beside the asphalt
+curb = { color = "#A29B8E", roughness = 0.85 }      # its vertical stone edge
 urban_ground = { color = "#CDBE9C" }
 water = { color = "#2D6F92", roughness = 0.1 }
 beach = { color = "#E8D6A8" }
@@ -154,6 +156,14 @@ cloth_4 = { color = "#E3B23C", double_sided = true }
 cloth_5 = { color = "#5A8F4E", double_sided = true }
 cloth_6 = { color = "#8E5AA8", double_sided = true }
 
+# --- streets ---------------------------------------------------------------------
+# Raised sidewalks (prompt 13) and their crisp curb. Widths per district are below.
+[streets]
+curb_height = 0.15          # meters above the street ribbon
+min_carriageway = 5.5       # a sidewalk is narrowed until this much asphalt remains
+promenade_width = 8.0       # the raised island under the boulevard's middle tree row
+promenade_piece = 64.0      # meters; short pieces keep a tile's mesh local
+
 # --- districts -------------------------------------------------------------------
 # floors/walls/roofs are weighted choices: [value, how often].
 [district.medina]          # the walled old town
@@ -192,6 +202,7 @@ courtyard_tree_chance = 0.45
 [district.colonial]        # the "ville nouvelle": boulevards and apartment buildings from the protectorate era
 grid = [96.0, 72.0]        # block length and width
 street_width = 12.0
+sidewalk_width = 3.2
 parcel_area = 380.0
 floors = [[3, 0.2], [4, 0.35], [5, 0.3], [6, 0.15]]
 floor_height = 3.6
@@ -202,6 +213,7 @@ perimeter = true           # buildings line the street, block interiors stay ope
 [district.modern]          # post-independence housing estates: apartment slabs
 grid = [150.0, 110.0]
 street_width = 12.0
+sidewalk_width = 3.0
 parcel_area = 1700.0
 setback = 6.0
 slab_depth = 13.0
@@ -214,6 +226,7 @@ roofs = [["roof_white", 1.0]]
 [district.residential]     # dense neighborhoods of attached family houses
 grid = [92.0, 52.0]
 street_width = 9.0
+sidewalk_width = 2.4
 parcel_area = 220.0
 floors = [[1, 0.3], [2, 0.5], [3, 0.2]]
 floor_height = 3.1
@@ -223,6 +236,7 @@ roofs = [["roof_white", 1.0]]
 [district.suburb]          # villas with gardens
 grid = [112.0, 64.0]
 street_width = 9.0
+sidewalk_width = 2.4
 parcel_area = 540.0
 setback = 4.0
 house_max = [17.0, 13.0]
@@ -236,6 +250,7 @@ garden_trees = [0, 3]
 [district.industrial]
 grid = [230.0, 160.0]
 street_width = 14.0
+sidewalk_width = 2.2
 parcel_area = 4200.0
 setback = 8.0
 height = [7.0, 13.0]
@@ -245,6 +260,7 @@ roofs = [["metal", 0.7], ["concrete_dark", 0.3]]
 [district.port]
 grid = [180.0, 120.0]
 street_width = 14.0
+sidewalk_width = 2.2
 parcel_area = 3200.0
 setback = 6.0
 height = [8.0, 15.0]

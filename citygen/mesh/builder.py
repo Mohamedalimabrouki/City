@@ -112,6 +112,55 @@ def add_cap(mb: MeshBuilder, poly: Polygon, z: float, material: str, up: bool = 
     mb.add(material, pos, nrm, uv, idx if up else idx[:, ::-1])
 
 
+def add_draped_cap(mb: MeshBuilder, poly: Polygon, height_fn, material: str) -> None:
+    """Horizontal cap that follows a height function at every vertex (a raised sidewalk)."""
+    tri = triangulate(poly)
+    if len(tri) == 0:
+        return
+    pos = np.concatenate([tri, np.zeros((len(tri), 3, 1))], axis=2).reshape(-1, 3)
+    pos[:, 2] = height_fn(pos[:, 0], pos[:, 1])
+    nrm = np.tile([0.0, 0.0, 1.0], (len(pos), 1))
+    uv = np.stack([pos[:, 0], -pos[:, 1]], axis=1)
+    mb.add(material, pos, nrm, uv, np.arange(len(pos)).reshape(-1, 3))
+
+
+def add_skirt(mb: MeshBuilder, ring, top, bottom, material: str) -> None:
+    """Vertical face around a ring, with a different height at every vertex.
+
+    `ring` is an open coordinate ring (the closing point is optional). The caller orients
+    exterior rings counter-clockwise and holes clockwise, so the normal points out of the solid.
+    """
+    pts = np.asarray(ring, dtype=np.float64)[:, :2]
+    if len(pts) > 1 and np.allclose(pts[0], pts[-1]):
+        pts = pts[:-1]
+    top, bottom = np.asarray(top, dtype=np.float64), np.asarray(bottom, dtype=np.float64)
+    if len(top) == len(pts) + 1:
+        top, bottom = top[:-1], bottom[:-1]
+    if len(pts) < 2 or len(top) != len(pts) or len(bottom) != len(pts):
+        return
+    a, b = pts, np.roll(pts, -1, axis=0)
+    d = b - a
+    length = np.hypot(d[:, 0], d[:, 1])
+    keep = length > 1e-6
+    a, b, d, length = a[keep], b[keep], d[keep], length[keep]
+    ta, tb, ba, bb = top[keep], np.roll(top, -1)[keep], bottom[keep], np.roll(bottom, -1)[keep]
+    k = len(a)
+    if not k:
+        return
+    pos = np.empty((k, 4, 3))
+    pos[:, 0, :2], pos[:, 1, :2], pos[:, 2, :2], pos[:, 3, :2] = a, b, b, a
+    pos[:, 0, 2], pos[:, 1, 2], pos[:, 2, 2], pos[:, 3, 2] = ta, tb, bb, ba
+    nrm = np.zeros((k, 4, 3))
+    nrm[:, :, 0] = (d[:, 1] / length)[:, None]
+    nrm[:, :, 1] = (-d[:, 0] / length)[:, None]
+    s = np.concatenate([[0.0], np.cumsum(length)])
+    uv = np.empty((k, 4, 2))
+    uv[:, 0, 0], uv[:, 1, 0], uv[:, 2, 0], uv[:, 3, 0] = s[:-1], s[1:], s[1:], s[:-1]
+    uv[:, 0, 1], uv[:, 1, 1], uv[:, 2, 1], uv[:, 3, 1] = -ta, -tb, -bb, -ba
+    tris = (np.arange(k) * 4)[:, None, None] + np.array([[0, 2, 1], [0, 3, 2]])[None]
+    mb.add(material, pos.reshape(-1, 3), nrm.reshape(-1, 3), uv.reshape(-1, 2), tris)
+
+
 def extrude(mb: MeshBuilder, poly: Polygon, z0: float, z1: float, wall: str, roof: str | None,
             z_ref: float | None = None) -> None:
     """Solid prism: walls for every ring plus a flat roof (skip the roof with roof=None)."""

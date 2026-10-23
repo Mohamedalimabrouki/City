@@ -15,6 +15,25 @@ Entry format:
 - Doubts and questions for Ali: <none, or the question>
 ```
 
+## 2026-10-23 - Prompt 13 A3 Sidewalks, curbs and the boulevard promenade
+- Commit: "Raised sidewalks, curbs and a boulevard promenade" (see git log) | Model: DeepSeek
+  V4.1 Flash, high (playbook: Sonnet, high)
+- Changed: `citygen/city/walks.py` (new: block bands clipped to street side strips, boulevard
+  promenade pieces), `citygen/city/model.py` (`Walk`, `CityPlan.walks`), `citygen/city/__init__.py`,
+  `citygen/city/ground.py` (`Ground.surface` adds the curb on a walk; `walk_tree`),
+  `citygen/mesh/builder.py` (`add_draped_cap`, `add_skirt`), `citygen/mesh/tile.py` (`walk_meshes`), style
+  (`[streets]`, `sidewalk` and `curb` colors, `sidewalk_width` per district), tests (3 new),
+  `docs/SPEC.md`, `docs/ROADMAP.md`, `docs/HANDOFF.md`
+- Checks: tests 33 passed (16.2 s); `build --quick` 9.4 s, 9 tiles; fingerprint 140 parts,
+  9 changed, all allowed: `tiles/index` plus 8 `tiles/*.glb`. Tile bytes grew 0.5-3.3% (budget
+  15%); plans, world and maps unchanged. Sidewalk widths 1.25-3.2 m; every sampled walk keeps
+  the 5.5 m carriageway, stays out of buildings and sits 0.15 m above its street.
+- Look: `output/checks/13.png` (street, mean pixel difference 8.21). After half: light raised
+  sidewalks with dark curb faces on both sides, the asphalt between them, and the boulevard
+  promenade on the left with its palm row standing on it.
+- Doubts and questions for Ali: none. Doors show a 0.15 m plinth under them (the building base is
+  not raised) - the prompt allowed either choice.
+
 ## 2026-10-23 - Prompt 12 A4b Everything on the graded ground
 - Commit: "Dressing and cameras stand on the drawn surface" (see git log) | Model: DeepSeek
   V4.1 Flash, high (playbook: Sonnet, high)

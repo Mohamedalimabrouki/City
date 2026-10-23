@@ -53,9 +53,9 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
   2026): fingerprint, before/after pictures, parallel and resumable builds all work as
   documented. Reference for checkpoint 16: `output/checks/fp-cp1.json` (quick build) and the
   pictures `output/checks/cp1-street.png`, `cp1-aerial.png`.
-- Prompts 6-12 are done: bougainvillea, golden hour, ambient occlusion, Blender 5 haze, A4a and
-  A4b (graded ground, and every prop, door, tree and camera on its surface). Next: prompt 13,
-  sidewalks and curbs.
+- Prompts 6-13 are done: bougainvillea, golden hour, ambient occlusion, Blender 5 haze, A4a and
+  A4b (graded ground, and every prop, door, tree and camera on its surface), and A3 (raised
+  sidewalks, curbs and the boulevard promenade). Next: prompt 14, street surfaces and markings.
 - Seed 42 makes the country **Bodjantouna** with the capital **Goumosbane**.
   `python -m citygen build --quick` writes it to `output/bodjantouna-42/` in about 7 seconds on
   Ali's Mac (20 seconds in the cloud).
@@ -106,6 +106,17 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
   the surface 0.5 m in front of the wall, because buildings stand 0.15 m back from the street
   edge: sampling at the wall would leave the threshold one lift below the pavement. Walls and
   wall-mounted pieces stay on `Ground.height`.
+- **Raised walks** (prompt 13, `city/walks.py`, `[streets]`): a sidewalk is `block.buffer(width)
+  - block` clipped to the streets' side strips; the side strips leave 5.5 m of asphalt, so a 9 m
+  street gets 1.75 m walks and a 12 m street keeps the 3.2 m design width. `CityPlan.walks` stores
+  every piece with its street, side and actual width for prompt 14's carriageway lines and later
+  arcades, hedges and parked cars. `Ground.surface` adds `curb_height` on a walk, so doors, trees
+  and lamps stand on it; doors show a plinth because the building base is not raised. Do not tile-
+  clip the polygons: each piece is drawn by the tile holding its centroid, and clipping would add
+  a visible cut face at every tile edge. The curb is a vertical skirt from the walk top down to
+  the ground, with outward winding (the first version had it reversed and the curb was invisible).
+  The boulevard promenade is 8 m wide in 64 m pieces under the middle tree row; keep the piece
+  short so a tile's mesh stays local.
 - **Family names** mix real lists with made-up nisba names built from Arabic roots and patterns
   (Hamdi = 1a23i from H-M-D), with sound rules and a rude-word blocklist, because random syllables
   sounded Japanese or Italian. D5 can map roots and patterns to Arabic script.

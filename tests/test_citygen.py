@@ -69,6 +69,8 @@ def test_same_seed_same_city(world, plan):
     again = plan_city(world, world.capital())
     assert again.stats["buildings"] == plan.stats["buildings"]
     assert again.buildings[100].footprint.equals_exact(plan.buildings[100].footprint, 1e-6)
+    assert len(again.walks) == len(plan.walks)
+    assert again.walks[0].polygon.equals_exact(plan.walks[0].polygon, 1e-6)
 
 
 def test_buildings_are_valid_and_inside_the_city(plan):
@@ -108,7 +110,7 @@ def test_tile_is_valid_glb(world, plan, tmp_path):
     info = export_tile(tc, int(s.x // tc.size), int(s.y // tc.size), tmp_path)
     gltf, binary = read_glb(tmp_path / info["file"])
     assert triangle_count(gltf) == info["triangles"] > 1000
-    assert {"lime_white", "asphalt", "paving"} <= {m["name"] for m in gltf["materials"]}
+    assert {"lime_white", "asphalt", "paving", "sidewalk", "curb"} <= {m["name"] for m in gltf["materials"]}
     for prim in gltf["meshes"][0]["primitives"]:
         count = gltf["accessors"][prim["attributes"]["POSITION"]]["count"]
         acc = gltf["accessors"][prim["indices"]]
@@ -392,6 +394,63 @@ def test_dressing_ground_pieces_stand_on_the_surface(world, plan, ground):
     ground_heights(ground, pieces)
     for p in pieces:
         assert abs(p.z - ground.surface(p.x, p.y)) <= 0.05, p.piece
+
+
+def test_sidewalks_are_raised_and_leave_a_carriageway(world, plan, ground):
+    from citygen.city.ground import STREET_LIFT
+    from citygen.city.walks import NO_WALK
+    min_car = float(world.style["streets"]["min_carriageway"])
+    curb = float(world.style["streets"]["curb_height"])
+    walks = [w for w in plan.walks if w.kind == "sidewalk"]
+    assert len(walks) > 50
+    footprints = STRtree([b.footprint for b in plan.buildings])
+    for w in walks:
+        st = plan.streets[w.street]
+        assert st.kind not in ("souk", "alley")
+        assert plan.districts[w.district].kind not in NO_WALK
+        assert w.width <= (st.width - min_car) / 2.0 + 0.1
+        assert w.polygon.intersection(st.line.buffer(min_car / 2.0)).area < 0.1
+        p = w.polygon.representative_point()
+        assert ground.surface(p.x, p.y) >= (ground.height(p.x, p.y)
+                                            + STREET_LIFT.get(st.kind, 0.24) + curb - 1e-6)
+        pts = shapely.get_coordinates(w.polygon.exterior)[:3]
+        xy = np.asarray(pts)
+        top = ground.surface(xy[:, 0], xy[:, 1])
+        expect = ground.height(xy[:, 0], xy[:, 1]) + ground.lift(xy[:, 0], xy[:, 1]) + curb
+        assert np.all(np.abs(top - expect) < 1e-6)
+        for k in footprints.query(w.polygon, predicate="intersects"):
+            assert w.polygon.intersection(plan.buildings[int(k)].footprint).area < 0.05
+
+
+def test_boulevard_gets_a_raised_promenade(world, plan, ground):
+    from shapely import line_interpolate_point
+    from citygen.city.ground import STREET_LIFT
+    promenade = [w for w in plan.walks if w.kind == "promenade"]
+    assert promenade
+    width = float(world.style["streets"]["promenade_width"])
+    curb = float(world.style["streets"]["curb_height"])
+    for w in promenade:
+        st = plan.streets[w.street]
+        assert st.kind == "boulevard" and abs(w.width - width) < 1e-6
+        p = w.polygon.representative_point()
+        assert ground.surface(p.x, p.y) >= (ground.height(p.x, p.y)
+                                            + STREET_LIFT["boulevard"] + curb - 1e-6)
+    for st in (s for s in plan.streets if s.kind == "boulevard"):
+        pts = shapely.get_coordinates(line_interpolate_point(st.line, np.arange(0.0, st.line.length, 4.0)))
+        top = ground.surface(pts[:, 0], pts[:, 1])
+        assert np.all(top - ground.height(pts[:, 0], pts[:, 1])
+                      >= STREET_LIFT["boulevard"] + curb - 1e-6)
+
+
+def test_skirt_triangles_face_outward():
+    from citygen.mesh.builder import add_skirt
+    mb = MeshBuilder()
+    ring = np.array([[0.0, 0.0], [2.0, 0.0], [2.0, 2.0], [0.0, 2.0]])
+    add_skirt(mb, ring, np.ones(4), np.zeros(4), "curb")
+    part = mb.gltf_parts()["curb"]
+    tri = part["pos"][part["idx"].reshape(-1, 3)]
+    n = np.cross(tri[:, 1] - tri[:, 0], tri[:, 2] - tri[:, 0])
+    assert np.all(np.einsum("ij,ij->i", n, part["nrm"][part["idx"].reshape(-1, 3)[:, 0]]) > 0.0)
 
 
 def test_households_and_souks(plan):
