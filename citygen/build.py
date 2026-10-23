@@ -320,6 +320,7 @@ def build(cfg: dict, area: str | None = None, log=print, force: bool = False) ->
             write_json(folder / "index.json", {
                 "format": "citygen-tiles/1", "build_key": key, "seed": world.seed, "world_name": world.name,
                 "tile_size": size, "world_size": [world.size, world.size],
+                "parapets": True,   # the tiles carry their own roof parapets (tools/blender_beauty.py skips its own)
                 "focus": {"x": round(focus.x, 1), "y": round(focus.y, 1),
                           "z": round(float(ground.surface(focus.x, focus.y)), 1), "name": focus.name},
                 "views": next((camera_views(p, ground) for p in plans if p.settlement is focus), {}),

@@ -21,10 +21,11 @@ from shapely.strtree import STRtree
 from ..city.dressing import Dresser, Placement, building_highs, ground_heights
 from ..city.geo import frame, lines, polygons
 from ..city.ground import STREET_LIFT, Ground
+from ..city.roofs import RoofLayout, roof_layout, roof_stream
 from ..kit import make_kit
 from ..terrain import BIOME_MATERIAL, SEA, classify
-from .builder import (MeshBuilder, add_cap, add_dome, add_draped_cap, add_hip_roof, add_ribbon, add_sheet,
-                      add_skirt, extrude, rectangle, regular_polygon)
+from .builder import (MeshBuilder, add_cap, add_dome, add_draped_cap, add_hip_roof, add_loft, add_ribbon,
+                      add_sheet, add_skirt, add_walls, extrude, rectangle, regular_polygon)
 from .gltf import write_glb
 from .props import tree_mesh
 
@@ -40,6 +41,7 @@ class TileContext:
         self.size = int(world.cfg["tiles"]["size"])
         self.step = float(world.cfg["tiles"]["terrain_step"])
         self.palette = world.style["palette"]
+        self.roofs = world.style.get("roofs", {})
         self.road_lines = [LineString(r.coords) for r in world.roads]
         self.road_tree = STRtree(self.road_lines) if self.road_lines else None
         self.plans = plans
@@ -175,7 +177,7 @@ def walk_meshes(mb: MeshBuilder, tc: TileContext, plan, tile) -> None:
             add_skirt(mb, pts, top, bottom, "curb")
 
 
-def building_mesh(mb: MeshBuilder, b, height_fn) -> None:
+def building_mesh(mb: MeshBuilder, b, height_fn, roof: RoofLayout | None = None) -> None:
     fp = orient(b.footprint, sign=1.0)
     ring = np.asarray(fp.exterior.coords)
     ground = height_fn(ring[:, 0], ring[:, 1])
@@ -187,7 +189,10 @@ def building_mesh(mb: MeshBuilder, b, height_fn) -> None:
         corners = np.asarray(rectangle(cx, cy, length, width, angle).exterior.coords)[:4]
         add_hip_roof(mb, corners, z1, 0.32 * width, b.roof)
     else:
-        extrude(mb, fp, z0, z1, b.wall, b.roof, z_ref=high)
+        parapet = roof is not None and roof.band is not None
+        z_top = z1 + roof.height if parapet else z1
+        extrude(mb, fp, z0, z_top, b.wall, None if parapet else b.roof, z_ref=high)
+        roof_mesh(mb, b, roof, z1)
     for x, y, r, mat in b.domes:
         extrude(mb, regular_polygon(x, y, r, 12), z1, z1 + 0.18 * r, b.wall, None, z_ref=high)
         add_dome(mb, x, y, z1 + 0.18 * r, r, mat)
@@ -210,6 +215,50 @@ def _quad(mb: MeshBuilder, a, b, c, d, mat: str) -> None:
     n = np.cross(pos[1] - pos[0], pos[3] - pos[0])
     n = n / max(np.linalg.norm(n), 1e-9)
     mb.add(mat, pos, np.tile(n, (4, 1)), np.zeros((4, 2)), [[0, 1, 2], [0, 2, 3]])
+
+
+def roof_mesh(mb: MeshBuilder, b, layout: RoofLayout | None, z: float) -> None:
+    """The parapet coping, the stair room and the roof deck of a flat roof (deck at z)."""
+    if layout is None or layout.band is None:
+        return
+    for poly in polygons(layout.inner):
+        add_cap(mb, poly, z, b.roof)                       # the deck inside the parapet
+    z_top = z + layout.height
+    for band in polygons(layout.band):
+        _coping(mb, b, band, z, z_top)
+    if layout.stair is None:
+        return
+    extrude(mb, layout.stair, z, z + layout.stair_height, b.wall, b.roof, z_ref=z)
+    x, y, yaw = layout.door
+    half = layout.door_width / 2
+    t = np.array([-math.sin(yaw), math.cos(yaw)])       # along the stair room wall
+    c = np.array([x, y]) + np.array([math.cos(yaw), math.sin(yaw)]) * 0.02
+    h = layout.door_height
+    _quad(mb, (c[0] - t[0] * half, c[1] - t[1] * half, z + 0.02),
+          (c[0] + t[0] * half, c[1] + t[1] * half, z + 0.02),
+          (c[0] + t[0] * half, c[1] + t[1] * half, z + h),
+          (c[0] - t[0] * half, c[1] - t[1] * half, z + h), "wood")
+
+
+def _coping(mb: MeshBuilder, b, band, z: float, z_top: float) -> None:
+    """The sloped top of one parapet band: from its outer ring at z_top down to its inner ring at z.
+
+    The outer face of the parapet is the building wall itself, drawn up to z_top, so only this
+    coping strip is new geometry: 2 triangles per edge, which keeps a dense old town affordable.
+    """
+    band = orient(band, sign=1.0)
+    outer = np.asarray(band.exterior.coords)[:, :2]
+    holes = [np.asarray(h.coords)[:, :2] for h in band.interiors]
+    outer = outer[:-1] if len(outer) > 1 and np.allclose(outer[0], outer[-1]) else outer
+    holes = [h[:-1] if len(h) > 1 and np.allclose(h[0], h[-1]) else h for h in holes]
+    if len(holes) != 1 or len(holes[0]) != len(outer):
+        add_cap(mb, band, z_top, b.roof)                 # rare outline the offset could not pair
+        for hole in band.interiors:
+            add_walls(mb, hole.coords[::-1], z, z_top, b.wall, z)
+        return
+    inner = holes[0][::-1]                               # same direction as the counter-clockwise outer ring
+    k = int(np.argmin(((inner - outer[0]) ** 2).sum(axis=1)))
+    add_loft(mb, np.roll(inner, -k, axis=0), z, outer, z_top, b.roof)
 
 
 def span_mesh(mb: MeshBuilder, span, placements: list) -> None:
@@ -307,7 +356,10 @@ def build_tile(tc: TileContext, i: int, j: int) -> tuple:
         inside = (centers[:, 0] >= x0) & (centers[:, 0] < x1) & (centers[:, 1] >= y0) & (centers[:, 1] < y1)
         owned = np.nonzero(inside)[0]
         for k in owned:
-            building_mesh(mb, plan.buildings[int(k)], tc.height)
+            b = plan.buildings[int(k)]
+            roof = roof_layout(b, plan.districts[b.district].kind,
+                               roof_stream(tc.world.seed, plan.settlement.id, int(k)), tc.roofs)
+            building_mesh(mb, b, tc.height, roof)
         if dresser is not None:
             highs = building_highs(tc.ground, [plan.buildings[int(k)] for k in owned])
             for k, high in zip(owned, highs):

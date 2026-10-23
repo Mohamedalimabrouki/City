@@ -5,10 +5,10 @@
 
 Imports every tile of OUT_DIR (the generator folder), swaps the palette materials for procedural
 shaders (facades are driven by the wall UVs, which are meters: u along the wall, v = 1 + height above
-the building's highest ground point), adds roof parapets and water tanks, and lights the scene with a
-Nishita sky, a matching sun and a thin haze. Parapets, sea and sky are Blender-only dressing. Tiles
-built with street dressing (doors, windows, shops, lamps from the kit) keep it; tiles built without it
-get painted windows, doors and shutters and a few water tanks here instead.
+the building's highest ground point), adds water tanks, and lights the scene with a Nishita sky, a
+matching sun and a thin haze. Parapets and the sea are Blender-only dressing: the generator's tiles
+carry their own parapets (the index says "parapets": true) and this script only adds them for older
+builds; tiles built without street dressing get painted windows, doors and shutters here instead.
 """
 from __future__ import annotations
 
@@ -51,6 +51,7 @@ STYLES = {   # floor height, bay width, window width/height/sill, frame, window 
 }
 COPY_SUFFIX = re.compile(r"\.\d{3,}$")
 DRESSED = False                         # set in main: the tiles carry the generator's street dressing
+PARAPETS = False                        # set in main: the tiles carry their own roof parapets
 
 
 def lin(c: float) -> float:
@@ -758,8 +759,9 @@ def dress_tile(ob: bpy.types.Object, plaster, tank, seed: int):
         return None, 0, 0
     p0, p1, edge_group, pts, group = parts
     bm = bmesh.new()
-    for a, b in zip(p0, p1):
-        add_parapet(bm, a, b)
+    if not PARAPETS:   # the generator's tiles already carry their parapets (index "parapets")
+        for a, b in zip(p0, p1):
+            add_parapet(bm, a, b)
     gen = rng(seed, "tanks", ob.name)
     tanks = 0
     area = np.linalg.norm(np.cross(pts[:, 1] - pts[:, 0], pts[:, 2] - pts[:, 0]), axis=1) / 2
@@ -788,7 +790,7 @@ def dress_tile(ob: bpy.types.Object, plaster, tank, seed: int):
     dress = bpy.data.objects.new(me.name, me)
     dress.matrix_world = ob.matrix_world.copy()
     bpy.context.scene.collection.objects.link(dress)
-    return dress, len(p0), tanks
+    return dress, 0 if PARAPETS else len(p0), tanks
 
 
 def flat_quad(name: str, z: float, half: float, mat: bpy.types.Material) -> None:
@@ -978,8 +980,9 @@ def main() -> None:
     bpy.ops.wm.read_factory_settings(use_empty=True)
     scene = bpy.context.scene
     folder, index = load_index(args.out_dir)
-    global DRESSED
+    global DRESSED, PARAPETS
     DRESSED = any(t.get("pieces", 0) for t in index["tiles"])
+    PARAPETS = bool(index.get("parapets"))
     tiles, mats = import_tiles(folder, index)
     print(f"beauty: imported {len(tiles)} tiles in {time.time() - clock:.1f} s", flush=True)
 

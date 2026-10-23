@@ -83,6 +83,7 @@ build.build()                 orchestrates the above into output/<country>-<seed
 | `citygen/city/dressing.py` | `Dresser`: which piece goes where, tile by tile |
 | `citygen/city/walks.py` | raised sidewalks along blocks, narrowed to keep a carriageway, and the boulevard promenade |
 | `citygen/city/paint.py` | street surfaces per kind, painted edge and lane lines, zebra crossings |
+| `citygen/city/roofs.py` | roof layout: parapet band and coping, stair room and its door, one random stream per building |
 | `citygen/kitsheet.py` | `python -m citygen kit-sheet`: every piece in one viewable grid |
 | `citygen/export/maps.py` | country and city PNG maps |
 | `citygen/export/lore.py` | JSON data files and the gazetteer |
@@ -114,6 +115,8 @@ build.build()                 orchestrates the above into output/<country>-<seed
   point), `wall`/`roof` material names, `floors`, `roof_shape` (`flat`/`hip`), `domes`, `top`.
 
 Invariants (tested): buildings are valid polygons inside the city and stay off street surfaces;
+flat roofs carry the parapet from `[roofs]` and, where the layout puts one, a stair room whose
+door opens on free roof; roof props always stand inside the parapet and outside the stair room;
 sidewalks never enter a building footprint, keep at least `min_carriageway` meters of asphalt,
 and stand `curb_height` above the street ribbon; every road marking lies inside its street's
 carriageway; everything is deterministic.
@@ -127,7 +130,7 @@ carriageway; everything is deterministic.
 | `gazetteer.md` | readable guide for stories |
 | `maps/country.png`, `maps/<city>.png` | 2D maps, north up |
 | `tiles/tile_<i>_<j>.glb` | 3D tile covering x `i*512..(i+1)*512`, y `j*512..(j+1)*512` |
-| `tiles/index.json` | `citygen-tiles/1`: tile list (bytes, unique and drawn triangles, dressing pieces), `focus` point, camera `views`, `cities` (name, plan file, bounds) |
+| `tiles/index.json` | `citygen-tiles/1`: tile list (bytes, unique and drawn triangles, dressing pieces), `"parapets": true` when the tiles carry their own roof parapets, `focus` point, camera `views`, `cities` (name, plan file, bounds) |
 | `summary.json` | counts and timings (read this instead of big files) |
 
 **.glb conventions:** one root node per tile with `translation = [x0, 0, -y0]`; vertices are
@@ -158,7 +161,8 @@ piece; `tools/blender_import.py` and `tools/blender_beauty.py` place all copies 
 - **Dresser** (`city/dressing.py`): per building (one random stream each) the main facade gets a
   shop (souks), a cafe (colonial) or a door with lamp, hood, pots, bench, cat, climber, parked
   moped; other walls get windows by floor (grilles, shutters, birdcage bays, one mashrabiya
-  balcony for rich households); flat roofs get tanks, dishes, laundry racks, pots. Per street:
+  balcony for rich households); flat roofs get tanks, dishes, laundry racks and pots inside the
+  parapet and off the stair room. Per street:
   laundry, cables, lantern strings, bunting and sabats across alleys and souks, arches over alley
   mouths, gates and handcarts in souks, lamps along main streets. Planned trees become instances.
   Nothing is stored in the plan: a tile asks for what it owns and always gets the same answer.
@@ -167,7 +171,8 @@ piece; `tools/blender_import.py` and `tools/blender_beauty.py` place all copies 
 
 `[names]` sounds and templates, `[lore]` eras and products, `[palette]` materials,
 `[streets]` curb height, minimum carriageway, promenade width and the paint numbers,
-`[streets.surface]` the ribbon material per street kind, `[district.<kind>]` street
+`[streets.surface]` the ribbon material per street kind, `[roofs]` parapet thickness, height by
+district kind and the stair room share and size, `[district.<kind>]` street
 grid, sidewalk width, lot size, floors, materials and special rules,
 `[settlement.<kind>]` population, density, old town size, which district kinds exist and the
 `rings` mix by distance from the center. `[life]` door colors, family name patterns, real name

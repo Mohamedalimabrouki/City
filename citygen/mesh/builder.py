@@ -161,6 +161,39 @@ def add_skirt(mb: MeshBuilder, ring, top, bottom, material: str) -> None:
     mb.add(material, pos.reshape(-1, 3), nrm.reshape(-1, 3), uv.reshape(-1, 2), tris)
 
 
+def add_loft(mb: MeshBuilder, inner, z_inner: float, outer, z_outer: float, material: str) -> None:
+    """Quad strip between two matching rings at two heights (a roof coping).
+
+    `inner` and `outer` are equal-length coordinate rings in the same direction, vertex i of one
+    facing vertex i of the other. Faces point up, as seen from above.
+    """
+    a = np.asarray(inner, dtype=np.float64)[:, :2]
+    b = np.asarray(outer, dtype=np.float64)[:, :2]
+    if len(a) > 1 and np.allclose(a[0], a[-1]):
+        a = a[:-1]
+    if len(b) > 1 and np.allclose(b[0], b[-1]):
+        b = b[:-1]
+    if len(a) < 3 or len(a) != len(b):
+        return
+    a1, b1 = np.roll(a, -1, axis=0), np.roll(b, -1, axis=0)
+    pos = np.stack([np.column_stack([a, np.full(len(a), z_inner)]),
+                    np.column_stack([a1, np.full(len(a), z_inner)]),
+                    np.column_stack([b1, np.full(len(a), z_outer)]),
+                    np.column_stack([b, np.full(len(a), z_outer)])], axis=1)
+    n = np.cross(pos[:, 1] - pos[:, 0], pos[:, 3] - pos[:, 0])
+    norm = np.linalg.norm(n, axis=1)
+    keep = norm > 1e-9
+    if not keep.any():
+        return
+    pos, n, norm = pos[keep], n[keep] / norm[keep, None], norm[keep]
+    flip = n[:, 2] < 0        # seen from below: turn the face over
+    pos[flip] = pos[flip][:, ::-1]
+    n[flip] *= -1.0
+    uv = np.stack([pos[:, :, 0], -pos[:, :, 1]], axis=-1)
+    tris = (np.arange(len(pos)) * 4)[:, None, None] + _QUAD[None]
+    mb.add(material, pos.reshape(-1, 3), np.repeat(n, 4, axis=0), uv.reshape(-1, 2), tris)
+
+
 def extrude(mb: MeshBuilder, poly: Polygon, z0: float, z1: float, wall: str, roof: str | None,
             z_ref: float | None = None) -> None:
     """Solid prism: walls for every ring plus a flat roof (skip the roof with roof=None)."""

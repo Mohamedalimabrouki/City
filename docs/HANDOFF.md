@@ -53,10 +53,10 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
   2026): fingerprint, before/after pictures, parallel and resumable builds all work as
   documented. Reference for checkpoint 16: `output/checks/fp-cp1.json` (quick build) and the
   pictures `output/checks/cp1-street.png`, `cp1-aerial.png`.
-- Prompts 6-14 are done: bougainvillea, golden hour, ambient occlusion, Blender 5 haze, A4a and
+- Prompts 6-15 are done: bougainvillea, golden hour, ambient occlusion, Blender 5 haze, A4a and
   A4b (graded ground, and every prop, door, tree and camera on its surface), A3 (raised
-  sidewalks, curbs and the boulevard promenade) and S1 (street surfaces and painted markings).
-  Next: prompt 15, roof life (parapets and stair rooms).
+  sidewalks, curbs and the boulevard promenade), S1 (street surfaces and painted markings) and
+  A1 (roof parapets and stair rooms). Next: prompt 16, checkpoint light and ground.
 - Seed 42 makes the country **Bodjantouna** with the capital **Goumosbane**.
   `python -m citygen build --quick` writes it to `output/bodjantouna-42/` in about 10 seconds on
   Ali's Mac (20 seconds in the cloud).
@@ -68,6 +68,16 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
 
 ## Decisions and lessons (do not relearn them)
 
+- **Roof layout** (prompt 15, `city/roofs.py`, `[roofs]`): `roof_layout` is the only place that
+  decides a flat roof's parapet band, deck, stair room and door. It runs on
+  `roof_stream(seed, city id, k)`, so the tile mesher and `Dresser._roof` get the same answer
+  without sharing state. A parapet reuses the building wall as its outer face (free) and adds a
+  sloped coping from the outer top down to the inset deck: 2 triangles per edge. Do not build a
+  solid band or a flat cap with an inner wall: on the dense old-town tile (tile 13_23, 856
+  buildings) the solid band was +51% and a flat cap about +41%, over the +25% budget; the coping
+  version is +20.6%. `_coping` needs open rings: strip the closing point before rolling the
+  inner ring, or the roll puts the duplicate in the middle and `add_loft` drops every quad (that
+  bug made the first parapets invisible).
 - **Parallel tiles** (`TilePool` in `citygen/build.py`): spawn processes start while the parent
   plans and wait for one pickle file (world + plans); each builds its own `TileContext`. Use
   `multiprocessing.Pool`, not `ProcessPoolExecutor`: the Claude sandbox forbids the

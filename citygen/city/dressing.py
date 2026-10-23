@@ -21,6 +21,7 @@ from shapely.geometry.polygon import orient
 from shapely.strtree import STRtree
 
 from ..rng import stream, weighted
+from .roofs import roof_layout, roof_stream
 
 DRESSED = {"house", "domed", "apartments", "villa"}
 FRONT_PREF = {"souk": 3.0, "alley": 2.5, "street": 2.0, "boulevard": 1.5, "ring": 1.0, "arterial": 1.0,
@@ -77,6 +78,7 @@ class Dresser:
     def __init__(self, world, plan, kit, ground):
         self.world, self.plan, self.kit, self.ground = world, plan, kit, ground
         self.cfg = world.style.get("dressing", {})
+        self.roofs = world.style.get("roofs", {})
         self.seed, self.sid = world.seed, plan.settlement.id
         self.surfaces = [st.line.buffer(st.width / 2, cap_style="flat") for st in plan.streets]
         self.surface_tree = STRtree(self.surfaces) if self.surfaces else None
@@ -161,7 +163,7 @@ class Dresser:
             main = max(fac, key=lambda f: (FRONT_PREF.get(f.kind, 0.0), f.length))
             door_at = self._front(main, district, color, wealth, b.height, rng, out)
             self._windows(fac, district, color, wealth, floors, fh, high, door_at, rng, out)
-        self._roof(b, high, rng, out)
+        self._roof(b, k, high, rng, out)
         return out
 
     def front_surface(self, c: np.ndarray, n: np.ndarray) -> float:
@@ -301,24 +303,28 @@ class Dresser:
                         laundry -= 1
                         self.put(out, "wall_laundry", rng, p, base + sill - 0.15, yaw, on_ground=False)
 
-    def _roof(self, b, high, rng, out) -> None:
+    def _roof(self, b, k: int, high: float, rng, out) -> None:
         if b.roof_shape != "flat" or b.kind not in DRESSED:
             return
         top = high + b.height
         cfg = self.cfg
+        layout = roof_layout(b, self.kinds[b.district], roof_stream(self.seed, self.sid, k), self.roofs)
+        area = layout.inner if layout.inner is not None else b.footprint
         for role, chance, margin in (("roof_tank", cfg.get("roof_tank", 0.3), 0.9),
                                      ("roof_dish", cfg.get("roof_dish", 0.2), 0.9),
                                      ("roof_laundry", cfg.get("roof_laundry", 0.15), 1.5),
                                      ("roof_pot", cfg.get("roof_pots", 0.15), 0.8)):
             if rng.random() >= chance:
                 continue
-            inner = b.footprint.buffer(-margin)
-            if inner.is_empty:
+            free = area.buffer(-margin)
+            if layout.stair is not None:
+                free = free.difference(layout.stair.buffer(margin))
+            if free.is_empty:
                 continue
-            minx, miny, maxx, maxy = inner.bounds
+            minx, miny, maxx, maxy = free.bounds
             for _ in range(8):
                 x, y = rng.uniform(minx, maxx), rng.uniform(miny, maxy)
-                if shapely.contains_xy(inner, x, y):
+                if shapely.contains_xy(free, x, y):
                     self.put(out, role, rng, (x, y), top, rng.uniform(0, 6.28), on_ground=False)
                     break
 

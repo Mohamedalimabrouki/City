@@ -396,6 +396,78 @@ def test_dressing_ground_pieces_stand_on_the_surface(world, plan, ground):
         assert abs(p.z - ground.surface(p.x, p.y)) <= 0.05, p.piece
 
 
+def test_parapets_and_stair_rooms_follow_the_style(world, plan):
+    from citygen.city.roofs import roof_layout, roof_stream
+    from shapely.geometry import Point
+    cfg = world.style["roofs"]
+    thick = float(cfg["parapet_thickness"])
+    seen = {"house": [], "apartments": []}
+    expected = {"house": [], "apartments": []}
+    stairs = 0
+    for k, b in enumerate(plan.buildings):
+        if b.roof_shape != "flat":
+            continue
+        kind = plan.districts[b.district].kind
+        layout = roof_layout(b, kind, roof_stream(world.seed, plan.settlement.id, k), cfg)
+        assert layout.band is not None and layout.inner is not None
+        assert layout.height == pytest.approx(cfg["parapet_height"].get(kind, cfg["parapet_fallback"]))
+        assert 0.6 <= layout.height <= 1.0
+        thin = b.footprint.buffer(-thick, join_style="mitre")
+        assert layout.inner.symmetric_difference(thin).area < 1e-6      # a 0.2 m band
+        if b.kind in seen:
+            seen[b.kind].append(layout.stair is not None)
+            expected[b.kind].append(cfg["stair_room"].get(kind, 0.0))
+        if layout.stair is None:
+            continue
+        stairs += 1
+        assert layout.stair.area == pytest.approx(float(cfg["stair_side"]) ** 2, rel=1e-6)
+        assert layout.stair_height == pytest.approx(float(cfg["stair_height"]))
+        assert layout.inner.contains(layout.stair)
+        x, y, yaw = layout.door
+        assert layout.stair.exterior.distance(Point(x, y)) < 0.05       # the door sits on its wall
+        assert layout.free.contains(Point(x + math.cos(yaw) * 0.5, y + math.sin(yaw) * 0.5))
+    assert stairs > 50
+    for kind in seen:
+        assert len(seen[kind]) > 100
+        got, want = float(np.mean(seen[kind])), float(np.mean(expected[kind]))
+        assert abs(got - want) < 0.06, (kind, got, want)                # the style share is the share built
+    assert 0.2 < np.mean(seen["house"]) < 0.45
+    assert 0.45 < np.mean(seen["apartments"]) < 0.72
+
+
+def test_roof_props_stay_inside_the_parapet_and_off_the_stair_room(world, plan, built_tile):
+    from citygen.city.dressing import building_highs
+    from citygen.city.roofs import roof_layout, roof_stream
+    from shapely.geometry import Point
+    tc, _, _, placements = built_tile
+    roles = world.style["dressing"]["roles"]
+    pieces = {option[0] for role in ("roof_tank", "roof_dish", "roof_laundry", "roof_pot")
+              for option in roles[role]}
+    tree = STRtree([b.footprint for b in plan.buildings])
+    props = stairs = 0
+    for p in placements:
+        if p.piece not in pieces:
+            continue                                # the same pieces also stand in the street
+        point = Point(p.x, p.y)
+        k = int(tree.query_nearest(point)[0])
+        b = plan.buildings[k]
+        if not b.footprint.contains(point):
+            continue
+        high = building_highs(tc.ground, [b])[0]
+        if abs(p.z - (high + b.height)) > 1e-6:
+            continue                                # a pot on a windowsill or a sidewalk, not a roof
+        props += 1
+        layout = roof_layout(b, plan.districts[b.district].kind,
+                             roof_stream(world.seed, plan.settlement.id, k), tc.roofs)
+        assert layout.free is not None
+        assert layout.free.contains(point), (p.piece, k)
+        if layout.stair is not None:
+            stairs += 1
+            assert not layout.stair.buffer(0.05).contains(point)
+    assert props > 20
+    assert stairs > 0                                                   # the stair room really was avoided
+
+
 def test_sidewalks_are_raised_and_leave_a_carriageway(world, plan, ground):
     from citygen.city.ground import STREET_LIFT
     from citygen.city.walks import NO_WALK

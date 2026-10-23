@@ -24,7 +24,7 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
 - [x] 12 A4b Everything on the graded ground
 - [x] 13 A3 Sidewalks and curbs
 - [x] 14 S1 Street surfaces and markings
-- [ ] 15 A1 Roof life
+- [x] 15 A1 Roof life
 - [ ] 16 CP2 Checkpoint: light and ground
 - [ ] 17 A2a Textures in the 3D files
 - [ ] 18 A2b Generated textures
@@ -170,11 +170,16 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
   laundry and lantern strings, street lamps, palms from the kit; the viewer got a night mode and
   "click a house: who lives there". `python -m citygen kit-sheet` shows every piece.
 
-- [ ] **A1 Roof life** (S) - Tanks, dishes, laundry racks and pots already come with the
-  dressing (A0). Left: low parapet walls (0.6-1.0 m) on flat roofs and stair boxes (a small
-  room with a door) on a share of roofs. Files: `mesh/tile.py` (`building_mesh`),
-  `styles/maghreb.toml`. Done when: the street snapshot shows parapets, tile triangles grow under
-  25%. Reference: `tools/blender_beauty.py` (`add_parapet`) does parapets in Blender.
+- [x] **A1 Roof life** (S; prompt 15) - Done. `city/roofs.py` decides each flat roof once on
+  its own stream (`roof_stream`): a parapet band 0.2 m thick and 0.6-0.9 m high (per district
+  kind in `[roofs]`), and a 2.5 x 2.5 x 2.4 m stair room on about 35% of houses and 60% of
+  apartment blocks, set against the roof edge and off the domes, with a door on a side that
+  opens on free roof. `mesh/tile.py` reuses the building wall as the outer parapet face and
+  adds a sloped coping strip down to the inset deck, which keeps the dense old town at +20.6%
+  triangles (budget 25%). Domed roofs and minaret tops keep their shape; the index carries
+  `"parapets": true` and `tools/blender_beauty.py` skips its own parapets. `Dresser._roof`
+  uses the same layout, so tanks, dishes, laundry and pots stay inside the parapet and off
+  the stair room.
 - [ ] **A2 Facade textures** (M, Sonnet high; prompts 17-20) - Base-color textures in the glb
   writer (shared or embedded images, `KHR_texture_transform` scale so UVs stay meters) and
   generated tileable textures (plaster, stone, render, concrete, roof tiles, paving, ground) as

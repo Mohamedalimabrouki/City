@@ -15,6 +15,28 @@ Entry format:
 - Doubts and questions for Ali: <none, or the question>
 ```
 
+## 2026-10-23 - Prompt 15 A1 Roof life
+- Commit: "Roof life: parapets and stair rooms" (see git log) | Model: DeepSeek V4.1 Flash,
+  high (playbook: Sonnet, medium)
+- Changed: `citygen/city/roofs.py` (new: `RoofLayout`, `roof_stream`, `roof_layout`, stair room
+  placement and its door), `citygen/mesh/tile.py` (`roof_mesh`, `_coping`, one layout per owned
+  building), `citygen/mesh/builder.py` (`add_loft`), `citygen/city/dressing.py` (`_roof` uses
+  the layout), `citygen/build.py` (index `parapets`), `styles/maghreb.toml` (`[roofs]`),
+  `tools/blender_beauty.py` (skip its own parapets when the index says so), tests (2 new),
+  `docs/SPEC.md`, `docs/ROADMAP.md`, `docs/HANDOFF.md`
+- Checks: tests 37 passed (17.6 s); `build --quick` 10.7 s, 9 tiles; fingerprint 140 parts,
+  9 changed, all allowed (`tiles/index` plus 8 `tiles/*.glb`). Tile triangles at most +20.6%
+  (tile 13_23, budget 25%), bytes 1.0-21.5%. Parapets 0.6-0.9 m by district kind; stair rooms
+  on 32% of houses and 59% of apartment blocks; 2,021 of 2,062 parapet bands use the paired
+  coping, 41 a capped fallback. Plans, world and maps unchanged.
+- Look: `output/checks/15.png` (close aerial 120 m above the old town, 45 degrees down, mean
+  pixel difference 9.49). After half: raised rims around flat roofs and courtyards, small stair
+  boxes with doors, domes and minaret tops unchanged.
+- Doubts and questions for Ali: the top is a sloped coping from the outer edge down to the
+  inset deck, not a flat 0.2 m cap. A flat cap plus an inner wall cost 41% more triangles on the
+  dense old-town tile, over the 25% budget. It reads as a capped parapet from the air; say if
+  you want the flat cap in a later task.
+
 ## 2026-10-23 - Prompt 14 S1 Street surfaces and markings
 - Commit: "Street surfaces: asphalt, stone, earth and painted markings" (see git log) | Model:
   DeepSeek V4.1 Flash, high (playbook: Sonnet, medium)

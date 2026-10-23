@@ -297,6 +297,21 @@ tree_spacing = 13.0
 tree_spacing = 24.0
 marabouts = 3              # small domed shrines
 
+# --- roofs -------------------------------------------------------------------------
+# Flat roofs get a low wall around the edge (a parapet) and some of them a stair room,
+# a small room with a door that opens on the roof. Heights and shares by district kind.
+[roofs]
+parapet_thickness = 0.2
+parapet_fallback = 0.7     # for a district kind not listed below
+parapet_height = { medina = 0.85, village = 0.7, colonial = 0.9, modern = 0.8, residential = 0.7, suburb = 0.75, industrial = 0.6, port = 0.6 }
+stair_room = { medina = 0.35, village = 0.35, colonial = 0.6, modern = 0.6, residential = 0.35, suburb = 0.3 }   # share of flat roofs with a stair room
+stair_side = 2.5           # meters, square footprint
+stair_height = 2.4         # meters above the roof deck
+stair_gap = 0.25           # meters between the stair room and the parapet
+stair_door_width = 0.9
+stair_door_height = 1.95
+stair_door_reach = 0.8     # meters of free roof a side needs before it takes the door
+
 # --- settlement kinds ---------------------------------------------------------------
 [settlement.capital]
 population = [320000, 520000]
