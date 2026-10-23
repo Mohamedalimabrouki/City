@@ -259,6 +259,61 @@ def test_tile_instances_are_valid(world, plan, tmp_path):
         assert acc["count"] == gltf["accessors"][attrs["TRANSLATION"]]["count"]
 
 
+@pytest.fixture(scope="module")
+def ground(world, plan):
+    from citygen.city.ground import Ground
+    return Ground(world, [plan])
+
+
+def test_ground_heights_are_the_same_on_both_sides_of_a_tile_edge(ground, plan):
+    c = plan.boundary.centroid
+    x0 = 512.0 * round(c.x / 512.0)          # a tile edge crossing the city
+    ys = np.linspace(c.y - 200.0, c.y + 200.0, 41)
+    first = ground.height(np.full_like(ys, x0), ys)
+    other = ground.height(np.full_like(ys, x0) - 400.0, ys - 400.0)   # fill other lattice cells
+    second = ground.height(np.full_like(ys, x0), ys)
+    assert np.array_equal(first, second)
+    assert np.all(np.isfinite(first)) and np.ptp(first) > 1.0        # a slope, not a flat line
+    assert other.shape == first.shape
+
+
+def test_ground_is_deterministic_and_natural_outside_cities(world, plan, ground):
+    from citygen.city.ground import Ground
+    c = plan.boundary.centroid
+    pts = np.stack([c.x + np.linspace(-300.0, 300.0, 60), c.y + np.linspace(-250.0, 250.0, 60)], axis=1)
+    again = Ground(world, [plan]).height(pts[:, 0], pts[:, 1])
+    assert np.array_equal(ground.height(pts[:, 0], pts[:, 1]), again)
+    x0, y0, _, _ = plan.boundary.bounds
+    outside = np.array([[x0 - 60.0, y0 - 60.0], [x0 - 300.0, y0 - 20.0]])
+    assert np.array_equal(ground.height(outside[:, 0], outside[:, 1]),
+                          world.terrain.height(outside[:, 0], outside[:, 1]))
+
+
+def test_terraced_blocks_stay_within_terrace_max(plan, ground):
+    from citygen.city.geo import jittered_grid
+    from citygen.city.ground import NO_TERRACE
+    checked = 0
+    for poly, did in plan.blocks:
+        if plan.districts[did].kind in NO_TERRACE or poly.area > ground.terrace_max_area:
+            continue
+        if poly.distance(plan.boundary.boundary) <= ground.edge_band:
+            continue                                    # the city edge blend would mix in raw terrain
+        inner = poly.buffer(-(ground.edge + 2.0))       # deep enough that the terrace is complete
+        if inner.is_empty:
+            continue
+        pts = jittered_grid(inner, 10.0, np.random.default_rng(5))
+        if not len(pts):
+            continue
+        h = ground.height(pts[:, 0], pts[:, 1])
+        blur = ground.blur(pts[:, 0], pts[:, 1])
+        assert np.all(np.isfinite(blur))
+        assert np.max(np.abs(h - blur)) <= ground.terrace_max + 1e-6
+        checked += 1
+        if checked == 4:
+            break
+    assert checked >= 2
+
+
 def test_households_and_souks(plan):
     assert len(plan.households) > 100
     kinds = {plan.buildings[h.building].kind for h in plan.households}

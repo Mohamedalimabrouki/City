@@ -15,6 +15,28 @@ Entry format:
 - Doubts and questions for Ali: <none, or the question>
 ```
 
+## 2026-10-23 - Prompt 11 A4a City ground
+- Commit: "Graded city ground inside cities" (see git log) | Model: DeepSeek V4.1 Flash, high
+  (playbook: Sonnet, high)
+- Changed: `citygen/city/ground.py` (new: `Ground`, `_City`, `_Blur`), `citygen/mesh/tile.py`
+  (`TileContext.ground`, `height` now graded), `citygen/defaults.toml` (`[ground]`), tests (3 new),
+  `docs/SPEC.md`, `docs/ROADMAP.md`, `docs/HANDOFF.md`
+- Checks: tests 27 passed (10.25 s, +0.5 s for 3 tests); `build --quick --force` 7.0 s, 9 tiles;
+  fingerprint 140 parts, 9 changed, all `tiles/*` (index and tile_12_22 to tile_14_24, +4 to +8
+  bytes each); plans, world, maps, gazetteer and kit identical. Tile build (one process, 9 tiles):
+  2.12 -> 2.46 s (+16%), slowest tile 1.31 -> 1.45 s (+11%), both under the +30% budget.
+  Inside terraced blocks the ground differs from the blur by at most 0.40 m (= `terrace_max`);
+  median height spread of those blocks 3.37 -> 2.56 m. Blender file refreshed:
+  `output/bodjantouna-42/goumosbane.blend`.
+- Look: `output/checks/11.png` - top: HEAD, bottom: graded ground. The boulevard stays even, the
+  far crossing and the tree bases settle onto one surface; the difference is small because the
+  quick capital's ground was already locally smooth at 8 m (measured chord error 2 mm), so the
+  visible change is mostly the city-wide shift of up to 0.75 m (mean 0.05 m).
+- Doubts and questions for Ali: none. One deliberate deviation inside the prompt: the blur is an
+  exact disc mean of lattice cells with one terrain sample per cell, not a 17-sample pattern per
+  cell - same about 60 m smoothing, about 15x cheaper (17 samples cost about +40% per tile, over
+  the budget). Documented in `city/ground.py`.
+
 ## 2026-10-23 - Prompt 10 Q4 Blender 5 haze and warm grade
 - Commit: "Blender 5 haze and warm grade" (see git log) | Model: DeepSeek V4.1 Flash, high
   (playbook: Sonnet, high)

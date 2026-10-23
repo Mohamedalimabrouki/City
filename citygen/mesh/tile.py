@@ -20,6 +20,7 @@ from shapely.strtree import STRtree
 
 from ..city.dressing import Dresser, Placement, building_highs, ground_heights
 from ..city.geo import frame, lines
+from ..city.ground import Ground
 from ..kit import make_kit
 from ..terrain import BIOME_MATERIAL, SEA, classify
 from .builder import (MeshBuilder, add_cap, add_dome, add_hip_roof, add_ribbon, add_sheet, extrude, rectangle,
@@ -44,6 +45,7 @@ class TileContext:
         self.road_lines = [LineString(r.coords) for r in world.roads]
         self.road_tree = STRtree(self.road_lines) if self.road_lines else None
         self.plans = plans
+        self.ground = Ground(world, plans)
         self.city_area = unary_union([p.boundary for p in plans]) if plans else None
         parks = [d.polygon for p in plans for d in p.districts if d.kind == "park"]
         self.park_area = unary_union(parks) if parks else None
@@ -64,7 +66,7 @@ class TileContext:
             self.cities.append((p, centers, trees, street_tree, dresser))
 
     def height(self, x, y):
-        return self.terrain.height(x, y)
+        return self.ground.height(x, y)
 
 
 def tile_bounds(tc: TileContext, i: int, j: int) -> tuple:

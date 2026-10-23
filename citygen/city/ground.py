@@ -1,0 +1,227 @@
+"""Graded ground inside cities: smooth, gently terraced, blending into the natural terrain.
+
+Raw noise terrain has 8-10% slopes around the capital, so a street ribbon dips under the ground
+and a wall base floats or sinks. Inside a city this module replaces the terrain height with a
+graded one:
+
+  outside every city     the natural terrain height, unchanged
+  inside a city          a blurred terrain (mean over a disc of `radius` meters), partly
+                         flattened under each block (at most `terrace_max` meters), blended
+                         back to the natural terrain over `edge_band` meters at the city limit
+
+Everything is a pure function of position. The blur is sampled on a world-aligned lattice and
+interpolated bilinearly, so two neighbouring tiles compute exactly the same height on their
+shared edge and no seam can appear.
+"""
+from __future__ import annotations
+
+import math
+
+import numpy as np
+import shapely
+from shapely.geometry import box
+from shapely.ops import unary_union
+from shapely.strtree import STRtree
+
+from ..noise import smoothstep
+
+# districts whose blocks are left alone: open land or very large plots, where a terrace would
+# only cut a cliff into the slope
+NO_TERRACE = ("park", "cemetery", "industrial", "port")
+
+
+class _Blur:
+    """Mean terrain height over a disc of `radius`, on a world-aligned lattice, filled lazily.
+
+    The terrain is sampled once per lattice cell. The disc mean is then an exact convolution of
+    those cells (cell centers inside the radius, equal weights), so a tile pays for one terrain
+    sample per cell it touches, not for a pattern of samples per cell. Cells are cached, so
+    neighbouring tiles share them.
+    """
+
+    def __init__(self, terrain, boundary, radius: float, lattice: float):
+        self.terrain = terrain
+        self.lattice = lattice
+        minx, miny, maxx, maxy = boundary.bounds
+        margin = radius + 2.0 * lattice
+        self.i0 = int(math.floor((minx - margin) / lattice))
+        self.j0 = int(math.floor((miny - margin) / lattice))
+        i1 = int(math.floor((maxx + margin) / lattice))
+        j1 = int(math.floor((maxy + margin) / lattice))
+        self.shape = (j1 - self.j0 + 2, i1 - self.i0 + 2)
+        self.raw = np.full(self.shape, np.nan)
+        self.values = np.full(self.shape, np.nan)
+        self.k = max(1, int(math.ceil(radius / lattice)))
+        limit = (radius / lattice) ** 2
+        self.kernel = [(di, dj) for dj in range(-self.k, self.k + 1) for di in range(-self.k, self.k + 1)
+                       if di * di + dj * dj <= limit]
+
+    def _raw_fill(self, i0: int, i1: int, j0: int, j1: int) -> None:
+        """Terrain height for every missing cell of the index box (clipped to the lattice)."""
+        i0, j0 = max(i0, 0), max(j0, 0)
+        i1, j1 = min(i1, self.shape[1] - 1), min(j1, self.shape[0] - 1)
+        if i0 > i1 or j0 > j1:
+            return
+        sub = self.raw[j0:j1 + 1, i0:i1 + 1]
+        jj, ii = np.nonzero(np.isnan(sub))
+        if not len(ii):
+            return
+        x = (self.i0 + i0 + ii) * self.lattice
+        y = (self.j0 + j0 + jj) * self.lattice
+        sub[jj, ii] = self.terrain.height(x, y)
+
+    def _fill(self, i0: int, i1: int, j0: int, j1: int) -> None:
+        """Compute the missing blurred cells of the index box (clipped to the lattice)."""
+        i0, j0 = max(i0, 0), max(j0, 0)
+        i1, j1 = min(i1, self.shape[1] - 1), min(j1, self.shape[0] - 1)
+        if i0 > i1 or j0 > j1:
+            return
+        sub = self.values[j0:j1 + 1, i0:i1 + 1]
+        rj, ri = np.nonzero(np.isnan(sub))
+        if not len(ri):
+            return
+        self._raw_fill(i0 - self.k, i1 + self.k, j0 - self.k, j1 + self.k)
+        ii, jj = ri + i0, rj + j0
+        total = np.zeros(len(ii))
+        count = np.zeros(len(ii))
+        for di, dj in self.kernel:   # only cells whose disc reaches inside the lattice
+            si, sj = ii + di, jj + dj
+            ok = (si >= 0) & (si < self.shape[1]) & (sj >= 0) & (sj < self.shape[0])
+            total[ok] += self.raw[sj[ok], si[ok]]
+            count[ok] += 1.0
+        sub[rj, ri] = total / np.maximum(count, 1.0)
+
+    def __call__(self, x, y):
+        fx = np.asarray(x, dtype=np.float64) / self.lattice - self.i0
+        fy = np.asarray(y, dtype=np.float64) / self.lattice - self.j0
+        h, w = self.shape
+        fx = np.clip(fx, 0.0, w - 1.0)
+        fy = np.clip(fy, 0.0, h - 1.0)
+        i = np.clip(np.floor(fx).astype(np.int64), 0, w - 2)
+        j = np.clip(np.floor(fy).astype(np.int64), 0, h - 2)
+        self._fill(int(i.min()), int(i.max()) + 1, int(j.min()), int(j.max()) + 1)
+        tx, ty = fx - i, fy - j
+        v = self.values
+        top = v[j, i] * (1.0 - tx) + v[j, i + 1] * tx
+        bottom = v[j + 1, i] * (1.0 - tx) + v[j + 1, i + 1] * tx
+        return top * (1.0 - ty) + bottom * ty
+
+
+class _City:
+    """One planned city: its blur field, and the blocks that get a terrace."""
+
+    def __init__(self, plan, ground):
+        self.plan = plan
+        self.blur = _Blur(ground.terrain, plan.boundary, ground.radius, ground.lattice)
+        self.blocks, centers, bounds = [], [], []
+        for poly, did in plan.blocks:
+            if plan.districts[did].kind in NO_TERRACE or poly.area > ground.terrace_max_area:
+                continue
+            self.blocks.append(poly)
+            centers.append((poly.centroid.x, poly.centroid.y))
+            bounds.append(poly.bounds)
+        self.centers = np.asarray(centers, dtype=np.float64).reshape(-1, 2)
+        self.bounds_xy = np.asarray(bounds, dtype=np.float64).reshape(-1, 4)
+        self.terrace = np.full(len(self.blocks), np.nan)
+        self.tree = STRtree(self.blocks) if self.blocks else None
+
+    def terraces(self, k: np.ndarray) -> np.ndarray:
+        """Terrace height per block, computed once at the block center."""
+        out = self.terrace[k]
+        miss = np.isnan(out)
+        if miss.any():
+            self.terrace[k[miss]] = self.blur(self.centers[k[miss], 0], self.centers[k[miss], 1])
+            out = self.terrace[k]
+        return out
+
+    def block_at(self, x: np.ndarray, y: np.ndarray) -> tuple:
+        """Index of the terraced block under each point (-1 = none) and distance to its edge."""
+        idx = np.full(len(x), -1, dtype=np.int64)
+        dist = np.zeros(len(x))
+        if self.tree is None or not len(x):
+            return idx, dist
+        for k in self.tree.query(box(x.min(), y.min(), x.max(), y.max())):
+            x0, y0, x1, y1 = self.bounds_xy[k]
+            sel = np.nonzero((idx < 0) & (x >= x0) & (x <= x1) & (y >= y0) & (y <= y1))[0]
+            if not len(sel):
+                continue
+            poly = self.blocks[int(k)]
+            hit = shapely.contains_xy(poly, x[sel], y[sel])
+            sel = sel[hit]
+            if not len(sel):
+                continue
+            idx[sel] = k
+            dist[sel] = shapely.distance(shapely.points(x[sel], y[sel]), poly.boundary)
+        return idx, dist
+
+
+class Ground:
+    """The graded ground of every planned city, as a pure vectorized function of position."""
+
+    def __init__(self, world, plans):
+        cfg = world.cfg["ground"]
+        self.terrain = world.terrain
+        self.radius = float(cfg["radius"])
+        self.lattice = float(cfg["lattice"])
+        self.terrace_max = float(cfg["terrace_max"])
+        self.edge = max(float(cfg["edge"]), 2.0 * float(world.cfg["tiles"]["terrain_step"]))
+        self.terrace_max_area = float(cfg["terrace_max_area"])
+        self.edge_band = float(cfg["edge_band"])
+        self.cities = [_City(p, self) for p in plans]
+        self.area = unary_union([p.boundary for p in plans]) if plans else None
+        if self.area is not None:
+            shapely.prepare(self.area)
+
+    def _select(self, x: np.ndarray, y: np.ndarray) -> list:
+        """(city, indices) for the points inside each city; cities never overlap."""
+        inside = shapely.contains_xy(self.area, x, y)
+        out = []
+        for city in self.cities:
+            x0, y0, x1, y1 = city.plan.boundary.bounds
+            sel = np.nonzero(inside & (x >= x0) & (x <= x1) & (y >= y0) & (y <= y1))[0]
+            if len(sel):
+                sel = sel[shapely.contains_xy(city.plan.boundary, x[sel], y[sel])]
+            if len(sel):
+                inside[sel] = False
+                out.append((city, sel))
+        return out
+
+    def blur(self, x, y):
+        """The blurred terrain under each point (nan outside every city), for checks and tests."""
+        x = np.asarray(x, dtype=np.float64)
+        y = np.asarray(y, dtype=np.float64)
+        out = np.full(x.shape, np.nan)
+        if self.area is not None:
+            xf, yf, of = np.ravel(x), np.ravel(y), np.ravel(out)
+            for city, sel in self._select(xf, yf):
+                of[sel] = city.blur(xf[sel], yf[sel])
+        return out
+
+    def _graded(self, city: _City, x: np.ndarray, y: np.ndarray, natural: np.ndarray) -> np.ndarray:
+        """City ground at points inside `city`'s boundary: blur, terrace, then edge blend."""
+        blur = city.blur(x, y)
+        out = blur.copy()
+        idx, dist = city.block_at(x, y)
+        hit = idx >= 0
+        if hit.any():
+            terrace = city.terraces(idx[hit])
+            w = smoothstep(0.0, self.edge, dist[hit])
+            out[hit] = blur[hit] + w * np.clip(terrace - blur[hit], -self.terrace_max, self.terrace_max)
+        edge = shapely.distance(shapely.points(x, y), city.plan.boundary.boundary)
+        b = smoothstep(0.0, self.edge_band, edge)
+        return natural * (1.0 - b) + out * b
+
+    def height(self, x, y):
+        """Graded ground height in meters, in arrays out for arrays in (or a float for floats)."""
+        x = np.asarray(x, dtype=np.float64)
+        y = np.asarray(y, dtype=np.float64)
+        h = np.asarray(self.terrain.height(x, y), dtype=np.float64)
+        if self.area is None or h.size == 0:
+            return float(h) if h.ndim == 0 else h
+        xf, yf, hf = np.ravel(x), np.ravel(y), np.ravel(h)
+        out = hf.copy()
+        for city, sel in self._select(xf, yf):
+            out[sel] = self._graded(city, xf[sel], yf[sel], hf[sel])
+        if h.ndim == 0:
+            return float(out[0])
+        return out.reshape(h.shape)

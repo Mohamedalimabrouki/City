@@ -89,6 +89,16 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
   "changed" (CP1 fix).
 - **Randomness** only from `citygen.rng.stream(seed, *purpose)`, one purpose path per feature, so
   adding a feature never changes the rest of the world.
+- **Graded city ground** (prompt 11, `city/ground.py`, `[ground]` in defaults): inside a city the
+  terrain height is a blurred (60 m disc), gently terraced copy of the natural terrain; outside
+  it is the natural terrain; the two blend over 40 m at the city limit. The blur is an exact disc
+  mean of heights sampled once per 8 m world-aligned lattice cell, cached lazily per process and
+  interpolated bilinearly, so every tile agrees exactly on shared edges. Do not go back to 17
+  samples per cell: that costs about +40% per tile (budget +30%); this way it is +16%. Only
+  blocks up to 6000 m2 outside park/cemetery/industrial/port are terraced (0.4 m at most, faded
+  over 18 m); bigger blocks would make cliffs. Tiles changed because the whole city ground shifts
+  by up to 0.75 m. `TileContext.height` is now `Ground.height`; the dressing still reads raw
+  terrain until prompt 12, which also adds `Ground.surface()` for doors and props.
 - **Family names** mix real lists with made-up nisba names built from Arabic roots and patterns
   (Hamdi = 1a23i from H-M-D), with sound rules and a rude-word blocklist, because random syllables
   sounded Japanese or Italian. D5 can map roots and patterns to Arabic script.

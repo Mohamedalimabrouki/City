@@ -31,6 +31,10 @@ This is the contract every change must respect. Read the sections your task touc
 - Never use the `random` module, unseeded numpy, wall-clock time, or set/dict order that
   depends on hashing of unsorted keys.
 - Noise (`citygen.noise.Perlin`, `Fractal`) is a pure function of position.
+- The graded city ground (`citygen/city/ground.py`) is a pure function of position too: its blur
+  is sampled on a world-aligned `[ground] lattice` (8 m) and interpolated bilinearly, so two
+  tiles that share an edge compute exactly the same height there. The lattice cells are filled
+  lazily and cached per process, never stored.
 
 ## 4. Pipeline and modules
 
@@ -45,6 +49,8 @@ config.load_config()          defaults.toml + worlds/*.toml + CLI overrides
       parcels                 blocks = district minus street surfaces; recursive lot split
       buildings               per-district building rules, mosques, parks, cemetery
       life                    a household behind every house door, a trade for every souk
+  city.ground.Ground()        graded ground inside cities: smoothed, terraced under blocks,
+                              blended into natural terrain at the city limit
   mesh.tile.export_tile()     one 512 m square -> .glb (terrain, water, roads, city)
     city.dressing             doors, windows, shops, goods, lamps, plants, spans, sabats, trees,
                               placed from kit pieces (kit.Kit) and drawn as instances
@@ -69,6 +75,7 @@ build.build()                 orchestrates the above into output/<country>-<seed
 | `citygen/mesh/climbers.py` | bougainvillea curtains (2 variants, 250 triangles each) from `[dressing.climber]` |
 | `citygen/kit.py` | `Kit`: procedural pieces plus kits from `kits/<name>/` |
 | `citygen/city/life.py` | households and souk trades (story data that also drives the dressing) |
+| `citygen/city/ground.py` | `Ground`: graded city ground (blurred, terraced, blended into the terrain) |
 | `citygen/city/dressing.py` | `Dresser`: which piece goes where, tile by tile |
 | `citygen/kitsheet.py` | `python -m citygen kit-sheet`: every piece in one viewable grid |
 | `citygen/export/maps.py` | country and city PNG maps |

@@ -39,6 +39,16 @@ size = 512                # tile width in meters
 terrain_step = 8.0        # meters between terrain mesh points
 dressing = true           # doors, windows, shops, goods and street life (see [dressing] in the style)
 
+[ground]
+# Inside a city the ground is graded: smoothed and gently flattened under blocks, then
+# blended back into the natural terrain at the city limit (see citygen/city/ground.py).
+radius = 60.0             # meters: disc over which the terrain is averaged inside a city
+lattice = 8.0             # meters: world-aligned grid the smoothing is computed on
+terrace_max = 0.4         # meters: how far a block may be flattened away from that average
+edge = 18.0               # meters: terrace fade at a block edge (at least 2 x terrain_step)
+terrace_max_area = 6000.0 # square meters: bigger blocks are not terraced
+edge_band = 40.0          # meters over which the city ground blends into natural terrain
+
 [build]
 # Which part of the world to export as 3D tiles:
 #   "capital-center"   tiles within center_radius of the capital (fast, default)
