@@ -126,6 +126,21 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
 - **Texture strength** (prompt 19): plaster at grain 0.45 / mottle 0.5 read flat at street
   level; 0.7 / 0.7 with stain 0.5 is visible but still neutral. The viewer sets anisotropy
   `min(8, max)` on a computer and 2 in the phone/Fast path, with the sampler's mipmaps.
+- **Ground textures** (prompt 20, `mesh/tile.py`, `[ground_tint]`): from 150 m up, a ground
+  texture's mid-size blotches (mottle, stain) tile into an obvious grid; fine detail averages
+  out. Keep ground mottle/stain low (earth 0.2/0.15) and let the `COLOR_0` tint, a pure function
+  of world x, y, carry the large variation. Tint values stay at or below 1 (glTF multiplies
+  color x texture x COLOR_0), so the textured ground darkens: `urban_ground` was lifted to
+  `#D6C7A4` to keep its old tone. A sidewalk piece wraps block corners (it fills about 10% of its
+  rotated bounding box), so a per-piece direction was wrong for half of them: the slab direction
+  is per triangle, from the nearest street. Ribbon u starts at the street's own distance
+  (`line.project`), or the pattern jumps at every tile edge. `MeshBuilder.add` takes optional
+  `col`; a part mixing pieces with and without it fills the rest with white. In Blender the glTF
+  importer links a textured Base Color (texture x factor x vertex color), so the socket's value is
+  default grey: `blender_beauty.py` reads palette colors from `baseColorFactor` in the tiles
+  (this also fixes the walls, grey in the beauty look since prompt 19). The COLOR_0 adds about
+  17 KB per tile (+9.5% on terrain-only tiles, near the +10% budget). Time the capital against a
+  fresh HEAD build in the same minutes: this Mac varied 32 to 37 s for the same code.
 - **Parallel tiles** (`TilePool` in `citygen/build.py`): spawn processes start while the parent
   plans and wait for one pickle file (world + plans); each builds its own `TileContext`. Use
   `multiprocessing.Pool`, not `ProcessPoolExecutor`: the Claude sandbox forbids the

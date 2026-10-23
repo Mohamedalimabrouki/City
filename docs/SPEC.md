@@ -144,6 +144,7 @@ contains its center, so tiles never duplicate objects. Terrain edges match betwe
 Street dressing and trees are drawn with `EXT_mesh_gpu_instancing`: one child node per piece
 (named like the piece, e.g. `tounes/door_sbs_blue`) with TRANSLATION, ROTATION and SCALE arrays,
 local to the tile root. Kit pieces may carry `COLOR_0` (linear, 8-bit RGBA) on white materials,
+terrain parts carry it as a soft tint (see "Ground textures"),
 and lamps an `emissiveFactor`. Importers without the extension (Blender 3.6) show one copy per
 piece; `tools/blender_import.py` and `tools/blender_beauty.py` place all copies themselves.
 
@@ -184,6 +185,25 @@ roofs use planar meter UVs (u along the eave, v up the slope, each end face with
 length), so tile rows run down every face instead of smearing. The viewer sets anisotropy 8 on a
 computer (2 on phones, which keep the Fast quality) with mipmaps from the shared sampler.
 
+**Ground textures (prompt 20):** every terrain material is textured (`beach` sand 6 m, `desert`
+sand 8 m, `steppe` scrub 5 m, `grass` grass 3 m, `forest` scrub 4 m, `rock` rock 8 m,
+`urban_ground` earth 8 m), and so are the streets (`asphalt` 6 m, `paving` 3.2 m = 0.8 m slabs,
+`earth` 5 m), `sidewalk` (paving at 2 m = 0.5 m tiles) and `curb` (stone at 3 x 1.8 m = 1 m
+stones). `road_paint` stays a flat color. UVs stay meters: terrain is planar (x, -y); a street
+ribbon has u along the street, counted from the street's start (so a street cut by a tile edge
+keeps one pattern) and v across from the center line; a sidewalk triangle turns its planar UVs
+so u runs along its nearest street (one walk piece wraps a block corner, so the direction is per
+triangle); the curb face has u along the curb and v down from its top edge. Against repeats
+from the air the terrain carries `COLOR_0` from `[ground_tint]`: a brightness drift and a slight
+warm/cool shift from world-position noise (`Fractal(seed, "ground_tint")` and
+`"ground_tint_warmth"`), always in (0, 1] so it only darkens or shifts a little, identical on
+both sides of a tile edge. Only terrain parts carry it. The viewer keys its shared materials on
+`vertexColors` too, so a tinted and an untinted part with one material name never share a
+material. In Blender the importer multiplies `COLOR_0` into the materials it keeps;
+`tools/blender_beauty.py` replaces the ground, asphalt and paving with its own procedural
+shaders (which ignore the image and the tint) and takes their palette color from the tiles'
+`baseColorFactor`, since a textured material's Base Color socket is linked, not set.
+
 ## 6b. Kits and street dressing
 
 - **Pieces** are small meshes in their own space: x along the wall, front toward the street
@@ -211,7 +231,7 @@ computer (2 on phones, which keep the Fast quality) with mipmaps from the shared
 ## 7. Style pack (`styles/<name>.toml`)
 
 `[names]` sounds and templates, `[lore]` eras and products, `[palette]` materials (color and
-optional `texture` + `texture_size`), `[textures]` generated-surface noise strengths,
+optional `texture` + `texture_size`), `[textures]` generated-surface noise strengths, `[ground_tint]` the terrain `COLOR_0` tint,
 `[plinth]` the base material and height per district kind, `[streets]` curb height, minimum
 carriageway, promenade width, the paint numbers and the outline
 steps of drawn walks and paint (`walk_step`, `paint_step`: long pieces follow the ground),

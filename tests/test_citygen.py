@@ -508,12 +508,18 @@ def test_every_street_ribbon_stays_above_the_drawn_terrain(world, plan, ground):
 
 
 @pytest.fixture(scope="module")
-def built_tile(world, plan, ground):
+def built_mesh(world, plan, ground):
     from citygen.mesh.tile import build_tile
     tc = TileContext(world, [plan])
     s = world.capital()
     i, j = int(s.x // tc.size), int(s.y // tc.size)
-    _, placements = build_tile(tc, i, j)
+    mb, placements = build_tile(tc, i, j)
+    return tc, i, j, mb, placements
+
+
+@pytest.fixture(scope="module")
+def built_tile(built_mesh):
+    tc, i, j, _, placements = built_mesh
     return tc, i, j, placements
 
 
@@ -738,6 +744,145 @@ def test_skirt_triangles_face_outward():
     tri = part["pos"][part["idx"].reshape(-1, 3)]
     n = np.cross(tri[:, 1] - tri[:, 0], tri[:, 2] - tri[:, 0])
     assert np.all(np.einsum("ij,ij->i", n, part["nrm"][part["idx"].reshape(-1, 3)[:, 0]]) > 0.0)
+
+
+GROUND = {"beach", "desert", "steppe", "grass", "forest", "rock", "urban_ground"}
+STREET_SURFACES = {"asphalt", "paving", "earth", "sidewalk", "curb"}
+
+
+def _world_parts(mb):
+    """Tile parts back in generator axes: {material: (xyz, uv, (T, 3) triangles, col or None)}."""
+    out = {}
+    for name, part in mb.gltf_parts().items():
+        p = part["pos"]
+        xyz = np.stack([p[:, 0], -p[:, 2], p[:, 1]], axis=1) + mb.origin
+        out[name] = (xyz, part["uv"], part["idx"].reshape(-1, 3), part.get("col"))
+    return out
+
+
+def _uv_gradients(xyz, uv, tri):
+    """Per flat triangle: the world (x, y) direction in which u and v grow, per meter."""
+    e1 = xyz[tri[:, 1], :2] - xyz[tri[:, 0], :2]
+    e2 = xyz[tri[:, 2], :2] - xyz[tri[:, 0], :2]
+    m = np.stack([e1, e2], axis=1)
+    keep = np.abs(np.linalg.det(m)) > 1e-3
+    d = np.stack([uv[tri[:, 1]] - uv[tri[:, 0]], uv[tri[:, 2]] - uv[tri[:, 0]]], axis=1)
+    g = np.linalg.solve(m[keep], d[keep])          # rows: d/dx, d/dy; columns: u, v
+    return keep, g[:, :, 0], g[:, :, 1]
+
+
+def _street_direction_at(plan, points):
+    lines_ = [s.line for s in plan.streets]
+    tree = STRtree(lines_)
+    out = []
+    for x, y in points:
+        line = lines_[int(tree.nearest(shapely.Point(x, y)))]
+        d = line.project(shapely.Point(x, y))
+        a, b = line.interpolate(max(d - 1.0, 0.0)), line.interpolate(min(d + 1.0, line.length))
+        v = np.array([b.x - a.x, b.y - a.y])
+        out.append(v / max(np.hypot(*v), 1e-9))
+    return np.array(out)
+
+
+def test_ground_and_street_materials_name_existing_textures(world):
+    palette, textures = world.style["palette"], world.style["textures"]
+    for name in GROUND | STREET_SURFACES:
+        assert palette[name].get("texture") in NAMES, name
+        assert palette[name]["texture"] in textures, name
+    assert not palette["road_paint"].get("texture")      # markings stay flat paint
+
+
+def test_terrain_tint_is_on_terrain_parts_only(built_mesh):
+    *_, mb, _ = built_mesh
+    parts = _world_parts(mb)
+    tinted = {name for name, (*_, col) in parts.items() if col is not None}
+    assert "urban_ground" in tinted and tinted <= GROUND, tinted
+    for name in tinted:
+        col = parts[name][3]
+        assert col.shape[1] == 3 and col.min() > 0.8 and col.max() <= 1.0, name   # subtle, never black
+        assert np.ptp(col.sum(axis=1)) > 0.005, name                                 # it does vary
+
+
+def test_terrain_tint_matches_on_both_sides_of_a_tile_edge(world, plan):
+    from citygen.mesh.builder import MeshBuilder as MB
+    from citygen.mesh.tile import terrain_mesh
+    tc = TileContext(world, [plan])
+    s = world.capital()
+    i, j = int(s.x // tc.size), int(s.y // tc.size)
+    edge = (i + 1) * tc.size
+    sides = []
+    for ii in (i, i + 1):
+        mb = MB(origin=(ii * tc.size, j * tc.size))
+        terrain_mesh(mb, tc, ii * tc.size, j * tc.size)
+        rows = [np.column_stack([xyz[:, :2], col]) for xyz, _, _, col in _world_parts(mb).values()
+                if col is not None]
+        pts = np.concatenate(rows)
+        on = pts[np.abs(pts[:, 0] - edge) < 1e-6]
+        sides.append(on[np.lexsort((on[:, 1],))])
+    a, b = (np.unique(np.round(side, 6), axis=0) for side in sides)
+    assert len(a) > 30 and np.array_equal(a, b)
+
+
+def test_street_ribbons_run_u_along_the_street_and_continue_across_tiles(world, plan):
+    from citygen.mesh.builder import MeshBuilder as MB
+    from citygen.mesh.tile import street_meshes
+    tc = TileContext(world, [plan])
+    tree = STRtree([st.line for st in plan.streets])
+    s = world.capital()
+    i, j = int(s.x // tc.size), int(s.y // tc.size)
+    halves = []
+    for ii in (i, i + 1):
+        mb = MB(origin=(ii * tc.size, j * tc.size))
+        street_meshes(mb, tc, plan, tree, shapely.box(*(ii * tc.size, j * tc.size,
+                                                        (ii + 1) * tc.size, (j + 1) * tc.size)))
+        halves.append(_world_parts(mb))
+    for name in ("asphalt", "paving"):
+        xyz, uv, tri, col = halves[0][name]
+        assert col is None
+        keep, gu, gv = _uv_gradients(xyz, uv, tri)
+        along = _street_direction_at(plan, xyz[tri[keep]].mean(axis=1)[:, :2])
+        cos = np.abs(np.einsum("ij,ij->i", gu, along)) / np.hypot(gu[:, 0], gu[:, 1])
+        assert np.mean(cos > 0.95) > 0.85, (name, np.mean(cos > 0.95))   # u follows the street (junctions overlap)
+        assert np.median(np.hypot(gu[:, 0], gu[:, 1])) == pytest.approx(1.0, abs=0.05)   # meters
+        assert np.median(np.abs(np.einsum("ij,ij->i", gv, along))) < 0.05    # v runs across
+    # where a street crosses the tile edge, both tiles draw the same end corner: same UV there
+    meets = 0
+    for name in set(halves[0]) & set(halves[1]):
+        (a_xyz, a_uv), (b_xyz, b_uv) = halves[0][name][:2], halves[1][name][:2]
+        other = {tuple(np.round(p, 4)): u for p, u in zip(b_xyz, b_uv)}
+        for p, u in zip(a_xyz, a_uv):
+            match = other.get(tuple(np.round(p, 4)))
+            if match is not None:
+                assert np.allclose(match, u, atol=1e-3), (name, p, u, match)
+                meets += 1
+    assert meets >= 4                                     # some ribbons really cross the edge
+
+
+def test_sidewalk_rows_follow_the_street_and_curb_faces_hang_from_the_top(world, plan):
+    from citygen.mesh.builder import MeshBuilder as MB
+    from citygen.mesh.tile import walk_meshes
+    tc = TileContext(world, [plan])
+    s = world.capital()
+    i, j = int(s.x // tc.size), int(s.y // tc.size)
+    mb = MB(origin=(i * tc.size, j * tc.size))
+    walk_meshes(mb, tc, plan, shapely.box(i * tc.size, j * tc.size, (i + 1) * tc.size, (j + 1) * tc.size),
+                STRtree([st.line for st in plan.streets]))
+    parts = _world_parts(mb)
+    xyz, uv, tri, _ = parts["sidewalk"]
+    keep, gu, _ = _uv_gradients(xyz, uv, tri)
+    along = _street_direction_at(plan, xyz[tri[keep]].mean(axis=1)[:, :2])
+    cos = np.abs(np.einsum("ij,ij->i", gu, along)) / np.hypot(gu[:, 0], gu[:, 1])
+    assert np.mean(cos > 0.95) > 0.9, np.mean(cos > 0.95)   # slab rows turn with the street
+    xyz, uv, tri, _ = parts["curb"]
+    t = xyz[tri]                                             # (T, 3, 3)
+    tu, tv = uv[tri][..., 0], uv[tri][..., 1]
+    assert np.allclose(tv.min(axis=1), 0.0, atol=1e-9)        # every face starts at the curb top
+    for a, b in ((0, 1), (1, 2), (0, 2)):
+        flat = np.hypot(*(t[:, a, :2] - t[:, b, :2]).T)
+        dz = t[:, a, 2] - t[:, b, 2]
+        same = flat < 1e-9                                  # one corner above the other
+        assert np.allclose(tv[same, a] - tv[same, b], -dz[same], atol=1e-9)   # v grows downward, in meters
+        assert np.allclose(np.abs(tu[~same, a] - tu[~same, b]), flat[~same], atol=1e-6)   # u along the curb
 
 
 def test_households_and_souks(plan):

@@ -24,15 +24,17 @@ class MeshBuilder:
         self.origin = np.array([origin[0], origin[1], 0.0])
         self._parts: dict[str, list] = {}
 
-    def add(self, material: str, pos, nrm, uv, tris) -> None:
+    def add(self, material: str, pos, nrm, uv, tris, col=None) -> None:
+        """Append triangles; `col` (N, 3) linear vertex colors is optional (the terrain tint)."""
         pos = np.asarray(pos, dtype=np.float64).reshape(-1, 3)
         if len(pos) == 0:
             return
-        part = self._parts.setdefault(material, [[], [], [], [], 0])
+        part = self._parts.setdefault(material, [[], [], [], [], 0, []])
         part[0].append(pos - self.origin)
         part[1].append(np.asarray(nrm, dtype=np.float64).reshape(-1, 3))
         part[2].append(np.asarray(uv, dtype=np.float64).reshape(-1, 2))
         part[3].append(np.asarray(tris, dtype=np.int64).reshape(-1, 3) + part[4])
+        part[5].append(None if col is None else np.asarray(col, dtype=np.float64).reshape(-1, 3))
         part[4] += len(pos)
 
     @property
@@ -41,11 +43,13 @@ class MeshBuilder:
 
     def gltf_parts(self) -> dict:
         out = {}
-        for mat, (pos, nrm, uv, tris, _count) in self._parts.items():
-            pos = np.concatenate(pos)
-            nrm = np.concatenate(nrm)
-            out[mat] = {"pos": _to_gltf(pos), "nrm": _to_gltf(nrm),
+        for mat, (pos, nrm, uv, tris, _count, col) in self._parts.items():
+            out[mat] = {"pos": _to_gltf(np.concatenate(pos)), "nrm": _to_gltf(np.concatenate(nrm)),
                         "uv": np.concatenate(uv), "idx": np.concatenate(tris).reshape(-1)}
+            if any(c is not None for c in col):
+                # a piece without colors in a tinted part stays untinted: white, never black
+                out[mat]["col"] = np.concatenate([np.ones((len(p), 3)) if c is None else c
+                                                  for p, c in zip(pos, col)])
         return out
 
 
@@ -145,15 +149,25 @@ def add_cap(mb: MeshBuilder, poly: Polygon, z: float, material: str, up: bool = 
     mb.add(material, pos, nrm, uv, idx if up else idx[:, ::-1])
 
 
-def add_draped_cap(mb: MeshBuilder, poly: Polygon, height_fn, material: str) -> None:
-    """Horizontal cap that follows a height function at every vertex (a raised sidewalk)."""
+def add_draped_cap(mb: MeshBuilder, poly: Polygon, height_fn, material: str, along=None) -> None:
+    """Horizontal cap that follows a height function at every vertex (a raised sidewalk).
+
+    UVs are planar meters (x, -y). `along(cx, cy) -> (T, 2)` gives each triangle a unit direction
+    (the nearest street's) and turns its UVs so u runs along it and v across: rows of paving
+    slabs then follow the street, and turn with it at a corner, instead of the world axes.
+    """
     tri = triangulate(poly)
     if len(tri) == 0:
         return
     pos = np.concatenate([tri, np.zeros((len(tri), 3, 1))], axis=2).reshape(-1, 3)
     pos[:, 2] = height_fn(pos[:, 0], pos[:, 1])
     nrm = np.tile([0.0, 0.0, 1.0], (len(pos), 1))
-    uv = np.stack([pos[:, 0], -pos[:, 1]], axis=1)
+    if along is None:
+        uv = np.stack([pos[:, 0], -pos[:, 1]], axis=1)
+    else:
+        center = tri.mean(axis=1)
+        c, s = np.repeat(np.asarray(along(center[:, 0], center[:, 1]), dtype=np.float64), 3, axis=0).T
+        uv = np.stack([pos[:, 0] * c + pos[:, 1] * s, pos[:, 0] * s - pos[:, 1] * c], axis=1)
     mb.add(material, pos, nrm, uv, np.arange(len(pos)).reshape(-1, 3))
 
 
@@ -162,6 +176,7 @@ def add_skirt(mb: MeshBuilder, ring, top, bottom, material: str) -> None:
 
     `ring` is an open coordinate ring (the closing point is optional). The caller orients
     exterior rings counter-clockwise and holes clockwise, so the normal points out of the solid.
+    UVs are meters: u along the ring, v down from the top edge (a curb stone's top is v = 0).
     """
     pts = np.asarray(ring, dtype=np.float64)[:, :2]
     if len(pts) > 1 and np.allclose(pts[0], pts[-1]):
@@ -189,7 +204,7 @@ def add_skirt(mb: MeshBuilder, ring, top, bottom, material: str) -> None:
     s = np.concatenate([[0.0], np.cumsum(length)])
     uv = np.empty((k, 4, 2))
     uv[:, 0, 0], uv[:, 1, 0], uv[:, 2, 0], uv[:, 3, 0] = s[:-1], s[1:], s[1:], s[:-1]
-    uv[:, 0, 1], uv[:, 1, 1], uv[:, 2, 1], uv[:, 3, 1] = -ta, -tb, -bb, -ba
+    uv[:, 0, 1], uv[:, 1, 1], uv[:, 2, 1], uv[:, 3, 1] = 0.0, 0.0, tb - bb, ta - ba
     tris = (np.arange(k) * 4)[:, None, None] + np.array([[0, 2, 1], [0, 3, 2]])[None]
     mb.add(material, pos.reshape(-1, 3), nrm.reshape(-1, 3), uv.reshape(-1, 2), tris)
 
@@ -378,8 +393,14 @@ def rectangle(cx: float, cy: float, length: float, width: float, angle: float) -
 
 # --- ribbons (roads) ----------------------------------------------------------
 
-def add_ribbon(mb: MeshBuilder, coords, width: float, height_fn, lift: float, material: str) -> None:
-    """Flat strip of `width` along a polyline, draped on the terrain via height_fn(x, y)."""
+def add_ribbon(mb: MeshBuilder, coords, width: float, height_fn, lift: float, material: str,
+               start: float = 0.0) -> None:
+    """Flat strip of `width` along a polyline, draped on the terrain via height_fn(x, y).
+
+    UVs are meters: u along the line from `start` (the distance of the first point along the
+    whole street, so a street cut by tile edges keeps one continuous pattern), v across from the
+    center line (-width/2 on the left, +width/2 on the right).
+    """
     p = np.asarray(coords, dtype=np.float64)[:, :2]
     if len(p) < 2:
         return
@@ -408,10 +429,10 @@ def add_ribbon(mb: MeshBuilder, coords, width: float, height_fn, lift: float, ma
     pos = np.empty((len(p), 2, 3))
     pos[:, 0, :2], pos[:, 0, 2] = left, zl
     pos[:, 1, :2], pos[:, 1, 2] = right, zr
-    s = np.concatenate([[0.0], np.cumsum(seg)])
+    s = start + np.concatenate([[0.0], np.cumsum(seg)])
     uv = np.empty((len(p), 2, 2))
-    uv[:, 0, 0], uv[:, 1, 0] = 0.0, width
-    uv[:, :, 1] = -s[:, None]
+    uv[:, :, 0] = s[:, None]
+    uv[:, 0, 1], uv[:, 1, 1] = -width / 2, width / 2
     nrm = np.tile([0.0, 0.0, 1.0], (len(p) * 2, 1))
     base = np.arange(len(p) - 1) * 2
     tris = np.concatenate([np.stack([base, base + 1, base + 3], 1), np.stack([base, base + 3, base + 2], 1)])

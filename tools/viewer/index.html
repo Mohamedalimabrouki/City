@@ -453,8 +453,10 @@ function shared(material) {
   }
   const texture = map ? [map.image && map.image.src, map.repeat.x, map.repeat.y,
                          map.offset.x, map.offset.y].join(',') : '';
+  // vertexColors in the key: the terrain's "grass" carries a COLOR_0 tint and a kit's "grass" may
+  // not; sharing one material between them reads a missing color attribute and renders black.
   const key = [material.name, material.color.getHex(), material.roughness, material.metalness,
-               material.side, texture].join('|');
+               material.side, material.vertexColors, texture].join('|');
   let m = sharedMaterials.get(key);
   if (!m) {
     m = material;

@@ -421,7 +421,7 @@ def shade_asphalt(mat: bpy.types.Material, base: tuple) -> None:
 
 
 def shade_paving(mat: bpy.types.Material, base: tuple) -> None:
-    """Worn stone slabs in running bond along the lane (UV meters: u across, v along)."""
+    """Worn stone slabs in running bond along the lane (UV meters: u along the street, v across)."""
     g = Graph(mat)
     big, mid, fine = g.noises()
     brick = g.add("ShaderNodeTexBrick", offset=0.5, offset_frequency=2, squash=1.0, squash_frequency=2)
@@ -575,10 +575,31 @@ def shade_tank(mat: bpy.types.Material) -> None:
     Surface(g, g.mixc(1.0, (0.85, 0.85, 0.82, 1.0), 0.92 + 0.12 * (big - 0.5), "MULTIPLY"), rough=0.4, spec=0.45).finish()
 
 
-def build_materials(mats: dict[str, bpy.types.Material]) -> None:
-    """Replace every palette material by its procedural shader, keeping the generator's base color."""
+def factor_colors(folder: Path, index: dict) -> dict[str, tuple]:
+    """{material name: glTF baseColorFactor} read from the tiles' JSON chunks.
+
+    A textured material comes in from the importer with its Base Color linked to the image (and
+    COLOR_0), so the socket's own value is Blender's default grey, not the palette color.
+    """
+    colors: dict[str, tuple] = {}
+    for tile in index["tiles"]:
+        data = (folder / tile["file"]).read_bytes()
+        size = int.from_bytes(data[12:16], "little")
+        for m in json.loads(data[20:20 + size]).get("materials", []):
+            factor = m.get("pbrMetallicRoughness", {}).get("baseColorFactor")
+            if factor and m.get("name"):
+                colors.setdefault(m["name"], tuple(factor))
+    return colors
+
+
+def build_materials(mats: dict[str, bpy.types.Material], factors: dict[str, tuple] | None = None) -> None:
+    """Replace every palette material by its procedural shader, keeping the generator's base color.
+
+    Materials without a shader here keep the importer's graph: palette color x texture x COLOR_0.
+    """
     base = {name: tuple(m.node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value)
             if m.node_tree and "Principled BSDF" in m.node_tree.nodes else (0.6, 0.6, 0.6, 1.0) for name, m in mats.items()}
+    base.update({name: c for name, c in (factors or {}).items() if name in base})
     for name, mat in mats.items():
         b = base[name]
         kind = STYLE_OF.get(name)
@@ -986,7 +1007,7 @@ def main() -> None:
     tiles, mats = import_tiles(folder, index)
     print(f"beauty: imported {len(tiles)} tiles in {time.time() - clock:.1f} s", flush=True)
 
-    build_materials(mats)
+    build_materials(mats, factor_colors(folder, index))
     plaster = mats.get("roof_white") or next(iter(mats.values()))
     tank = bpy.data.materials.new("tank_white")
     shade_tank(tank)

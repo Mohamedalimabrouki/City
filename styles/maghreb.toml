@@ -82,20 +82,23 @@ dome_white = { color = "#F5F3EE", texture = "plaster", texture_size = [2.0, 2.0]
 dome_green = { color = "#3E7A57", roughness = 0.4 }
 plinth_blue = { color = "#70899A", roughness = 0.9, texture = "plaster", texture_size = [2.0, 2.0] }
 plinth_stone = { color = "#B3A48B", roughness = 0.92, texture = "stone", texture_size = [2.4, 1.8] }
-asphalt = { color = "#7A7874", roughness = 0.95 }   # sun-bleached
-paving = { color = "#BDB09A" }
-earth = { color = "#C4A87E", roughness = 0.98 }     # packed earth of village lanes
+# Ground (prompt 20): street ribbons and sidewalks have u along the street, so slab rows follow
+# it; the curb has u along the curb and v down from its top. Terrain UVs are planar meters, and
+# its COLOR_0 tint ([ground_tint]) breaks up the repeat from the air. Road paint stays flat.
+asphalt = { color = "#7A7874", roughness = 0.95, texture = "asphalt", texture_size = [6.0, 6.0] }   # sun-bleached
+paving = { color = "#BDB09A", texture = "paving", texture_size = [3.2, 3.2] }   # 0.8 m slabs in alleys and souks
+earth = { color = "#C4A87E", roughness = 0.98, texture = "earth", texture_size = [5.0, 5.0] }   # village lanes
 road_paint = { color = "#E4DECD", roughness = 0.85 }  # worn white road paint
-sidewalk = { color = "#CFC7B6", roughness = 0.9 }   # raised walk beside the asphalt
-curb = { color = "#A29B8E", roughness = 0.85 }      # its vertical stone edge
-urban_ground = { color = "#CDBE9C" }
+sidewalk = { color = "#CFC7B6", roughness = 0.9, texture = "paving", texture_size = [2.0, 2.0] }   # 0.5 m tiles
+curb = { color = "#A29B8E", roughness = 0.85, texture = "stone", texture_size = [3.0, 1.8] }   # 1 m curb stones
+urban_ground = { color = "#D6C7A4", texture = "earth", texture_size = [8.0, 8.0] }   # lifted: the texture and tint darken it
 water = { color = "#2D6F92", roughness = 0.1 }
-beach = { color = "#E8D6A8" }
-grass = { color = "#86A05A" }
-steppe = { color = "#BFAE78" }
-desert = { color = "#DFC28C" }
-forest = { color = "#566F3E" }
-rock = { color = "#9C8D79" }
+beach = { color = "#E8D6A8", texture = "sand", texture_size = [6.0, 6.0] }
+grass = { color = "#86A05A", texture = "grass", texture_size = [3.0, 3.0] }
+steppe = { color = "#BFAE78", texture = "scrub", texture_size = [5.0, 5.0] }
+desert = { color = "#DFC28C", texture = "sand", texture_size = [8.0, 8.0] }
+forest = { color = "#566F3E", texture = "scrub", texture_size = [4.0, 4.0] }   # needle and leaf litter
+rock = { color = "#9C8D79", texture = "rock", texture_size = [8.0, 8.0] }
 leaf = { color = "#5B7A3A" }
 leaf_olive = { color = "#7F8D5E" }
 leaf_palm = { color = "#6E8C3D", double_sided = true }
@@ -178,12 +181,22 @@ concrete = { pixels = 512, grain = 0.4, mottle = 0.3, stain = 0.4, tint = "concr
 roof_tile = { pixels = 512, grain = 0.35, mottle = 0.3, stain = 0.4, tint = "roof_tile" }
 roof_flat = { pixels = 512, grain = 0.5, mottle = 0.35, stain = 0.5, tint = "roof_white" }
 paving = { pixels = 512, grain = 0.45, mottle = 0.4, stain = 0.4, tint = "paving" }
-asphalt = { pixels = 512, grain = 0.6, mottle = 0.35, stain = 0.3, tint = "asphalt" }
-earth = { pixels = 512, grain = 0.5, mottle = 0.45, stain = 0.35, tint = "earth" }
+asphalt = { pixels = 512, grain = 0.7, mottle = 0.8, stain = 0.6, tint = "asphalt" }
+earth = { pixels = 512, grain = 0.5, mottle = 0.2, stain = 0.15, tint = "earth" }   # weak blotches: no grid from the air
 sand = { pixels = 512, grain = 0.4, mottle = 0.35, stain = 0.3, tint = "beach" }
-grass = { pixels = 512, grain = 0.6, mottle = 0.5, stain = 0.35, tint = "grass" }
+grass = { pixels = 512, grain = 0.6, mottle = 0.3, stain = 0.25, tint = "grass" }
 rock = { pixels = 512, grain = 0.5, mottle = 0.5, stain = 0.4, tint = "rock" }
-scrub = { pixels = 512, grain = 0.55, mottle = 0.5, stain = 0.35, tint = "steppe" }
+scrub = { pixels = 512, grain = 0.55, mottle = 0.25, stain = 0.2, tint = "steppe" }
+
+# Large-scale terrain tint (prompt 20), written as COLOR_0 on terrain parts only: a soft
+# brightness drift and a slight warm/cool shift from world-position noise, so texture repeats
+# do not show from the air. Multipliers stay at or below 1 (glTF: color x texture x COLOR_0).
+[ground_tint]
+brightness = 0.08           # darkest patches lose this share of their brightness
+warmth = 0.04               # red/blue shift between the warmest and the coolest patches
+wavelength = 350.0          # meters: size of the bright and dark patches
+warm_wavelength = 900.0     # meters: size of the warm and cool areas
+octaves = 3
 
 # --- streets ---------------------------------------------------------------------
 # Raised sidewalks (prompt 13) and their crisp curb. Widths per district are below.

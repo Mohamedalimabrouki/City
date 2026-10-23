@@ -75,7 +75,7 @@ def _slab(mb, outline, y0, y1, mat):
     poly = outline if isinstance(outline, Polygon) else Polygon(np.asarray(outline))
     tmp = MeshBuilder()
     extrude(tmp, poly, y0, y1, mat, mat)
-    for name, (pos, nrm, uv, tris, _n) in tmp._parts.items():
+    for name, (pos, nrm, uv, tris, _n, _col) in tmp._parts.items():
         p = np.concatenate(pos)
         n = np.concatenate(nrm)
         # the prism was built along z; swap so its depth runs along y and its outline stands in x-z

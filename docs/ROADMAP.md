@@ -29,7 +29,7 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
 - [x] 17 A2a Textures in the 3D files
 - [x] 18 A2b Generated textures
 - [x] 19 A2c Textured walls and roofs
-- [ ] 20 A2d Ground textures
+- [x] 20 A2d Ground textures
 - [ ] 20.1 AD1 Every home gets a door and windows
 - [ ] 20.2 AD2 Impasses to landlocked houses
 - [ ] 21 A9 Lit windows by household
@@ -180,8 +180,10 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
   `"parapets": true` and `tools/blender_beauty.py` skips its own parapets. `Dresser._roof`
   uses the same layout, so tanks, dishes, laundry and pots stay inside the parapet and off
   the stair room.
-- [ ] **A2 Facade textures** (M, Sonnet high; prompts 17-20) - 17 (writer), 18 (generated
-  images) and 19 (walls and roofs) are done; prompt 20 adds ground textures. Base-color
+- [x] **A2 Facade textures** (M, Sonnet high; prompts 17-20) - done: 17 (writer), 18 (generated
+  images), 19 (walls and roofs), 20 (terrain, streets, sidewalks and curbs textured; streets and
+  sidewalks run u along the street; a soft `COLOR_0` tint on the terrain against repeats from the
+  air; road paint stays flat). Base-color
   textures in the glb writer (shared or embedded images, `KHR_texture_transform` scale so UVs
   stay meters), generated tileable textures (plaster, stone, render, concrete, roof tiles,
   paving, ground) as neutral detail tinted by the palette colors, walls mapped to plaster/render/

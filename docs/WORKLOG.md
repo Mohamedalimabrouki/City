@@ -15,6 +15,30 @@ Entry format:
 - Doubts and questions for Ali: <none, or the question>
 ```
 
+## 2026-10-23 - Prompt 20 A2d Ground textures
+- Commit: (see git log) | Model: Opus 5.5, medium (playbook: Sonnet, medium)
+- Changed: `citygen/mesh/builder.py` (optional `col` per piece, ribbon u along the street from a
+  start distance, v across; draped cap with per-triangle street direction; curb v from the top),
+  `citygen/mesh/tile.py` (`GroundTint` COLOR_0 on terrain, ribbon start via `line.project`,
+  `street_directions` for sidewalks), `citygen/mesh/props.py` (unpack), `styles/maghreb.toml`
+  (ground, street, sidewalk and curb textures and sizes, softer earth/grass/scrub blotches,
+  stronger asphalt patches, `urban_ground` lifted, `[ground_tint]`), `tools/viewer/index.html`
+  (`vertexColors` in the shared-material key), `tools/blender_beauty.py` (palette colors from
+  `baseColorFactor`), tests (5 new), `docs/SPEC.md`, `docs/ROADMAP.md`, `docs/HANDOFF.md`
+- Checks: tests 56 passed (about 18.5 s; the 5 new ones about 0.9 s); `build --quick` 9.1 s,
+  9 tiles; fingerprint 141 parts, 11 changed: `tiles/*` and `tiles/textures/*` as allowed, plus
+  a `tiles/.DS_Store` written by Finder (not by the build). Budgets: 14 shared images, 732 KB
+  (limit 2 MB); tile bytes worst +9.5% (terrain-only capital tiles, about +17 KB of COLOR_0),
+  densest `tile_65_106` +0.2% (limit +10%). Full capital `--force`: 32.4 s before (first run);
+  back to back later, HEAD 36.8 s and this change 37.0 s (+0.5%), 168 tiles.
+- Look: `output/checks/20.png` street - paving tiles and curb stones run along the street,
+  asphalt with soft patches; `output/checks/20-air.png` from about 135 m over the cemetery and
+  open ground - no visible repeat (a first try with earth at full mottle showed a grid; fixed).
+  Blender: `output/bodjantouna-42/goumosbane.blend`.
+- Doubts and questions for Ali: none. In Blender the ground, asphalt and paving keep their
+  procedural shaders (they ignore the images and the tint); sidewalk, curb, earth, desert,
+  forest and rock use the imported image x tint.
+
 ## 2026-10-23 - Prompt 19 A2c Textured walls and roofs
 - Commit: "Textured walls and roofs: plaster, plinths and roof tiles" (see git log) | Model:
   DeepSeek V4.1 Flash, high (playbook: Sonnet, high)

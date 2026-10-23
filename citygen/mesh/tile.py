@@ -13,7 +13,7 @@ from pathlib import Path
 
 import numpy as np
 import shapely
-from shapely.geometry import LineString, Polygon, box
+from shapely.geometry import LineString, Point, Polygon, box
 from shapely.geometry.polygon import orient
 from shapely.ops import unary_union
 from shapely.strtree import STRtree
@@ -23,6 +23,7 @@ from ..city.geo import frame, lines, polygons
 from ..city.ground import STREET_LIFT, Ground
 from ..city.roofs import RoofLayout, roof_layout, roof_stream
 from ..kit import make_kit
+from ..noise import Fractal
 from ..terrain import BIOME_MATERIAL, SEA, classify
 from .builder import (MeshBuilder, add_cap, add_dome, add_draped_cap, add_hip_roof, add_loft, add_ribbon,
                       add_sheet, add_skirt, add_walls, extrude, rectangle, regular_polygon)
@@ -60,6 +61,7 @@ class TileContext:
         self.materials = self.kit.materials if self.kit else self.palette
         self.texture_mode = str(world.cfg["tiles"].get("textures", "shared"))
         self.texture_images = images_for(world.style, world.seed, self.texture_mode)
+        self.tint = GroundTint(world.seed, world.style.get("ground_tint", {}))
         self.cities = []
         self.paint_trees = []
         for p in plans:
@@ -74,6 +76,30 @@ class TileContext:
 
     def height(self, x, y):
         return self.ground.height(x, y)
+
+
+class GroundTint:
+    """Large, soft brightness and warm/cool drift over the terrain, against texture repeats from the air.
+
+    A pure function of world x, y (its own noise seeds), so both tiles at a shared edge give the
+    same color and no seam shows. Values stay in (0, 1]: glTF multiplies base color x texture x
+    COLOR_0, so the tint only darkens a little and cools or warms a little, never goes black.
+    """
+
+    def __init__(self, seed: int, cfg: dict):
+        self.strength = float(cfg.get("brightness", 0.0))
+        self.warmth = float(cfg.get("warmth", 0.0))
+        octaves = int(cfg.get("octaves", 3))
+        self.light = Fractal(seed, "ground_tint", float(cfg.get("wavelength", 400.0)), octaves)
+        self.warm = Fractal(seed, "ground_tint_warmth", float(cfg.get("warm_wavelength", 900.0)), octaves)
+
+    def __call__(self, x, y) -> np.ndarray:
+        """(N, 3) linear RGB multipliers for world points x, y."""
+        light = 1.0 - self.strength * np.clip(0.5 - self.light(x, y), 0.0, 1.0)
+        t = np.clip(0.5 + self.warm(x, y), 0.0, 1.0)            # 1 = warm, 0 = cool
+        rgb = np.stack([1.0 - self.warmth * (1.0 - t), np.full_like(t, 1.0 - self.warmth * 0.5),
+                        1.0 - self.warmth * t], axis=-1)
+        return rgb * light[..., None]
 
 
 def tile_bounds(tc: TileContext, i: int, j: int) -> tuple:
@@ -98,6 +124,7 @@ def terrain_mesh(mb: MeshBuilder, tc: TileContext, x0: float, y0: float) -> floa
     pos = np.stack([Xg, Yg, H], axis=-1).reshape(-1, 3)
     nrm = nrm.reshape(-1, 3)
     uv = np.stack([pos[:, 0], -pos[:, 1]], axis=1)
+    col = tc.tint(pos[:, 0], pos[:, 1])
     hc = (H[:-1, :-1] + H[1:, :-1] + H[:-1, 1:] + H[1:, 1:]) / 4
     xc, yc = Xg[:-1, :-1] + s / 2, Yg[:-1, :-1] + s / 2
     slope = np.hypot((gx[:-1, :-1] + gx[1:, 1:]) / 2, (gy[:-1, :-1] + gy[1:, 1:]) / 2)
@@ -117,7 +144,7 @@ def terrain_mesh(mb: MeshBuilder, tc: TileContext, x0: float, y0: float) -> floa
         q = quads[names == mat]
         tris = np.concatenate([q[:, [0, 1, 2]], q[:, [0, 2, 3]]])
         used, remap = np.unique(tris, return_inverse=True)
-        mb.add(str(mat), pos[used], nrm[used], uv[used], remap.reshape(-1, 3))
+        mb.add(str(mat), pos[used], nrm[used], uv[used], remap.reshape(-1, 3), col[used])
     return float(H.min())
 
 
@@ -132,11 +159,13 @@ def road_meshes(mb: MeshBuilder, tc: TileContext, tile) -> None:
         return
     for k in tc.road_tree.query(tile, predicate="intersects"):
         road = tc.world.roads[int(k)]
-        piece = tc.road_lines[int(k)].intersection(tile)
+        line = tc.road_lines[int(k)]
+        piece = line.intersection(tile)
         if tc.city_area is not None:
             piece = piece.difference(tc.city_area)
         for seg in lines(piece):
-            add_ribbon(mb, shapely.segmentize(seg, 8.0).coords, road.width, tc.height, ROAD_LIFT, "asphalt")
+            add_ribbon(mb, shapely.segmentize(seg, 8.0).coords, road.width, tc.height, ROAD_LIFT, "asphalt",
+                       line.project(Point(seg.coords[0])))
 
 
 def street_meshes(mb: MeshBuilder, tc: TileContext, plan, street_tree, tile) -> None:
@@ -148,7 +177,7 @@ def street_meshes(mb: MeshBuilder, tc: TileContext, plan, street_tree, tile) -> 
         for seg in lines(st.line.intersection(tile)):
             if seg.length > 0.05:
                 add_ribbon(mb, shapely.segmentize(seg, 6.0).coords, st.width, tc.height,
-                           STREET_LIFT.get(st.kind, 0.24), mat)
+                           STREET_LIFT.get(st.kind, 0.24), mat, st.line.project(Point(seg.coords[0])))
 
 
 def paint_meshes(mb: MeshBuilder, tc: TileContext, plan, paint_tree, tile) -> None:
@@ -167,21 +196,39 @@ def paint_meshes(mb: MeshBuilder, tc: TileContext, plan, paint_tree, tile) -> No
                 add_draped_cap(mb, shapely.segmentize(poly, step), lambda x, y, z=z: tc.height(x, y) + z, "road_paint")
 
 
-def walk_meshes(mb: MeshBuilder, tc: TileContext, plan, tile) -> None:
-    """Raised sidewalks and promenades owned by this tile (the tile holding their centroid)."""
+def walk_meshes(mb: MeshBuilder, tc: TileContext, plan, tile, street_tree=None) -> None:
+    """Raised sidewalks and promenades owned by this tile (the tile holding their centroid).
+
+    With `street_tree` (an STRtree over the street lines) each sidewalk triangle's paving runs
+    along its nearest street: one walk piece wraps a block corner, so one direction would not do.
+    """
     x0, y0, x1, y1 = tile.bounds
     step = float(tc.world.style.get("streets", {}).get("walk_step", 15.0))
+    along = None if street_tree is None else (lambda x, y: street_directions(street_tree, x, y))
     for walk in getattr(plan, "walks", ()):
         c = walk.polygon.centroid
         if not (x0 <= c.x < x1 and y0 <= c.y < y1):
             continue
         poly = shapely.segmentize(orient(walk.polygon, sign=1.0), step)   # long blocks follow the ground
-        add_draped_cap(mb, poly, tc.ground.walk_top, "sidewalk")
+        add_draped_cap(mb, poly, tc.ground.walk_top, "sidewalk", along)
         for ring in (poly.exterior, *poly.interiors):
             pts = np.asarray(ring.coords)[:-1]
             top = tc.ground.walk_top(pts[:, 0], pts[:, 1])
             bottom = tc.height(pts[:, 0], pts[:, 1])
             add_skirt(mb, pts, top, bottom, "curb")
+
+
+def street_directions(street_tree, x, y) -> np.ndarray:
+    """(N, 2) unit direction of the nearest street line at each point (x east when undefined)."""
+    pts = shapely.points(np.asarray(x, dtype=np.float64), np.asarray(y, dtype=np.float64))
+    lines_ = street_tree.geometries[street_tree.nearest(pts)]
+    d = shapely.line_locate_point(lines_, pts)
+    length = shapely.length(lines_)
+    a = shapely.get_coordinates(shapely.line_interpolate_point(lines_, np.maximum(d - 1.0, 0.0)))
+    b = shapely.get_coordinates(shapely.line_interpolate_point(lines_, np.minimum(d + 1.0, length)))
+    v = b - a
+    n = np.hypot(v[:, 0], v[:, 1])
+    return np.where(n[:, None] > 1e-9, v / np.maximum(n, 1e-9)[:, None], [1.0, 0.0])
 
 
 PLINTH_KINDS = frozenset({"house", "domed", "apartments", "villa", "shed", "mosque_hall", "marabout"})
@@ -387,7 +434,7 @@ def build_tile(tc: TileContext, i: int, j: int) -> tuple:
             continue
         street_meshes(mb, tc, plan, street_tree, tile)
         paint_meshes(mb, tc, plan, tc.paint_trees[ci], tile)
-        walk_meshes(mb, tc, plan, tile)
+        walk_meshes(mb, tc, plan, tile, street_tree)
         walk_width = np.zeros(len(plan.streets))
         for walk in getattr(plan, "walks", ()):
             if walk.kind == "sidewalk" and 0 <= walk.street < len(walk_width):
