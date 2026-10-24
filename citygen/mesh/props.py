@@ -347,6 +347,28 @@ def tank_stand() -> MeshBuilder:
     return mb
 
 
+def hedge(cfg: dict) -> MeshBuilder:
+    """A low clipped box hedge for villa lot edges (prompt 24): `nominal` m long along x, centered on
+    its anchor, `thick` wide with chamfered top edges, `height` tall and `sink` below the ground.
+    Placements stretch it along x to fill a run. 9 one-sided faces, 18 triangles, no bottom."""
+    mb = MeshBuilder()
+    x0, x1 = -float(cfg["nominal"]) / 2, float(cfg["nominal"]) / 2
+    w, h, s = float(cfg["thick"]) / 2, float(cfg["height"]), float(cfg["sink"])
+    c = 0.3 * w
+    prof = [(-w, -s), (w, -s), (w, h - c), (w - c, h), (-w + c, h), (-w, h - c)]   # (y, z), counter-clockwise
+    quads, normals = [], []
+    for i in range(1, 6):
+        (ya, za), (yb, zb) = prof[i], prof[(i + 1) % 6]
+        quads.append([(x0, ya, za), (x1, ya, za), (x1, yb, zb), (x0, yb, zb)])
+        normals.append((0.0, zb - za, ya - yb))
+    for x, sx in ((x0, -1.0), (x1, 1.0)):
+        p = [(x, y, z) for y, z in prof]
+        quads += [[p[0], p[1], p[2], p[5]], [p[5], p[2], p[3], p[4]]]
+        normals += [(sx, 0.0, 0.0)] * 2
+    _faces(mb, [q for qs, n in zip(quads, normals) for q in _orient([qs], n)], "leaf_hedge")
+    return mb
+
+
 def dish() -> MeshBuilder:
     """Satellite dish on a short pole, looking up and outward."""
     mb = MeshBuilder()
@@ -550,7 +572,7 @@ def tree_mesh(mb: MeshBuilder, t, z: float) -> None:
         trunk = 0.3 * h if t.kind == "broadleaf" else 0.25 * h
         extrude(mb, regular_polygon(t.x, t.y, 0.18, 4), z - 0.3, z + trunk + 0.4, "trunk", None)
         rx = 0.34 * h if t.kind == "broadleaf" else 0.42 * h
-        mat = "leaf" if t.kind == "broadleaf" else "leaf_olive"
+        mat = {"broadleaf": "leaf", "citrus": "leaf_citrus"}.get(t.kind, "leaf_olive")
         turn = (t.x * 7.3 + t.y * 3.1) % 6.28   # a crown of three clumps, turned differently per tree
         add_octahedron(mb, t.x, t.y, z + trunk + 0.34 * h, rx * 0.8, 0.32 * h, mat, twist=turn)
         for k in (0, 1):
@@ -837,13 +859,14 @@ def balcony_iron(cfg: dict | None = None, long: bool = False) -> MeshBuilder:
 
 
 def catalog(rng, seed: int = 0, trees: dict | None = None, climber: dict | None = None,
-            arcade: dict | None = None, iron: dict | None = None) -> dict:
+            arcade: dict | None = None, iron: dict | None = None, hedge_cfg: dict | None = None) -> dict:
     """Every procedural piece: {name: (MeshBuilder, category, anchor)}.
 
     `trees` and `climber` are the style tables `[dressing.trees]` and `[dressing.climber]`; their
     shapes use their own random streams (from `seed`), never `rng`, so they cannot change any other
     piece. Without them the light tree pieces stay and no tree variants or climbers are made.
-    `arcade` and `iron` are `[dressing.arcade]` and `[dressing.balcony_iron]` (sizes only).
+    `arcade` and `iron` are `[dressing.arcade]` and `[dressing.balcony_iron]` (sizes only); `hedge_cfg` is
+    `[dressing.hedge]` (prompt 24), and without it no hedge piece is made.
     """
     pieces = {}
     for color in DOOR_COLORS:
@@ -900,4 +923,6 @@ def catalog(rng, seed: int = 0, trees: dict | None = None, climber: dict | None 
         "balcony_iron": (balcony_iron(iron), "balcony", "wall"),
         "balcony_iron_long": (balcony_iron(iron, long=True), "balcony", "wall"),
     })
+    if hedge_cfg:               # villa garden hedges (prompt 24); no random draws
+        pieces["hedge"] = (hedge(hedge_cfg), "plant", "ground")
     return pieces

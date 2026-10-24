@@ -109,6 +109,12 @@ leaf_olive_dark = { color = "#667550" }
 leaf_olive_light = { color = "#A5B08A" }
 trunk_olive = { color = "#5D5549" }
 trunk = { color = "#6B5541" }
+leaf_citrus_dark = { color = "#2C4424", roughness = 0.45 }   # bitter orange: dark, glossy, dense (prompt 24)
+leaf_citrus = { color = "#395A2C", roughness = 0.45 }
+leaf_citrus_light = { color = "#567A38", roughness = 0.5 }
+fruit_orange = { color = "#E58A2A", roughness = 0.55 }
+leaf_hedge = { color = "#4B6631", roughness = 0.9 }   # clipped box hedge (flat, like the tree crowns)
+garden = { color = "#7F9C4D", texture = "grass", texture_size = [2.5, 2.5] }   # watered villa garden ground
 # street dressing (doors, shops, goods, street life)
 stone_frame = { color = "#D8C7A5" }
 tile_panel = { color = "#2F7FA8", roughness = 0.35 }
@@ -421,6 +427,41 @@ tree_spacing = 13.0
 [district.cemetery]
 tree_spacing = 24.0
 marabouts = 3              # small domed shrines
+
+# --- more greenery (prompt 24, city/greenery.py): trees added after all others ----------
+# Street trees along arterials: a row of tree pits behind the curb of colonial and modern
+# sidewalks, as on the avenues of Tunis (mostly ficus, some streets of palms). One species per street.
+[greenery.arterial]
+kinds = ["arterial"]
+districts = ["colonial", "modern"]
+spacing = 8.5              # meters between two trees along the street
+pit = 0.9                  # meters from the curb face to the trunk
+trunk_clear = 0.5          # the trunk stays this far inside its sidewalk
+junction_clear = 5.0       # meters from any other street (so clear of the zebra crossings too)
+paint_clear = 1.1          # meters from any road marking (edge lines stay 1.3 m away)
+wall_clear = 2.0           # meters from any building
+lamp_clear = 3.0           # meters along the street from a lamp on the same side
+door_clear = 1.6           # meters from a stair door's paved path (carried on over the sidewalk)
+species = [["broadleaf", 0.75], ["palm", 0.25]]
+height = { broadleaf = [6.0, 8.0], palm = [8.0, 11.0] }
+
+# Courtyards without a tree may get one: mostly bitter oranges in the medina, olives and figs in villages.
+[greenery.courtyard]
+chance = { medina = 0.4, village = 0.35 }
+kinds = { medina = [["citrus", 0.75], ["broadleaf", 0.15], ["olive", 0.1]], village = [["citrus", 0.4], ["olive", 0.4], ["broadleaf", 0.2]] }
+height = { citrus = [3.2, 4.6], broadleaf = [4.0, 6.0], olive = [3.5, 5.0] }
+min_area = 12.0            # square meters of courtyard
+wall_clear = 0.3           # meters between the crown and the courtyard walls
+min_height = 2.4           # no tree when the courtyard only has room for a smaller one
+
+# Villa gardens: a few fruit trees behind or beside the house (garden_trees of [district.suburb] stay).
+[greenery.garden]
+count = [0, 2]
+kinds = [["citrus", 0.7], ["olive", 0.3]]
+height = { citrus = [3.0, 4.2], olive = [3.5, 5.0] }
+behind = 1.5               # meters farther from the nearest street than the house (clear of the gate path)
+edge_clear = 1.5           # meters from the lot edges (the hedges)
+tree_clear = 3.0           # meters from any other tree
 
 # --- roofs -------------------------------------------------------------------------
 # Flat roofs get a low wall around the edge (a parapet) and some of them a stair room,
@@ -861,6 +902,46 @@ stems = [1, 2]
 lean = 0.07
 branches = [2, 3]
 
+# Bitter orange (citrus): a short trunk, a low, round, dense crown of dark glossy leaves, and a
+# few oranges on it (`fruit` dots of `fruit_size` x height, on their own stream).
+[dressing.trees.citrus]
+variants = 3
+clumps = [7, 8]
+clump_radius = [0.19, 0.23]
+crown_radius = 0.21
+crown_drop = -0.02
+flatten = 0.9
+jitter = 0.12
+dark_below = 0.35
+light_above = 0.7
+low_bias = 0.8
+materials = ["leaf_citrus_dark", "leaf_citrus", "leaf_citrus_light"]
+trunk_height = 0.26
+trunk_radius = 0.03
+taper = 0.6
+trunk_sides = 5
+trunk_material = "trunk"
+stems = [1, 1]
+lean = 0.03
+branches = [2, 3]
+fruit = 14
+fruit_size = 0.024
+fruit_material = "fruit_orange"
+
+# Low clipped box hedges along villa lot edges (prompt 24): one piece `nominal` m long, stretched
+# along the hedge (Placement.stretch, the piece is plain along its length) so each run is filled end
+# to end by pieces at most `piece_max` m long (each stands on the ground at its middle); an opening
+# where the garden path meets the street (`gate` m wider than the path) and round tree trunks.
+[dressing.hedge]
+height = 1.0
+thick = 0.6
+sink = 0.2                 # below the ground, for sloping lots
+nominal = 4.0
+piece_max = 8.0
+gate = 0.6
+trunk_clear = 0.5
+garden_lift = 0.02         # the garden ground stands this far above the terrain mesh (paths: 0.04)
+
 # Which pieces play each part, by weight: [piece, weight] or [piece, weight, extra height].
 # "tounes/..." pieces come from the Tounes Rush kit (kits/tounes); the others are made by the
 # generator (citygen/mesh/props.py). Pieces that are missing are skipped, so the city still
@@ -907,6 +988,7 @@ wall_laundry = [["tounes/laundry_line", 1]]
 tree_palm = [["tounes/palm_date", 1]]
 tree_broadleaf = [["tree_broadleaf", 1], ["tree_broadleaf_b", 1], ["tree_broadleaf_c", 1]]
 tree_olive = [["tree_olive", 1], ["tree_olive_b", 1], ["tree_olive_c", 1]]
+tree_citrus = [["tree_citrus", 1], ["tree_citrus_b", 1], ["tree_citrus_c", 1]]
 alley_arch = [["tounes/arch_sbs", 1]]
 souk_gate = [["tounes/souk_gate_lanterns", 1], ["tounes/souk_gate_rugs", 1]]
 house_door_blue = [["door_narrow_blue", 1]]

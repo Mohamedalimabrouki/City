@@ -8,6 +8,7 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 from shapely.geometry import MultiPolygon, Polygon
 
+from ..city.openings import villa_lots
 from ..terrain import classify
 
 BIOME_RGB = np.array([(58, 120, 155), (232, 214, 168), (134, 160, 90), (191, 174, 120),
@@ -24,6 +25,8 @@ BUILDING_RGB = {
     "industrial": (120, 124, 132), "port": (110, 120, 140), "park": (140, 140, 120),
     "cemetery": (160, 160, 150),
 }
+TREE_RGB = {"citrus": (214, 136, 46)}   # bitter oranges (prompt 24); every other tree is green
+GARDEN_RGB = (176, 204, 128)            # villa gardens (prompt 24)
 ROAD_STYLE = {"national": ((196, 72, 52), 3.2), "regional": ((222, 150, 60), 2.2),
               "local": ((120, 110, 96), 1.2)}
 
@@ -135,6 +138,8 @@ def city_map(world, plan, path, meters_per_px: float | None = None, max_px: int 
         color = (250, 250, 248) if st.kind not in ("alley", "souk", "impasse") else (252, 246, 232)
         draw.line(ring(st.line.coords), fill=color, width=max(1, round(st.width / mpp)))
     kinds = {i: d.kind for i, d in enumerate(plan.districts)}
+    for j in villa_lots(plan, [k for k, b in enumerate(plan.buildings) if b.kind == "villa"]).values():
+        fill_poly(plan.parcels[j].polygon, GARDEN_RGB)
     for b in plan.buildings:
         color = BUILDING_RGB.get(kinds.get(b.district, "residential"), (150, 140, 130))
         if b.kind in ("mosque_hall", "minaret", "mosque_court"):
@@ -147,7 +152,7 @@ def city_map(world, plan, path, meters_per_px: float | None = None, max_px: int 
     tree_r = max(1.0, 2.2 / mpp)
     for t in plan.trees:
         cx, cy = (t.x - minx) / mpp, (maxy - t.y) / mpp
-        draw.ellipse([cx - tree_r, cy - tree_r, cx + tree_r, cy + tree_r], fill=(92, 130, 70))
+        draw.ellipse([cx - tree_r, cy - tree_r, cx + tree_r, cy + tree_r], fill=TREE_RGB.get(t.kind, (92, 130, 70)))
     font = _font(max(12, int(w / 110)))
     for d in plan.districts:
         if d.kind in ("medina", "village") or d.polygon.area < 60000:

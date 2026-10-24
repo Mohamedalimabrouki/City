@@ -9,6 +9,7 @@ Pipeline (each step is its own module):
   buildings  a building per lot following the district rules, landmarks, parks, cemetery
   massing    rows, cut corners, domes, set-back top floors, stepped slabs, villa L's, roof rooms
              (after households and souks: it never adds, removes or reorders a building)
+  greenery   street trees on arterials, courtyard trees, villa fruit trees (last: only appends trees)
 """
 from __future__ import annotations
 
@@ -20,6 +21,7 @@ from shapely.geometry import LineString
 from ..names import NameMaker
 from ..rng import stream
 from .buildings import cemetery_and_parks, make_buildings, neighborhood_mosques
+from .greenery import greenery
 from .layout import assign_kinds, city_boundary, land_near, main_axis, medina_outline, neighborhoods
 from .life import households, souks
 from .massing import apply_massing
@@ -92,9 +94,12 @@ def plan_city(world, settlement) -> CityPlan:
     plan.souks = souks(ctx, streets)
     apply_massing(ctx, plan)
     plan.paint = make_paint(world.style, streets, walks)
+    green = greenery(ctx, plan)
+    trees += green   # appended last: every older tree keeps its index, so its kit variant and turn
     plan.stats = {"districts": len(districts), "streets": len(streets), "impasses": len(lanes),
                   "blocks": len(blocks),
                   "parcels": len(parcels), "buildings": len(buildings), "trees": len(trees),
+                  "greenery": len(green),
                   "households": len(plan.households), "souks": len(plan.souks),
                   "seconds": round(time.perf_counter() - t0, 1)}
     return plan

@@ -416,3 +416,19 @@ def apron_cells(poly, cell: float) -> np.ndarray:
     parts = [p for g in cells for p in getattr(g, "geoms", [g]) if p.geom_type == "Polygon" and p.area > 1e-6]
     tris = [triangulate(p) for p in parts]
     return np.concatenate(tris) if tris else np.zeros((0, 3, 2))
+
+
+def terrain_cells(poly, step: float) -> np.ndarray:
+    """(T, 3, 2) triangles of a polygon cut on the terrain mesh's own triangles (cells of `step` m on the
+    world grid, split along their south-west to north-east diagonal, as `Ground.drawn` and the tile mesher
+    do), so a cap draped on `Ground.drawn` lies in the terrain's planes exactly (villa gardens, prompt 24)."""
+    x0, y0, x1, y1 = poly.bounds
+    i, j = np.meshgrid(np.arange(math.floor(x0 / step), math.ceil(x1 / step)),
+                       np.arange(math.floor(y0 / step), math.ceil(y1 / step)), indexing="ij")
+    i, j = i.ravel() * step, j.ravel() * step
+    c00, c10, c11, c01 = (np.stack([i + dx, j + dy], axis=1) for dx, dy in ((0, 0), (step, 0), (step, step), (0, step)))
+    rings = np.concatenate([np.stack([c00, c10, c11, c00], axis=1), np.stack([c00, c11, c01, c00], axis=1)])
+    pieces = shapely.intersection(shapely.polygons(rings), poly)
+    parts = [p for g in pieces for p in shapely.get_parts(g) if p.geom_type == "Polygon" and p.area > 1e-6]
+    tris = [triangulate(p) for p in parts]
+    return np.concatenate(tris) if tris else np.zeros((0, 3, 2))

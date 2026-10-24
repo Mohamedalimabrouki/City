@@ -65,10 +65,10 @@ class Piece:
 class Kit:
     def __init__(self, seed: int, kits=(), palette: dict | None = None, trees: dict | None = None,
                  climber: dict | None = None, lit: dict | None = None, arcade: dict | None = None,
-                 iron: dict | None = None):
+                 iron: dict | None = None, hedge: dict | None = None):
         self.pieces: dict[str, Piece] = {}
         self.materials: dict = dict(palette or {})
-        table = catalog(stream(seed, "props"), seed, trees, climber, arcade, iron)
+        table = catalog(stream(seed, "props"), seed, trees, climber, arcade, iron, hedge)
         for name, (mb, category, anchor) in table.items():
             self.pieces[name] = Piece(name, category, anchor, mb.gltf_parts(), "procedural")
         self.panes: dict = {}   # kit piece -> (x0, x1, y0, y1, z) of its glass, glTF axes (manifest "glass")
@@ -118,4 +118,4 @@ def make_kit(seed: int, cfg: dict, style: dict) -> Kit:
     dressing = style.get("dressing", {})
     iron = {**dressing.get("balcony_iron", {}), "sill": dressing.get("window_sill", 0.95)}
     return Kit(seed, cfg["build"].get("kits", []), style["palette"], dressing.get("trees"), dressing.get("climber"),
-               dressing.get("lit"), dressing.get("arcade"), iron)
+               dressing.get("lit"), dressing.get("arcade"), iron, dressing.get("hedge"))

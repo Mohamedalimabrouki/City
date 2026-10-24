@@ -372,6 +372,30 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
   and crashed the full capital. Tank stands are an instanced piece
   (as geometry, about 6 KB each); lift rooms are boxes. Cost: worst quick tile +6.8% with the aprons, full capital
   47.0 -> 48.3 s back to back (planner 15.8 -> 16.3 s, CPU +7%).
+- **More greenery** (prompt 24, `city/greenery.py`, `[greenery]`, `[dressing.hedge]`): new trees are only
+  appended after every older tree (the dresser keys a tree's variant on its index), in a step that runs
+  last in the planner, so the massing test re-plans with `greenery` patched out too and checks the
+  old trees as a prefix. `mesh.props` imports `city.model`, so `city/greenery.py` imports `dressing` and
+  `ARCADE` inside its functions (a top-level import loops when the kit is imported first). Arterial
+  trees reuse the dresser's own rules instead of copies: `dressing.arcade_zones`/`band_push` (moved out
+  of the `Dresser`), `stair_columns` and `path_to_street` (pure geometry) for the stair paths, the lamp
+  stations of `_lamps`; the test checks them against the real dresser (lamps, sampled slabs' paths,
+  `tree_spots` moves none). A colonial sidewalk is 3.2 m and the arcade 2.5 m deep, so no tree pit fits
+  beside an arcade (trunk needs 2.97 m from the wall, the curb is at 3.2): every colonial candidate lies
+  in an arcade band. Lead decision (rule): modern arterials get street trees, arcaded colonial ones do
+  not; the arcades are their shade, as on real arcaded streets. Residential arterial walks (2.4 m, attached
+  houses) fail `wall_clear`; suburb ones would add about 300 trees on the full capital (style list).
+  Villa gardens are cut on the terrain's own triangles: the lots are not planar (median 18 cm off a
+  plane, cell twist up to 27 cm), so cells only or a coarse drape would sink under the terrain. With the
+  house cut out it cost about 2.5 KB per villa (66 vertices, 73 triangles; suburb tiles +31-37%, worst
+  2.41 -> 3.29 MB); lead review: keep the part under the house (hidden by it), about a quarter fewer
+  triangles: suburb tiles +25-30%, worst 2.41 -> 3.13 MB. Hedges first used 2 m pieces (33 per villa, +380 KB a tile); pieces of up to
+  8 m (the piece is plain along its length, untextured like the crowns) cut that to 11 per villa.
+  Hedge corners: a later run stops at the body of a run already planted (not at a computed offset,
+  which left 3 m gaps at gentle bends); slivers remain only at 16-20 degree lot corners. Citrus crowns
+  keep the Q1 budget (60-200 triangles) plus 14 oranges (8-face clumps, 112 triangles) on their own
+  stream `("props", "tree", "citrus", variant, "fruit")`. Cost: full capital 51.4 -> 49.0 s back to
+  back (noise; planner +1 s), quick build unchanged.
 - **Old-town tiles** reach about 5 MB on the quick build and 8 MB on the full capital
   (`tile_65_106`, mostly roofs since prompt 15); task Q5 (prompt 39) brings them down.
 

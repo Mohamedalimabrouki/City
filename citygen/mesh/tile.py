@@ -21,7 +21,7 @@ from shapely.strtree import STRtree
 
 from ..city.dressing import Dresser, Placement, building_highs, ground_heights
 from ..city.geo import frame, lines, polygons
-from ..city.ground import STREET_LIFT, Ground, apron_cells
+from ..city.ground import STREET_LIFT, Ground, apron_cells, terrain_cells
 from ..city.massing import inner_walls, massed, outline
 from ..city.roofs import RoofLayout, roof_layouts, roof_stream
 from ..kit import make_kit
@@ -265,6 +265,20 @@ def path_meshes(mb: MeshBuilder, tc: TileContext, paths: list, drawn) -> None:
     width, lift = float(cfg.get("width", 1.4)), float(cfg.get("lift", 0.04))
     for line in paths:
         add_ribbon(mb, line, width, drawn, lift, str(cfg.get("material", "sidewalk")))
+
+
+def garden_meshes(mb: MeshBuilder, tc: TileContext, gardens: list, drawn) -> None:
+    """Villa garden ground (prompt 24): each lot minus its house and paths, cut on the terrain mesh's
+    triangles and draped on it (`drawn`) `[dressing.hedge] garden_lift` m up, in the `garden` material."""
+    lift = float(tc.world.style.get("dressing", {}).get("hedge", {}).get("garden_lift", 0.02))
+    for poly in gardens:
+        tri = terrain_cells(poly, tc.step)
+        if not len(tri):
+            continue
+        pts, inv = np.unique(tri.reshape(-1, 2), axis=0, return_inverse=True)
+        z = np.asarray(drawn(pts[:, 0], pts[:, 1]), dtype=np.float64) + lift
+        mb.add("garden", np.column_stack([pts, z]), np.tile([0.0, 0.0, 1.0], (len(pts), 1)),
+               np.stack([pts[:, 0], -pts[:, 1]], axis=1), np.asarray(inv).reshape(-1, 3))
 
 
 def street_directions(street_tree, x, y) -> np.ndarray:
@@ -592,9 +606,17 @@ def build_tile(tc: TileContext, i: int, j: int) -> tuple:
         if dresser is not None:
             highs = building_highs(tc.ground, [plan.buildings[int(k)] for k in owned])
             paths: list = []
+            gardens: list = []
             for k, high in zip(owned, highs):
+                first = len(paths)
                 placements += dresser.building(int(k), float(high), paths)
+                if plan.buildings[int(k)].kind == "villa":     # garden ground and hedges (prompt 24)
+                    ground, hedges = dresser.garden(int(k), paths[first:])
+                    placements += hedges
+                    if ground is not None:
+                        gardens.append(ground)
             path_meshes(mb, tc, paths, dresser.drawn)
+            garden_meshes(mb, tc, gardens, dresser.drawn)
             if street_tree is not None:
                 for k in street_tree.query(tile, predicate="intersects"):
                     spans += dresser.spans(int(k), tile)

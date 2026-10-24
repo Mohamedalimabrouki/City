@@ -1,9 +1,10 @@
-"""Natural low-poly broadleaf and olive trees, built once as kit pieces and drawn as instances.
+"""Natural low-poly broadleaf, olive and citrus trees, built once as kit pieces and drawn as instances.
 
 A crown is a handful of jittered, overlapping icosahedron clumps (20 triangles, 12 shared vertices each,
 smooth normals) in three shades: dark low and inside, light on top. The trunk is a tapered prism that
 leans a little; a few short branches reach from it into the crown. All numbers come from the style
 (`[dressing.trees.<kind>]`). Each variant has its own random stream, so no other piece changes.
+A citrus crown (prompt 24) carries `fruit` small oranges on its surface, from a second stream of its own.
 """
 from __future__ import annotations
 
@@ -69,7 +70,25 @@ def tree_crown_piece(kind: str, spec: dict, seed: int, variant: int, height: flo
         reach = crown_r * rng.uniform(0.45, 0.7)
         end = start + np.array([math.cos(a) * reach, math.sin(a) * reach, h * rng.uniform(0.14, 0.24)])
         tube(mb, start, end, base_r * spec["taper"] * 0.8, base_r * 0.25, 3, trunk_mat)
+    if spec.get("fruit"):
+        _fruit(mb, stream(seed, "props", "tree", kind, variant, "fruit"), clumps, spec, h)
     return mb
+
+
+def _fruit(mb: MeshBuilder, rng, clumps: list, spec: dict, h: float) -> None:
+    """Small oranges (8-face clumps) just outside the crown's outer and upper clumps, never inside."""
+    size = float(spec["fruit_size"]) * h
+    centers = np.array([c[0] for c in clumps])
+    mid = centers.mean(axis=0)
+    for _ in range(int(spec["fruit"])):
+        center, rx, rz = clumps[int(rng.integers(0, len(clumps)))]
+        a, up = rng.uniform(0.0, 2 * math.pi), rng.uniform(-0.25, 0.75)
+        out = np.array([math.cos(a), math.sin(a), 0.0]) * math.sqrt(1.0 - up * up) + np.array([0.0, 0.0, up])
+        side = center[:2] - mid[:2]
+        if np.dot(out[:2], side) < 0:                  # face away from the crown's middle
+            out[:2] = -out[:2]
+        p = center + out * np.array([rx, rx, rz]) * (1.0 - float(spec["jitter"]) * 0.5)
+        clump(mb, rng, p, size, size, 0.1, spec["fruit_material"], detail=0)
 
 
 def variant_name(kind: str, variant: int) -> str:
@@ -79,7 +98,7 @@ def variant_name(kind: str, variant: int) -> str:
 def tree_pieces(seed: int, table: dict) -> dict:
     """{piece name: MeshBuilder} for every variant of each kind in the style table `[dressing.trees]`."""
     out = {}
-    for kind in ("broadleaf", "olive"):
+    for kind in ("broadleaf", "olive", "citrus"):
         spec = table.get(kind)
         if spec:
             for variant in range(int(spec["variants"])):

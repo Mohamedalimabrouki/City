@@ -17,6 +17,7 @@ from dataclasses import dataclass
 import numpy as np
 import shapely
 from shapely.geometry import LineString
+from shapely.geometry.polygon import orient
 from shapely.strtree import STRtree
 
 from ..mesh.props import ARCADE
@@ -24,7 +25,8 @@ from ..rng import stream, weighted
 from .arcades import Run, band, free_spans, layout, level_steps, spans_of, turn
 from .geo import frame
 from .massing import corner_faces, floors_at, main_mass, massed, probes, terrace_walls, wall_height
-from .openings import DoorSpot, Walls, fits, joined, open_walls, path_to_street, piece_boxes, wall_arrays
+from .openings import (DoorSpot, Walls, fits, joined, open_walls, path_to_street, piece_boxes, villa_lots,
+                       wall_arrays)
 from .roofs import roof_layout, roof_stream
 
 DRESSED = {"house", "domed", "apartments", "villa"}
@@ -109,6 +111,8 @@ class Dresser:
         self.iron_cfg = self.cfg.get("balcony_iron", {})
         self._zones = None                       # arcade bands of the whole city, for street lamps (lazy)
         self._sidewalks = None                   # STRtree of the sidewalk polygons (lazy)
+        self._lots = self._lot_of = self._parcel_tree = None   # villa lots (prompt 24, lazy)
+        self._tree_index = None                  # STRtree of the planned trees (lazy)
         self._stairs = {n for r in ("stair_window", "stair_door") for n in (self.roles[r][0] if r in self.roles else [r])}
         targets = self.surfaces + [w.polygon for w in getattr(plan, "walks", ())]
         self.target_tree = STRtree(targets) if targets else None   # where a garden path may end
@@ -895,24 +899,13 @@ class Dresser:
         return self._band_push(pts, float(self.arcade_cfg["depth"]) + float(self.arcade_cfg["lamp_clear"]))[0] >= 0
 
     def _tree_reach(self) -> float:
-        cfg = self.arcade_cfg
-        return float(cfg["depth"]) + float(cfg["cornice"]) + float(cfg["tree_trunk"]) + float(cfg["tree_clear"])
+        return tree_reach(self.arcade_cfg)
 
     def _band_push(self, pts: np.ndarray, reach: float) -> tuple:
-        """For points within `reach` m of an arcaded wall (its band, as far past each end): the wall's index
-        in the zones (-1 where none) and how far the point must move out along its normal to clear it."""
-        wall, push = np.full(len(pts), -1), np.zeros(len(pts))
+        """`band_push` over the arcade bands of the whole city (built once, lazily)."""
         if self._zones is None:
             self._zones = self._arcade_zones()
-        if self._zones is False or not len(pts):
-            return wall, push
-        tree, a, n = self._zones
-        inp, hit = tree.query(shapely.points(pts), predicate="within")
-        need = reach - np.einsum("ij,ij->i", pts[inp] - a[hit], n[hit])
-        for i, j, e in zip(inp.tolist(), hit.tolist(), need.tolist()):
-            if e > push[i]:
-                wall[i], push[i] = j, e
-        return wall, push
+        return band_push(self._zones, pts, reach)
 
     def tree_spots(self, xy: np.ndarray) -> tuple:
         """Where planned trees stand (prompt 22): a trunk inside an arcade band (wall to pillar face and
@@ -944,40 +937,9 @@ class Dresser:
 
     def _arcade_zones(self):
         """(STRtree of the arcade bands, wall start points, outward normals) of the whole city, or False."""
-        cfg = self.arcade_cfg
-        if not cfg:
+        if not self.arcade_cfg:
             return False
-        reach = max(float(cfg["depth"]) + float(cfg["lamp_clear"]), self._tree_reach())
-        rows = [wall_arrays(b.footprint) for b in self.plan.buildings
-                if b.kind in DRESSED and self.kinds[b.district] in cfg["districts"]]
-        if not rows:
-            return False
-        a, q, n, length = (np.concatenate([r[m] for r in rows]) for m in range(4))
-        street = self.streets_at((a + q) / 2 + n * 1.6)
-        kinds = set(cfg["kinds"])
-        arc = np.array([street[m] >= 0 and length[m] > 1.5 and self.plan.streets[street[m]].kind in kinds
-                        for m in range(len(a))], dtype=bool)
-        u = (q - a) / np.maximum(length, 1e-9)[:, None]
-        wrap = float(cfg["wrap"]) * float(cfg["bay_relaxed"][1])
-        polys, keep, at = [], [], 0
-        for r in rows:                                    # each building's walls, as a ring
-            idx = np.arange(at, at + len(r[0]))
-            at += len(r[0])
-            for e, m in enumerate(idx):
-                lo, hi = None, None
-                if arc[m]:
-                    lo, hi = -reach, length[m] + reach
-                elif street[m] >= 0 and wrap > 0:         # the bays an arcade turns into a side street
-                    if arc[idx[(e - 1) % len(idx)]]:
-                        lo, hi = -reach, min(wrap, length[m]) + reach
-                    if arc[idx[(e + 1) % len(idx)]]:
-                        lo, hi = (-reach if lo is not None else max(0.0, length[m] - wrap) - reach), length[m] + reach
-                if lo is not None:
-                    polys.append(band(a[m], u[m], n[m], lo, hi, 0.0, reach))
-                    keep.append(m)
-        if not keep:
-            return False
-        return STRtree(polys), a[keep], n[keep]
+        return arcade_zones(self.plan, self.arcade_cfg, self.streets_at)
 
     # --- every home: main doors, open walls, apartment blocks (prompt 20.1) -------------------
     def _boxes(self, walls: Walls, front: tuple, dressed: list, shadow: tuple = NO_BOXES) -> tuple:
@@ -1138,11 +1100,7 @@ class Dresser:
     def _stair_row(self, k: int, b, walls: Walls, i: int, nearest: int) -> list:
         """The stair doors along wall i: one per 20-25 m, each in the window column nearest its share's middle."""
         cfg = self.slab_cfg
-        length = float(walls.length[i])
-        cols = self._columns(length, float(cfg.get("bay", 3.2)))
-        lo, hi = cfg.get("stair_spacing", [20.0, 25.0])
-        count = max(1, int(length / ((lo + hi) / 2) + 0.5))
-        picks = sorted({int(np.argmin(np.abs(cols - (d + 0.5) * length / count))) for d in range(count)})
+        cols, picks = stair_columns(float(walls.length[i]), cfg)
         reach = "street" if walls.street[i] >= 0 else "open" if walls.open[i] else "enclosed"
         street = int(walls.street[i]) if reach == "street" else nearest
         names = [(self.pick("stair_door", self.rng("stair", k, d)) or self.pick("door_blue", self.rng("stair", k, d)))[0]
@@ -1388,6 +1346,89 @@ class Dresser:
             yaw = math.atan2(-away[1], -away[0])
         return Placement(got[0], t.x, t.y, z, yaw, False, scale)
 
+    # --- villa gardens (prompt 24) ----------------------------------------------------------------
+    def garden(self, k: int, paths: list) -> tuple:
+        """(garden ground, hedge placements) of villa k; (None, []) for other buildings or without a lot.
+
+        The ground is its lot minus its paved paths (`paths`: the point arrays of its door paths, as
+        `building` collects them), drawn by the tile on the terrain mesh; the part under the house is
+        hidden by it and left in, since a hole would cost about a quarter more triangles. Hedges follow every
+        lot edge `thick` / 2 inside it; an edge shared with another villa's lot is planted once, by the lot
+        of lower index. Each run is cut where a path meets it (`gate` m wider than the path) and round
+        the trunks of planned trees, then filled end to end with stretched `hedge` pieces."""
+        cfg = self.cfg.get("hedge")
+        if self.plan.buildings[k].kind != "villa" or not cfg or "hedge" not in self.kit.pieces:
+            return None, []
+        if self._lots is None:
+            villas = [m for m, b in enumerate(self.plan.buildings) if b.kind == "villa"]
+            self._lots = villa_lots(self.plan, villas)
+            self._lot_of = {j: m for m, j in self._lots.items()}
+            self._parcel_tree = STRtree([p.polygon for p in self.plan.parcels])
+        if k not in self._lots:
+            return None, []
+        j = self._lots[k]
+        lot = orient(self.plan.parcels[j].polygon, sign=1.0)
+        width = float(self.path_cfg.get("width", 1.4))
+        ways = [shapely.buffer(shapely.linestrings(p), width / 2, cap_style="flat") for p in paths if len(p) >= 2]
+        ground = lot                                          # the house hides its part (no hole: fewer triangles)
+        if ways:
+            ground = ground.difference(shapely.buffer(shapely.union_all(ways), -0.05))   # the garden slips under the path edges
+        gates = [shapely.buffer(w, float(cfg["gate"]) / 2, cap_style="flat") for w in ways] or self._gate_spot(k, lot, width + float(cfg["gate"]))
+        return (None if ground.is_empty else ground), self._hedges(j, lot, gates, cfg)
+
+    def _gate_spot(self, k: int, lot, width: float) -> list:
+        """A villa without a garden path still gets an opening: on its lot edge nearest the house."""
+        p = shapely.get_coordinates(shapely.shortest_line(self.plan.buildings[k].footprint, lot.exterior))[1]
+        return [shapely.Point(p).buffer(width / 2, quad_segs=4)]
+
+    def _hedges(self, j: int, lot, gates: list, cfg: dict) -> list:
+        thick, nominal, longest = float(cfg["thick"]), float(cfg["nominal"]), float(cfg["piece_max"])
+        ring = np.asarray(lot.exterior.coords)[:, :2]
+        ring = ring[np.r_[True, np.hypot(*np.diff(ring, axis=0).T) > 1e-6]]
+        a, b = ring[:-1], ring[1:]
+        length = np.hypot(*(b - a).T)
+        u = (b - a) / np.maximum(length, 1e-9)[:, None]
+        m = np.stack([-u[:, 1], u[:, 0]], axis=1)            # into the lot (counter-clockwise ring)
+        across = np.full(len(a), -1)
+        inp, hit = self._parcel_tree.query(shapely.points((a + b) / 2 - m * 0.3), predicate="within")
+        across[inp] = hit
+        mine = np.array([not (o >= 0 and o < j and o in self._lot_of) for o in across.tolist()])
+        holes = list(gates)
+        trees = self.tree_index()
+        if trees is not None:
+            near = trees.query(lot.buffer(thick))
+            holes += [trees.geometries[i].buffer(float(cfg["trunk_clear"]), quad_segs=4) for i in near.tolist()]
+        cut = shapely.union_all(holes) if holes else None
+        inner = lot.buffer(-0.02, join_style="mitre")         # an acute corner ends a run at the lot edge
+        out, bodies = [], []
+        for e in np.nonzero(mine & (length > thick))[0]:
+            run = shapely.LineString([a[e] + m[e] * thick / 2, b[e] + m[e] * thick / 2]).intersection(inner)
+            if cut is not None:
+                run = run.difference(cut)
+            if bodies:                                        # a corner belongs to the hedge planted first
+                run = run.difference(shapely.buffer(shapely.union_all(bodies), 0.01, join_style="mitre"))
+            for part in shapely.get_parts(run):
+                if part.geom_type == "LineString" and part.length >= 0.4:
+                    out += self._hedge_run(np.asarray(part.coords), nominal, longest)
+                    bodies.append(part.buffer(thick / 2, cap_style="flat"))
+        return out
+
+    @staticmethod
+    def _hedge_run(pts: np.ndarray, nominal: float, longest: float) -> list:
+        p0, p1 = pts[0], pts[-1]
+        length = float(np.hypot(*(p1 - p0)))
+        n = max(1, math.ceil(length / longest))
+        u = (p1 - p0) / length
+        yaw = math.atan2(u[1], u[0])
+        return [Placement("hedge", float(c[0]), float(c[1]), 0.0, yaw, True, 1.0, length / n / nominal)
+                for c in p0 + u * ((np.arange(n) + 0.5) * length / n)[:, None]]
+
+    def tree_index(self):
+        """STRtree of the planned trees' points (lazy), or None."""
+        if self._tree_index is None and self.plan.trees:
+            self._tree_index = STRtree(shapely.points([(t.x, t.y) for t in self.plan.trees]))
+        return self._tree_index
+
     # --- spans across streets ----------------------------------------------------------------
     def spans(self, k: int, tile) -> list:
         st = self.plan.streets[k]
@@ -1587,6 +1628,78 @@ class Dresser:
         b = self.plan.buildings[best[1]]
         top = float(self.ground.height(best[2][0], best[2][1])) + float(wall_height(b, best[2])[0])
         return best[2], top
+
+
+def stair_columns(length: float, cfg: dict) -> tuple:
+    """(window column centers, indices of the stair door columns) along a slab wall of `length` m:
+    one stair per 20-25 m (`[dressing.slab] stair_spacing`), in the column nearest its share's middle."""
+    cols = Dresser._columns(length, float(cfg.get("bay", 3.2)))
+    lo, hi = cfg.get("stair_spacing", [20.0, 25.0])
+    count = max(1, int(length / ((lo + hi) / 2) + 0.5))
+    return cols, sorted({int(np.argmin(np.abs(cols - (d + 0.5) * length / count))) for d in range(count)})
+
+
+def tree_reach(cfg: dict) -> float:
+    """How far from an arcaded wall a tree trunk must stand: pillars, cornice, trunk and clearance."""
+    return float(cfg["depth"]) + float(cfg["cornice"]) + float(cfg["tree_trunk"]) + float(cfg["tree_clear"])
+
+
+def arcade_zones(plan, cfg: dict, streets_at):
+    """(STRtree of the arcade bands, wall start points, outward normals) of a whole city, or False.
+
+    A band runs along every wall of a dressed building in one of `cfg["districts"]` facing a street of
+    one of `cfg["kinds"]` (the street 1.6 m in front of its middle), out to the larger of the lamp and
+    tree reaches and as far past each end, plus the bays an arcade turns into a side street. Shared by
+    the dresser (lamps and planned trees, prompt 22) and the planner's street trees (prompt 24), so a
+    planned tree outside every band is never moved. `streets_at(points)` gives the street under each point.
+    """
+    kinds_of = [d.kind for d in plan.districts]
+    reach = max(float(cfg["depth"]) + float(cfg["lamp_clear"]), tree_reach(cfg))
+    rows = [wall_arrays(b.footprint) for b in plan.buildings
+            if b.kind in DRESSED and kinds_of[b.district] in cfg["districts"]]
+    if not rows:
+        return False
+    a, q, n, length = (np.concatenate([r[m] for r in rows]) for m in range(4))
+    street = streets_at((a + q) / 2 + n * 1.6)
+    kinds = set(cfg["kinds"])
+    arc = np.array([street[m] >= 0 and length[m] > 1.5 and plan.streets[street[m]].kind in kinds
+                    for m in range(len(a))], dtype=bool)
+    u = (q - a) / np.maximum(length, 1e-9)[:, None]
+    wrap = float(cfg["wrap"]) * float(cfg["bay_relaxed"][1])
+    polys, keep, at = [], [], 0
+    for r in rows:                                    # each building's walls, as a ring
+        idx = np.arange(at, at + len(r[0]))
+        at += len(r[0])
+        for e, m in enumerate(idx):
+            lo, hi = None, None
+            if arc[m]:
+                lo, hi = -reach, length[m] + reach
+            elif street[m] >= 0 and wrap > 0:         # the bays an arcade turns into a side street
+                if arc[idx[(e - 1) % len(idx)]]:
+                    lo, hi = -reach, min(wrap, length[m]) + reach
+                if arc[idx[(e + 1) % len(idx)]]:
+                    lo, hi = (-reach if lo is not None else max(0.0, length[m] - wrap) - reach), length[m] + reach
+            if lo is not None:
+                polys.append(band(a[m], u[m], n[m], lo, hi, 0.0, reach))
+                keep.append(m)
+    if not keep:
+        return False
+    return STRtree(polys), a[keep], n[keep]
+
+
+def band_push(zones, pts: np.ndarray, reach: float) -> tuple:
+    """For points within `reach` m of an arcaded wall (its band, as far past each end): the wall's index
+    in the zones (-1 where none) and how far the point must move out along its normal to clear it."""
+    wall, push = np.full(len(pts), -1), np.zeros(len(pts))
+    if zones is False or not len(pts):
+        return wall, push
+    tree, a, n = zones
+    inp, hit = tree.query(shapely.points(pts), predicate="within")
+    need = reach - np.einsum("ij,ij->i", pts[inp] - a[hit], n[hit])
+    for i, j, e in zip(inp.tolist(), hit.tolist(), need.tolist()):
+        if e > push[i]:
+            wall[i], push[i] = j, e
+    return wall, push
 
 
 def ground_heights(ground, placements) -> None:

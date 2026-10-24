@@ -15,6 +15,39 @@ Entry format:
 - Doubts and questions for Ali: <none, or the question>
 ```
 
+## 2026-10-24 - Prompt 24 A7 More greenery
+- Commit: (see git log) | Model: Opus 5.5, medium (playbook: Sonnet, medium)
+- Changed: `citygen/city/greenery.py` (new: arterial tree pits, courtyard trees, villa fruit trees,
+  appended last), `citygen/city/__init__.py` (greenery after the paint, `stats["greenery"]`),
+  `citygen/city/dressing.py` (`arcade_zones`, `band_push`, `tree_reach`, `stair_columns` as module
+  functions; `Dresser.garden` and hedges), `citygen/city/openings.py` (`villa_lots`),
+  `citygen/city/ground.py` (`terrain_cells`), `citygen/mesh/tile.py` (`garden_meshes`, gardens and
+  hedges per villa), `citygen/mesh/trees.py` (citrus kind, oranges), `citygen/mesh/props.py` (`hedge`
+  piece, citrus color in the light tree), `citygen/kit.py`, `citygen/export/maps.py` (garden lots,
+  orange citrus dots), `tools/blender_beauty.py` (garden ground), `styles/maghreb.toml` (`[greenery]`,
+  `[dressing.trees.citrus]`, `[dressing.hedge]`, palette `leaf_citrus*`, `fruit_orange`,
+  `leaf_hedge`, `garden`, role `tree_citrus`), tests (3 new, 2 adjusted: the massing test also switches
+  greenery off and checks the old trees as a prefix; the tree test counts citrus fruit apart),
+  `docs/SPEC.md`, `docs/HANDOFF.md`, `docs/ROADMAP.md`
+- Checks: tests 76 passed (28.4 s, was 27.6 s); `build --quick` 10.5-10.7 s (HEAD 10.7 s back to back);
+  fingerprint 13 changed, all allowed: `plan/goumosbane/trees` (7,890 -> 8,017), `stats`, `gazetteer`
+  (tree count), `maps/goumosbane.png`, `tiles/*` (worst quick tile +1.3%), new `kit/hedge`,
+  `kit/tree_citrus`, `_b`, `_c`. Full capital 51.4 -> 49.0 s back to back (CPU 212 -> 207 s; 48.3 s
+  after the garden trim). Suburb tiles: +31-37% with the house cut out of the garden (worst
+  `tile_60_103` 2.41 -> 3.29 MB), +25-30% after the lead's trim (garden left under the house): worst
+  2.41 -> 3.13 MB, three tiles just over 3 MB (3.13, 3.09, 3.06), all changed tiles together +5.8%. Quick capital: 69 arterial trees (modern), 58 courtyard trees (45 citrus,
+  9 broadleaf, 4 olive). Full capital: 149 arterial, 273 courtyard (213 citrus), 2,025 villa fruit trees
+  (1,640 citrus, 385 olive), 2,900 gardens (98 ha), 31,099 hedge pieces (192 km).
+- Look: `output/checks/24.png` (close before/after above a modern arterial, cam 7340,11305,124 look
+  7268,11350,82: a row of street trees on the modern sidewalk, stopping at the lamp and before the
+  zebra junction; mean difference 2.11); `output/checks/24-gardens.png` (city 1 aerial after the hedge
+  change: green villa lots outlined by dark hedges, nothing showing through the houses; the bare lots
+  are lots without a villa, as before).
+- Lead decisions: colonial arterials keep no new street trees (their arcades are the shade, as on real
+  arcaded streets; no tree pit fits beside the pillars), modern arterials get them; the garden ground
+  stays under the house (hidden) to save triangles.
+- Doubts and questions for Ali: three suburb tiles are now just over the 3 MB tile budget.
+
 ## 2026-10-24 - Prompt 23 AR2 Building massing with character
 - Commit: (see git log) | Model: Opus 5.5, high (playbook: Sonnet, high)
 - Changed: `citygen/city/massing.py` (new: the planning step after households and souks, `masses`,

@@ -59,6 +59,8 @@ config.load_config()          defaults.toml + worlds/*.toml + CLI overrides
       life                    a household behind every house door, a trade for every souk
       massing                 rows, cut corners, domes, set-back top floors, stepped slabs, villa
                               L's, roof machinery and roof rooms (never adds or moves a building)
+      greenery                street trees on arterials, courtyard trees, villa fruit trees
+                              (last, after the road paint; only appends to `trees`)
   city.ground.Ground()        graded ground inside cities: smoothed, terraced under blocks,
                               blended into natural terrain at the city limit; `height` is the
                               ground, `surface` the top of the ground, street ribbon or walk
@@ -82,7 +84,7 @@ build.build()                 orchestrates the above into output/<country>-<seed
 | `citygen/mesh/tile.py` | what goes into one tile |
 | `citygen/mesh/plants.py` | shared plant shapes: clumps (icosahedron, octahedron, 4-face bract) and tapered tubes |
 | `citygen/mesh/props.py` | the generator's own kit pieces (doors, shops by trade, awnings, goods, lamps, trees...) |
-| `citygen/mesh/trees.py` | broadleaf and olive crowns (jittered clumps, 3 variants each) from `[dressing.trees]` |
+| `citygen/mesh/trees.py` | broadleaf, olive and citrus crowns (jittered clumps, 3 variants each; citrus with oranges) from `[dressing.trees]` |
 | `citygen/mesh/climbers.py` | bougainvillea curtains (2 variants, 250 triangles each) from `[dressing.climber]` |
 | `citygen/kit.py` | `Kit`: procedural pieces plus kits from `kits/<name>/` |
 | `citygen/city/life.py` | households and souk trades (story data that also drives the dressing) |
@@ -92,6 +94,7 @@ build.build()                 orchestrates the above into output/<country>-<seed
 | `citygen/city/paint.py` | street surfaces per kind, painted edge and lane lines, zebra crossings |
 | `citygen/city/impasses.py` | impasses: lanes cut along lot lines to landlocked lots, one round per lane for every block at once |
 | `citygen/city/roofs.py` | roof layout: parapet band and coping, stair room and its door, menzah, one random stream per building; `roof_layouts` for every roof of a massed building |
+| `citygen/city/greenery.py` | more greenery (prompt 24): arterial tree pits, courtyard trees, villa fruit trees, appended after every older tree |
 | `citygen/city/massing.py` | building massing (prompt 23): the planning step, `masses(b)` (the volumes drawn and dressed), `floors_at`/`wall_height` (floors and wall height at a point of the outer wall), `outline`, `inner_walls`, `terrace_walls` |
 | `citygen/kitsheet.py` | `python -m citygen kit-sheet`: every piece in one viewable grid |
 | `citygen/export/maps.py` | country and city PNG maps |
@@ -127,6 +130,27 @@ block on `rng("impasse", block)`: lot line jitter, widths, covered share and len
   or the boulevard's central promenade (`promenade`). `width` is the actual width after a tight
   street narrows it; `street` and `side` (`+1` left, `-1` right) let later street features find
   the carriageway edge.
+- `Tree(x, y, kind, height)`: kinds `broadleaf`, `palm`, `cypress`, `olive`, `citrus` (prompt 24).
+  The dresser picks each tree's kit variant and turn from `rng("tree", k)` by its index k, so new
+  trees are only ever appended: `stats["greenery"]` counts the ones `city/greenery.py` added at the end.
+  Greenery (prompt 24, `[greenery]`): arterial trees first, one row of tree pits per sidewalk of a
+  colonial or modern block on an arterial, `pit` m behind the curb face, every `spacing` m along the
+  street (one species per street on `rng("street-trees", "arterial", k)`), left out within
+  `junction_clear` of any other street, `paint_clear` of road paint, `wall_clear` of a building,
+  `lamp_clear` along the street of a same-side lamp (the stations of `Dresser._lamps`), inside an
+  arcade band (`dressing.arcade_zones`, the bands the dresser moves trees out of, so it never moves
+  these) or `door_clear` of a stair-door path (`path_to_street` from the stair columns of both long
+  sides of nearby slabs, carried 4 m over the sidewalk). Then a tree in some courtyards without one
+  (`chance` by district, `rng("courtyard-trees", k)`, mostly citrus) at the courtyard's pole of
+  inaccessibility, its height capped so its crown (`crown_radius` + largest `clump_radius`, times
+  the height) clears the walls by `wall_clear`; then 0-2 fruit trees per villa garden
+  (`rng("garden-trees", k)`, 12 draws per tree whatever the geometry) farther from the nearest
+  street than the house by `behind` m (the gate path lies between), `edge_clear` from the lot edges
+  and `tree_clear` from other trees. Rule: modern arterials get street trees; arcaded colonial ones do
+  not (their arcades are the shade, as on real arcaded streets, and no tree pit fits beside the
+  pillars: the trunk needs 2.97 m from the wall, the 3.2 m sidewalk ends at 3.2). Quick capital: 69
+  arterial trees (all modern), 58 courtyard trees (45 citrus); full capital: 149 arterial, 273
+  courtyard (213 citrus), 2,025 villa fruit trees (1,640 citrus).
 - `Paint(polygon, street)`: one painted marking, a flat polygon over the carriageway of a street.
   `make_paint` builds edge and lane lines, dashes and zebra crossings once per plan; a tile only
   clips the polygons it touches.
@@ -181,7 +205,10 @@ one impasse) and touches no other street, so it is a dead end;
 flat roofs carry the parapet from `[roofs]` and, where the layout puts one, a stair room whose
 door opens on free roof; roof props always stand inside the parapet and outside the stair room;
 massing keeps every building, household, souk, street and tree, and every new footprint lies inside
-the old one; windows and balconies stand only on walls drawn at their height; roof props and tank
+the old one; greenery keeps every older tree as a prefix of `trees`, its arterial trees stand in their
+pits clear of junctions, paint, lamps, real stair-door paths and arcade bands, its courtyard crowns
+clear the walls, and each villa garden lies in its lot off the house with an opening in its hedge
+where the path runs; windows and balconies stand only on walls drawn at their height; roof props and tank
 stands stand on the topmost roof deck drawn at their position, never in a roof room, a lift room or
 a corner dome; a massed building draws no face twice in one plane; a cut colonial corner carries
 the arcade round it when both its facades have one; its paved lot corner meets the sidewalk at the
@@ -395,6 +422,20 @@ shaders (which ignore the image and the tint) and takes their palette color from
   terrace mitred; 72 triangles), and `wrap` bays turn into a side street without an arcade. Their
   pillars may stand on the lot's open corner in front of the cut. A run whose end meets a corner or
   bend piece gives way at its other end first when it must be shortened.
+- **Villa gardens and hedges** (prompt 24, `Dresser.garden`, `[dressing.hedge]`): the tile owning a
+  villa asks for its garden after dressing it: the lot (the parcel holding a point of the footprint,
+  `openings.villa_lots`) minus its door paths (shrunk 5 cm, so the garden slips under the path edges);
+  the part under the house stays in, hidden by it (a hole costs about a quarter more triangles). `garden_meshes` cuts it on the terrain mesh's own triangles (`ground.terrain_cells`:
+  8 m cells split along the south-west to north-east diagonal) and drapes it on `Ground.drawn`,
+  `garden_lift` m up, in the `garden` material (the grass texture): exact on the terrain, unlike
+  recoloured 8 m cells. Hedges (`hedge`, 18 triangles, a box with chamfered top `thick` x `height`,
+  `sink` below ground) run `thick` / 2 inside every lot edge; an edge shared with another villa lot is
+  planted only by the lot of lower parcel index; a corner belongs to the run planted first (later runs
+  stop at its body), acute corners end at the lot edge; runs open where a path crosses (`gate` m wider
+  than it; a villa without a path opens on its edge nearest the house) and round planned trunks
+  (`trunk_clear`); each run is filled by pieces of at most `piece_max` m, stretched along x
+  (`Placement.stretch`). Full capital: 2,900 gardens (98 ha), 31,100 hedge pieces, 192 km of hedge.
+  The map paints villa lots `GARDEN_RGB` and citrus trees orange.
 - **Massed buildings** (prompt 23, `city/massing.py`): the street windows, open-wall windows and slab
   windows of each column go up to the floors of the wall there (`floors_at` under the window's whole
   width, `[dressing] window_half` m each side), so none floats above a lower step or on a set-back
@@ -420,7 +461,8 @@ grid, sidewalk width, lot size, floors, materials and special rules,
 lists and the root sounds and word patterns for made-up nisba names, wealth and trades by
 district; `[[souk]]` souk trades and their goods; `[dressing]` chances and heights;
 `[dressing.roles]` which piece plays each part; `[dressing.trees.<kind>]` the natural tree
-variants and `[dressing.climber]` the bougainvillea curtains (clump count and size, drop,
+variants (citrus with `fruit` oranges), `[dressing.hedge]` the villa hedges and garden lift,
+`[greenery]` the street, courtyard and villa trees of prompt 24 and `[dressing.climber]` the bougainvillea curtains (clump count and size, drop,
 stems, colors). Adding a style = a new file; code must not assume
 Maghreb-specific values.
 

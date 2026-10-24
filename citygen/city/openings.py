@@ -222,3 +222,15 @@ def _segmentized(pts: np.ndarray, step: float, grid: float) -> np.ndarray:
                 d.append(s0 + (k - a) / (b - a) * length)
     d = np.unique(np.round(np.clip(np.concatenate(d), 0.0, total), 6))
     return shapely.get_coordinates(shapely.line_interpolate_point(line, d))
+
+
+def villa_lots(plan, villas: list) -> dict:
+    """{building index: parcel index} for villas (prompt 24): the parcel holding a point of the footprint."""
+    if not villas or not plan.parcels:
+        return {}
+    pts = shapely.point_on_surface([plan.buildings[k].footprint for k in villas])
+    inp, hit = shapely.STRtree([p.polygon for p in plan.parcels]).query(pts, predicate="within")
+    out: dict = {}
+    for i, j in zip(inp.tolist(), hit.tolist()):
+        out.setdefault(villas[i], j)
+    return out

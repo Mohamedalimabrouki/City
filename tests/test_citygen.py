@@ -342,8 +342,10 @@ def test_trees_are_natural_and_deterministic(world):
     a, b = tree_pieces(world.seed, table), tree_pieces(world.seed, table)
     assert len(a) == sum(int(spec["variants"]) for spec in table.values())
     for name, mb in a.items():
-        assert 60 <= mb.triangles <= 200, (name, mb.triangles)
         pa, pb = mb.gltf_parts(), b[name].gltf_parts()
+        fruit = len(pa["fruit_orange"]["idx"]) // 3 if "fruit_orange" in pa else 0   # citrus (prompt 24)
+        assert 60 <= mb.triangles - fruit <= 200, (name, mb.triangles)
+        assert (fruit > 0) == name.startswith("tree_citrus") and fruit <= 120, (name, fruit)
         assert pa.keys() == pb.keys()
         for mat in pa:
             assert mat in world.style["palette"], mat
@@ -1517,14 +1519,19 @@ def test_resumed_builds_match_and_a_changed_setting_rebuilds(world, plan, tmp_pa
 def test_massing_keeps_every_building_household_and_street(world, plan, monkeypatch):
     # the plan before massing: same buildings in the same order, same households, souks, streets and
     # trees; every new footprint inside the old one (so inside its lot and off the streets)
+    # greenery (prompt 24) is switched off too: the old trees come first, unchanged, the new ones after them
     import citygen.city as city
     monkeypatch.setattr(city, "apply_massing", lambda ctx, plan: None)
+    monkeypatch.setattr(city, "greenery", lambda ctx, plan: [])
     before = city.plan_city(world, world.capital())
     assert [b.kind for b in before.buildings] == [b.kind for b in plan.buildings]
     assert before.households == plan.households and before.souks == plan.souks
-    assert [(t.x, t.y, t.kind) for t in before.trees] == [(t.x, t.y, t.kind) for t in plan.trees]
+    old = len(before.trees)
+    assert [(t.x, t.y, t.kind, t.height) for t in before.trees] == [(t.x, t.y, t.kind, t.height) for t in plan.trees[:old]]
+    assert len(plan.trees) - old == plan.stats["greenery"] > 100
     assert [s.line.wkb for s in before.streets] == [s.line.wkb for s in plan.streets]
-    assert {k: v for k, v in before.stats.items() if k != "seconds"} == {k: v for k, v in plan.stats.items() if k != "seconds"}
+    skip = {"seconds", "trees", "greenery"}
+    assert {k: v for k, v in before.stats.items() if k not in skip} == {k: v for k, v in plan.stats.items() if k not in skip}
     count = {"chamfer": 0, "round": 0, "top": 0, "setback": 0, "steps": 0, "lift": 0, "tank": 0, "menzah": 0}
     for old, b in zip(before.buildings, plan.buildings):
         assert b.footprint.is_valid and old.footprint.buffer(1e-6).contains(b.footprint)
@@ -1795,3 +1802,128 @@ def test_cut_corners_are_paved_and_pillars_and_doors_stand_on_the_paving(world, 
             assert p.z - sink < z - 0.05 and z - p.z < 0.3, (k, p.piece, p.z, z)
             seen["pillar"] += 1
     assert seen["apron"] > 30 and seen["seam"] > 30 and seen["pillar"] > 5 and seen["face"] > 50, seen
+
+
+# --- more greenery (prompt 24) -------------------------------------------------------------------
+
+def _new_trees(plan):
+    return plan.trees[len(plan.trees) - plan.stats["greenery"]:]
+
+
+def test_arterial_trees_stand_in_tree_pits_clear_of_junctions_lamps_arcades_and_paths(world, plan, homes):
+    kit, dresser, out = homes
+    cfg = world.style["greenery"]["arterial"]
+    kinds = [d.kind for d in plan.districts]
+    walks = [w for w in plan.walks if w.kind == "sidewalk" and plan.streets[w.street].kind in cfg["kinds"]
+             and kinds[w.district] in cfg["districts"]]
+    on = STRtree([w.polygon for w in walks])
+    new = _new_trees(plan)
+    pts = shapely.points([(t.x, t.y) for t in new])
+    inp, hit = on.query(pts, predicate="within")
+    assert len(inp) == len(set(inp.tolist())) > 40 and sorted(inp.tolist()) == list(range(len(inp)))  # arterials first
+    xy = np.array([(new[i].x, new[i].y) for i in inp])
+    for (x, y), j in zip(xy, hit):
+        w = walks[int(j)]
+        st = plan.streets[w.street]
+        off = st.line.distance(shapely.Point(x, y))
+        assert abs(off - (st.width / 2 - w.width + cfg["pit"])) < 0.05, off   # the pit, 0.9 m behind the curb
+    surfaces = [st.line.buffer(st.width / 2, cap_style="flat") for st in plan.streets]
+    own = [walks[int(j)].street for j in hit]
+    near = STRtree(surfaces).query(shapely.points(xy), predicate="dwithin", distance=cfg["junction_clear"] - 1e-6)
+    assert all(own[i] == j for i, j in zip(*near)), "a tree by a junction"
+    assert not len(STRtree([m.polygon for m in plan.paint]).query(shapely.points(xy), predicate="dwithin",
+                                                                 distance=cfg["paint_clear"] - 1e-6)[0])
+    moved, kept, away = dresser.tree_spots(xy)                # no tree the arcades would move or drop
+    assert kept.all() and not away.any() and np.allclose(moved, xy)
+    tile = shapely.box(-1e9, -1e9, 1e9, 1e9)
+    lamps = [p for k in set(own) for p in dresser.street_props(k, tile) if p.piece == "street_lamp"]
+    assert lamps and min(np.hypot(*(xy - [p.x, p.y]).T).min() for p in lamps) > 2.0
+    paths = [shapely.LineString(np.vstack([q, q[-1] + 3.0 * (q[-1] - q[-2]) / np.hypot(*(q[-1] - q[-2]))]))
+             for k, (_, _, _, ps, _) in out.items() if dresser._is_slab(plan.buildings[k]) for q in ps]
+    assert len(paths) > 20
+    assert not len(STRtree(paths).query(shapely.points(xy), predicate="dwithin", distance=1.2)[0])   # real stair paths
+    assert {new[int(i)].kind for i in inp} <= {k for k, _ in cfg["species"]}
+
+
+def test_courtyard_trees_clear_their_walls(world, plan):
+    from citygen.city.greenery import crown_reach
+    cfg = world.style["greenery"]["courtyard"]
+    courts = [(b, shapely.Polygon(h)) for b in plan.buildings if b.kind == "house" for h in b.footprint.interiors]
+    tree = STRtree([c for _, c in courts])
+    new = _new_trees(plan)
+    inside = tree.query(shapely.points([(t.x, t.y) for t in new]), predicate="within")
+    assert len(inside[0]) > 20 and sum(new[i].kind == "citrus" for i in inside[0]) > 0.5 * len(inside[0])
+    for i, j in zip(*inside):
+        t, court = new[int(i)], courts[int(j)][1]
+        room = court.exterior.distance(shapely.Point(t.x, t.y))
+        assert crown_reach(world.style, t.kind, t.height) <= room - cfg["wall_clear"] + 1e-6
+        assert t.height >= cfg["min_height"]
+    old = plan.trees[:len(plan.trees) - len(new)]
+    held = tree.query(shapely.points([(t.x, t.y) for t in old]), predicate="within")[1]
+    assert not set(held.tolist()) & set(inside[1].tolist())        # never a second tree in a courtyard
+
+
+@pytest.fixture(scope="module")
+def villas(world, homes):
+    """A town with villas (quick world, settlement 3): its plan, dresser and every 3rd villa's garden."""
+    from citygen.city.dressing import Dresser, building_highs
+    from citygen.city.ground import Ground
+    town = plan_city(world, world.settlements[3])
+    ground = Ground(world, [town])
+    dresser = Dresser(world, town, homes[0], ground)
+    ks = [k for k, b in enumerate(town.buildings) if b.kind == "villa"][::3]
+    highs = building_highs(ground, [town.buildings[k] for k in ks])
+    out = {}
+    for k, high in zip(ks, highs):
+        paths: list = []
+        dresser.building(k, float(high), paths)
+        out[k] = (paths, *dresser.garden(k, paths))
+    return town, ground, dresser, out
+
+
+def test_villa_gardens_hedges_and_fruit_trees(world, villas):
+    from citygen.city.openings import villa_lots
+    from citygen.mesh.tile import TileContext, garden_meshes
+    town, ground, dresser, out = villas
+    cfg = world.style["dressing"]["hedge"]
+    lots = villa_lots(town, list(out))
+    width = world.style["dressing"]["paths"]["width"]
+    hedges, gates, paths_seen = [], 0, 0
+    for k, (paths, garden, hedge) in out.items():
+        lot = town.parcels[lots[k]].polygon
+        fp = town.buildings[k].footprint
+        assert garden is not None and lot.buffer(1e-6).contains(garden) and garden.buffer(1e-6).contains(fp)
+        assert garden.area > lot.area - 3.0 * width * sum(shapely.LineString(p).length for p in paths)
+        ways = [shapely.LineString(p).buffer(width / 2, cap_style="flat") for p in paths]
+        for p in hedge:
+            assert p.piece == "hedge" and lot.buffer(-0.2).contains(shapely.Point(p.x, p.y))
+            assert 0.09 < p.stretch <= cfg["piece_max"] / cfg["nominal"] + 1e-9   # pieces of up to 8 m fill a run
+            box = _plan_box(dresser.kit, p)
+            assert all(box.intersection(w).area < 1e-3 for w in ways), k       # an opening where the path runs
+            hedges.append(box)
+        paths_seen += len(ways)
+        gates += any(w.intersects(lot.exterior) for w in ways)
+    assert len(out) > 30 and paths_seen > 30 and gates > 30
+    idx = STRtree(hedges)              # shared lot lines are planted once; corners meet (a sliver at 16-20 degrees)
+    a, b = idx.query(hedges, predicate="intersects")
+    overlap = [hedges[int(i)].intersection(hedges[int(j)]).area for i, j in zip(a, b) if i < j]
+    assert max(overlap) < 0.2 and sum(o > 0.05 for o in overlap) <= 0.1 * len(out)
+    # fruit trees behind or beside the house, clear of its real path
+    lot_tree = STRtree([town.parcels[lots[k]].polygon for k in out])
+    new = _new_trees(town)
+    xy = shapely.points([(t.x, t.y) for t in new])
+    inp, hit = lot_tree.query(xy, predicate="within")
+    assert len(inp) > 10 and {new[int(i)].kind for i in inp} <= {"citrus", "olive"}
+    for i, j in zip(inp, hit):
+        paths = out[list(out)[int(j)]][0]
+        assert all(shapely.LineString(p).distance(xy[int(i)]) > 1.0 for p in paths)
+    # the garden ground lies exactly on the terrain mesh, `garden_lift` above it
+    tc = TileContext.__new__(TileContext)
+    tc.world, tc.step = world, ground.step
+    from citygen.mesh.builder import MeshBuilder
+    mb = MeshBuilder()
+    garden_meshes(mb, tc, [g for _, g, _ in list(out.values())[:10]], ground.drawn)
+    part = mb.gltf_parts()["garden"]
+    pos = part["pos"][part["idx"].reshape(-1, 3)]                 # glTF axes: x, up, -y
+    c = pos.mean(axis=1)
+    assert np.abs(c[:, 1] - ground.drawn(c[:, 0], -c[:, 2]) - cfg["garden_lift"]).max() < 1e-6

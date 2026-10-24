@@ -439,7 +439,7 @@ def shade_paving(mat: bpy.types.Material, base: tuple) -> None:
 
 
 def shade_dust(mat: bpy.types.Material, base: tuple, tone: float = 1.0) -> None:
-    """Dusty ground: urban_ground, grass, steppe."""
+    """Dusty ground: urban_ground, grass, steppe, villa gardens."""
     g = Graph(mat)
     big, mid, fine = g.noises()
     var = tone * (0.86 + 0.3 * (big - 0.5) + 0.25 * (mid - 0.5) + 0.2 * (fine - 0.5))
@@ -615,7 +615,7 @@ def build_materials(mats: dict[str, bpy.types.Material], factors: dict[str, tupl
             shade_asphalt(mat, b)
         elif name == "paving":
             shade_paving(mat, b)
-        elif name in ("urban_ground", "grass", "steppe"):
+        elif name in ("urban_ground", "grass", "steppe", "garden"):     # garden: villa lawns (prompt 24)
             shade_dust(mat, b, 1.0 if name == "urban_ground" else 0.9)
         elif name == "beach":
             shade_beach(mat, b)

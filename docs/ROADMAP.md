@@ -35,7 +35,7 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
 - [x] 21 A9 Lit windows by household
 - [x] 22 AR1 Arcades and iron balconies
 - [x] 23 AR2 Building massing
-- [ ] 24 A7 More greenery
+- [x] 24 A7 More greenery
 - [ ] 25 H3a Parked cars and taxis
 - [ ] 26 H3b Benches, kiosks, fountains
 - [ ] 27 CP3 Checkpoint: facades and street life
@@ -216,7 +216,7 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
 - [ ] **A6 Port and seafront** (M) - Concrete quays along port districts, a breakwater into the
   sea, simple cranes, fishing boats as props (new `CityPlan.props` list), a beach promenade on
   the corniche. Done when: visible in the aerial snapshot of a coastal capital.
-- [ ] **A7 More greenery** (S) - Trees along arterials in colonial and modern districts, green
+- [x] **A7 More greenery** (S) - Trees along arterials in colonial and modern districts, green
   garden ground in villa lots, olive or citrus trees in some courtyards. Done when: map and
   snapshot show it, tree count rises without slowing the build by more than 15%.
 - [ ] **A8 Blender kit export** (S) - Kits and instancing exist (A0). Add
