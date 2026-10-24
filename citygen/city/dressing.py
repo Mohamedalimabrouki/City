@@ -29,6 +29,7 @@ from .openings import (DoorSpot, Walls, fits, joined, open_walls, path_to_street
                        wall_arrays)
 from .parking import Parking
 from .roofs import roof_layout, roof_stream
+from .squares import Squares
 
 DRESSED = {"house", "domed", "apartments", "villa"}
 FRONT_PREF = {"souk": 3.0, "alley": 2.5, "street": 2.0, "boulevard": 1.5, "ring": 1.0, "arterial": 1.0,
@@ -120,6 +121,7 @@ class Dresser:
         self._front_of: dict = {}                # building -> its main front alone (front_of)
         self._stair_spots: dict = {}             # apartment block -> its stair doors (door_spots)
         self._parking = None                     # parked cars (prompt 25, city/parking.py, lazy)
+        self._squares = None                     # benches, kiosks and fountains (prompt 26, city/squares.py, lazy)
         self._stairs = {n for r in ("stair_window", "stair_door") for n in (self.roles[r][0] if r in self.roles else [r])}
         targets = self.surfaces + [w.polygon for w in getattr(plan, "walks", ())]
         self.target_tree = STRtree(targets) if targets else None   # where a garden path may end
@@ -364,7 +366,7 @@ class Dresser:
         if district in TRADITIONAL and rng.random() < cfg.get("doukkana", 0.25):
             off = side() * 2.1
             if room(off, 1.05):
-                self.put(out, "bench", rng, c + u * off, 0.0, yaw)
+                self.put(out, "door_bench", rng, c + u * off, 0.0, yaw)
         if rng.random() < cfg.get("cat", 0.07):
             self.put(out, "cat", rng, c + n * 0.6 + u * rng.uniform(-0.4, 0.4), 0.0, rng.uniform(0, 6.28))
         if rng.random() < cfg.get("door_plant", 0.2) * (0.5 + wealth):
@@ -957,6 +959,19 @@ class Dresser:
         return band_push(self._zones, pts, reach)
 
     def tree_spots(self, xy: np.ndarray) -> tuple:
+        """`_arcade_spots`, less the trees a fountain takes the place of (prompt 26, `Squares.keeps`)."""
+        xy, kept, away = self._arcade_spots(xy)
+        if len(xy) and "squares" in self.cfg:
+            kept &= self.squares().keeps(xy)
+        return xy, kept, away
+
+    def squares(self) -> Squares:
+        """The city's benches, kiosks and fountains (built once, lazily)."""
+        if self._squares is None:
+            self._squares = Squares(self)
+        return self._squares
+
+    def _arcade_spots(self, xy: np.ndarray) -> tuple:
         """Where planned trees stand (prompt 22): a trunk inside an arcade band (wall to pillar face and
         cornice, plus `tree_trunk` and `tree_clear`) moves straight out toward the curb until it clears;
         it is left out when that point is not on a sidewalk at least `tree_curb` m inside its edge, or lies

@@ -621,6 +621,7 @@ def build_tile(tc: TileContext, i: int, j: int) -> tuple:
                 for k in street_tree.query(tile, predicate="intersects"):
                     spans += dresser.spans(int(k), tile)
                     placements += dresser.street_props(int(k), tile)
+            placements += dresser.squares().placements(tile)     # benches, kiosks, fountains (prompt 26)
         if len(trees):
             inside = (trees[:, 0] >= x0) & (trees[:, 0] < x1) & (trees[:, 1] >= y0) & (trees[:, 1] < y1)
             ks = np.nonzero(inside)[0]

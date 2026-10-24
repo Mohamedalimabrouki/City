@@ -495,6 +495,36 @@ def shade_sea(mat: bpy.types.Material) -> None:
     g.nt.links.new(mix.outputs[0], out.inputs[0])
 
 
+def shade_pool(mat: bpy.types.Material, base: tuple) -> None:
+    """Fountain water (prompt 26): still, glossy and a little clear, tinted by its palette color, with
+    fine ripples. Reflective at grazing angles like the sea, but the basin's color shows through."""
+    g = Graph(mat)
+    ripple = g.noise(g.vmul(g.pos, (2.5, 2.5, 2.5)), 1.0, 2, 0.5)
+    bump = g.add("ShaderNodeBump")
+    bump.inputs["Strength"].default_value = 0.15
+    g.feed(bump.inputs["Height"], ripple)
+    body = g.add("ShaderNodeBsdfPrincipled")
+    body.inputs["Base Color"].default_value = base
+    body.inputs["Roughness"].default_value = 0.04
+    fres = g.add("ShaderNodeFresnel")
+    fres.inputs["IOR"].default_value = 1.33
+    gloss = g.add("ShaderNodeBsdfGlossy")
+    gloss.inputs["Roughness"].default_value = 0.02
+    clear = g.add("ShaderNodeBsdfTransparent")
+    see = g.add("ShaderNodeMixShader")
+    see.inputs[0].default_value = 0.35                 # a third clear: the basin floor shows through
+    mix = g.add("ShaderNodeMixShader")
+    for node in (body, fres, gloss):
+        g.nt.links.new(bump.outputs["Normal"], node.inputs["Normal"])
+    g.nt.links.new(body.outputs[0], see.inputs[1])
+    g.nt.links.new(clear.outputs[0], see.inputs[2])
+    g.nt.links.new(fres.outputs[0], mix.inputs[0])
+    g.nt.links.new(see.outputs[0], mix.inputs[1])
+    g.nt.links.new(gloss.outputs[0], mix.inputs[2])
+    out = g.add("ShaderNodeOutputMaterial")
+    g.nt.links.new(mix.outputs[0], out.inputs[0])
+
+
 def shade_hidden(mat: bpy.types.Material) -> None:
     g = Graph(mat)
     out = g.add("ShaderNodeOutputMaterial")
@@ -621,6 +651,8 @@ def build_materials(mats: dict[str, bpy.types.Material], factors: dict[str, tupl
             shade_beach(mat, b)
         elif name == "water":
             shade_hidden(mat)                              # the big sea plane replaces the tile water
+        elif name == "water_pool":
+            shade_pool(mat, b)                             # fountain water (prompt 26): kept, never hidden
         elif name == "rampart":
             shade_rampart(mat, b)
         elif name == "minaret_stone":

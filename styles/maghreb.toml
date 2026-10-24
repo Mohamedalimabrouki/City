@@ -118,6 +118,11 @@ garden = { color = "#7F9C4D", texture = "grass", texture_size = [2.5, 2.5] }   #
 # street dressing (doors, shops, goods, street life)
 stone_frame = { color = "#D8C7A5" }
 tile_panel = { color = "#2F7FA8", roughness = 0.35 }
+faience_white = { color = "#E9EDEA", roughness = 0.3 }   # the white tiles of a sabil's faience (prompt 26)
+marble = { color = "#E6E0D3", roughness = 0.4 }          # fountain basins, bowls and cornices
+water_pool = { color = "#3B8EA0", roughness = 0.05 }     # fountain water; never `water`, which Blender hides for its sea
+kiosk_green = { color = "#2E5444", roughness = 0.55 }    # the painted sheet metal of a newspaper kiosk
+kiosk_trim = { color = "#E6DDC4", roughness = 0.6 }
 door_blue = { color = "#1F5FA8", roughness = 0.55 }
 door_green = { color = "#2E6B4F", roughness = 0.55 }
 door_yellow = { color = "#D9A632", roughness = 0.55 }
@@ -1006,6 +1011,50 @@ rank = [4, 6]              # yellow taxis waiting at the rank by the boulevard's
 rank_gap = [0.5, 0.9]
 rank_reach = 150.0         # meters from that junction the rank may stand, in the nearest run where it fits
 
+# Benches, kiosks and fountains (prompt 26, city/squares.py). The boulevard's promenade is cut into islands
+# where streets cross it (`island_clear` m wider than their surface). A fountain stands at the head of the
+# island nearest the ring road, the trees it replaces left out; a bench between each two trees of the middle
+# row; kiosks on paved cut corners by the boulevard, else at island ends; a sabil (tiled wall fountain) by
+# the great mosque and, by chance, a medina gate. Every piece keeps clear of trunks and crowns, lamps,
+# crossings, parked cars, arcades, doors (and their free zone) and shop or cafe pieces.
+[dressing.squares]
+bench = 0.85               # chance of a bench between two trees of the middle row ...
+bench_gap = 6.0            # ... at least this many meters apart
+bench_offset = 0.35        # from the tree line to the bench's middle, toward the walkway it faces
+island_clear = 0.6         # meters kept from a street crossing the promenade
+fountain = 1.0             # chance of a fountain on each boulevard
+fountain_margin = 1.0      # from the island's end to the basin's step
+fountain_trees = 1.6       # planned trees with a trunk within the basin plus this are left out
+kiosk = 0.7                # chance per spot (a paved corner, an island end)
+kiosks = 3                 # at most this many per boulevard ...
+kiosk_spacing = 30.0       # ... this far apart
+kiosk_margin = 0.5         # from an island's end to the kiosk's awning
+kiosk_slide = 8.0          # how far in from an island's end a kiosk may move to find room
+kiosk_lit = 0.5            # chance a kiosk is open and lit at night
+apron_reach = 1.0          # a paved cut corner this close to a boulevard may take a kiosk
+tree_trunk = 0.3           # trunk radius ...
+tree_clear = 0.5           # ... plus this from any piece; a piece taller than a crown's lowest leaves
+crown_pad = 0.1            # (less this) keeps out from under it: a circle of
+crown_cover = 0.8          # this times the tree piece's half width
+lamp_clear = 0.3
+crossing_clear = 0.6
+piece_clear = 0.2          # from any other piece (cars, doors, shops, cafes, arcades, other furniture)
+sabil = { mosque = 1.0, gate = 0.25 }  # chance by landmark (the great mosque only, not neighbourhood ones)
+sabil_reach = 40.0         # walls this close to the landmark
+sabil_face = 6.0           # a souk or alley this close in front (else the open square counts)
+sabil_front = 1.6          # meters of free ground in front of it
+sabil_gap = 0.4            # from corners and any piece on the wall
+sabil_choice = 3           # one draw picks among the first few spots that fit
+
+[dressing.furniture]       # piece sizes (mesh/furniture.py), meters
+bench_length = 1.8
+seat = 0.45
+fountain_radius = 2.3      # the basin (the step adds 0.35)
+fountain_height = 2.9      # to the finial
+kiosk = [2.2, 1.5, 2.45]   # width, depth, wall height
+sabil = [1.9, 2.9]         # frame width and height
+sink = 0.25                # how far bases reach below their origin, for sloping ground
+
 # Which pieces play each part, by weight: [piece, weight] or [piece, weight, extra height].
 # "tounes/..." pieces come from the Tounes Rush kit (kits/tounes); the others are made by the
 # generator (citygen/mesh/props.py). Pieces that are missing are skipped, so the city still
@@ -1037,7 +1086,8 @@ cascade = [["tounes/bougainvillea_cascade", 1]]
 climber = [["bougainvillea", 1], ["bougainvillea_b", 1]]
 pot = [["tounes/pot_geranium", 2], ["tounes/pot_flowers_bougainvillea", 1.5], ["tounes/pot_cactus", 1], ["pot_plant", 1], ["pot_plant_b", 1]]
 roof_pot = [["tounes/pot_geranium", 1], ["tounes/pot_cactus", 1], ["pot_plant", 1]]
-bench = [["doukkana", 3], ["tounes/bench_sbs", 1]]
+door_bench = [["doukkana", 3], ["tounes/bench_sbs", 1]]   # beside traditional doors
+bench = [["bench_iron", 3], ["tounes/bench_sbs", 1]]        # on the boulevard's promenade (prompt 26)
 planter = [["tounes/planter_sbs", 1]]
 cat = [["cat_ginger", 1], ["cat_white", 1], ["cat_black", 1], ["cat_grey", 1]]
 parked = [["tounes/moped_delivery", 1]]

@@ -419,6 +419,21 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
   the surface under their axles with `Placement.tilt` (the instance rotation is yaw after a tilt about
   the piece's glTF z); sitting on the lowest point sank the other end 12 cm on a 7% street. Cost: full
   capital 47.4 -> 51.8 s back to back (CPU +12%, all tile work), `build --quick` 10.6 -> 11.1 s.
+- **Benches, kiosks and fountains** (prompt 26, `mesh/furniture.py`, `city/squares.py`): the promenade is
+  not all free paving: in the plan the ring road and the corniche run over its two ends (the boulevard
+  starts on the ring's center line) and a cross street over its middle, so furniture uses islands (the
+  promenade less the surfaces of streets crossing it, not those lying on it). A grid street lying under
+  the boulevard puts its own lamps on the promenade (older quirk, not fixed here: one stands 1.3 m from
+  the quick fountain; for CP3). The tree piece's box as a crown left no kiosk spot in a 9 m row (crown
+  base 2.1-4.1 m, kiosk 2.8 m): crowns are circles of `crown_cover` x half width, and kiosks are placed
+  before benches (a bench gives way): full capital 0 -> 2 kiosks. Colonial cut corners all lie in arcade
+  bands, so check the band and the surface before dressing the buildings around (kiosk search 0.52 ->
+  0.01 s). Full water curtains round a column read as blue glass in the viewer (water opacity 0.82):
+  thin double-sided streams instead. The viewer's sea test reads an instanced mesh's box in piece space,
+  where a basin's water lies at 0.46 m: it now skips instanced meshes and `water_pool`. The door bench
+  role is now `door_bench` (same pieces and draws), so `bench` is the promenade's mix. A fountain removes
+  the planned trees it replaces through `tree_spots`, so parked cars and tiles agree. Cost: 0.36 s per
+  process on the quick capital, 0.87 s on the full one; full capital 52.4 -> 53.7 s, worst quick tile +1.6%.
 - **Old-town tiles** reach about 5 MB on the quick build and 8 MB on the full capital
   (`tile_65_106`, mostly roofs since prompt 15); task Q5 (prompt 39) brings them down.
 

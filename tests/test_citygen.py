@@ -2036,3 +2036,63 @@ def test_parking_rows_follow_the_carriageway_width_and_a_taxi_rank_waits(world, 
     halves = [shapely.box(-1e9, -1e9, c.x, 1e9), shapely.box(c.x, -1e9, 1e9, 1e9)]
     split = [(p.piece, p.x, p.y) for h in halves for p in dresser.street_props(k, h) if p.piece.startswith("car_")]
     assert sorted(whole) == sorted(split) and whole                    # each car in exactly one tile
+
+
+def test_street_furniture_pieces_are_light_and_their_water_is_never_the_sea(world, built_mesh):
+    # prompt 26: four generator pieces; fountain water is `water_pool` (Blender hides `water` for its sea)
+    from pathlib import Path
+    kit = built_mesh[0].kit
+    budget = {"bench_iron": 250, "kiosk": 400, "fountain_colonial": 900, "sabil": 400}
+    for name, most in budget.items():
+        pc = kit.pieces[name]
+        assert pc.source == "procedural" and 60 < pc.triangles <= most, (name, pc.triangles)
+        assert "water" not in pc.parts
+    assert "water_pool" in kit.pieces["fountain_colonial"].parts and "water_pool" in kit.pieces["sabil"].parts
+    assert kit.pieces["sabil"].anchor == "wall" and kit.pieces["kiosk"].anchor == "ground"
+    lit = kit.pieces["kiosk_lit"]                                        # an open kiosk at night (prompt 21 rules)
+    assert "glass_lit" in lit.parts and "glass_dark" not in lit.parts
+    assert world.style["palette"]["water_pool"] != world.style["palette"]["water"]
+    root = Path(__file__).resolve().parents[1]
+    assert "water_pool" in (root / "tools" / "viewer" / "index.html").read_text()      # never taken for the sea
+    assert 'name == "water_pool"' in (root / "tools" / "blender_beauty.py").read_text()
+
+
+def test_benches_kiosks_and_fountains_stand_clear_on_walks(world, plan, built_mesh):
+    # the placed result of the capital's tile, checked with the kit bounds: no piece in a trunk, lamp, door
+    # (and its free zone), shop or cafe piece, arcade, parked car, crossing or other furniture; benches,
+    # kiosks and fountains on a walk, a paved corner or the promenade, never on a street crossing it;
+    # the sabil on open ground or a pedestrian lane, against a wall
+    from citygen.city.parking import lying_on
+    from citygen.city.squares import FOOT
+    tc, i, j, _, placements = built_mesh
+    kit, dresser = tc.kit, tc.cities[0][4]
+    x0, y0 = i * tc.size, j * tc.size
+    mine = {(p.piece, round(p.x, 6), round(p.y, 6)) for p in dresser.squares().items()}
+    furniture = [p for p in placements if (p.piece, round(p.x, 6), round(p.y, 6)) in mine]
+    names = {p.piece.replace("_lit", "") for p in furniture}
+    assert {"fountain_colonial", "kiosk", "sabil"} <= names and names & {"bench_iron", "tounes/bench_sbs"}
+    assert all(x0 <= p.x < x0 + tc.size and y0 <= p.y < y0 + tc.size for p in furniture)   # its anchor's tile
+    cats = {p.piece: kit.pieces[p.piece].category for p in placements}
+    depth = world.style["dressing"]["open_walls"]["door_clear"]
+    trunk = world.style["dressing"]["squares"]["tree_trunk"]
+    solid = {"lamp", "shop", "goods", "wall_goods", "awning", "arcade", "vehicle", "door"}
+    others = [_plan_box(kit, p, 0.0, depth) if cats[p.piece] == "door" else _plan_box(kit, p)
+              for p in placements if cats[p.piece] in solid or p.piece == "cafe_set"]
+    trunks = [shapely.Point(p.x, p.y).buffer(trunk) for p in placements if cats[p.piece] == "tree"]
+    crossings = [m.polygon for m in plan.paint if m.kind == "crossing"]
+    ground = shapely.union_all([w.polygon for w in plan.walks] + [b.apron for b in plan.buildings if b.apron is not None])
+    surfaces = [st.line.buffer(st.width / 2, cap_style="flat") for st in plan.streets]
+    lines = [st.line for st in plan.streets]
+    feet = [_plan_box(kit, p, 0.05 if kit.pieces[p.piece].anchor == "wall" else None) for p in furniture]
+    for p, foot in zip(furniture, feet):
+        for q in others + trunks + crossings + [f for f in feet if f is not foot]:
+            assert not foot.intersects(q), f"{p.piece} at ({p.x:.1f}, {p.y:.1f}) overlaps"
+        if kit.pieces[p.piece].anchor == "wall":
+            assert all(plan.streets[k].kind in FOOT for k in STRtree(surfaces).query(foot, predicate="intersects"))
+            assert not STRtree([b.footprint for b in plan.buildings]).query(foot, predicate="intersects").size
+            continue
+        assert ground.buffer(0.01).contains(foot), f"{p.piece} off the walks"
+        for k in STRtree(surfaces).query(foot, predicate="intersects").tolist():
+            if plan.streets[k].kind == "boulevard":                      # on the promenade: no street crossing it
+                inside = lying_on(k, lines[k], surfaces[k], STRtree(lines), lines)
+                assert all(m in inside for m in STRtree(surfaces).query(foot, predicate="intersects").tolist())

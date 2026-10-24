@@ -480,9 +480,11 @@ function addTile(gltf) {
     o.material = shared(o.material);
     o.castShadow = !o.material.userData.water;
     o.receiveShadow = true;
-    if (o.material.userData.water && !sea) {
+    // water at sea level, not a lake; fountain water (`water_pool`, prompt 26) never starts the sea:
+    // an instanced piece's box is in its own space, where a basin's water lies near 0.5 m
+    if (o.material.userData.water && !sea && !o.isInstancedMesh && !/^water_pool/i.test(o.material.name)) {
       o.geometry.computeBoundingBox();
-      if (Math.abs(o.geometry.boundingBox.max.y) < 0.5) addSea(o.material);   // water at sea level, not a lake
+      if (Math.abs(o.geometry.boundingBox.max.y) < 0.5) addSea(o.material);
     }
     stats.triangles += (o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count) / 3;
     if (o.isInstancedMesh && o.material.userData.glows && !LIT_AT_NIGHT[o.material.name]) glowMeshes.push(o);

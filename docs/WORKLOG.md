@@ -15,6 +15,29 @@ Entry format:
 - Doubts and questions for Ali: <none, or the question>
 ```
 
+## 2026-10-24 - Prompt 26 H3b Benches, kiosks and fountains
+- Commit: (see git log) | Model: Opus 5.5, medium (playbook: Sonnet, medium)
+- Changed: `citygen/mesh/furniture.py` (new: `bench_iron` 180 triangles, `kiosk` 232 with a lit twin,
+  `fountain_colonial` about 740, `sabil` 208), `citygen/city/squares.py` (new: islands, fountain, kiosks,
+  benches, sabils, obstacle checks), `citygen/city/dressing.py` (`squares()`, `tree_spots` leaves out the
+  trees a fountain replaces, door bench role `door_bench`), `citygen/kit.py` (furniture pieces, `kiosk`
+  in `LIT_CATEGORIES`), `citygen/mesh/tile.py`, `styles/maghreb.toml` (palette `water_pool`, `marble`,
+  `faience_white`, `kiosk_green`, `kiosk_trim`; roles `bench`, `door_bench`; `[dressing.squares]`,
+  `[dressing.furniture]`), `tools/viewer/index.html` (sea test skips instanced meshes and `water_pool`),
+  `tools/blender_beauty.py` (`shade_pool`), tests (2 new), `docs/SPEC.md`, `docs/HANDOFF.md`, `docs/ROADMAP.md`
+- Checks: tests 81 passed (30.6 s; the 2 new ones about 0.1 s on the shared fixtures); `build --quick`
+  11.3 s; fingerprint 8 changed, all allowed: `tiles/index`, `tile_13_23` (+1.6% bytes, +1.3% triangles),
+  `tile_14_23` (+0.8%), new `kit/bench_iron`, `kit/kiosk`, `kit/kiosk_lit` (the kiosk's night twin, prompt 21
+  rule), `kit/fountain_colonial`, `kit/sabil`; full capital 52.4 -> 53.7 s (CPU 234 -> 242 s). Quick capital:
+  1 fountain, 1 kiosk (lit), 2 benches, 4 sabils; full capital: 1 fountain, 2 kiosks, 10 benches, 4 sabils.
+- Look: `output/checks/26.png` (street view: an iron bench on the promenade under the trees, the green
+  kiosk at the far end of the island); `output/checks/26-fountain.png` (the colonial fountain at the ring
+  road head of the promenade, quick (6863.7, 12179.4), full (33428.6, 54746.9); the gate sabil shows on a
+  tower in the background). The great mosque's sabil is on its south wall facing the souk across the open
+  margin: quick (7019.6, 12023.4), full (33378.7, 54244.6). Blender: `output/bodjantouna-42/goumosbane.blend`.
+- Doubts and questions for Ali: none. For CP3: a grid street lying under the boulevard puts its lamps on
+  the promenade (one stands 1.3 m from the fountain), older than this prompt.
+
 ## 2026-10-24 - Prompt 25 H3a Parked cars and taxis
 - Commit: (see git log) | Model: Opus 5.5, medium (playbook: Sonnet, medium)
 - Changed: `citygen/mesh/vehicles.py` (new: hatchback, sedan, van, louage, taxi; 152-184 triangles,

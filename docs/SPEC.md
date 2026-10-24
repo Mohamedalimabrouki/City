@@ -473,6 +473,40 @@ shaders (which ignore the image and the tint) and takes their palette color from
   the boulevard with two, a rank of 5 taxis in a colonial street by the boulevard; full capital about 13,700
   cars (907 taxis, 201 louages), 4,298 streets and 19 arterials with one row, 49 arterials and the
   boulevard with two.
+- **Benches, kiosks and fountains** (prompt 26, `mesh/furniture.py`, `city/squares.py`, `[dressing.squares]`,
+  `[dressing.furniture]`): pieces `bench_iron` (two iron side frames of closed bars, four wooden seat slats
+  and three back slats; 180 triangles), `kiosk` (a dark green booth with cream trims, a serving hatch
+  with a `glass_dark` pane over a counter of papers, a striped awning, magazine racks on both sides, a sign
+  board and the red tobacco diamond; 232 triangles; category `kiosk` is in `LIT_CATEGORIES`, so the kit
+  adds `kiosk_lit`; magazine colors on `stream(seed, "piece", "kiosk")`), `fountain_colonial` (lathed:
+  marble basin on a step sunk `sink` m, column, two bowls, iron finial, `water_pool` in the basin and bowls,
+  thin double-sided streams from each lip; about 740 triangles) and `sabil` (a wall piece: sandstone frame
+  around an arched niche lined with `tile_panel` and `faience_white`, tiled jambs and band, marble cornice,
+  copper spout and stream, marble basin; 208 triangles). A per-city pass (`Dresser.squares()`, built once,
+  lazily; a tile keeps the pieces whose anchor it holds) cuts each boulevard's promenade into islands
+  where other streets cross it (not the grid streets lying on it, `parking.lying_on`), then places, each
+  on its own stream: a fountain at the island end nearest the ring road (else the boulevard's far end),
+  `fountain_margin` m in, the planned trees within its radius plus `fountain_trees` left out
+  (`Squares.keeps`, applied by `Dresser.tree_spots`, so tiles and parked cars agree); kiosks (at most
+  `kiosks`, `kiosk_spacing` apart, chance `kiosk` per spot) on a paved cut corner (`Building.apron`)
+  within `apron_reach` of the boulevard, else at an island end moved in up to `kiosk_slide` m, facing the
+  junction, lit at night with chance `kiosk_lit` (`rng("lit", "kiosk", k, i)`); then a bench (role `bench`:
+  `bench_iron` 3, `tounes/bench_sbs` 1) between each two kept trees of the middle row, its back to the tree
+  line, turned to the walkway on alternate sides by the tree's place in the row. Door benches use the
+  role `door_bench`. Every piece is checked with its kit bounds (the fountain as a circle) against trunks
+  (`tree_trunk` + `tree_clear`) and crowns (a circle of `crown_cover` times the tree piece's half width,
+  from its lowest leaf up), lamps of every street around, zebra crossings, parked cars, arcade bands and
+  every piece of the dressed buildings around (doors with their `door_clear` free zone), and must stand
+  inside its island or on the corner's paving and walks. A `sabil` stands by the great mosque (a mosque
+  landmark inside the medina) and, with chance `sabil.gate`, by each gate: walls within `sabil_reach`,
+  monuments (mosque, ramparts, towers) before houses, facing a souk before an alley before open ground
+  (the first street within `sabil_face` m in front), then nearest; `sabil_front` m free in front, off any
+  carriageway, `sabil_gap` from corners and wall pieces; one draw among the first `sabil_choice`. Quick
+  capital: 1 fountain, 1 kiosk, 2 benches (the 76 m boulevard has two islands with one tree gap each),
+  4 sabils (the great mosque's south wall, 3 gates); full capital: 1 fountain, 2 kiosks, 10 benches,
+  4 sabils. Water: `water_pool` (never `water`, which the Blender scripts hide for their sea) gets the
+  viewer's `/^water/` look but never starts the viewer's sea plane, and `shade_pool` in
+  `tools/blender_beauty.py`.
 - **Massed buildings** (prompt 23, `city/massing.py`): the street windows, open-wall windows and slab
   windows of each column go up to the floors of the wall there (`floors_at` under the window's whole
   width, `[dressing] window_half` m each side), so none floats above a lower step or on a set-back
