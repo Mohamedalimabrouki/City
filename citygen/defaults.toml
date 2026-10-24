@@ -48,6 +48,34 @@ float_materials = ["water"]   # kept float: the viewer finds the sea from the wa
 flat_angle = 1.0          # degrees: flat faces whose written corners give back their normal within this
                           # angle are written without NORMAL (readers compute flat normals)
 
+[tiles.lod]
+# Level of detail (prompt 40, citygen/mesh/lod.py): next to every tile a light tile_<i>_<j>_lod1.glb for
+# distant views: merged blocks, landmarks as low-poly shapes, coarse terrain, flat colors.
+enabled = true
+terrain_step = 32.0       # meters between terrain points (rounded to an even multiple of terrain_step above that
+                          # divides the tile); the tile edges keep the full tile's points, so full and lod1
+                          # tiles meet exactly
+skirt = 4.0               # meters a strip hangs below each tile edge (hides cracks between two tiles)
+street_lift = 0.5         # meters streets float over the lod terrain (depth precision far away)
+street_step = 16.0        # meters between ribbon points along a street
+street_simplify = 1.0     # meters: a street's center line is simplified this much first
+skip_streets = ["impasse"]   # street kinds left out (impasses run inside blocks, filled by `close`)
+close = 1.5               # meters: gaps narrower than twice this between a block's buildings are closed
+simplify = 1.0            # meters: tolerance of the merged block outline
+min_hole = 100.0          # square meters: smaller courtyards are filled
+min_part = 12.0           # square meters: smaller pieces of a block are left out
+sink = 2.0                # meters walls reach below the ground
+parapet = 0.5             # meters a flat house or apartment roof gains (its parapet in the full tile)
+hip = 1.2                 # meters a hip roof's eave gains in a block (about a third of the roof's rise)
+tall = 20.0               # meters: buildings at least this tall stand alone, out of their block...
+tall_ratio = 1.6          # ...and so do those this many times their block's mean height
+dome_segments = 8         # sides of a lod dome, drum, lantern cap
+cluster = 1.2             # meters: grid cell that simplifies the cathedral, theatre and station meshes
+cluster_port = 3.0        # meters: the same for quay walls, breakwater and lighthouse
+crease = 45.0             # degrees: clustered faces meeting at a gentler angle shade smooth and share vertices
+cluster_drop = ["glass_dark", "glass_lit", "iron", "wood", "lantern_glow", "rope", "stud_black", "dial_white",
+                "road_paint"]   # details left out of clustered meshes (windows, doors, ironwork)
+
 [ground]
 # Inside a city the ground is graded: smoothed and gently flattened under blocks, then
 # blended back into the natural terrain at the city limit (see citygen/city/ground.py).

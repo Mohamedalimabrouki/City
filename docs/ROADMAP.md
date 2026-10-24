@@ -51,7 +51,7 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
 - [x] 37 H3c Seaside cafes
 - [x] 38 A8 Blender kit export
 - [x] 39 Q5 Lighter tiles (-45% bytes, densest 8.67 -> 4.67 MB; 3.5 MB target relaxed by the lead, see WORKLOG)
-- [ ] 40 C2a Level-of-detail tiles
+- [x] 40 C2a Level-of-detail tiles (lod1 next to every tile: 3.6% of a city tile, 12.9% at worst)
 - [ ] 41 C2b Viewer level of detail
 - [ ] 42 R1 Refresh the phone 3D page
 - [ ] 43 CP4 Checkpoint: people, landmarks, port

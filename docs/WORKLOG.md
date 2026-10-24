@@ -15,6 +15,31 @@ Entry format:
 - Doubts and questions for Ali: <none, or the question>
 ```
 
+## 2026-10-24 - Prompt 40 C2a Level-of-detail tiles
+- Commit: (see git log) | Model: Opus 5.5, high (playbook: Sonnet, high)
+- Changed: `citygen/mesh/lod.py` (new: terrain with 8 m edges and skirts, ribbons, merged blocks, solo
+  landmarks, vertex clustering with crease normals, flat materials), `citygen/mesh/tile.py` (`cell_materials`
+  shared by both terrains, `export_tile` writes the lod1 and lists it), `citygen/mesh/builder.py`
+  (`MeshBuilder.has`, `arrays`, `ribbon_edges`), `citygen/mesh/port.py` (`breakwater_meshes(light=)`,
+  `lighthouse_spots`), `citygen/build.py` (resume checks the lod1 size, `lod1_megabytes` in the summary),
+  `citygen/tilestats.py` (lod1 line), `citygen/defaults.toml` (`[tiles.lod]`), tests, SPEC 4, 6 and 8,
+  HANDOFF, ROADMAP.
+- Sizes: quick 0.45 MB of lod1 for 12.1 MB (worst 11.0%, the terrain-only 12_24; densest 13_23 155 KB = 3.3%).
+  Full capital 7.67 MB for 171.25 MB, 385,762 triangles for 5,147,535; 64 city tiles median 3.6%, max 6.5%;
+  terrain-only tiles 11.0%; worst 12.9% (harbor tile 62_107, 50 KB); densest 65_106: 141 KB, 6,780 triangles.
+- Checks: tests 103 passed in 29 s (4 new, about 0.4 s), slow tests 2 passed (parallel = one process, lod1 too);
+  quick build 12.7 -> 12.9 s and capital 57.2/58.4 -> 60.9/60.4 s (HEAD worktree and this tree, back to back);
+  fingerprint quick: index + 9 new lod1 files only; capital against a HEAD build: all 168 full tiles equal
+  (only the index and the lod1 files differ).
+- Look: `output/checks/40-lod1.png` (the 168 lod1 tiles alone, 2.6 km south of the medina) and
+  `output/checks/40-lod1-skyline.png` (1.5 km): blocks with mixed wall colors, ramparts, the great mosque's
+  minaret and domes, the kasbah towers, cathedral and lighthouse as small marks, tall slabs standing out, no
+  crack at any tile edge. The views were taken on a copy of the build whose index points at the lod1 files
+  (`output/lodview-40/`, can be deleted); the viewer is unchanged (prompt 41).
+- Doubts: the old town's merged blocks read as one flat level from close (the full tiles vary by a floor);
+  blocks are drawn by the tile holding their centroid, so a quick build loses edge blocks whose centroid lies
+  in a tile it does not export. `make_blend.py` not run: full tiles unchanged.
+
 ## 2026-10-24 - Prompt 39 Q5 Lighter tiles (partly done: 3.5 MB not reached)
 - Commit: (see git log) | Model: Opus 5.5, high (playbook: Sonnet, high)
 - Changed: `citygen/mesh/gltf.py` (quantized writer, flat faces without NORMAL, pooled bufferViews, weld,

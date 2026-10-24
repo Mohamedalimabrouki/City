@@ -199,7 +199,7 @@ def export_tiles(world, plans: list, keys: list, folder: Path, workers: int, pro
 
 
 def tile_files(entry: dict) -> list:
-    """Every file a tile entry lists (later steps add texture and lod files to the entry)."""
+    """Every file a tile entry lists: the tile, its shared textures and its lod1 file (in `files`)."""
     return [entry["file"], *entry.get("files", [])]
 
 
@@ -218,9 +218,12 @@ def finished_tiles(folder: Path, journal: Path, key: str, keys: list) -> dict:
         except ValueError:
             continue
         found[(entry["i"], entry["j"])] = entry
+    def whole(entry: dict) -> bool:   # the tile and its lod1 file (prompt 40) at their written size
+        sized = [entry, *([entry["lod1"]] if "lod1" in entry else [])]
+        return all((folder / e["file"]).stat().st_size == e["bytes"] for e in sized)
+
     return {k: found[k] for k in keys
-            if k in found and all((folder / f).is_file() for f in tile_files(found[k]))
-            and (folder / found[k]["file"]).stat().st_size == found[k]["bytes"]}
+            if k in found and all((folder / f).is_file() for f in tile_files(found[k])) and whole(found[k])}
 
 
 def load_or_plan(world, s, cache: Path, key12: str, force: bool, log):
@@ -353,7 +356,8 @@ def build(cfg: dict, area: str | None = None, log=print, force: bool = False) ->
             "tiles": {"count": len(tiles), "triangles": sum(t["triangles"] for t in tiles),
                       "drawn_triangles": sum(t.get("drawn", t["triangles"]) for t in tiles),
                       "dressing_pieces": sum(t.get("pieces", 0) for t in tiles),
-                      "megabytes": round(sum(t["bytes"] for t in tiles) / 1e6, 1)},
+                      "megabytes": round(sum(t["bytes"] for t in tiles) / 1e6, 1),
+                      "lod1_megabytes": round(sum(t["lod1"]["bytes"] for t in tiles if "lod1" in t) / 1e6, 2)},
             "seconds": round(time.perf_counter() - t0, 1),
         }
         write_json(out / "summary.json", summary)

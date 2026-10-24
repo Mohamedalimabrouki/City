@@ -97,6 +97,13 @@ def tiles_report(folder, tile: str | None = None, top: int = 15) -> str:
                      f"{sum(s['mesh'].values()) / 1000:10,.1f}{sum(s['pieces'].values()) / 1000:9,.1f}"
                      f"{sum(s['instances'].values()) / 1000:10,.1f}{s['textures'] / 1000:9,.1f}")
     lines.append(f"{len(order)} tiles, {sum(s['total'] for s in stats.values()) / 1e6:,.2f} MB in all")
+    lods = [(e["lod1"]["bytes"] / e["bytes"], e["file"][:-4], e["lod1"]) for e in entries if "lod1" in e]
+    if lods:                                     # lod1 tiles (prompt 40): their share of the full tile
+        worst = max(lods)
+        lines.append(f"lod1: {sum(lod['bytes'] for _, _, lod in lods) / 1e6:,.2f} MB, "
+                     f"{sum(lod['triangles'] for _, _, lod in lods):,} triangles; median "
+                     f"{sorted(r for r, _, _ in lods)[len(lods) // 2]:.1%}, worst {worst[0]:.1%} of its full tile "
+                     f"({worst[1]}, {worst[2]['bytes'] / 1000:,.1f} KB)")
     name = tile or (order[0] if order else None)
     if name in stats:
         s = stats[name]

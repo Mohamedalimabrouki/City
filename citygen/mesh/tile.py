@@ -82,6 +82,9 @@ class TileContext:
                          "float_materials": tuple(tiles.get("float_materials", ())),
                          "flat_angle": float(tiles.get("flat_angle", 0.0))}
         self.tint = GroundTint(world.seed, world.style.get("ground_tint", {}))
+        lod = tiles.get("lod", {})
+        self.lod_cfg = lod if lod.get("enabled", False) else None   # lod1 tiles (prompt 40, mesh/lod.py)
+        self.lod = None                          # built on the first lod1 tile (mesh/lod.lod_of)
         self.cities = []
         self.paint_trees = []
         self.covers = []                         # covered souks (prompt 31): one rule for mesher and dresser
@@ -161,6 +164,25 @@ def terrain_mesh(mb: MeshBuilder, tc: TileContext, x0: float, y0: float, corners
     nrm = nrm.reshape(-1, 3)
     uv = np.stack([pos[:, 0], -pos[:, 1]], axis=1)
     col = tc.tint(pos[:, 0], pos[:, 1])
+    names, split = cell_materials(tc, Xg, Yg, H, gx, gy, s)
+    cols = n + 1
+    iy, ix = np.meshgrid(np.arange(n), np.arange(n), indexing="ij")
+    v00 = iy * cols + ix
+    quads = np.stack([v00, v00 + 1, v00 + cols + 1, v00 + cols], axis=-1)
+    for mat in np.unique(names[~split]):
+        q = quads[(names == mat) & ~split]
+        tris = np.concatenate([q[:, [0, 1, 2]], q[:, [0, 2, 3]]])
+        used, remap = np.unique(tris, return_inverse=True)
+        mb.add(str(mat), pos[used], nrm[used], uv[used], remap.reshape(-1, 3), col[used])
+    if split.any():
+        split_cells(mb, tc, Xg[:-1, :-1][split], Yg[:-1, :-1][split], names[split], s)
+    return float(H.min())
+
+
+def cell_materials(tc: TileContext, Xg, Yg, H, gx, gy, s: float) -> tuple:
+    """(material of each terrain cell, cells a quay wall crosses) for the grid nodes Xg, Yg with heights H and
+    gradients gx, gy, `s` m apart: the biome, urban ground inside cities, grass in parks, paving on quay aprons
+    (prompt 34). The crossed cells are drawn apart (`split_cells`). Shared by the full and the lod1 terrain."""
     hc = (H[:-1, :-1] + H[1:, :-1] + H[:-1, 1:] + H[1:, 1:]) / 4
     xc, yc = Xg[:-1, :-1] + s / 2, Yg[:-1, :-1] + s / 2
     slope = np.hypot((gx[:-1, :-1] + gx[1:, 1:]) / 2, (gy[:-1, :-1] + gy[1:, 1:]) / 2)
@@ -176,18 +198,7 @@ def terrain_mesh(mb: MeshBuilder, tc: TileContext, x0: float, y0: float, corners
     if tc.ports:                       # quays (prompt 34): paving on the aprons; cells a wall crosses drawn apart
         apron, split = ground_masks(tc, Xg[:-1, :-1], Yg[:-1, :-1], s)
         names[apron] = "quay"
-    cols = n + 1
-    iy, ix = np.meshgrid(np.arange(n), np.arange(n), indexing="ij")
-    v00 = iy * cols + ix
-    quads = np.stack([v00, v00 + 1, v00 + cols + 1, v00 + cols], axis=-1)
-    for mat in np.unique(names[~split]):
-        q = quads[(names == mat) & ~split]
-        tris = np.concatenate([q[:, [0, 1, 2]], q[:, [0, 2, 3]]])
-        used, remap = np.unique(tris, return_inverse=True)
-        mb.add(str(mat), pos[used], nrm[used], uv[used], remap.reshape(-1, 3), col[used])
-    if split.any():
-        split_cells(mb, tc, Xg[:-1, :-1][split], Yg[:-1, :-1][split], names[split], s)
-    return float(H.min())
+    return names, split
 
 
 def water_mesh(mb: MeshBuilder, x0, y0, x1, y1) -> None:
@@ -799,7 +810,13 @@ def texture_files(tc: TileContext, parts: dict, instances: list) -> list[str]:
 
 def export_tile(tc: TileContext, i: int, j: int, folder: Path) -> dict:
     mb, placements = build_tile(tc, i, j)
-    return write_tile(tc, i, j, mb, placements, folder)
+    entry = write_tile(tc, i, j, mb, placements, folder)
+    if tc.lod_cfg is not None:
+        from .lod import write_lod                     # imported here: mesh/lod.py builds on this module
+        lod = write_lod(tc, i, j, folder, water=mb.has("water"))
+        entry["lod1"] = lod
+        entry["files"] = [*entry.get("files", []), lod["file"]]   # resume waits for the lod1 file too
+    return entry
 
 
 def write_tile(tc: TileContext, i: int, j: int, mb: MeshBuilder, placements: list, folder: Path) -> dict:

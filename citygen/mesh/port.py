@@ -418,9 +418,9 @@ def _runs(own: np.ndarray, breaks=()) -> list:
     return out
 
 
-def breakwater_meshes(mb: MeshBuilder, tc, port, plan, tile) -> None:
+def breakwater_meshes(mb: MeshBuilder, tc, port, plan, tile, light: bool = True) -> None:
     """Every breakwater's stretch owned by this tile: rubble slopes, crest road, crown wall; and the head with
-    the lighthouse in the tile holding the tip."""
+    the lighthouse in the tile holding the tip (`light` False leaves the lighthouse out: mesh/lod.py)."""
     cfg = tc.port_cfg
     x0, y0, x1, y1 = tile.bounds
     crest_z = float(cfg["crest"][0])
@@ -456,7 +456,16 @@ def breakwater_meshes(mb: MeshBuilder, tc, port, plan, tile) -> None:
         if x0 <= tip[0] < x1 and y0 <= tip[1] < y1:
             last = lambda half: tuple(x[-1] for x in half)
             _head(mb, tc, cfg, tip, t[-1], sea_v[-1], last(sea_half), last(harbor_half), jit[m:, 0])
-            lighthouse_mesh(mb, cfg["lighthouse"], tip[0], tip[1], crest_z, bw.light[3])
+            if light:
+                lighthouse_mesh(mb, cfg["lighthouse"], tip[0], tip[1], crest_z, bw.light[3])
+
+
+def lighthouse_spots(tc, port, tile) -> list:
+    """(x, y, z, color scheme) of each lighthouse standing in this tile, on the tip of its breakwater."""
+    x0, y0, x1, y1 = tile.bounds
+    crest_z = float(tc.port_cfg["crest"][0])
+    tips = [(_frames(bw.line)[0][-1], bw.light[3]) for bw in port.breakwaters]
+    return [(float(p[0]), float(p[1]), crest_z, scheme) for p, scheme in tips if x0 <= p[0] < x1 and y0 <= p[1] < y1]
 
 
 def _crown(mb: MeshBuilder, p: np.ndarray, sea: np.ndarray, cfg: dict, z: float, height: float, thick: float) -> None:

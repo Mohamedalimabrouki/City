@@ -54,6 +54,20 @@ class MeshBuilder:
     def triangles(self) -> int:
         return sum(sum(len(t) for t in part[3]) for part in self._parts.values())
 
+    def has(self, material: str) -> bool:
+        return material in self._parts
+
+    def arrays(self) -> list:
+        """[(material, positions (N, 3) in generator coordinates, triangles (M, 3), fine (M,) bool)], by name."""
+        out = []
+        for mat in sorted(self._parts):
+            pos, _nrm, _uv, tris, _count, _col = self._parts[mat]
+            fine = np.zeros(len(tris), dtype=bool)
+            fine[self._fine.get(mat, [])] = True
+            out.append((mat, np.concatenate(pos) + self.origin, np.concatenate(tris),
+                        np.repeat(fine, [len(t) for t in tris])))
+        return out
+
     def sizes(self) -> list:
         """[(vertices, triangles, has colors)] per material, without building the arrays."""
         return [(part[4], sum(len(t) for t in part[3]), any(c is not None for c in part[5]))
@@ -601,23 +615,18 @@ def rectangle(cx: float, cy: float, length: float, width: float, angle: float) -
 
 # --- ribbons (roads) ----------------------------------------------------------
 
-def add_ribbon(mb: MeshBuilder, coords, width: float, height_fn, lift: float, material: str,
-               start: float = 0.0) -> None:
-    """Flat strip of `width` along a polyline, draped on the terrain via height_fn(x, y).
-
-    UVs are meters: u along the line from `start` (the distance of the first point along the
-    whole street, so a street cut by tile edges keeps one continuous pattern), v across from the
-    center line (-width/2 on the left, +width/2 on the right).
-    """
+def ribbon_edges(coords, width: float):
+    """(points, segment lengths, left edge, right edge) of a strip of `width` along a polyline (repeated points
+    dropped, corners mitred up to 2x), or None when fewer than two points are left."""
     p = np.asarray(coords, dtype=np.float64)[:, :2]
     if len(p) < 2:
-        return
+        return None
     d = np.diff(p, axis=0)
     seg = np.hypot(d[:, 0], d[:, 1])
     keep = np.concatenate([[True], seg > 1e-6])
     p = p[keep]
     if len(p) < 2:
-        return
+        return None
     d = np.diff(p, axis=0)
     seg = np.hypot(d[:, 0], d[:, 1])
     t = d / seg[:, None]
@@ -631,7 +640,21 @@ def add_ribbon(mb: MeshBuilder, coords, width: float, height_fn, lift: float, ma
         cos = np.einsum("ij,ij->i", vt[1:-1], t[:-1])
         scale[1:-1] = 1.0 / np.clip(cos, 0.5, 1.0)
     n = np.stack([-vt[:, 1], vt[:, 0]], axis=1) * (width / 2 * scale)[:, None]
-    left, right = p + n, p - n
+    return p, seg, p + n, p - n
+
+
+def add_ribbon(mb: MeshBuilder, coords, width: float, height_fn, lift: float, material: str,
+               start: float = 0.0) -> None:
+    """Flat strip of `width` along a polyline, draped on the terrain via height_fn(x, y).
+
+    UVs are meters: u along the line from `start` (the distance of the first point along the
+    whole street, so a street cut by tile edges keeps one continuous pattern), v across from the
+    center line (-width/2 on the left, +width/2 on the right).
+    """
+    edges = ribbon_edges(coords, width)
+    if edges is None:
+        return
+    p, seg, left, right = edges
     zl = height_fn(left[:, 0], left[:, 1]) + lift
     zr = height_fn(right[:, 0], right[:, 1]) + lift
     pos = np.empty((len(p), 2, 3))

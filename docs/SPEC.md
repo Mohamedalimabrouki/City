@@ -100,6 +100,7 @@ build.build()                 orchestrates the above into output/<country>-<seed
 | `citygen/mesh/builder.py` | mesh primitives: extrude, walls, caps, domes, hip roofs, ribbons, trees |
 | `citygen/mesh/gltf.py` | dependency-free .glb writer and reader |
 | `citygen/mesh/tile.py` | what goes into one tile |
+| `citygen/mesh/lod.py` | the tile's light twin for distant views (prompt 40): coarse terrain with skirts, ribbons, merged blocks, low-poly landmarks, vertex clustering |
 | `citygen/mesh/vaults.py` | covered souks (prompt 31): barrel vaults, impost bands, transverse arches, light openings, lantern rods |
 | `citygen/mesh/landmarks.py` | the cathedral and the theatre (prompt 32): portals, rose window, towers, gables, crossing dome, apse; rounded corners, parapet, pavilion, crown, canopy, stage tower |
 | `citygen/mesh/port.py` | the harbor (prompt 34): quay paving and the terrain cells a wall crosses drawn in two parts, quay walls with the wet band and kerb, the rubble breakwater (loft, crest road, crown wall, round head), the lighthouse; kit pieces `bollard`, `fender`, `armour_rock_0..2` and their placements |
@@ -513,8 +514,9 @@ breakwater lines, basins, lighthouses) when it has a harbor, `props` (`kind`, `x
 | `gazetteer.md` | readable guide for stories |
 | `maps/country.png`, `maps/<city>.png` | 2D maps, north up |
 | `tiles/tile_<i>_<j>.glb` | 3D tile covering x `i*512..(i+1)*512`, y `j*512..(j+1)*512` |
+| `tiles/tile_<i>_<j>_lod1.glb` | the same tile for distant views (prompt 40): merged blocks, low-poly landmarks, 32 m terrain, flat colors |
 | `tiles/textures/*.png` | base-color images shared by the tiles (`[tiles] textures = "shared"`, the default) |
-| `tiles/index.json` | `citygen-tiles/1`: tile list (bytes, unique and drawn triangles, dressing pieces), `"parapets": true` when the tiles carry their own roof parapets, `focus` point, camera `views` (street, souk, and cathedral, theatre, station, port and corniche when the city has them), `cities` (name, plan file, bounds) |
+| `tiles/index.json` | `citygen-tiles/1`: tile list (bytes, unique and drawn triangles, dressing pieces, `lod1`: file, bytes, triangles; `files`: shared textures and the lod1 file), `"parapets": true` when the tiles carry their own roof parapets, `focus` point, camera `views` (street, souk, and cathedral, theatre, station, port and corniche when the city has them), `cities` (name, plan file, bounds) |
 | `summary.json` | counts and timings (read this instead of big files) |
 
 **.glb conventions:** one root node per tile with `translation = [x0, 0, -y0]`; vertices are
@@ -563,6 +565,42 @@ applies the `_q` object's transform to its mesh after Blender imports it. `quant
 the float tiles byte for byte as before. `python -m citygen stats --tiles [FOLDER] [--tile NAME]`
 lists every tile's bytes by category (JSON, terrain, tile mesh, piece meshes, instance transforms,
 textures) and details the heaviest one by material and by piece.
+
+**Level-of-detail tiles (prompt 40, `citygen/mesh/lod.py`, `[tiles.lod]`):** right after each full tile
+the same worker writes `tile_i_j_lod1.glb` from the same plan data (no dressing, people, trees or textures),
+with the same root node (`translation = [x0, 0, -y0]`, extras `"lod": 1`) and the same quantized writer;
+materials keep their palette names, without texture or UVs, each textured color multiplied by the mean of
+its image (so the far look matches the full tile's mipmapped textures). Content:
+- *Terrain*: 32 m cells (`terrain_step`, rounded to an even multiple of the full step that divides the tile)
+  on the full tile's lattice, the full tile's diagonal, COLOR_0 tint and smooth normals (from the same 8 m
+  differences as the full tile); along every tile edge the full tile's 8 m points (border cells fanned onto
+  them), so a full and a lod1 tile, or two lod1 tiles, share every edge vertex. A skirt hangs `skirt` m
+  (4 m) below each edge (8 m points on top, 32 m nodes below, terrain normals and tint) against cracks
+  between two quantization frames. Cells a quay wall crosses are cut by `split_cells` at 32 m (sharp quay
+  edge). The water plane when the full tile has one.
+- *Streets and roads*: flat ribbons (no UVs) draped on the drawn lod terrain `street_lift` m up, lines
+  simplified by 1 m and sampled every 16 m; impasses left out (`skip_streets`).
+- *Blocks*: each building belongs to the block (`plan.blocks`) holding its `point_on_surface`; a block is
+  drawn by the tile holding the block's centroid. Its buildings' footprints are grown by `close`, united,
+  shrunk back, simplified by `simplify`, courtyards under `min_hole` m2 filled, pieces under `min_part`
+  dropped. Walls run from the ground `sink` m down up to the ground plus the block's rise (area-weighted mean
+  of each building's highest ground + roof height - ground at its centroid; roof height = masses' tops,
+  + `parapet` on flat house and apartment roofs, + `hip` on hip roofs); each wall segment takes the wall
+  color of its nearest building; the cap (draped the same way) the block's dominant roof color.
+- *Skyline, drawn alone* by the tile holding the building's center: monuments (minaret, mosque hall and
+  court, marabout, rampart wall and tower, kasbah wall, tower, gate and palace) and buildings at least `tall`
+  m (20) or `tall_ratio` (1.6) times their block's mean; also buildings in no block. Each mass is a prism
+  (hip roof where it has one), domes on 8-sided drums, a minaret's lantern box and dome cap, a corner dome or
+  turret, battlements as a band (breast + half a merlon). The lighthouse is its own lathe with 8 sides.
+- *Clustered*: the cathedral, theatre, station head and platforms, quay walls and breakwater are drawn
+  with their full mesh functions, then simplified by vertex clustering (`cluster` 1.2 m, `cluster_port`
+  3 m, world-aligned grid): thin sheets and `cluster_drop` materials (glass, iron, wood) left out,
+  collapsed and duplicate triangles dropped, corner normals smooth within `crease` degrees (rubble and
+  domes share vertices, walls stay flat and go without NORMAL).
+The index entry gets `"lod1": {"file", "bytes", "triangles"}` and the lod1 file in `files`, so resume counts a
+tile as finished only when its lod1 file exists at its written size. Sizes (full capital): 7.7 MB in all
+for 171 MB of full tiles; city tiles 3.6% of their full tile (densest 141 KB, 6,780 triangles, for 5.8 MB),
+terrain-only tiles 11%, worst 12.9% (a harbor tile). `stats --tiles` prints the lod1 total and ratios.
 
 **Other engines (note for prompt 72, Godot 4):** not verified here. Godot 4's glTF importer is
 believed to read `KHR_mesh_quantization` and to generate normals when NORMAL is absent (to verify in
@@ -1006,6 +1044,7 @@ Maghreb-specific values.
 | capital plan (about 60k buildings) | under 60 s |
 | one tile | under 5 s, under 3 MB (target 3.5 MB for a dressed old-town tile; prompt 39: quick 4.7 MB, full capital 5.8 MB) |
 | `build --area capital` (168 tiles) | Ali's Mac (M1, 4 fast + 4 slow cores) today: 73 s with `--workers 1`, 30 s with `--workers 8` (CP2) |
+| lod1 tiles (prompt 40) | under 15% of their full tile's bytes; the lod pass about 3% of tile time (full capital +2.5 s) |
 | the same build run again (nothing changed) | under 10% of the first run (today 1.5 s, plans, tiles, maps and data reused) |
 
 ## 9. Checking results cheaply

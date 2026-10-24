@@ -1617,8 +1617,8 @@ def test_parallel_tiles_match_one_process(world, plan, tmp_path):
         out[workers] = (export_tiles(world, [plan], keys, folder, workers, lambda n: None), folder)
     assert out[1][0] == out[2][0]
     for i, j in keys:
-        name = f"tile_{i}_{j}.glb"
-        assert (out[1][1] / name).read_bytes() == (out[2][1] / name).read_bytes()
+        for name in (f"tile_{i}_{j}.glb", f"tile_{i}_{j}_lod1.glb"):   # and the lod1 files (prompt 40)
+            assert (out[1][1] / name).read_bytes() == (out[2][1] / name).read_bytes()
 
 
 def test_build_key_ignores_workers_and_output():
@@ -3257,3 +3257,110 @@ def test_seaside_cafe_terraces(world, plan, ground, built_mesh):
     for p in people:                         # nobody stands in a terrace table; nobody on a carriageway
         if poses[p.piece] != "sit":
             assert not any(_plan_box(kit, p).intersects(b) for b in tops), p
+
+
+# --- level of detail (prompt 40) ---------------------------------------------------------------------------
+
+@pytest.fixture(scope="module")
+def lod_tiles(built_mesh, rebuilt_tile, tmp_path_factory):
+    """lod1 files of the capital's tile and of its east and north neighbours: {(i, j): (path, entry)}."""
+    from citygen.mesh.lod import write_lod
+    tc, i, j, mb, _ = built_mesh
+    folder = rebuilt_tile[1].parent
+    out = {}
+    for key in ((i, j), (i + 1, j), (i, j + 1)):
+        entry = write_lod(tc, *key, folder, water=mb.has("water") if key == (i, j) else False)
+        out[key] = (folder / entry["file"], entry)
+    return out
+
+
+def _world_points(path, i: int, j: int, size: int, terrain: bool | None = None) -> np.ndarray:
+    """Every written vertex of a lod1 file in world meters (x east, y north, z up); `terrain`: only the tinted
+    terrain parts (True) or only the rest (False)."""
+    pts = [p["pos"] for p in read_parts(path).values() if terrain is None or (p["col"] is not None) == terrain]
+    pos = np.concatenate(pts)
+    return np.stack([pos[:, 0] + i * size, -pos[:, 2] + j * size, pos[:, 1]], axis=1)
+
+
+def test_lod1_tiles_are_valid_light_and_listed_for_resume(world, built_mesh, rebuilt_tile, lod_tiles, tmp_path):
+    from citygen.mesh.tile import export_tile
+    tc, i, j, _, _ = built_mesh
+    path, entry = lod_tiles[(i, j)]
+    gltf, binary = read_glb(path)
+    _check_glb(gltf, binary)
+    assert triangle_count(gltf) == entry["triangles"] > 2000 and path.stat().st_size == entry["bytes"]
+    assert gltf["extensionsRequired"] == ["KHR_mesh_quantization"] and "EXT_mesh_gpu_instancing" not in str(gltf)
+    assert not gltf.get("textures") and all("TEXCOORD_0" not in p["attributes"]
+                                            for m in gltf["meshes"] for p in m["primitives"])
+    assert entry["bytes"] < 0.15 * rebuilt_tile[2]["bytes"]           # the densest quick tile: about 3.4%
+    far = (i - 6, j + 6)                                              # terrain only: the hardest ratio
+    full = export_tile(tc, *far, tmp_path)
+    assert full["lod1"]["file"] == f"tile_{far[0]}_{far[1]}_lod1.glb" and full["lod1"]["file"] in full["files"]
+    assert (tmp_path / full["lod1"]["file"]).stat().st_size == full["lod1"]["bytes"] < 0.15 * full["bytes"]
+    names = set(read_parts(tmp_path / full["lod1"]["file"]))
+    assert names and not names & {"leaf", "trunk", "door_blue", "glass_dark"}   # no trees, no dressing
+
+
+def test_lod1_terrain_meets_the_full_tile_and_its_neighbours_and_hangs_skirts(world, built_mesh, lod_tiles):
+    tc, i, j, _, _ = built_mesh
+    size, skirt = tc.size, float(tc.lod_cfg["skirt"])
+    pts = {k: _world_points(path, *k, size, terrain=True) for k, (path, _) in lod_tiles.items()}
+    here = pts[(i, j)]
+    x0, y0 = i * size, j * size
+    for axis, value in ((0, x0), (0, x0 + size), (1, y0), (1, y0 + size)):   # all four edges
+        edge = here[np.abs(here[:, axis] - value) < 0.02]
+        along = np.round(edge[:, 1 - axis] / tc.step).astype(int)
+        top = {a: edge[along == a, 2].max() for a in np.unique(along)}
+        assert len(top) == size // int(tc.step) + 1                   # the full tile's 8 m points, every one
+        g = tc.height(*(np.array([[value, a * tc.step] if axis == 0 else [a * tc.step, value]
+                                  for a in sorted(top)]).T))
+        assert np.max(np.abs(np.array([top[a] for a in sorted(top)]) - g)) < 0.02   # as the full tile draws it
+        nodes = [a for a in top if a % 4 == 0]
+        for a in nodes:                                               # the skirt hangs below every 32 m node
+            low = edge[along == a, 2].min()
+            assert abs(top[a] - low - skirt) < 0.03, (axis, value, a)
+    for other, axis in (((i + 1, j), 0), ((i, j + 1), 1)):            # shared edges: the same heights
+        value = (i + 1) * size if axis == 0 else (j + 1) * size
+        a = here[np.abs(here[:, axis] - value) < 0.02]
+        b = pts[other][np.abs(pts[other][:, axis] - value) < 0.02]
+        ta = {round(p[1 - axis] / tc.step): p[2] for p in a[np.argsort(a[:, 2])]}   # highest z per point: the top
+        tb = {round(p[1 - axis] / tc.step): p[2] for p in b[np.argsort(b[:, 2])]}
+        assert ta.keys() == tb.keys() and max(abs(ta[k] - tb[k]) for k in ta) < 0.02
+
+
+def test_lod1_keeps_the_skyline_and_merges_blocks(world, plan, built_mesh, lod_tiles):
+    from citygen.mesh.lod import lod_of
+    tc, i, j, _, _ = built_mesh
+    lod = lod_of(tc)
+    tall = max((b for b in plan.buildings if b.kind == "minaret"), key=lambda b: b.height)
+    c = tall.footprint.centroid
+    assert (int(c.x // tc.size), int(c.y // tc.size)) == (i, j)       # the great mosque's minaret, in this tile
+    pts = _world_points(lod_tiles[(i, j)][0], i, j, tc.size, terrain=False)
+    ring = np.asarray(tall.footprint.exterior.coords)
+    high = float(np.max(tc.height(ring[:, 0], ring[:, 1])))
+    near = pts[np.hypot(pts[:, 0] - c.x, pts[:, 1] - c.y) < tall.top["side"]]
+    top = high + tall.height + tall.top["height"]                     # the lantern's top, then its cap above
+    assert np.any(np.abs(near[:, 2] - (high + tall.height)) < 0.05)   # the shaft's roof
+    assert np.any(np.abs(near[:, 2] - top) < 0.05) and near[:, 2].max() > top + 0.5 * tall.top["side"]
+    blocks = lod.cities[0]
+    assert blocks.role[plan.buildings.index(tall)] == "solo"
+    clustered = {plan.buildings[k].kind for k in np.nonzero(blocks.role == "cluster")[0]}
+    assert {"cathedral", "theatre", "station"} <= clustered
+    merged = sum(len(ks) for ks in blocks.members.values())
+    assert merged > 0.9 * sum(b.kind in ("house", "apartments", "shed") for b in plan.buildings)
+    assert len(blocks.members) < 0.2 * merged                         # many buildings to a block
+
+
+def test_finished_tiles_need_their_lod1_file(tmp_path):
+    from citygen.build import finished_tiles
+    (tmp_path / "tile_0_0.glb").write_bytes(b"abc")
+    journal = tmp_path / "journal"
+    journal.mkdir()
+    lod = {"file": "tile_0_0_lod1.glb", "bytes": 2, "triangles": 1}
+    entry = {"i": 0, "j": 0, "file": "tile_0_0.glb", "bytes": 3, "files": [lod["file"]], "lod1": lod}
+    (journal / "tile_0_0.json").write_text(json.dumps(entry))
+    assert finished_tiles(tmp_path, journal, "k", [(0, 0)]) == {}     # no lod1 yet: build the tile again
+    (tmp_path / "tile_0_0_lod1.glb").write_bytes(b"x")
+    assert finished_tiles(tmp_path, journal, "k", [(0, 0)]) == {}     # cut short
+    (tmp_path / "tile_0_0_lod1.glb").write_bytes(b"xy")
+    assert (0, 0) in finished_tiles(tmp_path, journal, "k", [(0, 0)])

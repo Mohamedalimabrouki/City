@@ -650,6 +650,21 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
   tile's float-size estimate but figures cost their quantized size (`piece_bytes(quantized=True)`), so light
   tiles show more figures and still end 25-48% smaller. The souk and street pictures differ by 0.54 and
   0.30 (edges move by under one quantization step), not 0.00; souk on High (GTAO) 1.01 (noise), night 0.20.
+- **Level-of-detail tiles** (prompt 40, `mesh/lod.py`, `[tiles.lod]`): the lod1 terrain keeps the full tile's
+  8 m points on every tile edge (border cells fanned onto them from a corner with plain sides): a skirt only
+  hides a crack where the lod1 edge is the higher one, and the full tiles have none, so a 32 m edge would
+  leave slivers wherever the true ground bulges above the 32 m chord. Normals come from the same 8 m
+  differences as the full tile, so the edge also shades alike. Cells a quay wall crosses: refining them to
+  8 m cost a harbor tile 22% of its full tile; cutting the 32 m cells with `split_cells` keeps the quay edge
+  sharp for a few triangles. Ground queries cost about 220 us each in overhead: one query per tile for all
+  blocks and one for all ribbons took the lod pass from 13.8 to 7.7 s of CPU on the full capital (about 3%
+  of tile time; capital 57-58 s -> 60-61 s back to back). Vertex clustering gives every triangle its own
+  corners: crease normals (smooth under 45 degrees) let rubble and domes share vertices (a harbor lod1
+  86 -> 50 KB) while walls stay flat. The lighthouse (2 m wide) needs its own 8-sided lathe: a 3 m cluster
+  cell mangles it. Block walls take the color of their nearest building per segment (no extra vertices: a
+  skirt's quads are apart anyway), or a colonial street turns one grey from afar. Terrain-only tiles are the
+  hardest ratio (11%: the full one is only terrain), not the dense ones (3.6%). Debug renders: a numpy
+  z-buffer of `read_parts` (painter's order lies with large water quads) cost no snapshot.
 - **Old-town tiles** reach about 4.7 MB on the quick build and 5.8 MB on the full capital after prompt 39
   (`tile_65_106`; 8.7 and 11.1 MB before).
 
