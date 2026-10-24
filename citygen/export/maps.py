@@ -33,6 +33,7 @@ LANDMARK_RGB = {"cathedral": (226, 200, 132), "theatre": (170, 64, 70)}   # the 
 STATION_RGB = {"station": (196, 120, 60), "station_platforms": (150, 140, 128), "station_forecourt": (214, 204, 184)}
 RAIL_BED_RGB, RAIL_RGB = (160, 150, 138), (70, 62, 58)   # the tracks (prompt 33)
 QUAY_RGB, QUAY_EDGE_RGB, RUBBLE_RGB = (200, 194, 182), (96, 88, 78), (150, 142, 130)   # the harbor (prompt 34)
+PROMENADE_RGB, SEA_WALL_RGB = (226, 214, 190), (120, 108, 92)   # the corniche promenade (prompt 36)
 LIGHT_RGB = ((246, 244, 238), (178, 54, 44))
 ROAD_STYLE = {"national": ((196, 72, 52), 3.2), "regional": ((222, 150, 60), 2.2),
               "local": ((120, 110, 96), 1.2)}
@@ -163,6 +164,11 @@ def city_map(world, plan, path, meters_per_px: float | None = None, max_px: int 
     if station is not None:
         for t in station.tracks:
             draw.line(ring(t.coords), fill=RAIL_RGB, width=max(1, round(1.4 / mpp)))
+    for walk in plan.walks:                       # the seafront promenade and its sea wall (prompt 36)
+        if walk.kind == "seafront":
+            fill_poly(walk.polygon, PROMENADE_RGB)
+    for f in getattr(plan, "fronts", ()):
+        draw.line(ring(f.sea.coords), fill=SEA_WALL_RGB, width=max(1, round(1.0 / mpp)))
     kinds = {i: d.kind for i, d in enumerate(plan.districts)}
     for j in villa_lots(plan, [k for k, b in enumerate(plan.buildings) if b.kind == "villa"]).values():
         fill_poly(plan.parcels[j].polygon, GARDEN_RGB)

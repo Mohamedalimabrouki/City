@@ -26,7 +26,8 @@ from .rng import stream
 
 DARK, LIT = "glass_dark", "glass_lit"          # window glass by day; the twin the viewer lights at night
 LIT_CATEGORIES = {"window", "balcony", "door", "kiosk"}   # pieces whose glass may be lit (not shop goods)
-PLAIN = {"boat", "crane", "rail", "cargo"}     # harbor pieces drawn in plain palette colors: no UVs to pay for
+PLAIN = {"boat", "crane", "rail", "cargo", "railing"}   # harbor pieces and the corniche's railing (prompt 36) are
+                                                       # drawn in plain palette colors: no UVs to pay for
 
 
 @dataclass
@@ -80,7 +81,10 @@ class Kit:
         for name, parts in vehicle_pieces(seed, vehicles).items():   # parked cars (prompt 25): no lit twins
             self.pieces[name] = Piece(name, "vehicle", "ground", parts, "procedural")
         for name, (mb, category, anchor) in furniture_pieces(seed, furniture).items():   # prompt 26
-            self.pieces[name] = Piece(name, category, anchor, mb.gltf_parts(), "procedural")
+            parts = mb.gltf_parts()
+            if category in PLAIN:
+                parts = {m: {**part, "uv": None} for m, part in parts.items()}
+            self.pieces[name] = Piece(name, category, anchor, parts, "procedural")
         for name, parts in people_pieces(seed, people).items():          # prompt 28: no lit twins
             self.pieces[name] = Piece(name, "person", "ground", parts, "procedural")
         for name, (mb, category, anchor) in port_pieces(seed, port).items():       # bollards and fenders (prompt 34)

@@ -120,6 +120,9 @@ container_red = { color = "#8F3A2B", roughness = 0.7 }
 container_blue = { color = "#2D4F70", roughness = 0.7 }
 container_green = { color = "#3F6A4B", roughness = 0.7 }
 container_grey = { color = "#8A8D8C", roughness = 0.7 }
+# the corniche promenade (prompt 36): big pale limestone slabs, the white-painted iron railing
+promenade = { color = "#D8CAB0", roughness = 0.88, texture = "paving", texture_size = [3.2, 3.2] }   # 0.8 m slabs
+railing_white = { color = "#EEECE6", roughness = 0.45 }
 lighthouse_white = { color = "#F3F1EB", roughness = 0.85, texture = "render", texture_size = [3.0, 3.0] }
 lighthouse_red = { color = "#B3362C", roughness = 0.7 }
 dome_green = { color = "#3E7A57", roughness = 0.4 }
@@ -772,6 +775,37 @@ boat_trawler = [0.92, 1.08]
 [port.props.crane]
 portal = 7.5               # height of the portal girders
 boom = 26.0                # length of the lattice boom
+
+# --- the corniche's seafront (prompt 36, city/corniche.py, mesh/corniche.py) ----------------
+# Like the corniches of La Marsa, Sousse or Bizerte: on the sea side of the corniche a raised, paved promenade
+# (its curb where the land side's sidewalk would end), the beach-side palm row in tree pits by the curb, lamps
+# between the palms, benches along the railing facing the sea, a low stone sea wall with a whitewashed coping
+# band and a white iron railing on its edge, steps down to the sand. Only along the districts below; the
+# harbor, industrial and cemetery stretches keep the plain corniche.
+[corniche]
+districts = ["colonial", "modern", "residential"]
+curb = 3.2                 # the promenade's curb stands this far inside the corniche's sea edge
+width = 8.0                # the promenade's width where at least `beach_min` m of sand remain beyond it ...
+max_width = 10.0           # ... else as wide as fits up to this (the wall then stands at the water) ...
+min_width = 6.0            # ... and no promenade at all where less than this fits
+beach_min = 3.0            # meters of sand between the sea wall and the water line that make a beach
+water = 0.05               # the water line: where the natural ground is this high above the sea
+step = 8.0                 # meters between the stations the promenade's outline is built on
+piece = 32.0               # meters along the corniche per walk piece (a tile draws the pieces it holds)
+clear = 1.5                # meters kept from the harbor's ground and the drawn-up boats
+cross_area = 2.0           # m2: a street surface covering more of a station's band breaks the promenade there
+palm_inset = 1.5           # the palm row (and its lamps) this far from the curb
+lamp_every = 2             # a lamp in every second gap between two palms
+bench = 0.8                # chance of a bench (role `seafront_bench`) in a gap between two palms ...
+bench_back = 1.35          # ... its middle this far in from the sea edge, facing the sea
+bench_gap = 6.0            # palms at least this far apart
+railing_piece = 2.0        # meters: railing lengths are stretched to fit the edge between bends
+railing_inset = 0.06       # railing's center line inside the sea edge
+coping = 0.22              # whitewashed band at the top of the sea wall's face
+foot = 0.35                # the wall reaches this far under the sand or the seabed
+stair_every = 72.0         # meters between flights of steps down to the beach ...
+stair_sand = 2.4           # ... where at least this much sand lies beyond the wall
+stair = [2.4, 0.18, 0.32]  # a flight's width, highest riser, tread
 
 [district.park]
 tree_spacing = 13.0
@@ -1535,6 +1569,13 @@ carry = 0.1
 pair = 0.3
 family = 0.2
 
+[people.seafront]          # strollers on the corniche promenade (prompt 36), between the palms and the benches
+step = 5.0
+chance = 0.6
+carry = 0.1
+pair = 0.35
+family = 0.25
+
 [people.landmark]          # round the great mosque (along its outline) and at the medina gates
 mosque = { step = 3.5, chance = 0.45, reach = [1.5, 6.0] }
 gate = { count = 10, chance = 0.5, reach = [2.5, 10.0] }
@@ -1608,6 +1649,8 @@ pot = [["tounes/pot_geranium", 2], ["tounes/pot_flowers_bougainvillea", 1.5], ["
 roof_pot = [["tounes/pot_geranium", 1], ["tounes/pot_cactus", 1], ["pot_plant", 1]]
 door_bench = [["doukkana", 3], ["tounes/bench_sbs", 1]]   # beside traditional doors
 bench = [["bench_iron", 3], ["tounes/bench_sbs", 1]]        # on the boulevard's promenade (prompt 26)
+seafront_bench = [["bench_iron", 1]]   # along the corniche's railing (prompt 36): the bench mix less the kit's blue
+                                       # bench, whose 43 KB mesh alone would take most of a light seafront tile's budget
 planter = [["tounes/planter_sbs", 1]]
 cat = [["cat_ginger", 1], ["cat_white", 1], ["cat_black", 1], ["cat_grey", 1]]
 parked = [["tounes/moped_delivery", 1]]

@@ -23,6 +23,7 @@ from shapely.strtree import STRtree
 from ..mesh.props import ARCADE
 from ..rng import stream, weighted
 from .arcades import Run, band, free_spans, layout, level_steps, spans_of, turn
+from .corniche import Seafront
 from .covered import Covers, owns
 from .crowd import Crowd
 from .geo import frame
@@ -126,6 +127,8 @@ class Dresser:
         self._squares = None                     # benches, kiosks and fountains (prompt 26, city/squares.py, lazy)
         self._crowd = None                       # people in the streets (prompt 29, city/crowd.py, lazy)
         self._covers = None                      # covered souks (prompt 31, city/covered.py, lazy; the tiles share theirs)
+        self._seafront = None                    # the corniche promenade's lamps, benches, railing (prompt 36, lazy)
+        self._front_tree = None                  # its walks, for the street lamps it replaces (lazy)
         self._kept_roofs: dict = {}              # building -> main roof layout the tile mesher just made (keep_roof)
         self._stairs = {n for r in ("stair_window", "stair_door") for n in (self.roles[r][0] if r in self.roles else [r])}
         targets = self.surfaces + [w.polygon for w in getattr(plan, "walks", ())]
@@ -996,6 +999,19 @@ class Dresser:
             kept &= self.squares().keeps(xy)
         return xy, kept, away
 
+    def seafront(self) -> Seafront:
+        """The lamps, benches and railing of the city's seafront promenade (built once, lazily)."""
+        if self._seafront is None:
+            self._seafront = Seafront(self)
+        return self._seafront
+
+    def _on_front(self, q) -> bool:
+        """Does point q lie on the corniche's seafront promenade (prompt 36)?"""
+        if self._front_tree is None:
+            polys = [w.polygon for w in getattr(self.plan, "walks", ()) if w.kind == "seafront"]
+            self._front_tree = STRtree(polys) if polys else False
+        return self._front_tree is not False and len(self._front_tree.query(shapely.Point(q), predicate="intersects")) > 0
+
     def squares(self) -> Squares:
         """The city's benches, kiosks and fountains (built once, lazily)."""
         if self._squares is None:
@@ -1742,6 +1758,8 @@ class Dresser:
         inside = self.surface_tree.query(shapely.Point(q), predicate="within")
         if not len(inside) or any(self.plan.streets[int(j)].width > st.width for j in inside.tolist()):
             return None                               # off every street, or inside a wider one
+        if st.kind == "corniche" and self._on_front(q):
+            return None                               # the promenade has its own lamps (prompt 36)
         return q, n
 
     def _gate(self, k: int, end: int, d: float, role: str, out: list, chance: float | None = None) -> None:

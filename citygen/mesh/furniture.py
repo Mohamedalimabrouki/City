@@ -1,4 +1,5 @@
-"""Street furniture (prompt 26): the iron bench, the newspaper kiosk, the colonial fountain and the sabil.
+"""Street furniture (prompt 26): the iron bench, the newspaper kiosk, the colonial fountain and the sabil;
+the corniche's railing (prompt 36).
 
 Generator axes as in mesh/props.py: x along the piece's width, y toward its front (the side people use),
 z up, meters. The bench, kiosk and fountain stand on the ground (origin at the bottom-center on the drawn
@@ -24,7 +25,7 @@ from .props import _arch_outline, _bar, _faces, _flat, _front, _side, _slab
 
 FURNITURE = {   # sizes in meters; `[dressing.furniture]` in the style overrides them
     "bench_length": 1.8, "seat": 0.45, "fountain_radius": 2.3, "fountain_height": 2.9,
-    "kiosk": [2.2, 1.5, 2.45], "sabil": [1.9, 2.9], "sink": 0.25,
+    "kiosk": [2.2, 1.5, 2.45], "sabil": [1.9, 2.9], "sink": 0.25, "railing_length": 2.0, "railing_height": 1.0,
 }
 COVERS = ("awning_red", "spice_yellow", "rug_blue", "plastic_white", "door_green", "spice_orange",
           "chechia_red", "cloth_2", "cloth_4", "rug_cream")   # magazine and newspaper covers
@@ -279,12 +280,57 @@ def sabil(cfg: dict | None = None) -> MeshBuilder:
     return mb
 
 
+def _tube(mb: MeshBuilder, p0, p1, half: tuple, mat: str, cap: bool = False) -> None:
+    """A thin straight bar of rectangular section (`half` = half sizes across), four sides sharing their
+    corners (8 vertices, smooth normals: at a few centimeters the bar reads round), open ends unless `cap`
+    (the top end closed)."""
+    p0, p1 = np.asarray(p0, dtype=np.float64), np.asarray(p1, dtype=np.float64)
+    d = (p1 - p0) / max(float(np.linalg.norm(p1 - p0)), 1e-9)
+    a = np.cross(d, [0.0, 0.0, 1.0] if abs(d[2]) < 0.9 else [0.0, 1.0, 0.0])
+    a /= np.linalg.norm(a)
+    b = np.cross(d, a)
+    ring = [a * half[0] + b * half[1], -a * half[0] + b * half[1], -a * half[0] - b * half[1], a * half[0] - b * half[1]]
+    pos = np.array([p0 + r for r in ring] + [p1 + r for r in ring])
+    nrm = np.array([r / np.linalg.norm(r) for r in ring] * 2)
+    s = np.concatenate([np.zeros(4), np.full(4, float(np.linalg.norm(p1 - p0)))])
+    uv = np.stack([s, np.tile(np.arange(4) * 0.02, 2)], axis=1)
+    tris = [[k, (k + 1) % 4, 4 + (k + 1) % 4] for k in range(4)] + [[k, 4 + (k + 1) % 4, 4 + k] for k in range(4)]
+    tris = np.array(tris)
+    if np.dot(np.cross(pos[1] - pos[0], pos[5] - pos[0]), ring[0] + ring[1]) < 0:   # faces outward
+        tris = tris[:, ::-1]
+    mb.add(mat, pos, nrm, uv, tris)
+    if cap:
+        top = (p1 + np.array(ring)).tolist()
+        _faces(mb, [top if np.cross(np.subtract(top[1], top[0]), np.subtract(top[3], top[0])) @ d > 0 else top[::-1]], mat)
+
+
+def railing_sea(cfg: dict | None = None) -> MeshBuilder:
+    """One length of the corniche's white-painted iron railing (prompt 36): a flat handrail, a bottom rail and
+    plain balusters between them, carried by half posts at both ends (two lengths side by side make one post).
+    Its x runs along the sea edge; placements stretch it to fit (`Placement.stretch`). Thin bars share their
+    corners, so the piece stays small (about 180 vertices)."""
+    c = _cfg(cfg)
+    half, height = float(c["railing_length"]) / 2, float(c["railing_height"])
+    mb = MeshBuilder()
+    m = "railing_white"
+    low = 0.1
+    _tube(mb, (-half, 0.0, height - 0.025), (half, 0.0, height - 0.025), (0.04, 0.025), m)    # handrail
+    _tube(mb, (-half, 0.0, low), (half, 0.0, low), (0.015, 0.02), m)                           # bottom rail
+    for x in (-half + 0.015, half - 0.015):                                                    # half posts
+        _tube(mb, (x, 0.0, -0.06), (x, 0.0, height + 0.02), (0.015, 0.035), m, cap=True)
+    count = max(2, int(round(2 * half / 0.125)))
+    for x in np.linspace(-half, half, count + 1)[1:-1]:                                        # balusters
+        _tube(mb, (x, 0.0, low + 0.02), (x, 0.0, height - 0.05), (0.008, 0.008), m)
+    return mb
+
+
 def furniture_pieces(seed: int, cfg: dict | None) -> dict:
-    """{name: (MeshBuilder, category, anchor)} of the four pieces; only the kiosk draws randomness, on its
+    """{name: (MeshBuilder, category, anchor)} of the furniture pieces; only the kiosk draws randomness, on its
     own stream."""
     return {
         "bench_iron": (bench_iron(cfg), "bench", "ground"),
         "kiosk": (kiosk(seed, cfg), "kiosk", "ground"),
         "fountain_colonial": (fountain_colonial(cfg), "fountain", "ground"),
         "sabil": (sabil(cfg), "fountain", "wall"),
+        "railing_sea": (railing_sea(cfg), "railing", "ground"),   # the corniche's railing (prompt 36)
     }

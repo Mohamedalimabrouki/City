@@ -16,6 +16,9 @@ Pipeline (each step is its own module):
   greenery   street trees on arterials, courtyard trees, villa fruit trees (last: only appends trees)
   port       quays along the port districts' coast, a breakwater and its lighthouse (after everything:
              it only adds the harbor, its land and the lighthouse's landmark, appended last)
+  moorings   boats, cranes and cargo of the harbor
+  corniche   the seafront promenade on the corniche's sea side (last: appends its walks and moves only the
+             beach-side palms onto it, each keeping its index)
 """
 from __future__ import annotations
 
@@ -43,6 +46,7 @@ from .walks import make_walks
 from . import station as railway
 from .moorings import plan_props
 from .port import lengths as port_lengths, plan_port
+from .corniche import lengths as front_lengths, plan_fronts
 
 
 class CityContext:
@@ -129,6 +133,7 @@ def plan_city(world, settlement) -> CityPlan:
     plan.port, lights, plan.land = plan_port(ctx, districts, land)   # reads districts and land only
     marks += lights   # appended last: every earlier landmark keeps its index
     plan.props = plan_props(ctx, plan)   # boats, cranes and cargo (prompt 35): planned last, moves nothing
+    plan.fronts = plan_fronts(ctx, plan)  # the seafront promenade (prompt 36): appends walks, moves sea palms
     plan.stats = {"districts": len(districts), "streets": len(streets), "impasses": len(lanes),
                   "blocks": len(blocks),
                   "parcels": len(parcels), "buildings": len(buildings), "trees": len(trees),
@@ -136,5 +141,6 @@ def plan_city(world, settlement) -> CityPlan:
                   "households": len(plan.households), "souks": len(plan.souks),
                   **({"quay_m": port_lengths(plan.port)["quays"], "breakwater_m": port_lengths(plan.port)["breakwaters"]}
                      if plan.port is not None else {}),
+                  **(front_lengths(plan.fronts) if plan.fronts else {}),
                   "seconds": round(time.perf_counter() - t0, 1)}
     return plan

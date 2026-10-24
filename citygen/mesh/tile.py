@@ -37,6 +37,7 @@ from .builder import (MeshBuilder, add_arch, add_battlement, add_cap, add_dome, 
 from .gltf import write_glb
 from .landmarks import landmark_mesh
 from .station import forecourt_skirt, keep_off, rail_meshes, rail_zone, station_mesh
+from .corniche import front_meshes
 from .port import (armour_placements, breakwater_meshes, ground_masks, keep_zone, quay_placements, split_cells,
                    wall_meshes)
 from .props import tree_mesh
@@ -246,7 +247,7 @@ def walk_meshes(mb: MeshBuilder, tc: TileContext, plan, tile, street_tree=None) 
     along = None if street_tree is None else (lambda x, y: street_directions(street_tree, x, y))
     for walk in getattr(plan, "walks", ()):
         c = walk.polygon.centroid
-        if not (x0 <= c.x < x1 and y0 <= c.y < y1):
+        if walk.kind == "seafront" or not (x0 <= c.x < x1 and y0 <= c.y < y1):   # mesh/corniche.py draws those
             continue
         poly = shapely.segmentize(orient(walk.polygon, sign=1.0), tc.ground.walk_step(walk.polygon, step))   # long blocks follow the ground
         add_draped_cap(mb, poly, tc.ground.walk_top, "sidewalk", along)
@@ -662,6 +663,8 @@ def build_tile(tc: TileContext, i: int, j: int) -> tuple:
         covered_meshes(mb, tc.covers[ci], tile, dresser is not None)
         paint_meshes(mb, tc, plan, tc.paint_trees[ci], tile)
         walk_meshes(mb, tc, plan, tile, street_tree)
+        front_meshes(mb, tc, plan, tile, None if street_tree is None else
+                     (lambda x, y: street_directions(street_tree, x, y)))   # the seafront promenade (prompt 36)
         walk_width = np.zeros(len(plan.streets))
         for walk in getattr(plan, "walks", ()):
             if walk.kind == "sidewalk" and 0 <= walk.street < len(walk_width):
@@ -714,6 +717,7 @@ def build_tile(tc: TileContext, i: int, j: int) -> tuple:
                     spans += dresser.spans(int(k), tile)
                     placements += dresser.street_props(int(k), tile)
             placements += dresser.squares().placements(tile)     # benches, kiosks, fountains (prompt 26)
+            placements += dresser.seafront().placements(tile)    # lamps, benches, railing on the corniche (prompt 36)
         if len(trees):
             inside = (trees[:, 0] >= x0) & (trees[:, 0] < x1) & (trees[:, 1] >= y0) & (trees[:, 1] < y1)
             ks = np.nonzero(inside)[0]

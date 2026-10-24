@@ -1550,14 +1550,20 @@ def test_massing_keeps_every_building_household_and_street(world, plan, monkeypa
     import citygen.city as city
     monkeypatch.setattr(city, "apply_massing", lambda ctx, plan: None)
     monkeypatch.setattr(city, "greenery", lambda ctx, plan: [])
+    monkeypatch.setattr(city, "plan_fronts", lambda ctx, plan: [])   # the seafront (prompt 36) moves sea palms
     before = city.plan_city(world, world.capital())
     assert [b.kind for b in before.buildings] == [b.kind for b in plan.buildings]
     assert before.households == plan.households and before.souks == plan.souks
     old = len(before.trees)
-    assert [(t.x, t.y, t.kind, t.height) for t in before.trees] == [(t.x, t.y, t.kind, t.height) for t in plan.trees[:old]]
+    assert [(t.kind, t.height) for t in before.trees] == [(t.kind, t.height) for t in plan.trees[:old]]
+    front = shapely.union_all([w.polygon for w in plan.walks if w.kind == "seafront"])
+    moved = [k for k in range(old) if (before.trees[k].x, before.trees[k].y) != (plan.trees[k].x, plan.trees[k].y)]
+    assert len(moved) > 30 and all(plan.trees[k].kind == "palm" for k in moved)
+    assert all(front.contains(shapely.Point(plan.trees[k].x, plan.trees[k].y)) for k in moved)
+    assert all(np.hypot(before.trees[k].x - plan.trees[k].x, before.trees[k].y - plan.trees[k].y) < 2.0 for k in moved)
     assert len(plan.trees) - old == plan.stats["greenery"] > 100
     assert [s.line.wkb for s in before.streets] == [s.line.wkb for s in plan.streets]
-    skip = {"seconds", "trees", "greenery"}
+    skip = {"seconds", "trees", "greenery", "promenade_m", "beach_m"}
     assert {k: v for k, v in before.stats.items() if k not in skip} == {k: v for k, v in plan.stats.items() if k not in skip}
     count = {"chamfer": 0, "round": 0, "top": 0, "setback": 0, "steps": 0, "lift": 0, "tank": 0, "menzah": 0}
     for old, b in zip(before.buildings, plan.buildings):
@@ -2319,9 +2325,11 @@ def test_people_stand_on_the_drawn_ground_clear_of_walls_cars_pieces_and_each_ot
     assert found == set(range(len(sit))), [sit[m] for m in set(range(len(sit))) - found]
     # standing on the drawn surface: the highest drawn face under the origin, below the hips, is the floor
     # (with the walks a neighbouring tile draws: a walk piece belongs to the tile holding its centroid)
+    from citygen.mesh.corniche import front_meshes
     from citygen.mesh.tile import walk_meshes
     walks = MeshBuilder(origin=(x0, y0))
     walk_meshes(walks, tc, plan, shapely.box(x0 - 150.0, y0 - 150.0, x0 + tc.size + 150.0, y0 + tc.size + 150.0))
+    front_meshes(walks, tc, plan, shapely.box(x0 - 150.0, y0 - 150.0, x0 + tc.size + 150.0, y0 + tc.size + 150.0))
     tris = np.concatenate([q["pos"][q["idx"].reshape(-1, 3)] for m in (mb, walks) for q in m.gltf_parts().values()])
     nrm = np.cross(tris[:, 1] - tris[:, 0], tris[:, 2] - tris[:, 0])
     tris = tris[nrm[:, 1] > 0.2 * np.linalg.norm(nrm, axis=1)]
@@ -2859,3 +2867,97 @@ def test_boats_cranes_and_cargo_of_the_harbor(world, plan, ground, built_mesh):
         assert abs(keel - (float(ground.surface(p.x, p.y)) - cfg["beach_sink"])) < 0.12
         poly = box(p, cfg["size"]["boat_fishing"])
         assert not any(s.line.buffer(s.width / 2).intersects(poly) for s in plan.streets)
+
+
+def test_corniche_promenade_sea_wall_palms_benches_and_railing(world, plan, ground, built_mesh):
+    # prompt 36: along colonial, modern and residential stretches of the corniche a raised promenade between the
+    # carriageway and the sea, never over water or the harbor; its top level across, curb height above the
+    # ribbon at its curb; the beach-side palms on it in a row; lamps in the palm row, benches by the railing
+    # facing the sea; the railing along the sea edge (broken at the steps); a sea wall down past the ground;
+    # strollers and sitters on it; no paint or parked car on it; a "corniche" camera on it looking along it
+    from citygen.build import camera_views
+    from citygen.city.corniche import lengths, palms_of
+    cfg = world.style["corniche"]
+    tc, i, j, mb, placements = built_mesh
+    fronts = plan.fronts
+    walks = [w for w in plan.walks if w.kind == "seafront"]
+    assert fronts and len(walks) > 10 and plan.stats["promenade_m"] == lengths(fronts)["promenade_m"] > 500.0
+    assert plan.stats["beach_m"] > 100.0 and sum(len(f.stairs) for f in fronts) >= 2
+    assert all(plan.districts[f.district].kind in cfg["districts"] for f in fronts)
+    union = shapely.union_all([w.polygon for w in walks])
+    sidewalks = shapely.union_all([w.polygon for w in plan.walks if w.kind == "sidewalk"])
+    r = np.random.default_rng(36)
+    for w in walks:
+        st = plan.streets[w.street]
+        curb = st.width / 2 - cfg["curb"]
+        poly = w.polygon
+        assert poly.is_valid and cfg["min_width"] - 1e-6 <= w.width <= cfg["max_width"] + 1e-6
+        assert not poly.intersects(plan.port.zone) and poly.intersection(sidewalks).area < 1e-6
+        ring = np.asarray(poly.exterior.coords)
+        assert np.all(shapely.distance(st.line, shapely.points(ring)) >= curb - 1e-6)    # off the carriageway
+        x0, y0, x1, y1 = poly.bounds
+        pts = np.column_stack([r.uniform(x0, x1, 400), r.uniform(y0, y1, 400)])
+        pts = np.vstack([pts[shapely.contains_xy(poly, pts[:, 0], pts[:, 1])], ring])
+        assert np.all(ground.height(pts[:, 0], pts[:, 1]) > 0.0)                         # never over water
+        # level across: the top at any point is the top at the nearest point of the curb line
+        q = shapely.get_coordinates(shapely.line_interpolate_point(w.edge, shapely.line_locate_point(w.edge, shapely.points(pts))))
+        top = ground.surface(pts[:, 0], pts[:, 1])
+        assert np.allclose(top, ground.walk_top(q[:, 0], q[:, 1]), atol=1e-9)
+        assert np.allclose(ground.walk_top(q[:, 0], q[:, 1]) - ground.height(q[:, 0], q[:, 1]),
+                           0.3 + world.style["streets"]["curb_height"], atol=1e-9)
+    # the beach-side palms stand in a row on the promenade (moved from the carriageway: test_massing_...)
+    palms = [k for f in fronts for _, k in palms_of(plan, f, cfg)]
+    assert len(palms) > 30 and all(union.contains(shapely.Point(plan.trees[k].x, plan.trees[k].y)) for k in palms)
+    # lamps in the palm row, benches by the railing facing the sea, the railing on the sea edge
+    dresser = tc.cities[0][4]
+    items = dresser.seafront().items()
+    sea = shapely.union_all([f.sea for f in fronts])
+    lamps = [p for p in items if p.piece == "street_lamp"]
+    benches = [p for p in items if p.piece in ("bench_iron", "tounes/bench_sbs")]
+    rails = [p for p in items if p.piece == "railing_sea"]
+    assert len(lamps) > 10 and len(benches) > 10 and len(rails) > 200
+    trunks = shapely.union_all([shapely.Point(plan.trees[k].x, plan.trees[k].y).buffer(0.5) for k in palms])
+    for p in lamps + benches:
+        box = _plan_box(tc.kit, p)
+        assert union.contains(box) and not box.intersects(trunks), p
+    for p in lamps:
+        st = plan.streets[fronts[0].street]
+        assert abs(st.line.distance(shapely.Point(p.x, p.y)) - (st.width / 2 - cfg["curb"] + cfg["palm_inset"])) < 0.05
+    for p in benches:
+        front = np.array([-math.sin(p.yaw), math.cos(p.yaw)])
+        near = sea.interpolate(sea.project(shapely.Point(p.x, p.y)))
+        out = np.array([near.x - p.x, near.y - p.y])
+        assert front @ out / np.linalg.norm(out) > 0.95 and _plan_box(tc.kit, p).distance(sea) > 0.6
+    for f in fronts:
+        mine = [p for p in rails if f.sea.distance(shapely.Point(p.x, p.y)) < cfg["railing_inset"] + 0.02]
+        covered = sum(cfg["railing_piece"] * p.stretch for p in mine)
+        gaps = len(f.stairs) * (cfg["stair"][0] + 0.1)
+        assert abs(covered + gaps - f.sea.length) < 0.05 * f.sea.length
+        for p in mine:
+            d = f.sea.project(shapely.Point(p.x, p.y))
+            a, b = f.sea.interpolate(max(d - 0.5, 0.0)), f.sea.interpolate(min(d + 0.5, f.sea.length))
+            assert abs(math.cos(p.yaw) * (b.y - a.y) - math.sin(p.yaw) * (b.x - a.x)) < 0.05 * math.hypot(b.x - a.x, b.y - a.y)
+    # no street lamp of the corniche left on the promenade, no paint, no parked car on it
+    for k, st in enumerate(plan.streets):
+        if st.kind == "corniche":
+            for n in range(int(st.line.length // 24.0)):
+                spot = dresser.lamp_spot(k, n, 24.0)
+                assert spot is None or not union.contains(shapely.Point(spot[0]))
+    assert not any(m.polygon.intersects(union) for m in plan.paint)
+    tile = shapely.box(i * tc.size, j * tc.size, (i + 1) * tc.size, (j + 1) * tc.size)
+    assert union.intersects(tile)
+    cars = [p for p in placements if tc.kit.pieces[p.piece].category == "vehicle"]
+    assert not any(_plan_box(tc.kit, p).intersects(union) for p in cars)
+    # drawn: paving, the sea wall reaching under the ground, a coping band; railing and people in the tile
+    assert {"promenade", "quay_wall", "lime_white"} <= set(mb._parts)
+    wall = np.concatenate(mb._parts["quay_wall"][0]) + mb.origin
+    low = wall[np.argsort(wall[:, 2])[:20]]
+    assert np.all(low[:, 2] < ground.height(low[:, 0], low[:, 1]) - cfg["foot"] + 0.05)
+    assert any(p.piece == "railing_sea" for p in placements)
+    people = [p for p in placements if tc.kit.pieces[p.piece].category == "person" and union.contains(shapely.Point(p.x, p.y))]
+    poses = {"person_" + k: s["pose"] for k, s in world.style["dressing"]["people"]["pieces"].items()}
+    assert len(people) > 10 and any(poses[p.piece] == "sit" for p in people)
+    view = camera_views(plan, ground, style=world.style)["corniche"]
+    cam, look = shapely.Point(view["cam"][:2]), shapely.Point(view["look"][:2])
+    assert union.contains(cam) and union.contains(look) and 40.0 < cam.distance(look) < 80.0
+    assert abs(view["cam"][2] - float(ground.surface(cam.x, cam.y)) - 1.7) < 0.06

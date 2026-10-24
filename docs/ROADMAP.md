@@ -47,7 +47,7 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
 - [x] 33 A5d Station and clock tower
 - [x] 34 A6a Quays, breakwater, lighthouse
 - [x] 35 A6b Boats and cranes
-- [ ] 36 A6c Corniche promenade and beach
+- [x] 36 A6c Corniche promenade and beach
 - [ ] 37 H3c Seaside cafes
 - [ ] 38 A8 Blender kit export
 - [ ] 39 Q5 Lighter tiles
@@ -214,9 +214,11 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
   out to the city limit (33). Each returns `Building`s plus a `Landmark` with a generated name,
   appended last. Done: all appear in the capital map, gazetteer and snapshot. The lighthouse
   moved to A6 (prompt 34).
-- [ ] **A6 Port and seafront** (M) - Concrete quays along port districts, a breakwater into the
-  sea, simple cranes, fishing boats as props (new `CityPlan.props` list), a beach promenade on
-  the corniche. Done when: visible in the aerial snapshot of a coastal capital.
+- [x] **A6 Port and seafront** (M) - Concrete quays along port districts, a breakwater and its
+  lighthouse (prompt 34); fishing boats, trawlers, cranes and cargo as `CityPlan.props` (35); a raised
+  seafront promenade on the corniche's sea side along colonial, modern and residential stretches, with
+  palms, lamps, benches facing the sea, a low sea wall with a white railing and steps down to the beach
+  (`CityPlan.fronts`, 36). Done: the "port" and "corniche" views and the aerial snapshot show them.
 - [x] **A7 More greenery** (S) - Trees along arterials in colonial and modern districts, green
   garden ground in villa lots, olive or citrus trees in some courtyards. Done when: map and
   snapshot show it, tree count rises without slowing the build by more than 15%.

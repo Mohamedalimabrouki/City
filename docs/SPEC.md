@@ -38,7 +38,9 @@ This is the contract every change must respect. Read the sections your task touc
   street-ribbon lift (`STREET_LIFT`, highest where streets overlap) and the curb height of a
   raised sidewalk or promenade to that height. On a walk, the lift of any street within
   `[streets] walk_reach` counts (`Ground.walk_top`), because a sidewalk's block-side edge lies on
-  the street outline, where rounding can miss the street. Inside a city the natural terrain is
+  the street outline, where rounding can miss the street. The corniche's seafront promenade (prompt 36) is
+  level across: a point on it takes the walk top of the nearest point of its stretch's curb line
+  (`Walk.edge`, shared by the stretch's pieces, so they meet at one height). Inside a city the natural terrain is
   sampled only in the edge band, where it has weight; deeper in, the height is the graded one.
 
 ## 4. Pipeline and modules
@@ -70,7 +72,9 @@ config.load_config()          defaults.toml + worlds/*.toml + CLI overrides
                               (last, after the road paint; only appends to `trees`)
       port                    quays along the port districts' coast, a breakwater and its lighthouse
                               (after everything: adds `port`, the aprons to `land`, the lighthouse landmark)
-      moorings                boats, cranes and cargo of the harbor (the very last step: only sets `props`)
+      moorings                boats, cranes and cargo of the harbor (only sets `props`)
+      corniche                the seafront promenade (the very last step: sets `fronts`, appends seafront
+                              walks, moves the beach-side palms onto them, each keeping its index)
   city.ground.Ground()        graded ground inside cities: smoothed, terraced under blocks, level under
                               the station (blending back over [station] level_band), level on the quays
                               and stepping down at their walls to a dredged basin,
@@ -99,6 +103,7 @@ build.build()                 orchestrates the above into output/<country>-<seed
 | `citygen/mesh/vaults.py` | covered souks (prompt 31): barrel vaults, impost bands, transverse arches, light openings, lantern rods |
 | `citygen/mesh/landmarks.py` | the cathedral and the theatre (prompt 32): portals, rose window, towers, gables, crossing dome, apse; rounded corners, parapet, pavilion, crown, canopy, stage tower |
 | `citygen/mesh/port.py` | the harbor (prompt 34): quay paving and the terrain cells a wall crosses drawn in two parts, quay walls with the wet band and kerb, the rubble breakwater (loft, crest road, crown wall, round head), the lighthouse; kit pieces `bollard`, `fender`, `armour_rock_0..2` and their placements |
+| `citygen/mesh/corniche.py` | the corniche's seafront (prompt 36): promenade paving on the walk's own outline points, curb, sea wall (whitewashed coping band over `quay_wall` stone reaching `foot` m under the ground), flights of steps to the beach |
 | `citygen/mesh/boats.py` | boats (prompt 35): a lofted hull with painted bands; fishing boats `boat_lateen`, `boat_cabin`, `boat_rowing` sharing one hull, the `boat_trawler`; shared helpers `surface`, `prisms`, `flat`, `boxes`, `heap`, `light` |
 | `citygen/mesh/cranes.py` | the commercial quay (prompt 35): lattice-boom portal cranes `crane_0`, `crane_1`, `crane_rails`, `cargo_crates`, `cargo_containers_0..1` |
 | `citygen/mesh/station.py` | the railway station (prompt 33): head building with entrance pavilion and clock tower (dials and hands), platforms with canopies on posts, buffer stops; the tracks tile by tile (sleeper bed, rails, level crossings); `keep_off` |
@@ -123,6 +128,7 @@ build.build()                 orchestrates the above into output/<country>-<seed
 | `citygen/city/kasbah.py` | the kasbah (prompt 30): placement on the old town's high edge, walls, towers, gate tower, palace, mosque, parade ground |
 | `citygen/city/landmarks.py` | the boulevard's cathedral and theatre (prompt 32): sites on merged colonial lots, the local frame and plan shapes shared with the mesh, names, their camera views |
 | `citygen/city/port.py` | the harbor (prompt 34): quay lines from the port districts' coast, aprons and level cores, the breakwater, basin and lighthouse (name, color scheme), the ground zones (shore, raised side, walls, dredge), the "port" camera |
+| `citygen/city/corniche.py` | the corniche's seafront (prompt 36): `plan_fronts` fills `CityPlan.fronts` and the seafront walks and moves the beach-side palms; `Seafront` (lamps, benches, railing; `Dresser.seafront()`); the "corniche" camera |
 | `citygen/city/moorings.py` | boats, cranes and cargo (prompt 35): `plan_props` fills `CityPlan.props`; `box` (a prop's plan envelope), `land_zone` (where props stand on land) |
 | `citygen/city/station.py` | the railway station (prompt 33): site at the colonial edge, track layout and corridor, street and walk clipping, buildings and name, its camera view |
 | `citygen/city/massing.py` | building massing (prompt 23): the planning step, `masses(b)` (the volumes drawn and dressed), `floors_at`/`wall_height` (floors and wall height at a point of the outer wall), `outline`, `inner_walls`, `terrace_walls` |
@@ -162,9 +168,14 @@ block on `rng("impasse", block)`: lot line jitter, widths, covered share and len
   (x, y, yaw, scheme)], and the ground zones `core`, `apron`, `shore`, `raised`, `walls`, `dredge`, `zone`),
   `props` (prompt 35: [`Prop(kind, x, y, yaw, scale, on)`]: a kit piece the planner places itself; `yaw` turns
   the piece's +x, a boat's bow, to (cos yaw, sin yaw); `on` is `sea` (floats, waterline at z = 0), `quay` (on
-  the quay top) or `beach` (drawn up on the sand)).
-- `Walk(kind, polygon, width, street, side, district, block)`: a raised sidewalk (`sidewalk`)
-  or the boulevard's central promenade (`promenade`). `width` is the actual width after a tight
+  the quay top) or `beach` (drawn up on the sand)), `fronts` (prompt 36: [`Front(street, side, district, edge,
+  sea, span, stairs, beach)`]: a stretch of the corniche's seafront promenade; `edge` the curb line and `sea` the
+  sea wall's top edge, point for point opposite, along the street's direction; `span` (start, end) meters along
+  the street; `stairs` [(x, y, ux, uy)] flights to the beach at the sea edge, (ux, uy) out to sea; `beach` meters
+  with at least `beach_min` m of sand beyond the wall).
+- `Walk(kind, polygon, width, street, side, district, block, edge)`: a raised sidewalk (`sidewalk`),
+  the boulevard's central promenade (`promenade`) or a piece of the corniche's seafront promenade
+  (`seafront`, prompt 36, `edge` its stretch's curb line). `width` is the actual width after a tight
   street narrows it; `street` and `side` (`+1` left, `-1` right) let later street features find
   the carriageway edge.
 - `Tree(x, y, kind, height)`: kinds `broadleaf`, `palm`, `cypress`, `olive`, `citrus` (prompt 24).
@@ -399,6 +410,31 @@ block on `rng("impasse", block)`: lot line jitter, widths, covered share and len
   capital: 98 fishing boats (7 drawn up on the beach) and 13 trawlers (4 boats at anchor), 3 cranes on 28 rail
   lengths, 30 crate stacks and 26 container stacks; full capital: 108 and 13 (4 at anchor, no beach near the
   port), 3 cranes, 31 rails, 41 crates, 24 containers.
+- **Seafront promenade** (prompt 36, `city/corniche.py`, `mesh/corniche.py`, `[corniche]`): the very last
+  planning step. The corniche is walked in `step` m stations; a station counts where the district on its land
+  side is in `districts` (colonial, modern, residential: the harbor, industrial and cemetery stretches keep the
+  plain corniche) and the sea side has room: from the curb, `curb` m inside the corniche's sea edge, to the water
+  line (the natural ground `water` m above the sea; seaward of the corniche's center line lies the city limit, so
+  the ground there is the natural terrain). The width is `width` while `beach_min` m of sand remain; as the water
+  comes closer the wall moves out with it, reaching the water at `max_width` (`width_for`, continuous), averaged
+  over five stations and never past the water; under `min_width` no promenade. A segment between two stations
+  counts when no other street covers more than `cross_area` m2 of its band and it keeps `clear` m from the
+  harbor's ground (`Port.zone`) and the drawn-up boats (`land_zone`). Runs of segments are the `Front`s, cut
+  into `piece` m `Walk("seafront")`s; steps every `stair_every` m where `stair_sand` m of sand lie beyond the
+  wall. The beach-side palm row of `street_trees` moves onto the promenade, `palm_inset` m from the curb at the
+  same station (index, kind and height kept). `stats` gets `promenade_m` and `beach_m`. Drawn (the tile holding
+  the walk's centroid): paving (`promenade`, 0.8 m slabs along the street), a curb face on the street side, the
+  sea wall on the sea side and at open ends (`coping` m of `lime_white` over `quay_wall`, down to `foot` m under
+  the ground), flights of steps (risers up to `stair[1]`, treads `stair[2]`). Dressed (`Dresser.seafront()`, once
+  per city, a tile keeps what it holds): a `street_lamp` in the palm row in every `lamp_every`th gap between
+  palms (`rng("seafront", "lamp", k, palm)`), a bench (role `seafront_bench`: the iron bench) by chance `bench`
+  in each gap, `bench_back` m in from the sea edge and facing the sea (`rng("seafront", "bench", k, palm)`), and
+  the `railing_sea` piece (white iron, 2 m, stretched between the sea edge's bends, broken at the steps); the
+  corniche's own street lamps on the promenade are left out (`lamp_spot`). Strollers walk between the palms and
+  the benches (`[people.seafront]`), sitters take the benches. The index gets a "corniche" camera (eye level on
+  the promenade of the longest stretch near the center, looking 60 m along it). Quick capital: 752 m of
+  promenade (272 m with a beach), 6 flights, 53 palms, 26 lamps, 40 benches; full capital: 4192 m (all with a
+  beach), 58 flights, 295 palms, 146 lamps, 221 benches.
 
 Invariants (tested): buildings are valid polygons inside the city and stay off street surfaces
 (impasses included); every old-town dwelling's main door opens on a street, alley or impasse; an
@@ -432,7 +468,10 @@ the lighthouse (the last landmark) on its head; no building, tree or other piece
 quay edge but bollards, fenders, armour stones and the harbor's props; boats float with the waterline at 0 over
 water deeper than their keel, off the quays, the breakwater, the shore and each other, cranes, rails and cargo
 stand on the apron at quay level clear of the bollards, drawn-up boats rest on the sand above the water, and
-nothing else stands where props stand on land; everything is deterministic.
+nothing else stands where props stand on land; the seafront promenade lies between the corniche's carriageway
+and the sea, off the harbor and never over water, level across at curb height above the ribbon at its curb,
+with the beach-side palms on it (same index, kind, height), lamps in the palm row, benches by the railing facing
+the sea, the railing along the sea edge, no paint or parked car on it; everything is deterministic.
 
 ## 6. Output files (`output/<country>-<seed>/`)
 
@@ -445,7 +484,7 @@ breakwater lines, basins, lighthouses) when it has a harbor, `props` (`kind`, `x
 | `maps/country.png`, `maps/<city>.png` | 2D maps, north up |
 | `tiles/tile_<i>_<j>.glb` | 3D tile covering x `i*512..(i+1)*512`, y `j*512..(j+1)*512` |
 | `tiles/textures/*.png` | base-color images shared by the tiles (`[tiles] textures = "shared"`, the default) |
-| `tiles/index.json` | `citygen-tiles/1`: tile list (bytes, unique and drawn triangles, dressing pieces), `"parapets": true` when the tiles carry their own roof parapets, `focus` point, camera `views` (street, souk, and cathedral, theatre, station and port when the city has them), `cities` (name, plan file, bounds) |
+| `tiles/index.json` | `citygen-tiles/1`: tile list (bytes, unique and drawn triangles, dressing pieces), `"parapets": true` when the tiles carry their own roof parapets, `focus` point, camera `views` (street, souk, and cathedral, theatre, station, port and corniche when the city has them), `cities` (name, plan file, bounds) |
 | `summary.json` | counts and timings (read this instead of big files) |
 
 **.glb conventions:** one root node per tile with `translation = [x0, 0, -y0]`; vertices are
@@ -755,7 +794,8 @@ shaders (which ignore the image and the tint) and takes their palette color from
   the same way so their feet pass; `doukkana`, `bench_iron`, `tounes/bench_sbs` facing their front; at
   seat height - `[dressing.people] seat`); sidewalk strollers on both sides of every street with walks
   (`[people.sidewalk]`, chance by the district behind the walk, along the walk's middle from
-  `parking.walk_extents`); promenade strollers on the boulevard's islands (`[people.promenade]`); people
+  `parking.walk_extents`); promenade strollers on the boulevard's islands (`[people.promenade]`) and on the
+  corniche's seafront promenade between the palms and the benches (`[people.seafront]`); people
   along the great mosque's outline and round each medina gate (`[people.landmark]`, half standing and
   facing it); kiosk customers at the window and people round a fountain (`[people.square]`); walkers in
   medina lanes and village streets (`[people.lane]`); and on the stair paths of modern estates
@@ -763,8 +803,8 @@ shaders (which ignore the image and the tint) and takes their palette color from
   child, side by side (`pair_gap`). Outfits from `[people.outfits]` by district kind (`cafe` for cafes,
   `children` beside a parent); every chance times `density`.
   The tile also gathers a halo (`halo` m) of what its neighbours own: wall pieces of their buildings
-  (`Dresser.wall_pieces`), street props and cars, squares and trees. Candidates are sorted (seats, squares,
-  shops, landmarks, stairs, promenade, sidewalks, souks, lanes) and one gives way to any earlier one too
+  (`Dresser.wall_pieces`), street props and cars, squares, the seafront's pieces and trees. Candidates are
+  sorted (seats, squares, shops, landmarks, stairs, promenade, seafront, sidewalks, souks, lanes) and one gives way to any earlier one too
   close, judged on the candidates alone with each pose's largest kit box: standing people `clear` apart,
   `seated_gap` from a seated one, `pair_gap` within a group; so tiles agree at their edges. The tile's own
   then go through `_cast` (each figure shown costs its mesh in the tile: the most frequent figures are

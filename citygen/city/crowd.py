@@ -46,8 +46,8 @@ from .parking import design_widths, lying_on, street_frame, walk_extents
 FOOT = ("souk", "alley", "impasse")
 GROUND, WALK, LANE, ROAD = 0, 1, 2, 3          # floor kinds
 ANY_FLOOR = (GROUND, WALK, LANE)
-RANK = {"seat": 0, "square": 1, "shop": 2, "landmark": 3, "stair": 4, "promenade": 5, "sidewalk": 6,
-        "souk": 7, "lane": 8}                   # who gives way to whom: a later rank to an earlier one
+RANK = {"seat": 0, "square": 1, "shop": 2, "landmark": 3, "stair": 4, "promenade": 5, "seafront": 6, "sidewalk": 7,
+        "souk": 8, "lane": 9}                   # who gives way to whom: a later rank to an earlier one
 
 PEOPLE = {   # `[people]` in the style overrides these
     "density": 1.0, "halo": 4.5, "clear": 0.5, "pair_gap": 0.15, "seated_gap": 0.2, "wall_gap": 0.05,
@@ -59,6 +59,7 @@ PEOPLE = {   # `[people]` in the style overrides these
                                          "industrial": 0.04, "port": 0.06}, "edge": 0.55, "carry": 0.15,
                  "pair": 0.25, "family": 0.12},
     "promenade": {"step": 5.0, "chance": 0.6, "offset": [1.5, 3.3], "carry": 0.1, "pair": 0.3, "family": 0.2},
+    "seafront": {"step": 5.0, "chance": 0.6, "carry": 0.1, "pair": 0.35, "family": 0.25},
     "landmark": {"mosque": {"step": 3.5, "chance": 0.45, "reach": [1.5, 6.0]},
                  "gate": {"count": 10, "chance": 0.5, "reach": [2.5, 10.0]},
                  "stand": 0.5, "pair": 0.2},
@@ -207,6 +208,7 @@ class Crowd:
                 out += [p for p in d.street_props(j, ring) if not own(p.x, p.y)]
         if "squares" in d.cfg:
             out += [p for p in d.squares().placements(region) if not own(p.x, p.y)]
+        out += [p for p in d.seafront().placements(region) if not own(p.x, p.y)]
         if plan.trees and d.tree_index() is not None:
             ks = [int(i) for i in sorted(d.tree_index().query(ring, predicate="intersects"))
                   if not own(plan.trees[int(i)].x, plan.trees[int(i)].y)]
@@ -242,6 +244,7 @@ class Crowd:
             if self.walk_tree is not None and not self.shared[k]:
                 out += self._sidewalk(k)
         out += self._promenade()
+        out += self._seafront()
         for idx, p in enumerate(near):
             if not (x0 <= p.x < x1 and y0 <= p.y < y1):
                 continue
@@ -440,6 +443,44 @@ class Crowd:
                     head = 1.0 if rng.random() < 0.5 else -1.0
                     out += self._group(rng, "promenade", (k, si, int(i[m])), c, t[m] * head,
                                        self._mix(self._kind_at(c)), "walk", float(cfg["carry"]), cfg, (WALK,))
+        return out
+
+    def _seafront(self) -> list:
+        """Strollers on the corniche's seafront promenade (prompt 36): every `step` m, anywhere across the free
+        band between the palm row and the benches along the railing."""
+        fronts = getattr(self.plan, "fronts", ())
+        cfg_f = self.d.world.style.get("corniche", {})
+        if not fronts or not cfg_f:
+            return []
+        cfg = self.cfg["seafront"]
+        x0, y0, x1, y1 = self._box
+        box = shapely.box(x0, y0, x1, y1)
+        near = box.buffer(16.0)
+        out = []
+        for fi, f in enumerate(fronts):
+            if not f.sea.intersects(near):
+                continue
+            st = self.plan.streets[f.street]
+            curb = st.width / 2.0 - float(cfg_f["curb"])
+            lo = curb + float(cfg_f["palm_inset"]) + 0.9
+            i, p, n, t = self._stations(st.line, float(cfg["step"]), f.span[0] + 1.0, st.line.length - f.span[1] + 1.0)
+            if not len(i):
+                continue
+            far = shapely.distance(f.sea, shapely.points(p)) - 0.5           # from the line to the sea edge, less a margin
+            hi = np.minimum(far, curb + float(cfg_f["width"]) + 2.0) - float(cfg_f["bench_back"]) - 0.75
+            for m in range(len(i)):
+                if not near.contains(Point(p[m])):            # the farthest stroller stands about 13 m off the line
+                    continue
+                rng = self.d.rng("people", "seafront", f.street, fi, int(i[m]))
+                if rng.random() >= self.chance(cfg["chance"]) or hi[m] <= lo:
+                    continue
+                c = p[m] + n[m] * f.side * rng.uniform(lo, float(hi[m])) + t[m] * rng.uniform(-1.5, 1.5)
+                if not self._in(c):
+                    continue
+                head = 1.0 if rng.random() < 0.5 else -1.0
+                out += self._group(rng, "seafront", (f.street, fi, int(i[m])), c, t[m] * head,
+                                   self._mix(self._kind_at(p[m] - n[m] * f.side * (st.width / 2.0 + 8.0))), "walk",
+                                   float(cfg["carry"]), cfg, (WALK,))
         return out
 
     @staticmethod

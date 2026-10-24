@@ -99,7 +99,7 @@ class Prop:
 @dataclass
 class Walk:
     """A raised sidewalk or the boulevard's central promenade, in world meters."""
-    kind: str          # sidewalk | promenade
+    kind: str          # sidewalk | promenade | seafront (the corniche's, prompt 36)
     polygon: object    # shapely Polygon of the raised top
     width: float       # actual width in meters (after narrowing at tight streets) along `street`
     street: int = -1   # nearest street; the boulevard for a promenade. A sidewalk wraps its whole
@@ -108,6 +108,21 @@ class Walk:
     side: int = 0      # +1 left of the street line, -1 right, 0 the middle (promenade)
     district: int = -1 # district of the block behind a sidewalk
     block: int = -1    # index in CityPlan.blocks
+    edge: object = None  # seafront (prompt 36): its stretch's curb line; the top is level across, at the curb
+
+
+@dataclass
+class Front:
+    """A stretch of the corniche's seafront promenade (prompt 36, city/corniche.py), from station to station."""
+    street: int        # the corniche
+    side: int          # +1: the sea lies left of the street line, -1: right
+    district: int      # the district on the land side
+    edge: object       # LineString: the curb (street side), along the street's direction
+    sea: object        # LineString: the sea wall's top edge, point for point opposite `edge`
+    span: tuple        # (start, end) meters along the street line
+    stairs: list = field(default_factory=list)  # [(x, y, ux, uy)]: flights down to the beach, at the sea edge,
+                       # (ux, uy) pointing out to sea
+    beach: float = 0.0 # meters of the stretch with at least `beach_min` m of sand beyond the wall
 
 
 @dataclass
@@ -139,3 +154,4 @@ class CityPlan:
     station: object = None    # city/station.py: the railway station's tracks, precinct and corridor (prompt 33)
     port: object = None       # city/port.py: quays, breakwater, lighthouse and the ground zones they change (prompt 34)
     props: list = field(default_factory=list)   # city/moorings.py: boats, cranes and cargo of the harbor (prompt 35)
+    fronts: list = field(default_factory=list)  # city/corniche.py: the corniche's seafront promenade (prompt 36)

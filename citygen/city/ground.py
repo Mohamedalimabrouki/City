@@ -270,6 +270,10 @@ class Ground:
         self.walk_reach = float(streets_cfg.get("walk_reach", 0.05))
         walks = [w.polygon for plan in plans for w in getattr(plan, "walks", [])]
         self.walk_tree = STRtree(walks) if walks else None
+        fronts = [w for plan in plans for w in getattr(plan, "walks", []) if w.kind == "seafront"]
+        self.front_tree = STRtree([w.polygon for w in fronts]) if fronts else None   # the corniche's (prompt 36)
+        self.front_edges = np.array([w.edge for w in fronts], dtype=object)
+        self.front_box = shapely.total_bounds(self.front_tree.geometries) if fronts else None
         aprons = [b.apron for plan in plans for b in plan.buildings if getattr(b, "apron", None) is not None]
         self.apron_tree = STRtree(aprons) if aprons else None   # paved lot corners at cut corners (prompt 23)
         self.apron_reach = float(streets_cfg.get("apron_reach", 6.0))
@@ -516,7 +520,31 @@ class Ground:
         return float(out[0]) if np.ndim(x) == 0 else out.reshape(np.shape(x))
 
     def _walk_top(self, x: np.ndarray, y: np.ndarray, h: np.ndarray) -> np.ndarray:
-        return h + np.ravel(np.asarray(self.lift(x, y, self.walk_reach), dtype=np.float64)) + self.curb_height
+        out = h + np.ravel(np.asarray(self.lift(x, y, self.walk_reach), dtype=np.float64)) + self.curb_height
+        if self.front_tree is not None and len(x):
+            self._front_top(x, y, out)
+        return out
+
+    def _front_top(self, x: np.ndarray, y: np.ndarray, out: np.ndarray) -> None:
+        """On the corniche's seafront promenade (prompt 36) the top is level across: a point takes the walk top
+        of the point of its stretch's curb line (`Walk.edge`) nearest to it, curb height above the ribbon there.
+        A stretch's pieces share one curb line, so they meet at one height."""
+        x0, y0, x1, y1 = self.front_box
+        r = self.walk_reach
+        sel = np.nonzero((x >= x0 - r) & (x <= x1 + r) & (y >= y0 - r) & (y <= y1 + r))[0]
+        if not len(sel):
+            return
+        pts = shapely.points(x[sel], y[sel])
+        inp, hit = self.front_tree.query(pts, predicate="dwithin", distance=r)
+        if not len(inp):
+            return
+        first = np.unique(inp, return_index=True)[1]
+        inp, hit = inp[first], hit[first]
+        edges = self.front_edges[hit]
+        q = shapely.get_coordinates(shapely.line_interpolate_point(edges, shapely.line_locate_point(edges, pts[inp])))
+        hq = np.ravel(np.asarray(self.height(q[:, 0], q[:, 1]), dtype=np.float64))
+        lift = np.ravel(np.asarray(self.lift(q[:, 0], q[:, 1], self.walk_reach), dtype=np.float64))
+        out[sel[inp]] = hq + lift + self.curb_height
 
     def _apron_lift(self, x: np.ndarray, y: np.ndarray) -> np.ndarray:
         """Street lift a paved lot corner takes: the lifts of the streets within `apron_reach`, weighted by

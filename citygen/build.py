@@ -17,6 +17,7 @@ from .buildkey import build_key
 from .city import plan_city
 from .city.ground import Ground
 from .city.landmarks import landmark_views
+from .city.corniche import view as corniche_view
 from .city.port import view as port_view
 from .city.station import view as station_view
 from .city.streets import view_spot
@@ -60,7 +61,8 @@ def select_area(world, area: str) -> tuple:
 def camera_views(plan, ground, reach: float = 600.0, style: dict | None = None) -> dict:
     """Eye-level camera spots near the city center (generator coords): the boulevard, a souk, and one on each
     boulevard landmark the city has, "cathedral" and "theatre" (prompt 32, the style's `[landmarks] camera`),
-    "station" on the avenue before the railway station (prompt 33) and "port" over the harbor (prompt 34)."""
+    "station" on the avenue before the railway station (prompt 33), "port" over the harbor (prompt 34) and
+    "corniche" on the seafront promenade (prompt 36)."""
     center = Point(plan.settlement.x, plan.settlement.y)
     views = {}
     for name, kinds in (("street", ("boulevard", "arterial", "street")), ("souk", ("souk",))):
@@ -81,6 +83,9 @@ def camera_views(plan, ground, reach: float = 600.0, style: dict | None = None) 
     spot = port_view(plan, ground, (style or {}).get("port", {}))
     if spot is not None:
         views["port"] = spot
+    spot = corniche_view(plan, ground, style or {})
+    if spot is not None:
+        views["corniche"] = spot
     return views
 
 

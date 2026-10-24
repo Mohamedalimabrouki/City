@@ -578,6 +578,24 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
   the real viewer (`python -m citygen view`), not only in `before_after` close-ups (unshared hulls gave the
   same picture, so it is not the shared parts). Commercial quay by the mouth, fishing port in the sheltered end:
   realistic and it reads in the "port" view (cranes in front, the fleet behind).
+- **Seafront promenade** (prompt 36, `city/corniche.py`, `mesh/corniche.py`, `[corniche]`): the corniche's center
+  line is the city limit, so its sea half and the beach lie outside the city and the ground there is the natural
+  terrain: the planner can find the water line from `terrain.height` before any `Ground` exists. A walk's top
+  normally follows the ground under each point (h + lift + curb); across the promenade that is a 0.65 m cross
+  fall (the street lift ends at the corniche's edge and the beach falls away), so a seafront walk is level across:
+  `Ground._walk_top` takes the walk top at the nearest point of the stretch's curb line (`Walk.edge`, one line
+  shared by all its pieces, so pieces meet at one height). The sea wall is then only the walk's skirt in other
+  materials (coping band, stone), down `foot` m under the ground. A width rule with a step (8 m, else 10 m
+  where the sand is short) zigzagged the wall where the room hovered at the threshold: `width_for` is
+  continuous and widths are averaged over five stations. Side streets ending on the center line graze the band
+  with a corner of their surface: they break it only above `cross_area` m2, or the promenade had 8 m holes at
+  every junction. The people test adds the neighbours' walks to find the drawn floor: it must add their seafront
+  pieces too (`front_meshes`). Bytes: the kit's blue bench (43 KB a tile) took half a light tile's budget, so
+  the role `seafront_bench` keeps the iron bench only; the railing as shared-vertex bars is 160 vertices (the
+  first, with `add_triangles` bars and lozenges, 1,250 vertices, 44 KB). Two light sea tiles of the full capital
+  (60_106, 68_106: the coast runs along the tile row edge y = 54,272 m, so they get the promenade's sea half)
+  grow +18-20% (about +45-50 KB: bench, lamp, railing, one figure, paving); quick tiles +5.1% at most. The
+  headless snapshot hides the narrow beach and the steps' lower treads (under 1 m above the sea).
 - **Old-town tiles** reach about 5 MB on the quick build and 8 MB on the full capital
   (`tile_65_106`, mostly roofs since prompt 15); task Q5 (prompt 39) brings them down.
 

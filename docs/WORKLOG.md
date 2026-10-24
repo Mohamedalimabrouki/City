@@ -15,6 +15,40 @@ Entry format:
 - Doubts and questions for Ali: <none, or the question>
 ```
 
+## 2026-10-24 - Prompt 36 A6c Corniche promenade and beach
+- Commit: (see git log) | Model: Opus 5.5, medium (playbook: Sonnet, medium)
+- Changed: `citygen/city/corniche.py` (new: `plan_fronts`, `width_for`, `palms_of`, `Seafront`, `view`),
+  `citygen/mesh/corniche.py` (new: paving, curb, sea wall, steps), `citygen/city/model.py` (`Front`, `Walk.edge`,
+  `CityPlan.fronts`), `citygen/city/__init__.py` (last step, stats), `citygen/city/ground.py` (level seafront top),
+  `citygen/city/dressing.py` (`Dresser.seafront`, corniche lamps off the promenade), `citygen/city/crowd.py`
+  (seafront strollers, halo), `citygen/mesh/tile.py`, `citygen/mesh/furniture.py` (`railing_sea`), `citygen/kit.py`
+  (no UVs on the railing), `citygen/build.py` ("corniche" view), `citygen/export/maps.py`, `styles/maghreb.toml`
+  (`[corniche]`, `[people.seafront]`, role `seafront_bench`, palette `promenade`, `railing_white`), tests, docs.
+- Design: on the sea side of the corniche along colonial, modern and residential stretches, a raised promenade from
+  a curb 3.2 m inside the corniche's sea edge (carriageway 11.6 m), 8 m wide where 3 m of sand remain, widening to
+  10 m as the water comes close (the wall then at the water), level across at curb height; palm row 1.5 m from
+  the curb (the old beach-side row moved about 0.8 m, index, kind and height kept), a lamp in every second gap
+  between palms, iron benches by the railing facing the sea, a white iron railing (2 m lengths stretched to fit),
+  sea wall with a whitewashed coping band over stone, steps to the sand every 72 m where 2.4 m of sand remain.
+  The harbor, industrial and cemetery stretches keep the plain corniche; the corniche's own sea-side lamps on the
+  promenade are left out.
+- Counts: quick capital 752 m of promenade (272 m with a 3 m beach), 6 flights, 53 palms, 26 lamps, 40 benches,
+  368 railing lengths, 151 strollers and 13 sitters on it; full capital 4,192 m (all with a beach), 58 flights,
+  295 palms, 146 lamps, 221 benches, 2,013 railing lengths, 729 strollers and 169 sitters.
+- Checks: tests 94 passed (27 s; the new test 0.2 s); `build --quick` 12.0 s (HEAD 11.8 s);
+  fingerprint: plan/goumosbane/trees and stats, tiles/index, maps, gazetteer, kit/railing_sea (new), quick tiles
+  12_23 +5.1%, 13_24 +3.1%, 13_23 +0.5%. Full capital: 11 tiles +0.4-8.6%, but 68_106 +19.6% (256 -> 306 KB) and
+  60_106 +17.7% (256 -> 301 KB): light sea tiles holding the promenade's sea half (the coast runs along the tile
+  row edge). Full capital 54.0 s before, 56.3 and 57.6 s after (CPU +4%).
+- Look: `output/checks/36.png` (corniche view: promenade, railing, benches with sitters, palms and lamps, the town
+  across the corniche), `output/checks/36-beach.png` (from the water: sea wall, coping, railing broken at a flight
+  of steps; the headless renderer hides the narrow sand strip under 1 m above the sea, the GPU viewer shows it).
+  Blender: `output/bodjantouna-42/goumosbane.blend` (new camera "corniche").
+- Doubts and questions for Ali: the two light sea tiles over the +10% byte budget (see Checks), as in prompts 34-35;
+  the bench mix of prompt 26 is replaced here by the iron bench alone (`seafront_bench`) for bytes.
+- Lead decisions: the two light sea tiles of the full capital over +10% (`tile_68_106` +19.6%, `tile_60_106` +17.7%, 256 KB tiles that now hold the promenade's sea half) are accepted, as for prompts 34-35; the corniche uses the iron bench only (`seafront_bench`), since the kit's blue bench costs 43 KB per tile.
+
+
 ## 2026-10-24 - Prompt 35 A6b Boats and cranes
 - Commit: (see git log) | Model: Opus 5.5, medium (playbook: Sonnet, medium)
 - Changed: `citygen/city/moorings.py` (new: `plan_props`, `box`, `land_zone`), `citygen/mesh/boats.py` (new: hull loft,
