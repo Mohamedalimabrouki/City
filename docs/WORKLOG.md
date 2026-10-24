@@ -49,7 +49,34 @@ Entry format:
   `output/city1/bodjantouna-42` (Sazouches el Gharbi). `python -m citygen list` names every settlement;
   `python -m citygen build --area city:NAME --out output/FOLDER` builds one, then `citygen view` it.
 - Doubts and questions for Ali: none.
-- Added after the pause note, at Ali's request: the city gallery and keyboard navigation (entry below).
+- Added after the pause note, at Ali's request: the city gallery and keyboard navigation, then the cemetery
+  cypress that won a model duel (entries below).
+
+## 2026-10-25 - Cemetery cypress, winner of a model duel (Ali's request, between prompts)
+- Commit: (see git log) | Model: Opus 5.5 helper, effort high; lead review Opus 5.5
+- Duel: after X posts claimed Sonnet beats Opus, Ali had three helpers take the same free prompt ("improve
+  the weakest-looking asset of your choice", isolated worktrees from 448a15b): Sonnet 5.5 high, Opus 5.5 high,
+  Opus 5.5 max. All three chose `tree_cypress`, a 6-triangle cone planted 615 times in the cemetery. Lead's
+  scores (look 30%, solid work 25%, thinking 15%, efficiency 15%, code 10%, city cost 5%): Opus high 8.2 (best
+  look and value), Opus max 8.0 (cleanest code and test; 319k tokens and 31 min, about 1.9x the cost),
+  Sonnet high 7.5 (half the price, hard colour bands). Ali chose Opus high. The three worktrees stay in
+  `.claude/worktrees/agent-*` (Ali: keep them for later).
+- Changed: `citygen/mesh/trees.py` (`cypress_piece`: a jittered 7-sided spindle turned from a style profile,
+  three shades with a ragged line between them, 5-7 pointed upright tufts, a short trunk, a slight lean;
+  3 variants on their own streams `("props", "tree", "cypress", v)`), `citygen/mesh/plants.py`
+  (`smooth_normals` split out of `smooth_add`, the other plants byte for byte the same),
+  `styles/maghreb.toml` (`[dressing.trees.cypress]`, two cypress shades, role `tree_cypress`), a test in
+  `tests/test_citygen.py`. Each planted cypress picks its variant with the per-tree draw `rng("tree", k)`
+  that palms and broadleaf trees already use, which nothing else reads for a cypress.
+- Checks: 106 tests (30 s); quick build 13 s; fingerprint 8 of 282 parts: kit/tree_cypress (6 -> 156
+  triangles), kit/tree_cypress_b (164) and _c (156) added, the 4 cemetery tiles (+16-23 KB each, drawn
+  triangles +1.9%) and the index; the tiles are byte for byte those of the reviewed worktree. Side effect:
+  the bigger tile_12_22 raises its people's byte budget (`bytes_share`), so 3 walkers there show their own
+  safsari instead of the hijab stand-in.
+- Look: `output/checks/model-duel-3-way.png` and `model-duel-3-way-zoom.png` (the old cone and the three
+  versions from the same two cameras in the cemetery: eye level and 45 m up); Blender:
+  `output/bodjantouna-42/goumosbane.blend`.
+- Doubts and questions for Ali: none. Up close the tufts read a little as diamonds.
 
 ## 2026-10-24 - City gallery and keyboard navigation (Ali's request, between prompts)
 - Commit: (see git log) | Model: Opus 5.5 (lead, no helper)

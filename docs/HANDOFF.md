@@ -53,6 +53,12 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
   git tag `before-deepseek` stays as the backup point. DeepSeek usage ended after prompt 19
   (23 October 2026): from prompt 20 the lead session (Opus) runs each prompt with an Opus helper,
   reviews its diff, tests, fingerprint and pictures, fixes, then commits one commit per prompt.
+- On 24-25 October Ali ran a model duel: the same free prompt ("improve the weakest asset") for Sonnet 5.5
+  high, Opus 5.5 high and Opus 5.5 max, each in its own worktree. All three chose the cemetery cypress.
+  Opus high's (best look and value, 8.2 of 10) is merged; Opus max (8.0) did the most careful work at
+  about 1.9x the cost and 2.6x the time; Sonnet high (7.5) cost half. Helpers stay on Opus at the
+  playbook's effort, max only for hard or risky work. Details: the 25 October entry of `docs/WORKLOG.md`;
+  the worktrees stay in `.claude/worktrees/` (Ali: keep them).
 - Prompts 1-5 (tools and fast builds) are done and checked by checkpoint 1 (CP1, 22 October
   2026): fingerprint, before/after pictures, parallel and resumable builds all work as
   documented. Reference for checkpoint 16: `output/checks/fp-cp1.json` (quick build) and the
@@ -690,6 +696,12 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
   0.003 pixel difference).
 - **Old-town tiles** reach about 4.7 MB on the quick build and 5.8 MB on the full capital after prompt 39
   (`tile_65_106`; 8.7 and 11.1 MB before).
+- **Cemetery cypress** (25 October, between prompts; `cypress_piece` in `mesh/trees.py`, style
+  `[dressing.trees.cypress]`): a bigger kit piece grows its tiles, and the people's byte budget (`bytes_share`
+  of the tile) grows with them, so a fingerprint can show walkers changing costume (tile_12_22: 3 hijab
+  stand-ins became their own safsari): expected, not a stream bug. Judging looks: each helper's pictures use
+  its own camera; for a fair comparison shoot every version with the same `--cam/--look` (`snapshot.py` on
+  each build), heights read from the tile's instance translations (the cemetery ground is about 15 m).
 
 ## Known weak spots
 

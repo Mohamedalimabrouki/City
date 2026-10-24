@@ -149,6 +149,8 @@ leaf = { color = "#5B7A3A" }
 leaf_olive = { color = "#7F8D5E" }
 leaf_palm = { color = "#6E8C3D", double_sided = true }
 leaf_cypress = { color = "#3F5A35" }
+leaf_cypress_dark = { color = "#2C4229" }    # the cypress's three shades (citygen/mesh/trees.py cypress_piece)
+leaf_cypress_light = { color = "#52703E" }
 leaf_dark = { color = "#445F2D" }
 leaf_light = { color = "#7F9D4C" }
 leaf_olive_dark = { color = "#667550" }
@@ -1392,6 +1394,37 @@ fruit = 14
 fruit_size = 0.024
 fruit_material = "fruit_orange"
 
+# Mediterranean cypress (cemeteries): a tall narrow flame of dark foliage, widest a third of the way up.
+# profile: (height, radius) points of its spindle bottom to top, radius as a fraction of crown_radius
+# (x height, times a `width` drawn per variant); the tip closes it at the full height. sides: points per
+# ring; jitter: how lumpy; twist: how far each ring turns (in sides); foot_lift: the closed foot's dip.
+# tufts: pointed clumps (clump_radius x height wide, tuft_stretch times as tall) set tuft_out of the
+# way to the surface, between the heights in tuft_band. lean: how far the tip leans (x height).
+[dressing.trees.cypress]
+variants = 3
+profile = [[0.05, 0.5], [0.13, 0.88], [0.3, 1.0], [0.48, 0.88], [0.65, 0.66], [0.8, 0.42], [0.92, 0.18]]
+crown_radius = 0.085
+width = [0.9, 1.15]
+sides = 7
+jitter = 0.12
+twist = 0.5
+foot_lift = 0.02
+tufts = [5, 7]
+clump_radius = [0.03, 0.042]
+tuft_stretch = 2.2
+tuft_out = 0.85
+tuft_band = [0.15, 0.82]
+lean = [0.0, 0.025]
+dark_below = 0.3
+light_above = 0.7
+shade_spread = 0.12       # each face's height is moved up to this much before choosing its shade
+materials = ["leaf_cypress_dark", "leaf_cypress", "leaf_cypress_light"]
+trunk_height = 0.08
+trunk_radius = 0.018
+taper = 0.7
+trunk_sides = 5
+trunk_material = "trunk"
+
 # Low clipped box hedges along villa lot edges (prompt 24): one piece `nominal` m long, stretched
 # along the hedge (Placement.stretch, the piece is plain along its length) so each run is filled end
 # to end by pieces at most `piece_max` m long (each stands on the ground at its middle); an opening
@@ -1710,6 +1743,7 @@ tree_palm = [["tounes/palm_date", 1]]
 tree_broadleaf = [["tree_broadleaf", 1], ["tree_broadleaf_b", 1], ["tree_broadleaf_c", 1]]
 tree_olive = [["tree_olive", 1], ["tree_olive_b", 1], ["tree_olive_c", 1]]
 tree_citrus = [["tree_citrus", 1], ["tree_citrus_b", 1], ["tree_citrus_c", 1]]
+tree_cypress = [["tree_cypress", 1], ["tree_cypress_b", 1], ["tree_cypress_c", 1]]
 alley_arch = [["tounes/arch_sbs", 1]]
 souk_gate = [["tounes/souk_gate_lanterns", 1], ["tounes/souk_gate_rugs", 1]]
 house_door_blue = [["door_narrow_blue", 1]]

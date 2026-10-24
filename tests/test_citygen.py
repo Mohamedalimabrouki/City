@@ -371,6 +371,30 @@ def test_trees_are_natural_and_deterministic(world):
                 (a["tree_broadleaf"].gltf_parts()["trunk"], a["tree_broadleaf_b"].gltf_parts()["trunk"])}) == 2
 
 
+def test_cypress_is_a_tall_dark_flame(world):
+    from citygen.mesh.trees import tree_pieces
+    table = world.style["dressing"]["trees"]
+    pieces = tree_pieces(world.seed, table)
+    names = ["tree_cypress", "tree_cypress_b", "tree_cypress_c"]
+    shapes = set()
+    for name in names:
+        parts = pieces[name].gltf_parts()                 # glTF axes: y up
+        assert set(parts) == {"leaf_cypress_dark", "leaf_cypress", "leaf_cypress_light", "trunk"}
+        leaf = np.concatenate([parts[m]["pos"] for m in parts if m != "trunk"])
+        width = max(np.ptp(leaf[:, 0]), np.ptp(leaf[:, 2]))
+        assert 4.2 < np.ptp(leaf[:, 1]) / width < 9.0, (name, width)      # a narrow column, not a cone
+        band = np.abs(leaf[:, 0]) + np.abs(leaf[:, 2])
+        low, mid, high = (band[(leaf[:, 1] > a) & (leaf[:, 1] < b)].max() for a, b in ((0, 1.2), (2, 3.2), (6, 7)))
+        assert mid > low and mid > high, name                                # widest about a third of the way up
+        dark, light = parts["leaf_cypress_dark"]["pos"][:, 1], parts["leaf_cypress_light"]["pos"][:, 1]
+        assert dark.mean() < 3.0 < 5.0 < light.mean(), name                  # dark below, light on top
+        assert parts["trunk"]["pos"][:, 1].min() < 0.0 < parts["trunk"]["pos"][:, 1].max() < 1.0
+        shapes.add(round(float(leaf.sum()), 3))
+    assert len(shapes) == 3                                                  # three different trees
+    mix = dict(world.style["dressing"]["roles"]["tree_cypress"])
+    assert set(mix) == set(names)
+
+
 def test_climbers_hug_the_wall_and_are_deterministic(world):
     from citygen.mesh.climbers import climber_pieces
     spec = world.style["dressing"]["climber"]

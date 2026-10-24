@@ -32,14 +32,19 @@ _PYR_VERTS = np.array([[1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1], [0, 1, 0]],
 _PYR_FACES = np.array([[0, 4, 2], [2, 4, 1], [1, 4, 3], [3, 4, 0]])
 
 
-def smooth_add(mb: MeshBuilder, material: str, pos: np.ndarray, faces: np.ndarray) -> None:
-    """Add an indexed mesh with area-weighted smooth vertex normals."""
+def smooth_normals(pos: np.ndarray, faces: np.ndarray) -> np.ndarray:
+    """Area-weighted smooth vertex normals of an indexed mesh."""
     n = np.cross(pos[faces[:, 1]] - pos[faces[:, 0]], pos[faces[:, 2]] - pos[faces[:, 0]])
     nrm = np.zeros_like(pos)
     for k in range(3):
         np.add.at(nrm, faces[:, k], n)
     length = np.linalg.norm(nrm, axis=1)
-    nrm = nrm / np.where(length > 1e-12, length, 1.0)[:, None]
+    return nrm / np.where(length > 1e-12, length, 1.0)[:, None]
+
+
+def smooth_add(mb: MeshBuilder, material: str, pos: np.ndarray, faces: np.ndarray, nrm=None) -> None:
+    """Add an indexed mesh with area-weighted smooth vertex normals (or the given ones)."""
+    nrm = smooth_normals(pos, faces) if nrm is None else nrm
     uv = np.stack([pos[:, 0] + pos[:, 1], -pos[:, 2]], axis=1)
     mb.add(material, pos, nrm, uv, faces)
 
