@@ -1,7 +1,8 @@
 """Parked cars and the taxi rank (prompt 25), `[dressing.parking]` in the style.
 
 `parked_sides` is a pure rule on the plan, shared by the road paint and the dresser: which sides of a
-street have a parking row, from the carriageway left between its sidewalks (`walk_widths`). The paint
+street have a parking row, from the carriageway left between its sidewalks (`walk_widths`), and only
+along the sidewalks of the parking districts (`[dressing.parking] districts`, the blocks cars park by). The paint
 (built in the planner) moves an edge line out to the lane side of a parking row and the dresser parks
 cars in it, so both must agree. `Parking` lays the cars out for `Dresser.street_props`.
 """
@@ -14,8 +15,6 @@ from shapely.strtree import STRtree
 from ..rng import weighted
 from .openings import piece_box
 
-
-PARALLEL_RUN, PARALLEL_DEG = 8.0, 15.0
 
 
 def street_frame(line, d: np.ndarray) -> tuple:
@@ -56,10 +55,11 @@ def walk_extents(st, k: int, d: np.ndarray, side: int, walks: list, walk_tree, s
     return width, which
 
 
-def lying_on(k: int, line, surface, line_tree, lines: list) -> set:
+def lying_on(k: int, line, surface, line_tree, lines: list, cfg: dict) -> set:
     """Street k and the streets lying on its surface (grid streets the planner left under a boulevard):
-    wholly inside it, or running along inside it for `PARALLEL_RUN` m within `PARALLEL_DEG` degrees of
-    its direction. They do not meet it."""
+    wholly inside it, or running along inside it for `parallel_run` m within `parallel_deg` degrees of
+    its direction (`cfg`: `[dressing.parking]`). They do not meet it."""
+    run, deg = float(cfg.get("parallel_run", 8.0)), float(cfg.get("parallel_deg", 15.0))
     out = {k}
     for j in sorted(int(i) for i in line_tree.query(surface, predicate="intersects")):
         part = lines[j].intersection(surface)
@@ -67,25 +67,36 @@ def lying_on(k: int, line, surface, line_tree, lines: list) -> set:
             continue
         if part.length >= lines[j].length - 1e-6:
             out.add(j)
-        elif part.length >= PARALLEL_RUN:
+        elif part.length >= run:
             c = shapely.get_coordinates(part)
             v = (c[-1] - c[0]) / max(float(np.hypot(*(c[-1] - c[0]))), 1e-9)
             _, n = street_frame(line, np.array([line.project(shapely.Point((c[0] + c[-1]) / 2))]))
-            if abs(v[0] * n[0, 1] - v[1] * n[0, 0]) > np.cos(np.radians(PARALLEL_DEG)):
+            if abs(v[0] * n[0, 1] - v[1] * n[0, 0]) > np.cos(np.radians(deg)):
                 out.add(j)
     return out
 
 
 def street_widths(st, k: int, walks: list, walk_tree, surface_tree, design: list, min_carriage: float,
-                  inside: set, step: float = 5.0) -> dict:
-    """{(k, side): widest sidewalk along that side of street k, away from junctions} (sampled every `step` m)."""
+                  inside: set, parks: set, step: float = 5.0) -> tuple:
+    """({(k, side): widest sidewalk along that side of street k, away from junctions}, the same counting only
+    the sidewalks of the districts in `parks`, by index) (sampled every `step` m). The second is where cars
+    park: `Parking._curbs` keeps a car only by a sidewalk of a parking district, so the paint must too."""
     d = np.arange(step / 2, st.line.length, step)
-    out = {}
+    out, park = {}, {}
     for side in (1, -1):
-        w, _ = walk_extents(st, k, d, side, walks, walk_tree, surface_tree, design, min_carriage, inside)
+        w, which = walk_extents(st, k, d, side, walks, walk_tree, surface_tree, design, min_carriage, inside)
         if np.isfinite(w).any():
             out[(k, side)] = float(np.nanmax(w))
-    return out
+        ok = np.array([h >= 0 and walks[h].district in parks for h in which.tolist()], dtype=bool)
+        if ok.any():
+            park[(k, side)] = float(np.max(w[ok]))
+    return out, park
+
+
+def parking_districts(cfg: dict, districts) -> set:
+    """Indices of the districts whose sidewalks cars park by (`[dressing.parking] districts`)."""
+    allowed = set(cfg.get("districts", ())) if cfg else set()
+    return {i for i, dd in enumerate(districts) if dd.kind in allowed}
 
 
 def design_widths(style: dict, districts) -> list:
@@ -95,48 +106,55 @@ def design_widths(style: dict, districts) -> list:
 
 
 def walk_widths(style: dict, districts, streets, walks, kinds=None) -> tuple:
-    """({(street, side): widest sidewalk}, {streets with a promenade}) of a whole city (only the streets
-    of `kinds`, when given)."""
+    """({(street, side): widest sidewalk}, {streets with a promenade}, {(street, side): widest sidewalk of a
+    parking district}) of a whole city (only the streets of `kinds`, when given)."""
     widths: dict = {}
+    parked: dict = {}
     promoted = {w.street for w in walks if w.kind == "promenade" and w.street >= 0}
     if not walks or not streets:
-        return widths, promoted
+        return widths, promoted, parked
     walk_tree = STRtree([w.polygon for w in walks])
     surfaces = [st.line.buffer(st.width / 2, cap_style="flat") for st in streets]
     lines = [st.line for st in streets]
     surface_tree, line_tree = STRtree(surfaces), STRtree(lines)
     design = design_widths(style, districts)
     min_carriage = float(style.get("streets", {}).get("min_carriageway", 5.5))
+    cfg = style.get("dressing", {}).get("parking", {})
+    parks = parking_districts(cfg, districts)
     for k, st in enumerate(streets):
         if kinds is not None and st.kind not in kinds:
             continue
-        widths.update(street_widths(st, k, walks, walk_tree, surface_tree, design, min_carriage,
-                                    lying_on(k, st.line, surfaces[k], line_tree, lines)))
-    return widths, promoted
+        w, p = street_widths(st, k, walks, walk_tree, surface_tree, design, min_carriage,
+                             lying_on(k, st.line, surfaces[k], line_tree, lines, cfg), parks)
+        widths.update(w)
+        parked.update(p)
+    return widths, promoted, parked
 
 
-def parked_sides(st, k: int, widths: dict, promoted: set, cfg: dict, promenade: float) -> dict:
+def parked_sides(st, k: int, widths: dict, promoted: set, cfg: dict, promenade: float, parks: dict) -> dict:
     """{side: curb offset} of street k's parking rows; side +1 is left of its line, -1 right, and the
     curb offset is the distance from the center line to the carriageway's edge on that side.
 
     Both sides when the carriageway takes two rows and two lanes, one side (the wider sidewalk's, the
     left on a tie) when it takes one row and one lane, none below that. On a boulevard each carriageway
     (between its outer curb and the promenade) parks along its outer curb when it takes a row and a lane.
-    Only a side with a sidewalk (a curb) parks.
+    Only a side with a sidewalk of a parking district (`parks`, from `street_widths`) parks; the
+    carriageway is measured between all the sidewalks (`widths`).
     """
     if not cfg or st.kind not in cfg.get("kinds", ()):
         return {}
     row, lane = float(cfg["row"]), float(cfg["lane"])
     walk = {s: widths[(k, s)] for s in (1, -1) if (k, s) in widths}
-    if not walk:
+    ok = [s for s in walk if (k, s) in parks]
+    if not ok:
         return {}
     if k in promoted:
-        return {s: st.width / 2 - w for s, w in walk.items() if st.width / 2 - w - promenade / 2 >= row + lane}
+        return {s: st.width / 2 - walk[s] for s in ok if st.width / 2 - walk[s] - promenade / 2 >= row + lane}
     carriage = st.width - walk.get(1, 0.0) - walk.get(-1, 0.0)
-    if len(walk) == 2 and carriage >= 2 * (row + lane):
-        return {s: st.width / 2 - w for s, w in walk.items()}
+    if len(ok) == 2 and carriage >= 2 * (row + lane):
+        return {s: st.width / 2 - walk[s] for s in ok}
     if carriage >= row + lane:
-        s = max(walk, key=lambda s: (walk[s], s))
+        s = max(ok, key=lambda s: (walk[s], s))
         return {s: st.width / 2 - walk[s]}
     return {}
 
@@ -156,8 +174,9 @@ class Parking:
     STEP = 0.5          # meters between the samples a run is laid out on
 
     def __init__(self, dresser):
-        from .dressing import CAFES, DRESSED, Placement, yaw_of     # here: dressing imports this module
+        from .dressing import CAFES, DRESSED, Placement, carried, yaw_of     # here: dressing imports this module
         self.CAFES, self.DRESSED, self.Placement, self.yaw_of = CAFES, DRESSED, Placement, yaw_of
+        self.carried = carried
         self.d, plan = dresser, dresser.plan
         self.cfg = dresser.cfg["parking"]
         style = dresser.world.style
@@ -176,6 +195,7 @@ class Parking:
                        for kind, _ in self.cfg["mix"]}
         self.mix = [(kind, w) for kind, w in self.cfg["mix"] if self.models[kind]]
         self.allowed = set(self.cfg["districts"])
+        self.parks = parking_districts(self.cfg, plan.districts)
         self._sides: dict = {}
         self._runs: dict = {}
         self._rows: dict = {}
@@ -207,10 +227,10 @@ class Parking:
     def sides(self, k: int) -> dict:
         if k not in self._sides:
             st = self.d.plan.streets[k]
-            widths = (street_widths(st, k, self.walks, self.walk_tree, self.d.surface_tree, self.design,
-                                    self.min_carriage, self.inside(k))
-                      if self.walk_tree is not None and st.kind in self.cfg["kinds"] else {})   # as the paint measures
-            self._sides[k] = parked_sides(st, k, widths, self.promoted, self.cfg, self.promenade)
+            widths, parks = (street_widths(st, k, self.walks, self.walk_tree, self.d.surface_tree, self.design,
+                                           self.min_carriage, self.inside(k), self.parks)
+                             if self.walk_tree is not None and st.kind in self.cfg["kinds"] else ({}, {}))   # as the paint measures
+            self._sides[k] = parked_sides(st, k, widths, self.promoted, self.cfg, self.promenade, parks)
         return self._sides[k]
 
     # --- geometry along a street ----------------------------------------------------------------
@@ -241,7 +261,7 @@ class Parking:
             j = i
             while j + 1 < len(d) and not bad[j + 1]:
                 j += 1
-            if d[j] - d[i] >= 3.5:
+            if d[j] - d[i] >= float(self.cfg["min_run"]):
                 q = pts.reshape(2, -1, 2)[:, i:j + 1].reshape(-1, 2)
                 out.append((float(d[i]), float(d[j]), (*q.min(axis=0), *q.max(axis=0))))
             i = j + 1
@@ -253,7 +273,7 @@ class Parking:
             if self._line_tree is None:
                 self._line_tree = STRtree([st.line for st in self.d.plan.streets])
             lines = [st.line for st in self.d.plan.streets]
-            self._inside[k] = lying_on(k, lines[k], self.d.surfaces[k], self._line_tree, lines)
+            self._inside[k] = lying_on(k, lines[k], self.d.surfaces[k], self._line_tree, lines, self.cfg)
         return self._inside[k]
 
     def _crossing_streets(self, k: int, hit: np.ndarray) -> np.ndarray:
@@ -298,7 +318,7 @@ class Parking:
         free = np.isfinite(curb)
         if geoms:
             tree = STRtree(geoms)                          # samples first; each car is checked exactly later
-            for off in (0.05, 0.7, 1.4, 2.1):              # across the row, from the curb side out
+            for off in self.cfg["probes"]:                 # across the row, from the curb side out
                 q = p + n * (np.where(free, curb, 0.0) - gap - off)[:, None]
                 inp, hit = tree.query(shapely.points(q), predicate="dwithin", distance=float(clear.max()))
                 if len(inp):
@@ -350,7 +370,7 @@ class Parking:
         index = self.d.tree_index()
         if index is None:
             return []
-        hit = sorted(index.query(strip, predicate="dwithin", distance=6.0).tolist())
+        hit = sorted(index.query(strip, predicate="dwithin", distance=float(self.cfg["tree_reach"])).tolist())
         if not hit:
             return []
         xy = np.array([(self.d.plan.trees[i].x, self.d.plan.trees[i].y) for i in hit])
@@ -361,7 +381,7 @@ class Parking:
         """Plan boxes (kit bounds) of street k's lamps near the strip."""
         if k not in self._lamp_boxes:
             self._lamp_boxes[k] = self._street_lamps(k)
-        return [box for box in self._lamp_boxes[k] if strip.distance(box) <= 3.0]
+        return [box for box in self._lamp_boxes[k] if strip.distance(box) <= float(self.cfg["lamp_reach"])]
 
     def _street_lamps(self, k: int) -> list:
         spacing = self.d.cfg.get("street_lamps", {}).get(self.d.plan.streets[k].kind)
@@ -382,7 +402,7 @@ class Parking:
         street k (or stand close)."""
         d, cfg = self.d, self.cfg
         depth = float(d.open_cfg.get("door_clear", 2.0))
-        cross, half = float(cfg["path_cross"]), float(cfg["front_clear"])
+        half = float(cfg["front_clear"])
         builds = d.plan.buildings
         doors, paths, fronts = [], [], []
         near = sorted(int(i) for i in d.fp_tree.query(strip, predicate="dwithin", distance=float(cfg["door_reach"])))
@@ -415,9 +435,7 @@ class Parking:
             else:
                 doors.append(shapely.Polygon(_rect(np.asarray(at), n, 0.6, depth)))
             if path is not None and len(path) >= 2:
-                e = path[-1] - path[-2]
-                e = e / max(float(np.hypot(*e)), 1e-9)
-                paths.append(shapely.LineString(np.vstack([path, path[-1] + e * cross])))
+                paths.append(self.carried(path, d.path_cfg))
         return doors, paths, fronts
 
     # --- placing cars ---------------------------------------------------------------------------
@@ -469,7 +487,7 @@ class Parking:
         """Cars from `start` to the end of the run, each slot on its own stream."""
         cfg = self.cfg
         s, i = start, 0
-        while s < d[-1] - 3.5:
+        while s < d[-1] - float(cfg["min_run"]):
             rng = self.d.rng("park", k, side, j, i)
             i += 1
             if rng.random() < float(cfg["empty"].get(self.d.plan.streets[k].kind, 0.0)):
@@ -478,7 +496,7 @@ class Parking:
             name = self._pick(rng)
             after = rng.uniform(*cfg["gap"])
             got = None
-            while got is None and s < d[-1] - 3.5:
+            while got is None and s < d[-1] - float(cfg["min_run"]):
                 got = self._car(k, side, d, free, curb, zones, s, name, boxes)
                 if got is None:
                     s = self._next_free(d, free, s)
@@ -550,7 +568,7 @@ class Parking:
             for side in sorted(self.sides(street)):
                 for j, (a, b, _) in enumerate(self.runs(street, side)):
                     ends = [junction.distance(line.interpolate(x)) for x in (a, b)]
-                    if b - a >= 9.0 and min(ends) <= reach:
+                    if b - a >= float(self.cfg["rank_run"]) and min(ends) <= reach:
                         cands.append((min(ends), street != k, street, side, j, ends[0] <= ends[1]))
         best_rank, want = None, int(self.cfg["rank"][0])
         for _, _, street, side, j, after in sorted(cands):   # the nearest run where the whole queue fits

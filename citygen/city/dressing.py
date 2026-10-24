@@ -236,6 +236,28 @@ class Dresser:
         self._fronts[k] = (front[:3], spots)
         return spots
 
+    def wall_pieces(self, k: int) -> list:
+        """The pieces on building k's walls exactly as `building` places them (street side, arcade, iron
+        balconies, every home's doors and open-wall windows), without the roof, its machines, the terrace
+        windows and the night lights, which nothing at street level can touch. Kiosks and sabils (prompt 26)
+        keep clear of them."""
+        b = self.plan.buildings[k]
+        if b.kind not in DRESSED:
+            return []
+        high = float(building_highs(self.ground, [b])[0])
+        out: list = []
+        slots: list = []
+        walls = self.walls(b, k if self.every_home else None)
+        front = self._street_side(b, k, self.facades(b, walls), high, self.rng("b", k), out, slots)   # same draws
+        street, arcade, iron, shadow = self._colonial(b, k, walls, high, out, slots)
+        out = street + arcade + iron
+        if self.every_home:
+            boxes = self._boxes(walls, front, street + iron, shadow)
+            spots = self._entrances(k, b, walls, front, boxes)
+            self._fronts[k] = (front[:3], spots)
+            self._homes(k, b, walls, spots, high, out, boxes)
+        return out
+
     def fronts(self, k: int) -> tuple:
         """((main facade, door or shop center, "front" | "shop" | "cafe" | None), entrances) of dwelling k,
         as `building` dresses it (kept once computed: parked cars keep clear of them, prompt 25)."""
@@ -309,6 +331,7 @@ class Dresser:
     def seed_corners(self, i0: int, j0: int, heights: np.ndarray) -> None:
         """Store terrain mesh heights already computed by a tile: heights[r, c] at corner (i0 + c, j0 + r)."""
         rows, cols = heights.shape
+        self._corners.clear()                    # a pure cache: one tile's corners at a time keeps it small
         i, j = np.meshgrid(np.arange(i0, i0 + cols), np.arange(j0, j0 + rows))
         self._corners.update(zip(zip(i.ravel().tolist(), j.ravel().tolist()), heights.ravel().tolist()))
 
@@ -668,24 +691,13 @@ class Dresser:
 
     def _bend_piece(self, t: float) -> str | None:
         """The pier piece for a convex turn of t degrees at a cut corner (45: a chamfer, 22.5: a round)."""
-        tol = float(self.arcade_cfg.get("bend_tol", 2.5))
-        for angle, name in ((45.0, "arcade_bend"), (22.5, "arcade_bend_round")):
-            if abs(t - angle) <= tol and name in self.kit.pieces:
-                return name
-        return None
+        name = BENDS.get(bend_angle(t, self.arcade_cfg))
+        return name if name in self.kit.pieces else None
 
     def _corner_arcs(self, b, walls: Walls, arc, bends: list) -> np.ndarray:
         """The faces of a cut corner carry the arcade of a facade they turn from (in place on `arc`): their
         probe may find the side street in the junction instead. Returns a bool per wall: is it a face?"""
-        m = len(arc)
-        faces = np.zeros(m, dtype=bool)
-        for face in corner_faces(b, walls.a, walls.b):
-            faces |= face
-            for _ in range(int(face.sum())):
-                for i in np.nonzero(face & ~arc & (walls.street >= 0))[0]:
-                    if (arc[i - 1] and bends[i - 1]) or (arc[(i + 1) % m] and bends[i]):
-                        arc[i] = True
-        return faces
+        return carry_faces(b, walls.a, walls.b, walls.street, arc, [x is not None for x in bends])
 
     def _bend_free(self, walls: Walls, i: int, t: float, corner: bool = False) -> bool:
         """Room for a bend piece past the end of wall i: nothing built in its wedge, its pier on the sidewalk
@@ -1115,8 +1127,7 @@ class Dresser:
         width, lift = float(cfg.get("width", 1.4)), float(cfg.get("lift", 0.04))
         paths = [None] * len(cs)
         if reach == "open" and district in cfg.get("districts", ()) and self.target_tree is not None:
-            paths = [path_to_street(c, n, self.target_tree, self.fp_tree, width, float(cfg.get("reach", 40.0)),
-                                    float(cfg.get("step", 4.0)), self.ground.step) for c in cs]
+            paths = [door_path(c, n, self.target_tree, self.fp_tree, cfg, self.ground.step) for c in cs]
         front = np.array([c + n * self.cfg.get("threshold_reach", 0.5) for c in cs])
         z = np.zeros(len(cs))
         for m, path in enumerate(paths):          # on a path: its top, as drawn on the terrain mesh
@@ -1147,29 +1158,24 @@ class Dresser:
         """An apartment block's stair doors, every 20-25 m along the long side facing the nearest street,
         each in a window column (the column above it holds the staircase windows). When neighbours
         leave no straight path from that side, the other long side is used if it has one."""
-        cfg = self.slab_cfg
-        long = walls.length >= float(cfg.get("long", 0.6)) * frame(b.footprint)[2]
-        idx = np.nonzero(long)[0] if long.any() else [int(np.argmax(walls.length))]
-        order = self._toward(walls, idx, near[1])
+        rows = dict(stair_rows(b.footprint, walls.a, walls.b, walls.length, self.slab_cfg))
+        order = self._toward(walls, list(rows), near[1])
         order = [i for i in order if walls.open[i]] + [i for i in order if not walls.open[i]]
         best = None
         for i in order:
-            doors = self._stair_row(k, b, walls, i, near[0])
+            doors = self._stair_row(k, b, walls, i, near[0], rows[i])
             if best is None or sum(d.path is not None for d in doors) > sum(d.path is not None for d in best):
                 best = doors
             if all(d.path is not None for d in best) or not walls.open[i]:
                 break
         return best
 
-    def _stair_row(self, k: int, b, walls: Walls, i: int, nearest: int) -> list:
-        """The stair doors along wall i: one per 20-25 m, each in the window column nearest its share's middle."""
-        cfg = self.slab_cfg
-        cols, picks = stair_columns(float(walls.length[i]), cfg)
+    def _stair_row(self, k: int, b, walls: Walls, i: int, nearest: int, cs: list) -> list:
+        """The stair doors along wall i at the points `cs` (`stair_rows`)."""
         reach = "street" if walls.street[i] >= 0 else "open" if walls.open[i] else "enclosed"
         street = int(walls.street[i]) if reach == "street" else nearest
         names = [(self.pick("stair_door", self.rng("stair", k, d)) or self.pick("door_blue", self.rng("stair", k, d)))[0]
-                 for d in range(len(picks))]
-        cs = [walls.a[i] + walls.u[i] * cols[col] for col in picks]
+                 for d in range(len(cs))]
         return self._spots(cs, walls.n[i], i, street, reach, "stair", names, self.kinds[b.district])
 
     @staticmethod
@@ -1325,7 +1331,8 @@ class Dresser:
 
         A lit window becomes its `_lit` twin (the same piece with `glass_lit`); a kit window keeps its
         piece and gets its `_pane_lit` right after it. One draw on `rng("lit", k, ...)` per flat: the
-        same floor of one side of the building (in a modern block, one half of one stair's section), or
+        same floor of one side of the building (its outward direction in whole degrees, so a wall facing due
+        south is one side whatever the sign of its yaw; in a modern block, one half of one stair's section), or
         per staircase (its windows and door together). No other stream is touched, so the day look
         stays exactly as it was.
         """
@@ -1345,7 +1352,7 @@ class Dresser:
             if p.piece in self._stairs:
                 key, odds = ("stair", part[0]), stair
             else:
-                key, odds = (round(p.yaw, 4), max(0, int((p.z - high + 0.01) // fh))) + part, chance
+                key, odds = (round(math.degrees(p.yaw)) % 360, max(0, int((p.z - high + 0.01) // fh))) + part, chance
             if key not in draws:
                 draws[key] = self.rng("lit", k, *key).random()
             if draws[key] < odds:
@@ -1641,7 +1648,9 @@ class Dresser:
     def lamp_spot(self, k: int, i: int, spacing: float) -> tuple | None:
         """(point, normal toward its edge) of street k's lamp i, or None where it is left out. Along a
         colonial arcade (prompt 22) a lamp moves `lamp_shift` m out toward the curb, beyond the pillars,
-        or is left out when that is not on a sidewalk clear of them. Parked cars (prompt 25) read it too."""
+        or is left out when that is not on a sidewalk clear of them. A spot off every street, or inside the
+        surface of a wider street (a grid street lying under the boulevard, a side street's end in an
+        arterial), is left out too. Parked cars (prompt 25) and the squares (prompt 26) read it too."""
         st = self.plan.streets[k]
         line, half = st.line, st.width / 2 - 0.6
         d = (i + 0.5) * spacing
@@ -1658,8 +1667,9 @@ class Dresser:
             q = q - n * float(self.arcade_cfg["lamp_shift"])
             if self._arcade_band(q[None, :])[0] or not self._on_sidewalk(q[None, :])[0]:
                 return None
-        if self.streets_at(q[None, :])[0] < 0:
-            return None
+        inside = self.surface_tree.query(shapely.Point(q), predicate="within")
+        if not len(inside) or any(self.plan.streets[int(j)].width > st.width for j in inside.tolist()):
+            return None                               # off every street, or inside a wider one
         return q, n
 
     def _gate(self, k: int, end: int, d: float, role: str, out: list, chance: float | None = None) -> None:
@@ -1715,6 +1725,58 @@ def stair_columns(length: float, cfg: dict) -> tuple:
     return cols, sorted({int(np.argmin(np.abs(cols - (d + 0.5) * length / count))) for d in range(count)})
 
 
+BENDS = {45.0: "arcade_bend", 22.5: "arcade_bend_round"}   # a cut corner's turn -> its pier piece
+
+
+def bend_angle(t: float, cfg: dict) -> float | None:
+    """45 (a chamfer) or 22.5 (a rounded corner) when a convex turn of t degrees is a cut corner's, else None."""
+    tol = float(cfg.get("bend_tol", 2.5))
+    return next((angle for angle in BENDS if abs(t - angle) <= tol), None)
+
+
+def carry_faces(b, a, q, street, arc, bends: list) -> np.ndarray:
+    """The faces of a cut corner carry the arcade of a facade they turn from (set in place on `arc`): their
+    probe may find the side street in the junction instead. `bends[i]`: is the turn after wall i a cut
+    corner's. Returns a bool per wall: is it a face? Shared by the dresser and `arcade_zones`."""
+    m = len(arc)
+    faces = np.zeros(m, dtype=bool)
+    for face in corner_faces(b, a, q):
+        faces |= face
+        for _ in range(int(face.sum())):
+            for i in np.nonzero(face & ~arc & (street >= 0))[0]:
+                if (arc[i - 1] and bends[i - 1]) or (arc[(i + 1) % m] and bends[i]):
+                    arc[i] = True
+    return faces
+
+
+def stair_rows(footprint, a, q, length, cfg: dict) -> list:
+    """[(wall, stair door points)] on each long side of an apartment block (`[dressing.slab]`; the longest
+    wall when none is long): one door per 20-25 m, in the window column nearest its share's middle. The
+    dresser puts them on one side (`_stair_doors`); the planner's street trees keep clear of both."""
+    long = length >= float(cfg.get("long", 0.6)) * frame(footprint)[2]
+    u = (q - a) / np.maximum(length, 1e-9)[:, None]              # as `Walls.u`
+    out = []
+    for i in (np.nonzero(long)[0] if long.any() else [int(np.argmax(length))]):
+        cols, picks = stair_columns(float(length[i]), cfg)
+        out.append((int(i), [a[i] + u[i] * cols[col] for col in picks]))
+    return out
+
+
+def door_path(c, n, target_tree, fp_tree, cfg: dict, grid: float):
+    """The paved path from a door at c (facing n) on open ground to the street (`path_to_street` with the
+    `[dressing.paths]` settings), or None."""
+    return path_to_street(c, n, target_tree, fp_tree, float(cfg.get("width", 1.4)), float(cfg.get("reach", 40.0)),
+                          float(cfg.get("step", 4.0)), grid)
+
+
+def carried(path: np.ndarray, cfg: dict) -> LineString:
+    """A door's paved path carried on `[dressing.paths] cross` m past its end, over the sidewalk: parked cars
+    (prompt 25) and street trees (prompt 24) keep clear of the same line."""
+    e = path[-1] - path[-2]
+    e = e / max(float(np.hypot(*e)), 1e-9)
+    return LineString(np.vstack([path, path[-1] + e * float(cfg.get("cross", 4.0))]))
+
+
 def tree_reach(cfg: dict) -> float:
     """How far from an arcaded wall a tree trunk must stand: pillars, cornice, trunk and clearance."""
     return float(cfg["depth"]) + float(cfg["cornice"]) + float(cfg["tree_trunk"]) + float(cfg["tree_clear"])
@@ -1724,28 +1786,34 @@ def arcade_zones(plan, cfg: dict, streets_at):
     """(STRtree of the arcade bands, wall start points, outward normals) of a whole city, or False.
 
     A band runs along every wall of a dressed building in one of `cfg["districts"]` facing a street of
-    one of `cfg["kinds"]` (the street 1.6 m in front of its middle), out to the larger of the lamp and
+    one of `cfg["kinds"]` (the street 1.6 m in front of its middle, or of the old corner for a cut corner's
+    faces: `massing.probes`, as `Dresser.walls` looks; a face also carries the arcade it turns from,
+    `carry_faces`, as the dresser does), out to the larger of the lamp and
     tree reaches and as far past each end, plus the bays an arcade turns into a side street. Shared by
     the dresser (lamps and planned trees, prompt 22) and the planner's street trees (prompt 24), so a
     planned tree outside every band is never moved. `streets_at(points)` gives the street under each point.
     """
     kinds_of = [d.kind for d in plan.districts]
     reach = max(float(cfg["depth"]) + float(cfg["lamp_clear"]), tree_reach(cfg))
-    rows = [wall_arrays(b.footprint) for b in plan.buildings
-            if b.kind in DRESSED and kinds_of[b.district] in cfg["districts"]]
+    builds = [b for b in plan.buildings if b.kind in DRESSED and kinds_of[b.district] in cfg["districts"]]
+    rows = [wall_arrays(b.footprint) for b in builds]
     if not rows:
         return False
     a, q, n, length = (np.concatenate([r[m] for r in rows]) for m in range(4))
-    street = streets_at((a + q) / 2 + n * 1.6)
+    street = streets_at(np.concatenate([probes(b, *r[:3]) for b, r in zip(builds, rows)]))   # as `Dresser.walls`
     kinds = set(cfg["kinds"])
     arc = np.array([street[m] >= 0 and length[m] > 1.5 and plan.streets[street[m]].kind in kinds
                     for m in range(len(a))], dtype=bool)
     u = (q - a) / np.maximum(length, 1e-9)[:, None]
     wrap = float(cfg["wrap"]) * float(cfg["bay_relaxed"][1])
     polys, keep, at = [], [], 0
-    for r in rows:                                    # each building's walls, as a ring
+    for b, r in zip(builds, rows):                    # each building's walls, as a ring
         idx = np.arange(at, at + len(r[0]))
         at += len(r[0])
+        ring_arc = arc[idx]                           # a cut corner's faces carry on the facade's arcade
+        bends = [bend_angle(turn(u[idx[e]], u[idx[(e + 1) % len(idx)]]), cfg) is not None for e in range(len(idx))]
+        carry_faces(b, a[idx], q[idx], street[idx], ring_arc, bends)
+        arc[idx] = ring_arc
         for e, m in enumerate(idx):
             lo, hi = None, None
             if arc[m]:

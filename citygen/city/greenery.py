@@ -22,9 +22,8 @@ from shapely.ops import polylabel
 from shapely.strtree import STRtree
 
 from ..rng import weighted
-from .geo import frame
 from .model import Tree
-from .openings import path_to_street, villa_lots, wall_arrays
+from .openings import villa_lots, wall_arrays
 
 
 def greenery(ctx, plan) -> list:
@@ -166,8 +165,8 @@ def _clear_of_lamps(ctx, plan, cands: list, clear: float) -> np.ndarray:
 def _clear_of_paths(plan, pts: np.ndarray, surfaces: list, style: dict, clear: float) -> np.ndarray:
     """True where no paved stair-door path of a modern block passes within `clear` m. The dresser puts
     the stair doors on one long side (the one facing the nearest street); both long sides are tested,
-    with the same door columns and `path_to_street`, each path carried on `cross` m over the sidewalk."""
-    from .dressing import DRESSED, stair_columns
+    with the dresser's own door points, path and carried line (`stair_rows`, `door_path`, `carried`)."""
+    from .dressing import DRESSED, carried, door_path, stair_rows
     keep = np.ones(len(pts), dtype=bool)
     dress = style.get("dressing", {})
     pcfg, scfg = dress.get("paths", {}), dress.get("slab", {})
@@ -185,22 +184,16 @@ def _clear_of_paths(plan, pts: np.ndarray, surfaces: list, style: dict, clear: f
         return keep
     fp_tree = STRtree([b.footprint for b in plan.buildings])
     target_tree = STRtree(surfaces + [w.polygon for w in plan.walks])
-    width, step = float(pcfg.get("width", 1.4)), float(pcfg.get("step", 4.0))
-    cross = 4.0
+    step = float(pcfg.get("step", 4.0))
     paths = []
     for m in sorted(set(near.tolist())):
         b = plan.buildings[slabs[m]]
         a, q, n, length = wall_arrays(b.footprint)
-        long = length >= float(scfg.get("long", 0.6)) * frame(b.footprint)[2]
-        for i in (np.nonzero(long)[0] if long.any() else [int(np.argmax(length))]):
-            u = (q[i] - a[i]) / max(length[i], 1e-9)
-            cols, picks = stair_columns(float(length[i]), scfg)
-            for col in picks:
-                line = path_to_street(a[i] + u * cols[col], n[i], target_tree, fp_tree, width, reach, step, step)
+        for i, cs in stair_rows(b.footprint, a, q, length, scfg):
+            for c in cs:
+                line = door_path(c, n[i], target_tree, fp_tree, pcfg, step)
                 if line is not None and len(line) >= 2:
-                    t = line[-1] - line[-2]
-                    t = t / max(float(np.hypot(*t)), 1e-9)
-                    paths.append(shapely.linestrings(np.vstack([line, line[-1] + t * cross])))
+                    paths.append(carried(line, pcfg))
     if paths:
         inp, _ = STRtree(paths).query(shapely.points(pts), predicate="dwithin", distance=clear)
         keep[inp] = False

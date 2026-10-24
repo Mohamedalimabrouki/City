@@ -141,8 +141,9 @@ block on `rng("impasse", block)`: lot line jitter, widths, covered share and len
   `junction_clear` of any other street, `paint_clear` of road paint, `wall_clear` of a building,
   `lamp_clear` along the street of a same-side lamp (the stations of `Dresser._lamps`), inside an
   arcade band (`dressing.arcade_zones`, the bands the dresser moves trees out of, so it never moves
-  these) or `door_clear` of a stair-door path (`path_to_street` from the stair columns of both long
-  sides of nearby slabs, carried 4 m over the sidewalk). Then a tree in some courtyards without one
+  these; walls probe for their street as `Dresser.walls` does, from the old corner for a cut corner's
+  faces) or `door_clear` of a stair-door path (`dressing.stair_rows`, `door_path` and `carried` on both
+  long sides of nearby slabs, the dresser's own functions, carried `[dressing.paths] cross` m over the sidewalk). Then a tree in some courtyards without one
   (`chance` by district, `rng("courtyard-trees", k)`, mostly citrus) at the courtyard's pole of
   inaccessibility, its height capped so its crown (`crown_radius` + largest `clump_radius`, times
   the height) clears the walls by `wall_clear`; then 0-2 fruit trees per villa garden
@@ -159,7 +160,8 @@ block on `rng("impasse", block)`: lot line jitter, widths, covered share and len
   surface minus every sidewalk on it (whichever street a sidewalk is filed under) and the promenade;
   edge lines stand `paint_edge_inset` inside the widest sidewalk of each side, measured on that side
   (`parking.walk_widths`), and `[dressing.parking] row` inside it where that side has a parking row
-  (prompt 25: cars never straddle the line); with one row the center line moves half a row toward the
+  (prompt 25: cars never straddle the line; a side parks only along sidewalks of the parking
+  `districts`, as the cars do); with one row the center line moves half a row toward the
   free side.
 - `Household(building, family, trade, wealth 0..1, door, members)`: one per house, domed house,
   apartment block and villa. `Souk(street, name, trade, ground, wall, shop)`: one per souk street.
@@ -345,7 +347,8 @@ shaders (which ignore the image and the tint) and takes their palette color from
   balcony for rich households; in the colonial district a window with an iron balcony instead); flat roofs get tanks, dishes, laundry racks and pots inside the
   parapet and off the stair room. Per street:
   laundry, cables, lantern strings, bunting and sabats across alleys and souks, arches over alley
-  mouths, gates and handcarts in souks, lamps along main streets. Impasses are dressed like alleys
+  mouths, gates and handcarts in souks, lamps along main streets (`Dresser.lamp_spot`: none off the
+  street or inside the surface of a wider street, such as a grid street lying under the boulevard). Impasses are dressed like alleys
   (laundry and cables; `FRONT_PREF` lowest, so a house with a street wall keeps its door there); a
   covered impasse gets a sabat as long as `covered` over its mouth, an uncovered one sometimes an
   arch just inside its mouth (`impasse_arch`); both need houses tall enough on both sides. The main
@@ -384,7 +387,7 @@ shaders (which ignore the image and the tint) and takes their palette color from
   (behind its grille); the viewer draws `*_pane_lit` nodes at night only and Blender hides objects
   drawn only in `glass_lit`. After every piece of a building is placed exactly as by day, one draw
   on `rng("lit", k, side, floor, section, half)` per flat decides lit or dark: a flat is one floor of
-  one side (yaw) of the building; in a modern block one half of one stair's section (sections as
+  one side of the building (its outward direction in whole degrees, modulo 360); in a modern block one half of one stair's section (sections as
   `stair_spacing` spaces the stairs). Staircases (`window_stair`, `stair_door`) draw once per section
   with their own chance `stair`. Chance per flat: `base + member x (members - members_ref) + wealth x
   (wealth - 0.5) + trades[trade] + district[kind]`, plus `couple` for two-person households, within
@@ -464,15 +467,14 @@ shaders (which ignore the image and the tint) and takes their palette color from
   written into the instance rotation). Gaps: `crossing_clear` from zebra bars, `tree_clear` from the bark of
   trunks as drawn (after `tree_spots`; radius `tree_trunk`), `lamp_clear` from lamps (`Dresser.lamp_spot`, kit bounds), `front_clear`
   either side of a cafe or shop front (`Dresser.front_of` replays `_front` alone), `door_clear` from the
-  free zone of doors near narrow sidewalks and from stair paths carried `path_cross` m on
+  free zone of doors near narrow sidewalks and from stair paths carried `[dressing.paths] cross` m on
   (`Dresser.door_spots`). Every car is then checked exactly with its kit bounds: on its own street,
   off sidewalks, painted lines and other cars. Taxi rank (`rng("taxi-rank", "row")`): `rank` taxis at
   the end nearest the boulevard's junction with the most streets of the nearest parking run within
   `rank_reach` that holds them (the boulevard first). Quick capital: 1,525 cars (652 hatchbacks, 533
-  sedans, 193 vans, 125 taxis, 22 louages), 221 streets and 9 arterials with one row, 3 arterials and
-  the boulevard with two, a rank of 5 taxis in a colonial street by the boulevard; full capital about 13,700
-  cars (907 taxis, 201 louages), 4,298 streets and 19 arterials with one row, 49 arterials and the
-  boulevard with two.
+  sedans, 193 vans, 125 taxis, 22 louages), 127 streets and 7 arterials with one row, the boulevard with
+  two (CP3: sides along non-parking blocks no longer count), a rank of 5 taxis in a colonial street by the
+  boulevard; full capital about 13,700 cars (907 taxis, 201 louages).
 - **Benches, kiosks and fountains** (prompt 26, `mesh/furniture.py`, `city/squares.py`, `[dressing.squares]`,
   `[dressing.furniture]`): pieces `bench_iron` (two iron side frames of closed bars, four wooden seat slats
   and three back slats; 180 triangles), `kiosk` (a dark green booth with cream trims, a serving hatch
@@ -493,7 +495,8 @@ shaders (which ignore the image and the tint) and takes their palette color from
   junction, lit at night with chance `kiosk_lit` (`rng("lit", "kiosk", k, i)`); then a bench (role `bench`:
   `bench_iron` 3, `tounes/bench_sbs` 1) between each two kept trees of the middle row, its back to the tree
   line, turned to the walkway on alternate sides by the tree's place in the row. Door benches use the
-  role `door_bench`. Every piece is checked with its kit bounds (the fountain as a circle) against trunks
+  role `door_bench`. Every piece is checked with its kit bounds (the fountain as a circle, which no crown may overhang
+  at any height) against trunks
   (`tree_trunk` + `tree_clear`) and crowns (a circle of `crown_cover` times the tree piece's half width,
   from its lowest leaf up), lamps of every street around, zebra crossings, parked cars, arcade bands and
   every piece of the dressed buildings around (doors with their `door_clear` free zone), and must stand

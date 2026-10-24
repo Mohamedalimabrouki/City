@@ -39,9 +39,9 @@ INF = 1e9
 
 class Squares:
     def __init__(self, dresser):
-        from .dressing import DRESSED, Placement, building_highs, ground_heights, yaw_of   # dressing imports this
+        from .dressing import DRESSED, Placement, ground_heights, yaw_of   # dressing imports this
         self.DRESSED, self.Placement, self.yaw_of = DRESSED, Placement, yaw_of
-        self.building_highs, self.ground_heights = building_highs, ground_heights
+        self.ground_heights = ground_heights
         self.d, self.plan = dresser, dresser.plan
         self.cfg = dresser.cfg.get("squares", {})
         self.walk_polys = [w.polygon for w in getattr(self.plan, "walks", ())]
@@ -85,8 +85,8 @@ class Squares:
     def area(self):
         """Where furniture may stand: around the islands and the landmarks a sabil may stand by."""
         if self._area is None:
-            parts = [part.buffer(25.0) for _, part in self.islands()]
-            reach = self.c("sabil_reach", 40.0) + 10.0
+            parts = [part.buffer(self.c("area_reach", 25.0)) for _, part in self.islands()]
+            reach = self.c("sabil_reach", 40.0) + self.c("sabil_area_pad", 10.0)
             parts += [Point(lm.x, lm.y).buffer(reach) for lm in self.plan.landmarks if lm.kind in self.cfg.get("sabil", {})]
             self._area = shapely.union_all(parts) if parts else shapely.Polygon()
         return self._area
@@ -105,12 +105,12 @@ class Squares:
                 if not proms:
                     continue
                 prom = shapely.union_all(proms)
-                inside = lying_on(k, st.line, self.d.surfaces[k], line_tree, lines)
+                inside = lying_on(k, st.line, self.d.surfaces[k], line_tree, lines, self.d.cfg.get("parking", {}))
                 cut = [self.d.surfaces[j] for j in sorted(int(i) for i in self.d.surface_tree.query(prom, predicate="intersects"))
                        if j not in inside]
                 if cut:
                     prom = prom.difference(shapely.union_all(cut).buffer(clear))
-                parts = [p for p in polygons(prom) if p.area > 4.0]
+                parts = [p for p in polygons(prom) if p.area > self.c("island_min_area", 4.0)]
                 parts.sort(key=lambda p: st.line.project(p.centroid))
                 self._islands += [(k, p) for p in parts]
         return self._islands
@@ -156,12 +156,21 @@ class Squares:
             circle = Point(p[0]).buffer(radius, quad_segs=8)
             if not part.contains(circle) or self._crossing(circle, self.c("crossing_clear", 0.6)):
                 continue
-            near = sorted(int(j) for j in self.d.surface_tree.query(circle, predicate="dwithin", distance=3.0))
+            near = sorted(int(j) for j in self.d.surface_tree.query(circle, predicate="dwithin", distance=self.c("lamp_reach", 3.0)))
             if any(circle.distance(box) < self.c("lamp_clear", 0.3) for j in near for box in self._street_lamps(j)):
                 continue
             reach = radius + self.c("fountain_trees", 1.6)
+            if self._under_trees(circle, Point(p[0]), reach):
+                continue
             return k, self.Placement(name, float(p[0, 0]), float(p[0, 1]), 0.0, self.yaw_of(n[0]), True), circle, reach
         return None
+
+    def _under_trees(self, circle, at, reach: float) -> bool:
+        """Does the basin meet a trunk or a crown (the same circles kiosks and benches keep clear of, but in
+        plan only: no crown hangs over the water) of a tree the fountain does not replace?"""
+        polys: list = []
+        self._trees(circle, lambda geoms, z0, z1: polys.extend(geoms), skip=(at, reach))
+        return bool(polys) and bool(shapely.intersects(circle, np.array(polys, dtype=object)).any())
 
     # --- benches ------------------------------------------------------------------------------------
     def _benches(self, placed: list) -> list:
@@ -210,14 +219,12 @@ class Squares:
             for idx, (spots, surface) in enumerate(self._kiosk_spots(k)):
                 if count >= int(self.c("kiosks", 3)):
                     break
-                if not spots:
-                    continue
-                rng = self.d.rng("kiosk", k, idx)
+                rng = self.d.rng("kiosk", k, idx)                 # its own stream: drawing it moves nothing else
                 if rng.random() >= self.c("kiosk", 0.7):
                     continue
                 name, _ = self.d.pick("kiosk", rng)
                 piece = self.d.kit.pieces[name]
-                spots = [(at, yaw) for at, yaw in spots                # plan checks first: no dressing for nothing
+                spots = [(at, yaw) for at, yaw in spots(piece)                # plan checks first: no dressing for nothing
                          if surface.contains(piece_box(piece, float(at[0]), float(at[1]), yaw, 0.0)[0])
                          and not any(math.hypot(at[0] - o.x, at[1] - o.y) < spacing for o in out)
                          and not self._in_band(self.Placement(name, float(at[0]), float(at[1]), 0.0, yaw))]
@@ -225,7 +232,8 @@ class Squares:
                     continue
                 xy = np.array([at for at, _ in spots])
                 zs = np.atleast_1d(self.d.ground.surface(xy[:, 0], xy[:, 1]))
-                boxes = self._obstacles(shapely.MultiPoint([tuple(q) for q in xy]).buffer(6.0), dress=True, extra=placed + out)
+                boxes = self._obstacles(shapely.MultiPoint([tuple(q) for q in xy]).buffer(self.c("kiosk_region", 6.0)),
+                                        dress=True, extra=placed + out)
                 for (at, yaw), z in zip(spots, zs):
                     foot, z0, z1 = piece_box(piece, float(at[0]), float(at[1]), yaw, float(z))
                     if self._clear(foot, z0, z1, boxes):
@@ -239,8 +247,9 @@ class Squares:
         return out
 
     def _kiosk_spots(self, k: int) -> list:
-        """[(positions to try in order, where the kiosk must stand)] by boulevard k: its paved cut corners,
-        then each island end not taken by the fountain."""
+        """[(piece -> positions to try in order, where the kiosk must stand)] by boulevard k: its paved cut
+        corners, then each island end not taken by the fountain (the kiosk's front, from its kit bounds,
+        `kiosk_margin` m in from the end)."""
         st = self.plan.streets[k]
         out = []
         reach = self.c("apron_reach", 1.0)
@@ -250,7 +259,7 @@ class Squares:
             if apron is None or apron.distance(surface) > reach:
                 continue
             for part in polygons(apron):
-                if part.area < 4.0:
+                if part.area < self.c("apron_min_area", 4.0):
                     continue
                 walks = [self.walk_polys[int(i)] for i in self.walk_tree.query(part, predicate="dwithin", distance=0.5)] \
                     if self.walk_tree is not None else []
@@ -260,26 +269,35 @@ class Squares:
                 grid = np.stack([gx.ravel(), gy.ravel()], 1)
                 grid = grid[shapely.contains_xy(part, grid[:, 0], grid[:, 1])]
                 c = np.array(part.centroid.coords[0])
-                grid = grid[np.argsort(np.hypot(*(grid - c).T), kind="stable")][:60]
+                grid = grid[np.argsort(np.hypot(*(grid - c).T), kind="stable")][:int(self.c("kiosk_tries", 60))]
                 spots = []
                 for q in grid:
                     near = np.array(st.line.interpolate(st.line.project(Point(q))).coords[0])
                     f = (near - q) / max(float(np.hypot(*(near - q))), 1e-9)
                     spots.append((q, self.yaw_of(f)))
-                out.append((spots, ground))
+                out.append((lambda piece, spots=spots: spots, ground))
         taken = [f[2] for f in self.fountains() if f[0] == k]
         for _, part in [ip for ip in self.islands() if ip[0] == k]:
             lo, hi = self._span(k, part)
             for d_end, sign in ((lo, 1.0), (hi, -1.0)):
                 end = Point(st.line.interpolate(d_end).coords[0])
-                if any(t.distance(end) < 10.0 for t in taken):
+                if any(t.distance(end) < self.c("kiosk_fountain_gap", 10.0) for t in taken):
                     continue
-                ds = d_end + sign * (self.c("kiosk_margin", 0.5) + 1.6 + np.arange(0.0, self.c("kiosk_slide", 8.0), 0.5))
-                ds = ds[(ds > lo) & (ds < hi)]
-                p, n = street_frame(st.line, ds)
-                t = np.stack([n[:, 1], -n[:, 0]], 1) * -sign      # along the boulevard, toward this end
-                out.append(([(p[m], self.yaw_of(t[m])) for m in range(len(ds))], part))
+                out.append((lambda piece, d_end=d_end, sign=sign, lo=lo, hi=hi: self._end_spots(k, piece, d_end, sign, lo, hi),
+                            part))
         return out
+
+    def _end_spots(self, k: int, piece, d_end: float, sign: float, lo: float, hi: float) -> list:
+        """Kiosk positions at an island's end, facing it: its front (-z in the kit) `kiosk_margin` m in from
+        the end, then sliding in by 0.5 m up to `kiosk_slide` m."""
+        front = -float(piece.bounds[0][2])
+        ds = d_end + sign * (self.c("kiosk_margin", 0.5) + front + np.arange(0.0, self.c("kiosk_slide", 8.0), 0.5))
+        ds = ds[(ds > lo) & (ds < hi)]
+        if not len(ds):
+            return []
+        p, n = street_frame(self.plan.streets[k].line, ds)
+        t = np.stack([n[:, 1], -n[:, 0]], 1) * -sign      # along the boulevard, toward this end
+        return [(p[m], self.yaw_of(t[m])) for m in range(len(ds))]
 
     def _in_band(self, cand) -> bool:
         """Does the piece reach into an arcade's band (pillars plus `lamp_clear`, as street lamps keep out)?"""
@@ -406,13 +424,14 @@ class Squares:
             add(list(shapely.buffer(box, self.c("piece_clear", 0.2))), z0, z1)
         return np.array(polys, dtype=object), np.array(lo), np.array(hi)
 
-    def _trees(self, region, add) -> None:
+    def _trees(self, region, add, skip=None) -> None:
         """Trunks (`tree_trunk` + `tree_clear`) up to the crown, and crowns above: a circle of `crown_cover`
-        times the tree piece's half width (the leaves are a round mass, not their bounding box)."""
+        times the tree piece's half width (the leaves are a round mass, not their bounding box). `skip`:
+        (point, reach), trees with a trunk that close are left out (those a fountain replaces)."""
         index = self.d.tree_index()
         if index is None:
             return
-        hit = sorted(int(i) for i in index.query(region, predicate="dwithin", distance=6.0))
+        hit = sorted(int(i) for i in index.query(region, predicate="dwithin", distance=self.c("tree_query", 6.0)))
         if not hit:
             return
         xy = np.array([(self.plan.trees[i].x, self.plan.trees[i].y) for i in hit])
@@ -420,7 +439,7 @@ class Squares:
         zs = np.atleast_1d(self.d.ground.surface(xy[:, 0], xy[:, 1]))
         trunk = self.c("tree_trunk", 0.3) + self.c("tree_clear", 0.5)
         for m, i in enumerate(hit):
-            if not kept[m]:
+            if not kept[m] or (skip is not None and math.hypot(xy[m, 0] - skip[0].x, xy[m, 1] - skip[0].y) <= skip[1]):
                 continue
             t = self.plan.trees[i]
             put = self.d.tree(i, t, float(zs[m]), away[m])
@@ -455,15 +474,15 @@ class Squares:
         return self._lamps[j]
 
     def _dressed_near(self, region, add) -> list:
-        """Every piece of the dressed buildings near the region; doors also add their free zone."""
+        """The wall pieces of the dressed buildings near the region (`Dresser.wall_pieces`: no roof, no
+        lights); doors also add their free zone."""
         depth = float(self.d.open_cfg.get("door_clear", 2.0))
         out = []
-        for b in sorted(int(i) for i in self.d.fp_tree.query(region, predicate="dwithin", distance=4.0)):
+        for b in sorted(int(i) for i in self.d.fp_tree.query(region, predicate="dwithin", distance=self.c("dressed_reach", 4.0))):
             if self.plan.buildings[b].kind not in self.DRESSED:
                 continue
             if b not in self._dressed:
-                high = float(self.building_highs(self.d.ground, [self.plan.buildings[b]])[0])
-                self._dressed[b] = self.d.building(b, high)
+                self._dressed[b] = self.d.wall_pieces(b)
             for p in self._dressed[b]:
                 pc = self.d.kit.pieces.get(p.piece)
                 if pc is not None and pc.category == "door":

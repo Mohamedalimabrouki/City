@@ -906,9 +906,12 @@ def test_colonial_arcades_and_iron_balconies(world, plan, ground, homes, colonia
         if plan.districts[plan.buildings[k].district].kind != "colonial":
             assert not any(p.piece.startswith("balcony_iron") or p.piece.startswith("arcade") for p in on), k
     tile = shapely.box(*plan.boundary.bounds)            # street lamps: none in or under an arcade
-    lamps = [p for k, st in enumerate(plan.streets) if st.kind in kinds
-             for p in dresser.street_props(k, tile) if p.piece == "street_lamp"]
-    assert len(lamps) > 20
+    lamps = []                                           # every street's lamps, side streets too
+    for k, st in enumerate(plan.streets):
+        spacing = dresser.cfg["street_lamps"].get(st.kind)
+        if spacing:
+            dresser._lamps(k, float(spacing), tile, lamps)
+    assert len(lamps) > 100
     tree = STRtree(roofs)
     for p in lamps:
         assert not len(tree.query(_plan_box(kit, p), predicate="intersects")), (p.x, p.y)
@@ -2010,31 +2013,65 @@ def test_parked_cars_keep_clear_of_trees_crossings_junctions_walks_lamps_doors_a
 
 
 def test_parking_rows_follow_the_carriageway_width_and_a_taxi_rank_waits(world, plan, built_mesh):
+    from citygen.city.dressing import Dresser
     from citygen.city.parking import parked_sides, walk_widths
     tc = built_mesh[0]
     dresser = tc.cities[0][4]
     cfg = world.style["dressing"]["parking"]
-    widths, promoted = walk_widths(world.style, plan.districts, plan.streets, plan.walks)
+    widths, promoted, parks = walk_widths(world.style, plan.districts, plan.streets, plan.walks)
     promenade = world.style["streets"]["promenade_width"]
     seen = {1: 0, 2: 0}
     for k, st in enumerate(plan.streets):
-        sides = parked_sides(st, k, widths, promoted, cfg, promenade)
+        sides = parked_sides(st, k, widths, promoted, cfg, promenade, parks)
+        assert sides.keys() == dresser._parking.sides(k).keys(), k        # the paint and the cars agree
+        assert all((k, s) in parks for s in sides), k                    # only along a parking district
         carriage = st.width - sum(widths.get((k, s), 0.0) for s in (1, -1))
         if sides and k not in promoted:
             seen[len(sides)] += 1
             need = (cfg["row"] + cfg["lane"]) * len(sides)
             assert carriage >= need - 1e-6 and st.kind in cfg["kinds"]
-    assert seen[1] > 20 and seen[2] > 0               # 12 m streets park on one side, arterials on both
+    assert seen[1] > 20                               # 12 m streets park on one side
+    boulevard = next(k for k, st in enumerate(plan.streets) if st.kind == "boulevard")
+    assert len(parked_sides(plan.streets[boulevard], boulevard, widths, promoted, cfg, promenade, parks)) == 2
+    # the drawn edge lines: `row` in from the curb where a row parks, `paint_edge_inset` where none does
+    # (an 18 m arterial past suburb or industrial blocks parks on its other side only, or not at all)
+    from citygen.city.parking import street_frame
+    scfg = world.style["streets"]
+    lines_of: dict = {}
+    for m in plan.paint:
+        if m.kind != "crossing":
+            lines_of.setdefault(m.street, []).append(m.polygon)
+    free = 0
+    for k, st in enumerate(plan.streets):
+        if st.kind not in ("arterial", "connector") or st.width <= scfg["marking_min_width"] or k not in lines_of:
+            continue
+        sides = parked_sides(st, k, widths, promoted, cfg, promenade, parks)
+        paint = STRtree(lines_of[k])
+        p, n = street_frame(st.line, np.linspace(0.2, 0.8, 7) * st.line.length)
+        for s in (1, -1):
+            if (k, s) not in widths:
+                continue
+            curb = st.width / 2 - widths[(k, s)]
+            want = curb - (cfg["row"] if s in sides else scfg["paint_edge_inset"])
+            hits = [len(paint.query(shapely.Point(q), predicate="dwithin", distance=0.1)) > 0 for q in p + n * s * want]
+            assert sum(hits) >= 4, (k, s, sides, hits)
+            if s not in sides:
+                free += 1
+                wrong = [len(paint.query(shapely.Point(q), predicate="dwithin", distance=0.1)) > 0
+                         for q in p + n * s * (curb - cfg["row"])]
+                assert not any(wrong), (k, s)
+    assert free >= 3, free
     tile = shapely.box(-1e9, -1e9, 1e9, 1e9)
     k, side, run, _ = dresser._parking.rank()
     row = dresser._parking.row(k, side, run)
     assert sum(c.piece.startswith("car_taxi") for c in row) >= cfg["rank"][0]
-    boulevard = next(st for st in plan.streets if st.kind == "boulevard")
+    boulevard = plan.streets[boulevard]
     assert min(boulevard.line.distance(shapely.Point(c.x, c.y)) for c in row) < cfg["rank_reach"]
     whole = [(p.piece, p.x, p.y) for p in dresser.street_props(k, tile) if p.piece.startswith("car_")]
     c = plan.streets[k].line.centroid
     halves = [shapely.box(-1e9, -1e9, c.x, 1e9), shapely.box(c.x, -1e9, 1e9, 1e9)]
-    split = [(p.piece, p.x, p.y) for h in halves for p in dresser.street_props(k, h) if p.piece.startswith("car_")]
+    split = [(p.piece, p.x, p.y) for h in halves                       # each half from empty caches, as a tile
+             for p in Dresser(world, plan, tc.kit, dresser.ground).street_props(k, h) if p.piece.startswith("car_")]
     assert sorted(whole) == sorted(split) and whole                    # each car in exactly one tile
 
 
@@ -2094,5 +2131,26 @@ def test_benches_kiosks_and_fountains_stand_clear_on_walks(world, plan, built_me
         assert ground.buffer(0.01).contains(foot), f"{p.piece} off the walks"
         for k in STRtree(surfaces).query(foot, predicate="intersects").tolist():
             if plan.streets[k].kind == "boulevard":                      # on the promenade: no street crossing it
-                inside = lying_on(k, lines[k], surfaces[k], STRtree(lines), lines)
+                inside = lying_on(k, lines[k], surfaces[k], STRtree(lines), lines, world.style["dressing"]["parking"])
                 assert all(m in inside for m in STRtree(surfaces).query(foot, predicate="intersects").tolist())
+    # the fountain: no tree crown over its basin (as kiosks and benches measure crowns), no street lamp of
+    # any street within `lamp_clear` of it or on its island (a grid street under the boulevard had one there)
+    sq = world.style["dressing"]["squares"]
+    for k, fp, circle, reach in dresser.squares().fountains():
+        near = [i for i, t in enumerate(plan.trees) if math.hypot(t.x - fp.x, t.y - fp.y) < 15.0]
+        xy, kept, away = dresser.tree_spots(np.array([(plan.trees[i].x, plan.trees[i].y) for i in near]))
+        for m, i in enumerate(near):
+            put = dresser.tree(i, plan.trees[i], 0.0, away[m]) if kept[m] else None
+            if put is not None:
+                lo, hi = kit.pieces[put.piece].bounds
+                half = (hi[0] - lo[0] + hi[2] - lo[2]) / 4 * put.scale * sq["crown_cover"]
+                assert not shapely.Point(xy[m]).buffer(half).intersects(circle), ("a crown over the fountain", i)
+        island = next(part for kk, part in dresser.squares().islands() if kk == k and part.intersects(circle))
+        lamps: list = []
+        for j, st in enumerate(plan.streets):
+            spacing = dresser.cfg["street_lamps"].get(st.kind)
+            if spacing:
+                dresser._lamps(j, float(spacing), shapely.box(*circle.buffer(30.0).bounds), lamps)
+        for p in lamps:
+            box = _plan_box(kit, p)
+            assert box.distance(circle) >= sq["lamp_clear"] and not island.intersects(box), (p.x, p.y)

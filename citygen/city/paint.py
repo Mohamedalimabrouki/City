@@ -4,7 +4,8 @@ A marking is a flat polygon a few centimetres above its street ribbon, clipped t
 carriageway: the street surface left between the raised sidewalks and, on a boulevard, the
 central promenade. Markings are built once per plan, after the sidewalks exist, so a tile only
 clips the polygons it touches. There is no randomness here: the paint follows the plan. Where a
-side has a parking row (`parking.parked_sides`, prompt 25) its edge line stands on the row's lane side.
+side has a parking row (`parking.parked_sides`, prompt 25: only by the blocks of a parking district) its
+edge line stands on the row's lane side; elsewhere it stays `paint_edge_inset` m in from the curb.
 """
 from __future__ import annotations
 
@@ -169,7 +170,7 @@ def make_paint(style, streets, walks, districts=()) -> list:
     cross_gap = float(cfg.get("crossing_gap", 0.55))
     junction_gap = float(cfg.get("crossing_junction_gap", 1.0))
 
-    widths, promoted = walk_widths(style, districts, streets, walks, MARKED)
+    widths, promoted, parks = walk_widths(style, districts, streets, walks, MARKED)
     parking = style.get("dressing", {}).get("parking", {})
     row = float(parking.get("row", 0.0))
 
@@ -183,7 +184,7 @@ def make_paint(style, streets, walks, districts=()) -> list:
             continue
         out_l = st.width / 2.0 - widths.get((k, 1), 0.0)
         out_r = st.width / 2.0 - widths.get((k, -1), 0.0)
-        parked = parked_sides(st, k, widths, promoted, parking, promenade)   # an edge line moves out to
+        parked = parked_sides(st, k, widths, promoted, parking, promenade, parks)   # an edge line moves out to
         edge_l = out_l - (row if 1 in parked else inset)                    # the lane side of a parking row
         edge_r = out_r - (row if -1 in parked else inset)
         if st.kind == "boulevard":

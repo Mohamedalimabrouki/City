@@ -791,6 +791,7 @@ lift = 0.04                # above the ground, so it never flickers through the 
 reach = 40.0               # longest path in meters
 step = 4.0                 # meters between draped points (the city ground is smooth)
 material = "sidewalk"
+cross = 4.0                # a stair path counts this far on past its end, over the sidewalk (cars and street trees keep clear)
 
 # Lit windows at night (prompt 21): the household decides. Each flat (one floor of one side of a
 # house; in a modern block, one half of a stair's section) is lit with this chance:
@@ -998,8 +999,7 @@ crossing_clear = 1.5       # from a zebra crossing
 front_clear = 2.6          # half the gap in front of a cafe or shop front, along the curb
 door_clear = 0.3           # from a door's free zone ([dressing.open_walls] door_clear in front of it)
 door_reach = 8.0           # buildings this close to the row may have a door zone reaching it
-path_clear = 0.6           # from a stair door's paved path, carried on `path_cross` m over the sidewalk
-path_cross = 4.0
+path_clear = 0.6           # from a stair door's paved path, carried on ([dressing.paths] cross) over the sidewalk
 tree_clear = 1.0           # from a tree trunk's bark (as drawn, after tree_spots) ...
 tree_trunk = 0.3           # ... a trunk this thick in radius
 lamp_clear = 0.3           # from a street lamp (its kit bounds)
@@ -1010,6 +1010,13 @@ mix = [["hatch", 0.43], ["sedan", 0.35], ["van", 0.13], ["taxi", 0.07], ["louage
 rank = [4, 6]              # yellow taxis waiting at the rank by the boulevard's busiest junction
 rank_gap = [0.5, 0.9]
 rank_reach = 150.0         # meters from that junction the rank may stand, in the nearest run where it fits
+rank_run = 9.0             # ... in a run at least this long
+min_run = 3.5              # meters: a shorter stretch between junctions takes no car
+parallel_run = 8.0         # a street running inside another's surface this long ...
+parallel_deg = 15.0        # ... within this many degrees of its direction lies on it (does not meet it)
+probes = [0.05, 0.7, 1.4, 2.1]   # meters in from the curb side where a row's samples look for obstacles
+tree_reach = 6.0           # planned trees this close to a row are checked
+lamp_reach = 3.0           # street lamps this close to a row are checked
 
 # Benches, kiosks and fountains (prompt 26, city/squares.py). The boulevard's promenade is cut into islands
 # where streets cross it (`island_clear` m wider than their surface). A fountain stands at the head of the
@@ -1022,25 +1029,35 @@ bench = 0.85               # chance of a bench between two trees of the middle r
 bench_gap = 6.0            # ... at least this many meters apart
 bench_offset = 0.35        # from the tree line to the bench's middle, toward the walkway it faces
 island_clear = 0.6         # meters kept from a street crossing the promenade
+island_min_area = 4.0      # m2: smaller promenade scraps are no island
 fountain = 1.0             # chance of a fountain on each boulevard
 fountain_margin = 1.0      # from the island's end to the basin's step
 fountain_trees = 1.6       # planned trees with a trunk within the basin plus this are left out
+lamp_reach = 3.0           # streets this close to a fountain spot have their lamps checked
 kiosk = 0.7                # chance per spot (a paved corner, an island end)
 kiosks = 3                 # at most this many per boulevard ...
 kiosk_spacing = 30.0       # ... this far apart
 kiosk_margin = 0.5         # from an island's end to the kiosk's awning
 kiosk_slide = 8.0          # how far in from an island's end a kiosk may move to find room
+kiosk_fountain_gap = 10.0  # an island end this close to the fountain's basin takes no kiosk
+kiosk_tries = 60           # points of a paved corner tried, nearest its middle first
+kiosk_region = 6.0         # obstacles gathered this far around the kiosk spots
 kiosk_lit = 0.5            # chance a kiosk is open and lit at night
 apron_reach = 1.0          # a paved cut corner this close to a boulevard may take a kiosk
+apron_min_area = 4.0       # m2: smaller pieces of a paved corner take none
 tree_trunk = 0.3           # trunk radius ...
 tree_clear = 0.5           # ... plus this from any piece; a piece taller than a crown's lowest leaves
 crown_pad = 0.1            # (less this) keeps out from under it: a circle of
 crown_cover = 0.8          # this times the tree piece's half width
+tree_query = 6.0           # trees this close to a spot are checked
+dressed_reach = 4.0        # buildings this close to a spot have their wall pieces checked
 lamp_clear = 0.3
 crossing_clear = 0.6
 piece_clear = 0.2          # from any other piece (cars, doors, shops, cafes, arcades, other furniture)
 sabil = { mosque = 1.0, gate = 0.25 }  # chance by landmark (the great mosque only, not neighbourhood ones)
 sabil_reach = 40.0         # walls this close to the landmark
+area_reach = 25.0          # furniture is looked for this far around the islands ...
+sabil_area_pad = 10.0      # ... and sabil_reach plus this around a sabil's landmark
 sabil_face = 6.0           # a souk or alley this close in front (else the open square counts)
 sabil_front = 1.6          # meters of free ground in front of it
 sabil_gap = 0.4            # from corners and any piece on the wall
