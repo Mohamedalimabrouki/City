@@ -36,6 +36,8 @@ from .builder import (MeshBuilder, add_arch, add_battlement, add_cap, add_dome, 
 from .gltf import write_glb
 from .landmarks import landmark_mesh
 from .station import forecourt_skirt, keep_off, rail_meshes, rail_zone, station_mesh
+from .port import (armour_placements, breakwater_meshes, ground_masks, keep_zone, quay_placements, split_cells,
+                   wall_meshes)
 from .props import tree_mesh
 from .textures import images_for
 from .vaults import covered_meshes
@@ -77,6 +79,9 @@ class TileContext:
         self.paint_trees = []
         self.covers = []                         # covered souks (prompt 31): one rule for mesher and dresser
         self.rail_zones = [rail_zone(p) for p in plans]   # the station's ground, kept clear (prompt 33)
+        self.port_cfg = world.style.get("port", {})       # quays, breakwater, lighthouse (prompt 34)
+        self.ports = [p.port for p in plans if getattr(p, "port", None) is not None]
+        self.port_keep = [keep_zone(p.port) if getattr(p, "port", None) is not None else None for p in plans]
         for p in plans:
             fps = [b.footprint for b in p.buildings]
             centers = shapely.get_coordinates(shapely.centroid(fps)) if fps else np.zeros((0, 2))
@@ -159,15 +164,21 @@ def terrain_mesh(mb: MeshBuilder, tc: TileContext, x0: float, y0: float, corners
         names[urban] = "urban_ground"
         if tc.park_area is not None:
             names[urban & shapely.contains_xy(tc.park_area, xc, yc)] = "grass"
+    split = np.zeros(names.shape, dtype=bool)
+    if tc.ports:                       # quays (prompt 34): paving on the aprons; cells a wall crosses drawn apart
+        apron, split = ground_masks(tc, Xg[:-1, :-1], Yg[:-1, :-1], s)
+        names[apron] = "quay"
     cols = n + 1
     iy, ix = np.meshgrid(np.arange(n), np.arange(n), indexing="ij")
     v00 = iy * cols + ix
     quads = np.stack([v00, v00 + 1, v00 + cols + 1, v00 + cols], axis=-1)
-    for mat in np.unique(names):
-        q = quads[names == mat]
+    for mat in np.unique(names[~split]):
+        q = quads[(names == mat) & ~split]
         tris = np.concatenate([q[:, [0, 1, 2]], q[:, [0, 2, 3]]])
         used, remap = np.unique(tris, return_inverse=True)
         mb.add(str(mat), pos[used], nrm[used], uv[used], remap.reshape(-1, 3), col[used])
+    if split.any():
+        split_cells(mb, tc, Xg[:-1, :-1][split], Yg[:-1, :-1][split], names[split], s)
     return float(H.min())
 
 
@@ -634,7 +645,14 @@ def build_tile(tc: TileContext, i: int, j: int) -> tuple:
         zone = tc.rail_zones[ci]
         if zone is not None and zone.intersects(tile):      # the tracks run on past the city limit
             rail_meshes(mb, tc, plan, tile)
+        port = getattr(plan, "port", None)
+        harbor = port is not None and port.zone.intersects(tile)
+        if harbor:                                          # quay walls and the breakwater lie past the city limit
+            wall_meshes(mb, tc, port, tile)
+            breakwater_meshes(mb, tc, port, plan, tile)
         if not plan.boundary.intersects(tile):
+            if harbor:
+                placements += quay_placements(tc, port, tile) + armour_placements(tc, port, plan, tile)
             continue
         street_meshes(mb, tc, plan, street_tree, tile)
         covered_meshes(mb, tc.covers[ci], tile, dresser is not None)
@@ -716,6 +734,9 @@ def build_tile(tc: TileContext, i: int, j: int) -> tuple:
             placements += dresser.crowd().people(tile, placements, centers, tile_bytes(tc.kit, mb, placements))
         if zone is not None:                                # nothing stands on the tracks (prompt 33)
             placements[:] = keep_off(placements, zone, tc.kit)
+        if harbor:                                          # nothing in the sea or on the quay edge (prompt 34)
+            placements[:] = keep_off(placements, tc.port_keep[ci], tc.kit)
+            placements += quay_placements(tc, port, tile) + armour_placements(tc, port, plan, tile)
     ground_heights(tc.ground, placements)
     for span in spans:
         if span.kind == "sabat":

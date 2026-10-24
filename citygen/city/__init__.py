@@ -14,6 +14,8 @@ Pipeline (each step is its own module):
   massing    rows, cut corners, domes, set-back top floors, stepped slabs, villa L's, roof rooms
              (after households and souks: it never adds, removes or reorders a building)
   greenery   street trees on arterials, courtyard trees, villa fruit trees (last: only appends trees)
+  port       quays along the port districts' coast, a breakwater and its lighthouse (after everything:
+             it only adds the harbor, its land and the lighthouse's landmark, appended last)
 """
 from __future__ import annotations
 
@@ -39,6 +41,7 @@ from .paint import make_paint, street_surfaces
 from .streets import local_streets, major_streets, road_links, street_trees
 from .walks import make_walks
 from . import station as railway
+from .port import lengths as port_lengths, plan_port
 
 
 class CityContext:
@@ -122,10 +125,14 @@ def plan_city(world, settlement) -> CityPlan:
     plan.paint = make_paint(world.style, streets, walks, districts)
     green = railway.clear(greenery(ctx, plan), station)
     trees += green   # appended last: every older tree keeps its index, so its kit variant and turn
+    plan.port, lights, plan.land = plan_port(ctx, districts, land)   # reads districts and land only
+    marks += lights   # appended last: every earlier landmark keeps its index
     plan.stats = {"districts": len(districts), "streets": len(streets), "impasses": len(lanes),
                   "blocks": len(blocks),
                   "parcels": len(parcels), "buildings": len(buildings), "trees": len(trees),
                   "greenery": len(green),
                   "households": len(plan.households), "souks": len(plan.souks),
+                  **({"quay_m": port_lengths(plan.port)["quays"], "breakwater_m": port_lengths(plan.port)["breakwaters"]}
+                     if plan.port is not None else {}),
                   "seconds": round(time.perf_counter() - t0, 1)}
     return plan

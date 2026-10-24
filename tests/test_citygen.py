@@ -80,6 +80,9 @@ def test_same_seed_same_city(world, plan):
     assert [m for m in again.landmarks if m.kind == "kasbah"] == [m for m in plan.landmarks if m.kind == "kasbah"]
     assert again.station.facade == plan.station.facade                       # the railway station (prompt 33)
     assert [t.wkb for t in again.station.tracks] == [t.wkb for t in plan.station.tracks]
+    assert [q.line.wkb for q in again.port.quays] == [q.line.wkb for q in plan.port.quays]   # the harbor (prompt 34)
+    assert [(b.line.wkb, b.light) for b in again.port.breakwaters] == [(b.line.wkb, b.light) for b in plan.port.breakwaters]
+    assert again.landmarks[-1] == plan.landmarks[-1] and again.land.equals_exact(plan.land, 1e-9)
 
 
 def test_buildings_are_valid_and_inside_the_city(plan):
@@ -2376,7 +2379,7 @@ def test_kasbah_holds_the_high_edge_of_the_old_town_and_keeps_clear(world, plan)
     assert all(b.kind.startswith("kasbah") or b.kind in ("mosque_hall", "mosque_court", "minaret") for b in fort)
     assert max(h.building for h in plan.households) < first          # appended last, nobody lives there
     marks = [m for m in plan.landmarks if m.kind == "kasbah"]
-    civic = [m for m in plan.landmarks if m.kind in ("cathedral", "theatre", "station")]   # after it (prompts 32, 33)
+    civic = [m for m in plan.landmarks if m.kind in ("cathedral", "theatre", "station", "lighthouse")]   # after it (32-34)
     assert len(marks) == 1 and marks[0] is plan.landmarks[-1 - len(civic)] and marks[0].name.split()[0] in ("Kasbah", "Dar", "Bordj")
     # it leans on the city wall, on the old town's high edge
     walls = shapely.union_all([b.footprint for b in fort if b.kind in ("kasbah_wall", "kasbah_tower")])
@@ -2657,7 +2660,7 @@ def test_station_stands_at_the_colonial_edge_and_its_tracks_leave_the_city_clear
     assert [b.kind for b in plan.buildings[-3:]] == ["station_forecourt", "station", "station_platforms"] == [
         KINDS[2], KINDS[0], KINDS[1]]
     assert not {h.building for h in plan.households} & {n - 3, n - 2, n - 1}
-    mark = plan.landmarks[-1]
+    mark = [m for m in plan.landmarks if m.kind != "lighthouse"][-1]   # the lighthouse comes after (prompt 34)
     assert mark.kind == "station" and mark.name.startswith("Gare") and plan.settlement.name in mark.name
     assert cfg["tracks"][0] <= len(st.tracks) <= cfg["tracks"][1]
     head = plan.buildings[-2]
@@ -2699,3 +2702,81 @@ def test_station_stands_at_the_colonial_edge_and_its_tracks_leave_the_city_clear
     if len(top):
         gap = top[:, 2] - ground.surface(top[:, 0], top[:, 1])
         assert gap.max() < cfg["crossing_lift"] + 0.03 and np.percentile(gap, 75) > 0.0
+
+
+def test_quays_breakwater_and_lighthouse(world, plan, ground, built_mesh):
+    # prompt 34: in port districts straight quays `level` m above the sea, reach m out past the old coast (coves
+    # filled, the aprons in plan.land); the ground on them is level in Ground and in the drawn terrain, which
+    # agree everywhere off the walls; a vertical wall to the dredged basin; a breakwater from a quay's end out
+    # into the sea with the lighthouse (the last landmark) on its head; no piece stands in the sea or on the
+    # quay edge but the harbor's own; a "port" camera over the basin
+    from citygen.build import camera_views
+    from citygen.city.port import lengths
+    from citygen.mesh.port import breakwater_meshes
+    from citygen.mesh.tile import MeshBuilder, build_tile
+    cfg = world.style["port"]
+    port = plan.port
+    level, reach = cfg["level"], cfg["reach"]
+    assert port is not None and port.level == level and port.quays and port.breakwaters
+    assert all(plan.districts[q.district].kind == "port" for q in port.quays)
+    for q in port.quays:
+        assert q.coast.distance(q.line) >= reach - 1e-6 and q.coast.hausdorff_distance(q.line) < reach + cfg["straight"] * 2
+        assert plan.land.buffer(0.01).contains(q.apron) and not plan.boundary.contains(q.line)
+        corniche = [s for s in plan.streets if s.kind == "corniche" and s.line.distance(q.coast) < 1.0]
+        assert corniche and all(not s.line.buffer(s.width / 2).intersects(q.line) for s in corniche)
+    r = np.random.default_rng(3)
+    pts = []
+    for q in port.quays:
+        x0, y0, x1, y1 = q.apron.bounds
+        p = np.column_stack([r.uniform(x0, x1, 2000), r.uniform(y0, y1, 2000)])
+        pts.append(p[shapely.contains_xy(q.apron, p[:, 0], p[:, 1])])
+    pts = np.concatenate(pts)
+    assert len(pts) > 200 and np.all(ground.height(pts[:, 0], pts[:, 1]) == level)
+    edge = np.concatenate([np.asarray(shapely.segmentize(q.line, 10.0).coords)[2:-2] for q in port.quays])
+    assert np.all(ground.side_height(edge[:, 0], edge[:, 1], "raised") == level)
+    assert np.all(ground.side_height(edge[:, 0], edge[:, 1], "sea") <= -cfg["depth"] + 1e-9)
+    # the tile holding the breakwater's root: the drawn terrain is the ground, level on the apron
+    bw = port.breakwaters[0]
+    tc = built_mesh[0]
+    root = bw.line.coords[0]
+    i, j = int(root[0] // tc.size), int(root[1] // tc.size)
+    mb, placements = build_tile(tc, i, j)
+    assert {"quay", "quay_wall", "quay_wet", "rubble", "curb"} <= set(mb._parts)
+    for mat in ("quay", "urban_ground", "beach"):
+        if mat not in mb._parts:
+            continue
+        pos = np.concatenate(mb._parts[mat][0]) + mb.origin
+        flat = pos[:, 2] <= level + 1e-9 if mat == "quay" else np.ones(len(pos), dtype=bool)   # not the crest
+        off = flat & (shapely.distance(port.walls, shapely.points(pos[:, :2])) > 1e-6)
+        assert np.allclose(pos[off, 2], ground.height(pos[off, 0], pos[off, 1]), atol=1e-9), mat
+        on = flat & shapely.contains_xy(port.apron.buffer(-0.01), pos[:, 0], pos[:, 1])
+        assert np.all(pos[on, 2] == level), mat
+    # the breakwater starts at the quay and stays in the sea; the lighthouse stands on its head
+    line = np.asarray(bw.line.coords)
+    assert port.core.distance(shapely.Point(line[0])) < 1.0 and bw.basin.area > 10000.0
+    tail = line[np.cumsum(np.r_[0.0, np.hypot(*np.diff(line, axis=0).T)]) > cfg["crest"][1]]
+    assert np.all(world.terrain.height(tail[:, 0], tail[:, 1]) < 0.0)
+    assert not shapely.intersects(port.shore, shapely.points(tail)).any()
+    light = plan.landmarks[-1]
+    assert light.kind == "lighthouse" and light.name.startswith("Phare")
+    assert (light.x, light.y) == bw.light[:2] == tuple(line[-1])
+    head = MeshBuilder(origin=(0.0, 0.0))
+    breakwater_meshes(head, tc, port, plan, shapely.box(*(np.floor(line[-1] / tc.size) * tc.size),
+                                                         *(np.floor(line[-1] / tc.size) * tc.size + tc.size)))
+    tower = np.concatenate(head._parts["lighthouse_white"][0])
+    assert {"lantern_glow", "lighthouse_red"} <= set(head._parts)
+    assert np.hypot(*(tower[:, :2] - line[-1]).T).max() < 3.0 and tower[:, 2].min() >= cfg["crest"][0] - 0.5
+    # nothing but the harbor's pieces in the sea or on the quay edge; no building or tree there either
+    zone = tc.port_keep[0]
+    harbor = {"bollard", "fender"} | {f"armour_rock_{k}" for k in range(cfg["armour"]["variants"])}
+    assert {p.piece for p in placements} >= harbor
+    for p in placements:
+        if p.piece not in harbor:
+            assert not zone.intersects(_plan_box(tc.kit, p)), p.piece
+        elif p.piece == "bollard":
+            assert port.apron.contains(shapely.Point(p.x, p.y)) and p.z == level
+    assert not shapely.intersects(zone, shapely.points([(t.x, t.y) for t in plan.trees])).any()
+    assert not any(zone.intersects(b.footprint) for b in plan.buildings)
+    assert plan.stats["quay_m"] == lengths(port)["quays"] > 500.0
+    view = camera_views(plan, ground, style=world.style)["port"]
+    assert view["cam"][2] > 30.0 and bw.basin.buffer(150.0).contains(shapely.Point(view["look"][:2]))

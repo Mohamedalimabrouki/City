@@ -68,8 +68,11 @@ config.load_config()          defaults.toml + worlds/*.toml + CLI overrides
                               L's, roof machinery and roof rooms (never adds or moves a building)
       greenery                street trees on arterials, courtyard trees, villa fruit trees
                               (last, after the road paint; only appends to `trees`)
+      port                    quays along the port districts' coast, a breakwater and its lighthouse
+                              (after everything: adds `port`, the aprons to `land`, the lighthouse landmark)
   city.ground.Ground()        graded ground inside cities: smoothed, terraced under blocks, level under
-                              the station (blending back over [station] level_band),
+                              the station (blending back over [station] level_band), level on the quays
+                              and stepping down at their walls to a dredged basin,
                               blended into natural terrain at the city limit; `height` is the
                               ground, `surface` the top of the ground, street ribbon or walk
   mesh.tile.export_tile()     one 512 m square -> .glb (terrain, water, roads, city)
@@ -94,6 +97,7 @@ build.build()                 orchestrates the above into output/<country>-<seed
 | `citygen/mesh/tile.py` | what goes into one tile |
 | `citygen/mesh/vaults.py` | covered souks (prompt 31): barrel vaults, impost bands, transverse arches, light openings, lantern rods |
 | `citygen/mesh/landmarks.py` | the cathedral and the theatre (prompt 32): portals, rose window, towers, gables, crossing dome, apse; rounded corners, parapet, pavilion, crown, canopy, stage tower |
+| `citygen/mesh/port.py` | the harbor (prompt 34): quay paving and the terrain cells a wall crosses drawn in two parts, quay walls with the wet band and kerb, the rubble breakwater (loft, crest road, crown wall, round head), the lighthouse; kit pieces `bollard`, `fender`, `armour_rock_0..2` and their placements |
 | `citygen/mesh/station.py` | the railway station (prompt 33): head building with entrance pavilion and clock tower (dials and hands), platforms with canopies on posts, buffer stops; the tracks tile by tile (sleeper bed, rails, level crossings); `keep_off` |
 | `citygen/mesh/plants.py` | shared plant shapes: clumps (icosahedron, octahedron, 4-face bract) and tapered tubes |
 | `citygen/mesh/props.py` | the generator's own kit pieces (doors, shops by trade, awnings, goods, lamps, trees...) |
@@ -115,6 +119,7 @@ build.build()                 orchestrates the above into output/<country>-<seed
 | `citygen/city/greenery.py` | more greenery (prompt 24): arterial tree pits, courtyard trees, villa fruit trees, appended after every older tree |
 | `citygen/city/kasbah.py` | the kasbah (prompt 30): placement on the old town's high edge, walls, towers, gate tower, palace, mosque, parade ground |
 | `citygen/city/landmarks.py` | the boulevard's cathedral and theatre (prompt 32): sites on merged colonial lots, the local frame and plan shapes shared with the mesh, names, their camera views |
+| `citygen/city/port.py` | the harbor (prompt 34): quay lines from the port districts' coast, aprons and level cores, the breakwater, basin and lighthouse (name, color scheme), the ground zones (shore, raised side, walls, dredge), the "port" camera |
 | `citygen/city/station.py` | the railway station (prompt 33): site at the colonial edge, track layout and corridor, street and walk clipping, buildings and name, its camera view |
 | `citygen/city/massing.py` | building massing (prompt 23): the planning step, `masses(b)` (the volumes drawn and dressed), `floors_at`/`wall_height` (floors and wall height at a point of the outer wall), `outline`, `inner_walls`, `terrace_walls` |
 | `citygen/kitsheet.py` | `python -m citygen kit-sheet`: every piece in one viewable grid |
@@ -145,9 +150,12 @@ block on `rng("impasse", block)`: lot line jitter, widths, covered share and len
 - `Settlement(id, name, kind, x, y, population, radius, elevation, coastal, biome, known_for, founded)`;
   kinds: `capital`, `city`, `town`, `village`. Ids are stable for a given seed and settings.
 - `Road(id, kind, width, coords, ends)`; kinds `national`, `regional`, `local`.
-- `CityPlan`: `boundary`, `land`, `medina`, `districts`, `streets`, `blocks`, `parcels`,
+- `CityPlan`: `boundary`, `land` (with the quay aprons since prompt 34), `medina`, `districts`, `streets`, `blocks`, `parcels`,
   `buildings`, `trees`, `landmarks`, `walks`, `households`, `souks`, `paint`, `stats`, `station`
-  (a `city.station.Station` or None: `facade`, `tracks`, `precinct`, `corridor`, `district`, `core`).
+  (a `city.station.Station` or None: `facade`, `tracks`, `precinct`, `corridor`, `district`, `core`), `port`
+  (a `city.port.Port` or None: `level`, `quays` [`Quay`: `district`, `line` (the quay edge, the sea on its
+  right), `coast`, `apron`, `core`], `breakwaters` [`Breakwater`: `line`, `quay`, `basin`, `sea_side`, `light`
+  (x, y, yaw, scheme)], and the ground zones `core`, `apron`, `shore`, `raised`, `walls`, `dredge`, `zone`).
 - `Walk(kind, polygon, width, street, side, district, block)`: a raised sidewalk (`sidewalk`)
   or the boulevard's central promenade (`promenade`). `width` is the actual width after a tight
   street narrows it; `street` and `side` (`+1` left, `-1` right) let later street features find
@@ -322,6 +330,43 @@ block on `rng("impasse", block)`: lot line jitter, widths, covered share and len
   the street edges need. `keep_off` drops every placement whose kit box touches the precinct or the
   corridor (cars, people, lamps, trees). The map draws beds, rails and buildings; the gazetteer lists the
   station; plan.json has `rail` (tracks, corridor); the index gets a "station" camera on the avenue.
+- **Harbor** (prompt 34, `city/port.py`, `mesh/port.py`, `[port]`, settlements with `port = true` on the coast:
+  capital and cities; like La Goulette, Sousse, Sfax or Bizerte). Last in the planner, reading only districts and
+  land, so no street, lot, building or tree moves. The coast of each port district (the corniche's center line,
+  `land`'s edge) with `min_quay` m left after `end_inset` m off each end becomes a quay: the coast simplified by
+  `straight` m, each segment pushed out to `reach` m past the farthest point of the coast it covers (every cove
+  behind it filled), the segments joined at their crossings; it returns to the coast at right angles at both
+  ends. The apron (old coast to quay edge: the corniche's sea half and the reclaimed land) joins `plan.land`.
+  The longest `breakwaters` quays get a breakwater from the end farther from the city center: a cubic curve out
+  along the quay's normal by `out` (share of the quay, clamped), turning to run back along it for `run` of its
+  length (`bend` brings the head back toward the shore), stations every `step` m; past its root it keeps
+  `shore + land_clear` m off the land (else the other end is tried). The basin lies between the quay, the
+  breakwater and the mouth. The lighthouse stands on the head, its color scheme (`white` with a red cap,
+  `red_top`, `bands`) on `rng("port", "lighthouse", n)`, its `Landmark("lighthouse")` (appended after every
+  other landmark) named from `[names.districts] lighthouse` on `rng("port", "lighthouse", n, "name")`.
+  Ground: the core (the apron plus `core_inland` m behind the old coast, the whole corniche) is exactly `level`
+  m; on the land side (the core and `shore`, the land plus `shore` m) the ground blends back over `level_band` m
+  (smootherstep from the core); the open sea keeps the natural seabed, dredged to `depth` m in the basin and
+  `toe` m off every quay wall, fading over `dredge_band` m. The ground steps at the walls (where the raised side,
+  the core plus the shore within the level band, meets the open sea): the quay walls along the core and a sea
+  wall along the corniche's edge next to a quay's ends. `Ground.side_height(x, y, "raised" | "sea")` gives each
+  side's ground there. Mesh: terrain cells with their center on an apron are `quay` paving; cells a wall crosses
+  are drawn in two parts (`split_cells`), each on its own side's ground (only vertices on a wall use
+  `side_height`), so the drawn terrain is `Ground.height` everywhere off the walls. Walls (`quay_wall` dressed
+  stone above `wet` m, `quay_wet` below, down to `bury` m under the seabed; a `kerb` along the core) are cut by
+  segment midpoint per tile. The breakwater: a loft of rough profiles (crest edge, `rows` jittered points, toe on
+  the seabed, slopes `slope`:1, `rough` m jitter on `stream(seed, "port", city, n, "rubble")`), a `quay` crest
+  road `crest` m high and wide, a `quay_wall` crown wall `parapet` on the sea side, a half-round head; two rows
+  of armour stones (`[port.armour]`, kit pieces `armour_rock_0..2` on their own piece streams, placed on
+  `stream(seed, "port", city, n, "armour")`); the lighthouse (`[port.lighthouse]`: stone drum, tapered
+  `lighthouse_white` tower with `lighthouse_red` parts, `canopy_iron` gallery and railing, `lantern_glow`
+  lantern that glows at night, cap and finial). Bollards every `bollard_step` m `bollard_inset` m behind the
+  quay edge and fenders on the wall between them (none on the breakwater's root); `keep_zone` drops every other
+  placement in the open sea or within 1 m of a quay wall. The map draws the aprons, quay edges, breakwater and
+  lighthouse (its bounds take in the harbor); the gazetteer lists the harbor and the lighthouse; plan.json has
+  `port`; `stats` has `quay_m` and `breakwater_m`; the index gets a "port" camera (`[port] camera`: up over the
+  water off the harbor mouth, looking back across the basin). Quick capital: quays 523 + 841 m, a 732 m
+  breakwater; full capital: quays 935 + 612 m, a 788 m breakwater; both "Phare de Sidi Sazma".
 
 Invariants (tested): buildings are valid polygons inside the city and stay off street surfaces
 (impasses included); every old-town dwelling's main door opens on a street, alley or impasse; an
@@ -348,19 +393,24 @@ no arcade, car, furniture, person or trunk, have no car or planned tree before t
 views see the whole facade; the station stands across an avenue from the colonial quarter, off every street,
 its buildings last and housing nobody; its 2-4 tracks end past the city limit; no other building, lot,
 walk or tree lies on its precinct or corridor; every street on the corridor crosses it; in its tile no
-piece touches them; everything is deterministic.
+piece touches them; quays stand `reach` m off the old coast in port districts, clear of the corniche, their
+aprons in `land`, the ground on them exactly `level` m and the drawn terrain equal to the ground off the
+walls; the water off a quay is dredged to `depth`; the breakwater starts at a quay and stays in the sea with
+the lighthouse (the last landmark) on its head; no building, tree or other piece stands in the sea or on the
+quay edge but bollards, fenders and armour stones; everything is deterministic.
 
 ## 6. Output files (`output/<country>-<seed>/`)
 
 | File | Content |
 |---|---|
 | `world.json` | `citygen-world/1`: seed, name, size, settlements, roads (coords in meters) |
-| `cities/<name>/plan.json` | `citygen-city/1`: districts, streets, buildings, trees, landmarks, households, souks, and `rail` (track center lines, corridor) when the city has a station; GeoJSON-style geometry in world meters |
+| `cities/<name>/plan.json` | `citygen-city/1`: districts, streets, buildings, trees, landmarks, households, souks, and `rail` (track center lines, corridor) when the city has a station, `port` (quay edges and aprons,
+breakwater lines, basins, lighthouses) when it has a harbor; GeoJSON-style geometry in world meters |
 | `gazetteer.md` | readable guide for stories |
 | `maps/country.png`, `maps/<city>.png` | 2D maps, north up |
 | `tiles/tile_<i>_<j>.glb` | 3D tile covering x `i*512..(i+1)*512`, y `j*512..(j+1)*512` |
 | `tiles/textures/*.png` | base-color images shared by the tiles (`[tiles] textures = "shared"`, the default) |
-| `tiles/index.json` | `citygen-tiles/1`: tile list (bytes, unique and drawn triangles, dressing pieces), `"parapets": true` when the tiles carry their own roof parapets, `focus` point, camera `views` (street, souk, and cathedral, theatre and station when the city has them), `cities` (name, plan file, bounds) |
+| `tiles/index.json` | `citygen-tiles/1`: tile list (bytes, unique and drawn triangles, dressing pieces), `"parapets": true` when the tiles carry their own roof parapets, `focus` point, camera `views` (street, souk, and cathedral, theatre, station and port when the city has them), `cities` (name, plan file, bounds) |
 | `summary.json` | counts and timings (read this instead of big files) |
 
 **.glb conventions:** one root node per tile with `translation = [x0, 0, -y0]`; vertices are

@@ -125,3 +125,4 @@ class CityPlan:
     souks: list = field(default_factory=list)       # city/life.py: the trade of each market street
     paint: list = field(default_factory=list)       # city/paint.py: road markings
     station: object = None    # city/station.py: the railway station's tracks, precinct and corridor (prompt 33)
+    port: object = None       # city/port.py: quays, breakwater, lighthouse and the ground zones they change (prompt 34)

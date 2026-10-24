@@ -52,6 +52,7 @@ kasbah = ["Kasbah of {s}", "Kasbah of {s}", "Kasbah {a} {n}", "Dar {a} {n}", "Bo
 cathedral = ["Cathedral of St {g} de {n}"]   # {g}: a saint from [landmarks.cathedral] saints; {n} an invented place
 theatre = ["Theatre Municipal de {s}", "Theatre Municipal de {s}", "Grand Theatre de {s}"]
 station = ["Gare de {s}", "Gare de {s}", "Gare Centrale de {s}", "Gare de {s}-Ville"]   # the railway station (prompt 33)
+lighthouse = ["Phare de {s}", "Phare de la Jetee", "Phare de Ras {n}", "Phare de Sidi {n}"]   # the harbor light (prompt 34)
 
 [lore]
 # Fictional history: settlements are said to date from one of these eras.
@@ -94,6 +95,15 @@ ballast = { color = "#9A9086", roughness = 0.95, texture = "ballast", texture_si
 rail_steel = { color = "#8E8A86", roughness = 0.35, metallic = 0.6 }
 canopy_iron = { color = "#55635B", roughness = 0.6 }
 dial_white = { color = "#F6F3EA", roughness = 0.4 }
+# the harbor (prompt 34): quay paving and walls of dressed stone blocks, a dark wet band at the water line, rubble
+quay = { color = "#C2BBAC", texture = "concrete", texture_size = [4.0, 4.0] }
+quay_wall = { color = "#B8AD98", texture = "stone", texture_size = [2.4, 1.2] }
+quay_wet = { color = "#5E5A52", roughness = 0.5, texture = "stone", texture_size = [2.4, 1.2] }
+rubble = { color = "#A39C90", roughness = 0.95, texture = "rock", texture_size = [3.0, 3.0] }
+bollard_iron = { color = "#2B2E31", roughness = 0.55, metallic = 0.3 }
+fender_rubber = { color = "#1C1C1C", roughness = 0.9 }
+lighthouse_white = { color = "#F3F1EB", roughness = 0.85, texture = "render", texture_size = [3.0, 3.0] }
+lighthouse_red = { color = "#B3362C", roughness = 0.7 }
 dome_green = { color = "#3E7A57", roughness = 0.4 }
 plinth_blue = { color = "#70899A", roughness = 0.9, texture = "plaster", texture_size = [2.0, 2.0] }
 plinth_stone = { color = "#B3A48B", roughness = 0.92, texture = "stone", texture_size = [2.4, 1.8] }
@@ -632,6 +642,60 @@ setback = 6.0
 height = [8.0, 15.0]
 walls = [["concrete", 0.4], ["metal", 0.4], ["ochre", 0.2]]
 roofs = [["metal", 0.8], ["concrete_dark", 0.2]]
+
+[port]                     # quays, breakwater and lighthouse (prompt 34, city/port.py, mesh/port.py)
+level = 2.0                # quay top, meters above the sea
+reach = 40.0               # the quay edge stands this far out from the old coast (the corniche's sea half and a 31 m
+                           # apron), measured from the farthest point of the coast each straight segment covers
+straight = 25.0            # tolerance when the coast is straightened into quay segments: smaller coves get filled
+min_quay = 150.0           # shorter stretches of port coast keep their beach
+end_inset = 15.0           # quays stop this far from the ends of their port district's coast
+core_inland = 12.0         # the level ground reaches this far inland of the old coast (the whole corniche)
+level_band = 60.0          # then the city ground blends back over this many meters (smootherstep)
+shore = 9.5                # the land plus this (the corniche's sea half) is never open sea: sea walls along it
+depth = 6.0                # the basin and the water off the quays are dredged to this depth
+toe = 16.0                 # full depth this far out from every quay wall
+dredge_band = 60.0         # the dredging fades back to the natural seabed over this many meters
+wall_step = 8.0            # meters between the wall's outline points
+bury = 0.4                 # walls and the rubble's toe reach this far under the seabed
+wet = 0.6                  # the wet concrete band: from this height above the sea down
+kerb = [0.35, 0.18]        # the quay edge's kerb (wheel guard): width, height
+bollard_step = 18.0        # meters between bollards along the quay edge
+bollard_inset = 0.75       # bollard center behind the quay edge
+fender_step = 18.0         # rubber fenders on the quay wall, half way between the bollards
+breakwaters = 1            # harbors closed by a breakwater, longest quays first
+out = [0.22, 160.0, 300.0] # how far it reaches out to sea: share of the quay's length, clamped to meters
+run = [0.68, 0.8]          # how far it runs back along the quay (share of its length), on the port's stream
+bend = [0.0, 0.15]         # its head turns this share of `out` back toward the shore
+land_clear = 20.0          # past its root the crest keeps this far off the shore
+step = 8.0                 # meters between the breakwater's stations
+crest = [3.6, 8.0]         # crest height above the sea, crest width (a concrete road)
+slope = 1.5                # rubble slopes: meters across per meter down
+rough = 0.55               # jitter of the rubble faces, meters
+rows = [0.12, 0.4, 0.72]   # the slope's rows of jittered points, as shares of the way from the crest down to the seabed
+parapet = [1.4, 0.9]       # the crown wall on the sea side: height over the crest, thickness
+head = 10                  # segments round the half-round head
+camera = [10.0, 70.0, 85.0]   # the "port" view: meters back from the harbor mouth along the shore, out to sea, height
+
+[port.armour]              # armour stones in rows along each side of the breakwater, above the water line
+z = [2.4, 0.7]             # the rows sit on the slope where it is this high...
+lift = 0.45                # ...their centers this far above it (stones resting on the rubble)
+step = 2.8                 # meters between stones in a row (the second row sits half a step on)
+start = 6.0                # the first this far from the root
+size = [3.4, 2.7, 1.9]     # length, width, height of a stone before its scale
+scale = [0.75, 1.25]
+variants = 3
+
+[port.lighthouse]          # on the breakwater's head, like the harbor lights of La Goulette or Sousse
+plinth = [2.7, 1.2]        # base drum: radius, height
+tower = [2.1, 1.55, 13.0]  # radius at the foot and at the top, height over the plinth
+gallery = [2.45, 0.3]      # the gallery slab: radius, thickness; an iron railing round it
+railing = 1.0
+lantern = [1.05, 2.1]      # glazed lantern room: radius, height (lantern_glow: it glows at night)
+roof = [1.35, 1.1]         # its cap: radius, height
+segments = 14
+schemes = ["white", "red_top", "bands"]   # white with a red cap, a red top storey, or two red bands
+band = 1.8                 # height of a red band
 
 [district.park]
 tree_spacing = 13.0

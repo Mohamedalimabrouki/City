@@ -15,6 +15,43 @@ Entry format:
 - Doubts and questions for Ali: <none, or the question>
 ```
 
+## 2026-10-24 - Prompt 34 A6a Quays, breakwater and lighthouse
+- Commit: (see git log) | Model: Opus 5.5, high (playbook: Sonnet, high)
+- Changed: `citygen/city/port.py` (new: quay lines, aprons, cores, breakwater, basin, lighthouse, ground zones,
+  "port" camera), `citygen/mesh/port.py` (new: split terrain cells, quay walls, kerb, breakwater loft, crown wall,
+  head, lighthouse, pieces `bollard`, `fender`, `armour_rock_0..2` and their placements, `keep_zone`),
+  `citygen/city/__init__.py` (the last planning step), `citygen/city/model.py` (`CityPlan.port`),
+  `citygen/city/ground.py` (level quays, dredged basin, `side_height`, `walk_step`), `citygen/mesh/tile.py`
+  (apron paving, split cells, walls, breakwater, placements and keep-off), `citygen/kit.py`, `citygen/build.py`
+  ("port" view), `citygen/export/maps.py`, `citygen/export/lore.py` (map, gazetteer, plan.json `port`),
+  `styles/maghreb.toml` (`[port]`, `[port.armour]`, `[port.lighthouse]`, palette, lighthouse names), tests, docs.
+- Design: each port district's coast (the corniche's center line) becomes straight quay segments 40 m out past
+  the farthest coast point each covers (coves filled), returning to the coast at right angles 15 m from the
+  district's ends; the apron (corniche sea half plus 31 m of reclaimed land) joins `plan.land`. Ground: exactly
+  2.0 m on the core (apron plus 12 m inland: the whole corniche), blending back over 60 m on the land side; the
+  basin and a 16 m strip off every quay dredged to 6 m, fading over 60 m; a true step at the walls (dressed
+  stone, dark wet band below 0.6 m, kerb, bollards every 18 m, fenders between). Breakwater on the longest quay
+  from its end away from the center: out 185-206 m, curving back along 68-80% of the quay, crest road 3.6 m high
+  and 8 m wide, crown wall on the sea side, rough rubble slopes 1:1.5 to the seabed, two rows of armour stones,
+  round head with a white lighthouse (red bands, iron gallery, glowing lantern). "port" camera 85 m up off the
+  harbor mouth, looking back across the basin; Blender gets it from the index.
+- Plan changes: none to streets, lots, buildings, households or trees (the step runs last); landmarks 13 -> 14
+  (lighthouse last), new `port`, `stats` + `quay_m`, `breakwater_m`, `land` + aprons. Quick capital: quays 523 +
+  841 m, breakwater 732 m; full capital: quays 935 + 612 m, breakwater 788 m; both "Phare de Sidi Sazma".
+- Checks: tests 92 passed (26 s; the new test 0.25 s plus a shared tile fixture); `build --quick` 11.7 s (HEAD
+  11.5 s); fingerprint: plan/goumosbane/{landmarks, port, stats}, maps, gazetteer, tiles/index, 3 tiles, new kit
+  parts bollard, fender, armour_rock_0..2. Quick tiles: 12_22 +7.6% (the southern quay), 13_24 +1.3%, 14_24
+  +0.6%, all geometry. Full capital (vs a HEAD build in a worktree): 62_107 +51.7% (322 -> 488 KB: breakwater
+  body, armour stones), 63_107 +29.7% (quay, head, lighthouse), 61_107 +11.3% (breakwater end), others +1.6% to
+  +5.3%, all new geometry (no plan shift). Full capital 55.8 s before, 56.0 s after (HEAD 55.5 s back to back).
+- Look: `output/checks/34.png` (port view: basin, quay with palms, breakwater curve, lighthouse at the mouth),
+  `output/checks/34-harbor.png` (lighthouse, head, armour stones, crown wall). Both built with `--build-args
+  "--area capital --out output/harbor"`: the quick build's 9 center tiles stop short of the harbor. Blender:
+  `output/bodjantouna-42/goumosbane.blend` (new "port" camera; the quick tiles hold only the quays' south end).
+- Doubts and questions for Ali: the sea tiles that receive the breakwater exceed the +10% byte budget (new
+  geometry on near-empty tiles, absolute +166 KB at most). `output/full` held stale tiles and a plan of another
+  settlement from an older build (the fingerprint lists them as added); `output/harbor` is the picture build.
+
 ## 2026-10-24 - Prompt 33 A5d Train station and clock tower
 - Commit: (see git log) | Model: Opus 5.5, medium (playbook: Sonnet, medium)
 - Changed: `citygen/city/station.py` (new: site at the colonial edge, track layout, corridor, street and walk

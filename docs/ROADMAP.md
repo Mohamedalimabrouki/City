@@ -45,7 +45,7 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
 - [x] 31 A5b Covered souks
 - [x] 32 A5c Cathedral and theatre
 - [x] 33 A5d Station and clock tower
-- [ ] 34 A6a Quays, breakwater, lighthouse
+- [x] 34 A6a Quays, breakwater, lighthouse
 - [ ] 35 A6b Boats and cranes
 - [ ] 36 A6c Corniche promenade and beach
 - [ ] 37 H3c Seaside cafes

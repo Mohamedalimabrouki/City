@@ -32,6 +32,8 @@ KASBAH_RGB = {"kasbah_wall": (120, 82, 50), "kasbah_tower": (120, 82, 50), "kasb
 LANDMARK_RGB = {"cathedral": (226, 200, 132), "theatre": (170, 64, 70)}   # the boulevard's landmarks (prompt 32)
 STATION_RGB = {"station": (196, 120, 60), "station_platforms": (150, 140, 128), "station_forecourt": (214, 204, 184)}
 RAIL_BED_RGB, RAIL_RGB = (160, 150, 138), (70, 62, 58)   # the tracks (prompt 33)
+QUAY_RGB, QUAY_EDGE_RGB, RUBBLE_RGB = (200, 194, 182), (96, 88, 78), (150, 142, 130)   # the harbor (prompt 34)
+LIGHT_RGB = ((246, 244, 238), (178, 54, 44))
 ROAD_STYLE = {"national": ((196, 72, 52), 3.2), "regional": ((222, 150, 60), 2.2),
               "local": ((120, 110, 96), 1.2)}
 
@@ -120,7 +122,9 @@ def _overlap(a, b) -> float:
 
 
 def city_map(world, plan, path, meters_per_px: float | None = None, max_px: int = 4096) -> Path:
-    minx, miny, maxx, maxy = plan.boundary.buffer(150).bounds
+    port = getattr(plan, "port", None)
+    extent = plan.boundary if port is None else plan.boundary.union(port.zone)
+    minx, miny, maxx, maxy = extent.buffer(150).bounds
     span = max(maxx - minx, maxy - miny)
     mpp = meters_per_px or max(span / max_px, 0.6)
     w, h = int((maxx - minx) / mpp), int((maxy - miny) / mpp)
@@ -144,6 +148,11 @@ def city_map(world, plan, path, meters_per_px: float | None = None, max_px: int 
 
     for d in plan.districts:
         fill_poly(d.polygon, DISTRICT_RGB.get(d.kind, (230, 230, 230)))
+    if port is not None:                          # quay aprons, the breakwater's rubble and crest
+        fill_poly(port.apron, QUAY_RGB)
+        for bw in port.breakwaters:
+            draw.line(ring(bw.line.coords), fill=RUBBLE_RGB, width=max(2, round(24.0 / mpp)), joint="curve")
+            draw.line(ring(bw.line.coords), fill=QUAY_RGB, width=max(1, round(8.0 / mpp)), joint="curve")
     station = getattr(plan, "station", None)
     if station is not None:                       # the sleeper beds under the streets, the rails over them
         for t in station.tracks:
@@ -173,6 +182,12 @@ def city_map(world, plan, path, meters_per_px: float | None = None, max_px: int 
         court = KASBAH_RGB["kasbah_ground"] if b.kind in KASBAH_RGB else DISTRICT_RGB.get(kinds.get(b.district), (235, 225, 205))
         for hole in b.footprint.interiors:
             draw.polygon(ring(hole.coords), fill=court)
+    if port is not None:                          # the quay edges and the lighthouses
+        for q in port.quays:
+            draw.line(ring(q.line.coords), fill=QUAY_EDGE_RGB, width=max(1, round(1.5 / mpp)))
+        for bw in port.breakwaters:
+            (cx, cy), r = ring([bw.light[:2]])[0], max(3.0, 4.0 / mpp)
+            draw.ellipse([cx - r, cy - r, cx + r, cy + r], fill=LIGHT_RGB[0], outline=LIGHT_RGB[1], width=max(2, round(r / 3)))
     tree_r = max(1.0, 2.2 / mpp)
     for t in plan.trees:
         cx, cy = (t.x - minx) / mpp, (maxy - t.y) / mpp

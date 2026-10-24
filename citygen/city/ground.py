@@ -275,12 +275,20 @@ class Ground:
         self.apron_reach = float(streets_cfg.get("apron_reach", 6.0))
         self.apron_cell = float(streets_cfg.get("apron_cell", 2.0))
         self._apron_tris = None                                  # their drawn triangles (lazy, _apron_drawn)
+        cfg_port = world.style.get("port", {})                   # quays and harbor basins (prompt 34)
+        self.harbors = [(p.port, p.port.zone.bounds) for p in plans if getattr(p, "port", None) is not None]
+        self.port_band = float(cfg_port.get("level_band", 60.0))
+        self.dredge_band = float(cfg_port.get("dredge_band", 60.0))
+        self.depth = float(cfg_port.get("depth", 6.0))
 
     def walk_step(self, poly, step: float) -> float:
         """Meters between a walk's outline points: `step`, or the finer `[station] walk_step` where the
         ground bends round the station's level ground, so the drawn walk keeps its curb over the ribbon."""
         for city in self.cities:
             if city.level_zone is not None and city.level_zone.intersects(poly):
+                return min(step, self.level_walk_step)
+        for port, _bounds in self.harbors:            # the level band behind a quay bends the ground too
+            if port.zone.intersects(poly):
                 return min(step, self.level_walk_step)
         return step
 
@@ -358,12 +366,19 @@ class Ground:
     def _height_one(self, x: float, y: float) -> float:
         """`height` at one point: most dressing calls ask for one, and plain floats skip numpy's
         per-call overhead (same operations, same order, so the same bits)."""
+        h = None
         if shapely.contains_xy(self.area, x, y):
             for city in self.cities:
                 x0, y0, x1, y1 = city.bounds
                 if x0 <= x <= x1 and y0 <= y <= y1 and shapely.contains_xy(city.plan.boundary, x, y):
-                    return self._graded_one(city, x, y)
-        return float(self.terrain.height(np.array([x]), np.array([y]))[0])
+                    h = self._graded_one(city, x, y)
+                    break
+        if h is None:
+            h = float(self.terrain.height(np.array([x]), np.array([y]))[0])
+        for _port, (x0, y0, x1, y1) in self.harbors:     # near a harbor: the same array code as `height`
+            if x0 <= x <= x1 and y0 <= y <= y1:
+                return float(self._harbor(np.array([x]), np.array([y]), np.array([h]))[0])
+        return h
 
     def height(self, x, y):
         """Graded ground height in meters, in arrays out for arrays in (or a float for floats)."""
@@ -375,7 +390,14 @@ class Ground:
         if x.size == 1 and y.size == 1:
             h = self._height_one(float(x.flat[0]), float(y.flat[0]))
             return h if x.ndim == 0 else np.full(x.shape, h)
-        xf, yf = np.ravel(x), np.ravel(y)
+        out = self._height(np.ravel(x), np.ravel(y))
+        if x.ndim == 0:
+            return float(out[0])
+        return out.reshape(x.shape)
+
+    def _height(self, xf: np.ndarray, yf: np.ndarray, side: str | None = None) -> np.ndarray:
+        """`height` for flat arrays; `side` ("raised" or "sea") evaluates a harbor's ground as seen from one
+        side of its walls, where the ground steps (the mesher draws the two sides of a wall apart)."""
         out = np.empty(len(xf))
         rest = np.ones(len(xf), dtype=bool)
         for city, sel in self._select(xf, yf):
@@ -383,9 +405,43 @@ class Ground:
             rest[sel] = False
         if rest.any():
             out[rest] = self.terrain.height(xf[rest], yf[rest])
-        if x.ndim == 0:
-            return float(out[0])
-        return out.reshape(x.shape)
+        return self._harbor(xf, yf, out, side) if self.harbors else out
+
+    def side_height(self, x, y, side: str) -> np.ndarray:
+        """Ground height on the "raised" side (quay, corniche) or the "sea" side of a harbor's walls."""
+        xf = np.ravel(np.asarray(x, dtype=np.float64))
+        yf = np.ravel(np.asarray(y, dtype=np.float64))
+        if self.area is None or not len(xf):
+            return np.asarray(self.terrain.height(xf, yf), dtype=np.float64)
+        return self._height(xf, yf, side)
+
+    def _harbor(self, x: np.ndarray, y: np.ndarray, h: np.ndarray, side: str | None = None) -> np.ndarray:
+        """The ground changed by the quays (prompt 34, city/port.py): level on the core, blending back over
+        the level band on the land side; the open sea dredged in the basins and off the quays, fading out."""
+        for port, (x0, y0, x1, y1) in self.harbors:
+            sel = np.nonzero((x >= x0) & (x <= x1) & (y >= y0) & (y <= y1))[0]
+            if len(sel):
+                sel = sel[shapely.contains_xy(port.zone, x[sel], y[sel])]
+            if not len(sel):
+                continue
+            xs, ys, hs = x[sel], y[sel], h[sel].copy()
+            core = shapely.contains_xy(port.core, xs, ys)
+            if side is None:
+                land = core | shapely.contains_xy(port.shore, xs, ys)
+            else:
+                land = np.full(len(sel), side == "raised")
+            pts = shapely.points(xs, ys)
+            if land.any():
+                t = np.clip(shapely.distance(port.core, pts[land]) / self.port_band, 0.0, 1.0)
+                w = 1.0 - t * t * t * (t * (6.0 * t - 15.0) + 10.0)      # smootherstep: no kink at either end
+                hs[land] = np.where(w >= 1.0, port.level, hs[land] + w * (port.level - hs[land]))   # exact on the core
+            sea = ~land
+            if sea.any():
+                t = np.clip(shapely.distance(port.dredge, pts[sea]) / self.dredge_band, 0.0, 1.0)
+                w = 1.0 - t * t * t * (t * (6.0 * t - 15.0) + 10.0)
+                hs[sea] = hs[sea] + w * (np.minimum(hs[sea], -self.depth) - hs[sea])
+            h[sel] = hs
+        return h
 
     def lift(self, x, y, reach: float = 0.0):
         """Highest street-ribbon lift at each point (0 where no street lies).

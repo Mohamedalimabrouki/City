@@ -546,6 +546,22 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
   `keep_off` filters placements last in `build_tile` by their kit box, so no rule upstream needs to know about
   the tracks. The people test counted a string lantern hanging 4 m up as a piece under a walker's feet: it
   now skips pieces more than 2 m above the person.
+- **Harbor** (prompt 34, `city/port.py`, `mesh/port.py`, `[port]`): a height field cannot hold a vertical wall,
+  so the ground steps at the wall line (`Ground` is discontinuous there by design) and the terrain cells a wall
+  crosses are cut by the raised side and drawn in two parts, each on its own side's ground; only vertices lying
+  on a wall use `Ground.side_height`, so the drawn terrain equals `Ground.height` everywhere else (the test checks
+  every vertex of the root tile). Without the split, the triangles crossing the wall left a 2 m sloping strip
+  above the water in front of it. The corniche's center line IS the coast (`land`'s 0.8 m contour), its sea half
+  lay on the natural beach: the level core takes the whole corniche, and next to a quay's ends the level band
+  lifts the corniche's sea edge, so a decaying sea wall runs on along it. Planning last and reading only districts
+  and land moved nothing (plan parts changed: landmarks, port, stats). Level must be exact on the quay edge:
+  points from `segmentize` fall 1e-12 m outside the core polygon, so the blend uses `w >= 1.0`, not "inside the
+  core". Shared-vertex strips (`_grid`, walls, kerb, crown wall) cost about half of `add_skirt`/`add_quads`. The
+  quick build (520 m round the center) does not reach the harbor: pictures need `--build-args "--area capital
+  --out output/harbor"`. Bytes: sea tiles that receive the breakwater grow far past +10% (full capital: +52% on a
+  322 KB sea tile, +166 KB: rubble loft, 815 armour stones at 40 B, crown wall); every other tile stays within
+  +7.6%. A throwaway numpy z-buffer render of `build_tile` parts (no water) caught the composition and the
+  stones' scale before the two real pictures.
 - **Old-town tiles** reach about 5 MB on the quick build and 8 MB on the full capital
   (`tile_65_106`, mostly roofs since prompt 15); task Q5 (prompt 39) brings them down.
 

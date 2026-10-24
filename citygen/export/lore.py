@@ -57,6 +57,7 @@ def plan_json(plan) -> dict:
                         "door": h.door, "members": h.members} for h in plan.households],
         "souks": [{"street": k.street, "name": k.name, "trade": k.trade} for k in plan.souks],
         **_station_json(plan),
+        **_port_json(plan),
     }
 
 
@@ -67,6 +68,20 @@ def _station_json(plan) -> dict:
         return {}
     return {"rail": {"tracks": [np.round(np.asarray(t.coords), 2).tolist() for t in st.tracks],
                      "corridor": _geometry(st.corridor)}}
+
+
+def _port_json(plan) -> dict:
+    """The harbor (prompt 34): quay edges, aprons, breakwater center lines, basins and lighthouses."""
+    port = getattr(plan, "port", None)
+    if port is None:
+        return {}
+    return {"port": {"level": port.level,
+                     "quays": [{"district": q.district, "edge": np.round(np.asarray(q.line.coords), 2).tolist(),
+                                "apron": _geometry(q.apron)} for q in port.quays],
+                     "breakwaters": [{"line": np.round(np.asarray(bw.line.coords), 2).tolist(), "quay": bw.quay,
+                                      "basin": _geometry(bw.basin),
+                                      "lighthouse": {"x": round(bw.light[0], 2), "y": round(bw.light[1], 2),
+                                                     "scheme": bw.light[3]}} for bw in port.breakwaters]}}
 
 
 def _massing_json(b) -> dict:
@@ -133,6 +148,16 @@ def gazetteer(world, plans) -> str:
         if stations and getattr(plan, "station", None) is not None:
             n = len(plan.station.tracks)
             lines.append(f"- **railway station** ({n} tracks, at the edge of the colonial quarter): {', '.join(stations)}")
+        port = getattr(plan, "port", None)
+        if port is not None:
+            lights = [m.name for m in plan.landmarks if m.kind == "lighthouse"]
+            quay = sum(q.line.length for q in port.quays)
+            text = f"- **harbor**: {quay:,.0f} m of quays {port.level:g} m above the sea"
+            if port.breakwaters:
+                text += f", a breakwater of {sum(bw.line.length for bw in port.breakwaters):,.0f} m"
+            if lights:
+                text += f"; lighthouse: {', '.join(lights)}"
+            lines.append(text)
         if plan.souks:
             seen = {}
             for k in plan.souks:
