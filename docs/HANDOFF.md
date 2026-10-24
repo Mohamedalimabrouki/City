@@ -665,6 +665,19 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
   skirt's quads are apart anyway), or a colonial street turns one grey from afar. Terrain-only tiles are the
   hardest ratio (11%: the full one is only terrain), not the dense ones (3.6%). Debug renders: a numpy
   z-buffer of `read_parts` (painter's order lies with large water quads) cost no snapshot.
+- **Viewer level of detail** (prompt 41, `tools/viewer/index.html`): load every lod1 file before any full
+  tile. Mixing full tiles in early by distance made every frame draw them while the rest loaded: the full
+  capital from the air covered in 6.9 s and settled in 7 s; lod1 first covers it in 0.8 s and settles in
+  about 3 s (old viewer: 94 full tiles, 5-7.5 s). Re-rendering the shadow map on each of 200 swaps cost more than
+  the tiles; only a swap whose box meets the shadow frustum marks it dirty. Frame time from the air is
+  draw calls, not triangles (a full tile is about 180 meshes, a lod1 tile 2-3; GTAO and the shadow pass draw
+  them again): 151-168 -> 84-98 ms on High (street 67 -> 35 ms) in headless Chromium on the M1's Metal (`channel="chromium"`,
+  `--use-angle=metal`; the headless shell and the Claude browser pane, when hidden, are no use for GPU
+  timings). Snapshots stay deterministic because the want of a tile seen for the first time splits at
+  1500 m and depends only on the camera; hysteresis only acts once the camera moves. `citygenReady` is
+  live (false while tiles load) and `snapshot.py` checks it again two frames later. A quick build is
+  small enough that every tile is full in the street and aerial views (old and new viewer: 0.0 and
+  0.003 pixel difference).
 - **Old-town tiles** reach about 4.7 MB on the quick build and 5.8 MB on the full capital after prompt 39
   (`tile_65_106`; 8.7 and 11.1 MB before).
 
@@ -690,8 +703,10 @@ cut their instance data to 20 bytes per window (16-bit rotation, no SCALE).
   the working tree, same camera, labelled, difference printed; 0.00 = identical). Options:
   `--ref`, `--cam x,y,z --look x,y,z`, `--kit-sheet --frame PIECE`, `--build-args`, `--no-build`.
   It needs the local web server (outside the sandbox). Both halves use the working tree's viewer.
-  The viewer only clamps the camera above the ground once all tiles are loaded (before, the
+  The viewer only clamps the camera above the ground once the view first settled (before, the
   camera height depended on tile load order, so snapshots of one world differed from run to run).
+  `before_after.py --build-args` adds to `build --quick`: with `--out output/full` it replaces the full
+  capital build there with a quick one (41 tiles); rebuild it without `--quick` afterwards.
 - Claude takes at most two snapshots per task (`python -m citygen snapshot --view street`; views
   street = the boulevard, souk, aerial, top), then stops and asks Ali. On Ali's Mac `.venv` has
   playwright 1.56.0 because it matches the Chromium already in `~/Library/Caches/ms-playwright`

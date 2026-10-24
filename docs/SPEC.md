@@ -602,6 +602,29 @@ tile as finished only when its lod1 file exists at its written size. Sizes (full
 for 171 MB of full tiles; city tiles 3.6% of their full tile (densest 141 KB, 6,780 triangles, for 5.8 MB),
 terrain-only tiles 11%, worst 12.9% (a harbor tile). `stats --tiles` prints the lod1 total and ratios.
 
+**Viewer level of detail (prompt 41, `tools/viewer/index.html`):** one slot per index tile holds what is
+shown (`full`, `lod1` or nothing), the parsed versions in memory and the loads in flight. Every camera
+move recomputes each tile's want from `d`, the 3D distance from the camera to the tile's square at the
+focus height: full under `LOD_IN` (1400 m), lod1 over `LOD_OUT` (1700 m), in between it keeps its want
+(a tile seen for the first time splits at 1500 m, so a still camera always gets the same tiles).
+Full tiles also need the tile within `RADIUS` (2500 m, `?radius=`) of the orbit target; lod1 covers every
+tile of the build. Loads: lod1 first for every tile showing nothing, nearest first (the whole capital in
+under a second), then full tiles by distance, at most 6 at a time; `fetch` with an AbortController
+cancels a full load no longer wanted, and a tile parsed after that is disposed unseen. A parsed tile is
+prepared off-scene (normals, shared materials, night lists) and swapped in the same task as the old
+version leaves, so no frame shows both or a hole. A full tile that leaves is disposed (geometry,
+instance buffers; shared materials and their textures stay); lod1 twins stay in memory, so turning back
+to lod1 is instant. Images are fetched and decoded once (`THREE.Cache`). The shadow map re-renders
+only when a swapped tile's box meets the shadow frustum. `extent` (fog, far plane) spans the wanted
+tiles, the camera clamp uses the lowest shown tile of either kind, the street fallback waits for the
+tiles within 200 m of the focus to reach their version. URL settings: `lod=full` (full tiles only,
+the viewer before prompt 41), `lod=lod1`, `lod_distance=1500`. The stats line shows the full and
+lod1 counts; `window.citygenStats` adds `full`, `lod1`, `loading`, `settled`, `coveredMs` and
+`settledMs`. `window.citygenReady` is live: true on a frame drawn in the settled state (every tile at
+its version, nothing in flight, the street camera placed) after the first full load, false while
+the camera move makes tiles load. `tools/make_artifact.py` swaps the one reading line of `fetchTile`
+for its base64 JSON files and converts the lod1 files too.
+
 **Other engines (note for prompt 72, Godot 4):** not verified here. Godot 4's glTF importer is
 believed to read `KHR_mesh_quantization` and to generate normals when NORMAL is absent (to verify in
 prompt 72: they must come out flat on the split vertices); `EXT_mesh_gpu_instancing` support is not confirmed (it
@@ -1054,7 +1077,9 @@ Maghreb-specific values.
 - 3D: `python -m citygen snapshot --view aerial|street|top` renders the viewer to a PNG.
 - The viewer starts in **Fast** on phones and in the software snapshot browser, and in **High** on a
   computer (ambient occlusion and clean edges). Add `--query quality=high` to a snapshot to force
-  High; add `?perf=1` to the viewer address to log the average frame time over 120 frames.
+  High; add `?perf=1` to the viewer address to log the average frame time over 120 frames and the
+  load times (every tile shown, settled). Snapshots wait for the viewer's settled state (all tiles at
+  their level of detail, nothing in flight), so one build always gives one picture.
 - `python tools/before_after.py --view street|souk|aerial` compares the last commit with the working
   tree in one labelled picture and prints the pixel difference (see HANDOFF.md).
 

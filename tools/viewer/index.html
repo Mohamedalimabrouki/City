@@ -131,7 +131,11 @@ const triple = (key) => {
 // Screenshot tools wait for citygenReady (or fail fast on citygenError).
 window.citygenReady = false;
 window.citygenError = null;
-const stats = (window.citygenStats = { requested: 0, loaded: 0, failed: 0, triangles: 0 });
+// requested: tiles wanted; loaded: tiles showing their version; full, lod1: tiles shown of each kind;
+// loading: files in flight; settled: nothing left to load or swap; coveredMs: when every wanted tile
+// first showed a version, settledMs: when the view first settled (ms after the page opened)
+const stats = (window.citygenStats = { requested: 0, loaded: 0, failed: 0, triangles: 0, full: 0, lod1: 0,
+                                       loading: 0, settled: false, coveredMs: null, settledMs: null });
 
 function fail(message) {
   window.citygenError = message;
@@ -139,12 +143,18 @@ function fail(message) {
   $('count').textContent = message;
 }
 
-// URL parameters: radius (meters around the focus, default 2500), shadows=0, ui=0 (hide the overlay),
+// URL parameters: radius (meters around the orbit target with full tiles, default 2500), lod=full|lod1
+// (only full tiles, as before prompt 41, or only light ones; default both), lod_distance (meters from
+// the camera where tiles turn full, default 1500), shadows=0, ui=0 (hide the overlay),
 // view=aerial|street|top or a camera spot named in the index "views", or cam=x,y,z and look=x,y,z
 // in generator coordinates (meters, z up); light=noon|golden|night (time=night is an old alias);
 // quality=high|fast (ambient occlusion and clean edges), perf=1 (log the average frame time);
 // pick=x,y shows who lives at that point.
 const RADIUS = Math.max(0, num('radius', 2500));
+const LOD_MODE = ['full', 'lod1'].includes(q.get('lod')) ? q.get('lod') : 'auto';
+const LOD_DISTANCE = Math.max(0, num('lod_distance', 1500));
+const LOD_IN = LOD_DISTANCE * 14 / 15;    // 1400 m: a lod1 tile nearer than this turns full
+const LOD_OUT = LOD_DISTANCE * 17 / 15;   // 1700 m: a full tile farther than this turns lod1
 const MAX_INFLIGHT = 6;
 const SUN_DISTANCE = 1200;
 const SHADOW_HALF = 700;   // half width of the shadow camera across the light, meters
@@ -418,13 +428,28 @@ function initialView(index) {
 }
 
 // ---------------------------------------------------------------- tiles
+// Level of detail (prompt 41). Every tile of the build has a light twin (index entry `lod1`): the whole
+// build shows as lod1 tiles, and tiles near the camera are refined to the full tile. A tile turns full
+// under LOD_IN meters from the camera and lod1 again over LOD_OUT (hysteresis: a camera resting near the
+// limit never makes a tile flicker); the first decision splits at LOD_DISTANCE. A new version is parsed
+// off-scene and swapped in within one task (load, then swap), so no frame shows a hole or both versions.
+// Full tiles that leave are freed; the lod1 twins (a few percent of the bytes) stay in memory, so flying
+// away swaps back at once. RADIUS keeps full tiles within that many meters of the orbit target.
 const tiles = new THREE.Group();
 scene.add(tiles);
+THREE.Cache.enabled = true;   // texture images are fetched and decoded once, not once per tile
 const loader = new GLTFLoader();
 const sharedMaterials = new Map();
-let extent = 500;          // distance from the focus to the farthest loaded corner
-let lowest = Infinity;     // lowest point of any loaded tile; the camera stays above it
+let extent = 500;          // distance from the focus to the farthest corner of a wanted tile
+let lowest = Infinity;     // lowest point of any shown tile; the camera stays above it
 const tileBase = new URL('data/tiles/', location.href);
+const slots = [];          // one per tile of the index, see makeSlots
+let inflight = 0;          // tile files being fetched or parsed
+let tileVersion = 0;       // bumped whenever the shown tiles change
+let streetPending = false; // the street preset still waits for the tiles around the focus
+const STREET_LOAD = 200;   // meters: spots out to 90 m, rays out to 100 m
+const lodCamera = new THREE.Vector3(NaN, 0, 0);   // camera and target at the last level-of-detail pass
+const lodTarget = new THREE.Vector3(NaN, 0, 0);
 
 // The tiles' water ends at the last loaded tile: an opaque copy of the water just below sea level
 // carries the sea on to the horizon, where the fog takes over. On land the terrain hides it.
@@ -467,14 +492,18 @@ function shared(material) {
     }
     if (m.emissive && (m.emissive.getHex() !== 0 || LIT_AT_NIGHT[m.name])) m.userData.glows = true;
     if (night) glow(m);
+    m.userData.shared = true;
     sharedMaterials.set(key, m);
   }
   return m;
 }
 
-function addTile(gltf) {
+// Ready a parsed tile for the scene without adding it: rebase, normals, shared looks, and what the
+// night code and the stats need (kept on root.userData until the tile is shown).
+function prepareTile(gltf, kind) {
   const root = gltf.scene;
   root.position.set(-focus.x, 0, focus.y);   // rebase: the node translations are x0, 0, -y0
+  const info = { kind, tris: 0, glows: [], nightOnly: [] };
   root.traverse((o) => {
     if (!o.isMesh) return;
     // Quantized tiles (prompt 39) write flat faces without NORMAL, their vertices split by normal: the
@@ -494,36 +523,223 @@ function addTile(gltf) {
       o.geometry.computeBoundingBox();
       if (Math.abs(o.geometry.boundingBox.max.y) < 0.5) addSea(o.material);
     }
-    stats.triangles += (o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count) / 3;
-    if (o.isInstancedMesh && o.material.userData.glows && !LIT_AT_NIGHT[o.material.name]) glowMeshes.push(o);
-    if (/_pane_lit$/.test(o.name)) {
-      o.visible = night;
-      nightOnly.push(o);
-    }
+    info.tris += (o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count) / 3;
+    if (o.isInstancedMesh && o.material.userData.glows && !LIT_AT_NIGHT[o.material.name]) info.glows.push(o);
+    if (/_pane_lit$/.test(o.name)) info.nightOnly.push(o);
   });
-  tiles.add(root);
-  root.userData.box = new THREE.Box3().setFromObject(root);
-  lowest = Math.min(lowest, root.userData.box.min.y);
-  shadowDirty = dirty = true;
+  root.updateMatrixWorld(true);
+  info.box = new THREE.Box3().setFromObject(root);
+  Object.assign(root.userData, info);
+  return root;
 }
 
-function selectTiles(index) {
-  const size = index.tile_size || 512;
-  const picked = [];
-  for (const t of index.tiles || []) {
-    const x0 = t.x0 ?? t.i * size;
-    const y0 = t.y0 ?? t.j * size;
-    const dx = Math.max(x0 - focus.x, 0, focus.x - (x0 + size));
-    const dy = Math.max(y0 - focus.y, 0, focus.y - (y0 + size));
-    const d = Math.hypot(dx, dy);
-    if (!t.file || d > RADIUS) continue;
-    const dc = Math.hypot(x0 + size / 2 - focus.x, y0 + size / 2 - focus.y);
-    const far = Math.hypot(Math.max(Math.abs(x0 - focus.x), Math.abs(x0 + size - focus.x)),
-                           Math.max(Math.abs(y0 - focus.y), Math.abs(y0 + size - focus.y)));
-    picked.push({ file: t.file, d, dc, far });
-  }
-  return picked.sort((a, b) => a.d - b.d || a.dc - b.dc);
+// Free a tile's GPU buffers. Looks shared with other tiles stay; a parsed tile that was never shown
+// still owns its materials and their textures (its images are cached and stay).
+function disposeTile(root) {
+  root.traverse((o) => {
+    if (!o.isMesh) return;
+    o.geometry.dispose();
+    if (o.isInstancedMesh) o.dispose();
+    if (!o.material.userData.shared) {
+      if (o.material.map) o.material.map.dispose();
+      o.material.dispose();
+    }
+  });
 }
+
+function makeSlots(index) {
+  const size = index.tile_size || 512;
+  for (const t of index.tiles || []) {
+    if (!t.file) continue;
+    slots.push({
+      name: t.file.replace(/\.[^.]+$/, ''), file: t.file, lodFile: (t.lod1 && t.lod1.file) || null,
+      x0: t.x0 ?? t.i * size, y0: t.y0 ?? t.j * size, size, d: Infinity,
+      want: null,                       // 'full', 'lod1' or null (not wanted at all)
+      shown: null,                      // the version in the scene
+      roots: { full: null, lod1: null },   // parsed versions held in memory
+      jobs: { full: null, lod1: null },    // AbortControllers of loads in flight
+      failed: {},
+    });
+  }
+}
+
+// meters from a map point (generator x, y) to the tile's square
+const squareDist = (s, x, y) => Math.hypot(Math.max(s.x0 - x, 0, x - (s.x0 + s.size)),
+                                           Math.max(s.y0 - y, 0, y - (s.y0 + s.size)));
+const farCorner = (s) => Math.hypot(Math.max(Math.abs(s.x0 - focus.x), Math.abs(s.x0 + s.size - focus.x)),
+                                    Math.max(Math.abs(s.y0 - focus.y), Math.abs(s.y0 + s.size - focus.y)));
+
+// The version a tile should have. `s.d` is the camera's distance to the tile (its square on the map,
+// at the focus height); the current want picks the side of the hysteresis band.
+function wantFor(s, target) {
+  const band = LOD_OUT - LOD_IN;
+  const near = squareDist(s, target.x, target.y) <= RADIUS + (s.want === 'full' ? band : 0);
+  if (LOD_MODE === 'full' || !s.lodFile) return near ? 'full' : null;   // the viewer before prompt 41
+  if (LOD_MODE === 'lod1') return 'lod1';
+  const limit = s.want === 'full' ? LOD_OUT : s.want === 'lod1' ? LOD_IN : LOD_DISTANCE;
+  return near && s.d < limit ? 'full' : 'lod1';
+}
+
+// what a tile ends up showing: its want, unless that version failed to load
+function goal(s) {
+  if (!s.want || !s.failed[s.want]) return s.want;
+  if (s.want === 'full' && s.lodFile && !s.failed.lod1) return 'lod1';
+  return s.shown;
+}
+
+// Does a tile reach into the shadow map? Far lod1 swaps leave the map as it is: re-rendering every
+// shadow caster for each of them made loading slower than the tiles themselves.
+function castsInShadowBox(root) {
+  if (!root || !shadowsOn) return false;
+  sun.updateMatrixWorld();
+  sun.target.updateMatrixWorld();
+  sun.shadow.updateMatrices(sun);
+  return sun.shadow.getFrustum().intersectsBox(root.userData.box);
+}
+
+// The shown tiles changed: rebuild what depends on them.
+function tilesChanged() {
+  glowMeshes.length = 0;
+  nightOnly.length = 0;
+  lowest = Infinity;
+  stats.triangles = stats.full = stats.lod1 = 0;
+  for (const s of slots) {
+    if (!s.shown) continue;
+    const root = s.roots[s.shown];
+    glowMeshes.push(...root.userData.glows);
+    nightOnly.push(...root.userData.nightOnly);
+    lowest = Math.min(lowest, root.userData.box.min.y);
+    stats.triangles += root.userData.tris;
+    stats[s.shown]++;
+  }
+  tileVersion++;
+  dirty = true;
+  if (!stats.coveredMs && slots.every((s) => !s.want || s.shown)) stats.coveredMs = Math.round(performance.now());
+  updateHud();
+}
+
+// Put one version of a tile in the scene (or none) and take the other out, in the same task: the
+// frame after it draws the new version only.
+function show(s, kind) {
+  const old = s.shown ? s.roots[s.shown] : null;
+  const root = kind ? s.roots[kind] : null;
+  if (castsInShadowBox(root) || castsInShadowBox(old)) shadowDirty = true;
+  if (root) {
+    for (const o of root.userData.nightOnly) o.visible = night;
+    tiles.add(root);
+  }
+  if (old) tiles.remove(old);
+  s.shown = kind;
+  tilesChanged();
+}
+
+function reconcile(s) {
+  const g = goal(s);
+  if (g !== s.shown) {
+    if (g === null) show(s, null);
+    else if (s.roots[g]) show(s, g);                        // in memory: swap now
+    else if (!s.shown && s.roots.lod1) show(s, 'lod1');      // coarse first, until the full tile is in
+  }
+  if (s.roots.full && s.shown !== 'full') {                 // a full tile no longer shown is freed
+    disposeTile(s.roots.full);
+    s.roots.full = null;
+  }
+}
+
+// The most useful load to start. First lod1 for every tile showing nothing, nearest first: the light
+// files (a few percent of the bytes) cover the whole build in about a second. Then full tiles by
+// distance, then the lod1 twins of tiles already full. Measured on the full capital from the air:
+// mixing full tiles in early drew every frame with them and covered the map in 6.9 s instead of 0.9 s.
+function nextJob() {
+  let best = null;
+  for (const s of slots) {
+    const g = goal(s);
+    if (!g) continue;
+    let kind = null, score = Infinity;
+    if (s.lodFile && LOD_MODE !== 'full' && !s.roots.lod1 && !s.jobs.lod1 && !s.failed.lod1) {
+      kind = 'lod1';
+      score = s.shown ? 2e9 + s.d : s.d;
+    }
+    if (g === 'full' && !s.roots.full && !s.jobs.full && !s.failed.full && 1e9 + s.d < score) {
+      kind = 'full';
+      score = 1e9 + s.d;
+    }
+    if (kind && (!best || score < best.score)) best = { s, kind, score };
+  }
+  return best;
+}
+
+// one tile file, cancellable; tools/make_artifact.py swaps the reading line for its base64 JSON files
+async function fetchTile(url, signal) {
+  const res = await fetch(url, { signal });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return loader.parseAsync(await res.arrayBuffer(), tileBase.href);
+}
+
+async function load(s, kind) {
+  const job = new AbortController();
+  s.jobs[kind] = job;
+  inflight++;
+  try {
+    const gltf = await fetchTile(new URL(kind === 'full' ? s.file : s.lodFile, tileBase).href, job.signal);
+    if (job.signal.aborted) disposeTile(gltf.scene);    // the camera moved on while it was parsed
+    else s.roots[kind] = prepareTile(gltf, kind);
+  } catch (err) {
+    if (!job.signal.aborted) {
+      s.failed[kind] = true;
+      stats.failed++;
+      console.error(`tile ${kind === 'full' ? s.file : s.lodFile} failed:`, err);
+    }
+  }
+  s.jobs[kind] = null;
+  inflight--;
+  reconcile(s);
+  placeStreetWhenReady();
+  pump();
+  dirty = true;   // a frame decides whether the view has settled
+  updateHud();
+}
+
+function pump() {
+  while (inflight < MAX_INFLIGHT) {
+    const job = nextJob();
+    if (!job) break;
+    load(job.s, job.kind);
+  }
+}
+
+// Decide every tile's version from the camera and the orbit target, swap what is in memory, cancel
+// full loads no longer wanted, start the next loads. Cheap: one distance per tile.
+function updateLod() {
+  lodCamera.copy(camera.position);
+  lodTarget.copy(controls.target);
+  const cx = camera.position.x + focus.x, cy = focus.y - camera.position.z;
+  const height = Math.max(0, camera.position.y - focus.z);
+  const target = { x: controls.target.x + focus.x, y: focus.y - controls.target.z };
+  let changed = false;
+  for (const s of slots) {
+    s.d = Math.hypot(squareDist(s, cx, cy), height);
+    const want = wantFor(s, target);
+    if (want !== s.want) {
+      s.want = want;
+      changed = true;
+    }
+    if (s.jobs.full && want !== 'full') s.jobs.full.abort();
+  }
+  if (changed) {
+    const wanted = slots.filter((s) => s.want);
+    extent = wanted.length ? Math.max(...wanted.map(farCorner)) : 500;
+    for (const s of slots) reconcile(s);
+    updateHud();
+  }
+  pump();
+}
+
+const lodMoved = () => camera.position.distanceToSquared(lodCamera) > 0.01
+  || controls.target.distanceToSquared(lodTarget) > 0.01 || Number.isNaN(lodCamera.x);
+
+// settled: every tile shows its version, nothing is in flight, the street camera is placed
+const isSettled = () => inflight === 0 && !streetPending && !nextJob() && slots.every((s) => goal(s) === s.shown);
 
 // The street preset needs the buildings around the focus: place the camera once those tiles are in.
 function placeStreetCamera() {
@@ -572,40 +788,36 @@ function placeStreetCamera() {
   if (best) setView(best.eye, best.eye.clone().addScaledVector(best.dir, THREE.MathUtils.clamp(best.clear, 8, 40)));
 }
 
-async function loadTiles(list, wantsStreet) {
-  // Wait for every tile a street ray can reach (spots out to 90 m, rays out to 100 m), not only the
-  // closest ones: a tile still in flight would change the chosen camera from one load to the next.
-  const STREET_LOAD = 200;
-  let next = 0;
-  let nearLeft = wantsStreet ? list.filter((t) => t.d <= STREET_LOAD).length : 0;
-  const worker = async () => {
-    while (next < list.length) {
-      const t = list[next++];
-      try {
-        addTile(await loader.loadAsync(new URL(t.file, tileBase).href));
-        stats.loaded++;
-      } catch (err) {
-        stats.failed++;
-        console.error('tile ' + t.file + ' failed:', err);
-      }
-      if (wantsStreet && t.d <= STREET_LOAD && --nearLeft === 0) placeStreetCamera();
-      updateHud();
-    }
-  };
-  await Promise.all(Array.from({ length: Math.min(MAX_INFLIGHT, list.length) }, worker));
+// Wait for every tile a street ray can reach, not only the closest ones: a tile still in flight would
+// change the chosen camera from one load to the next.
+function placeStreetWhenReady() {
+  if (!streetPending) return;
+  const near = slots.filter((s) => squareDist(s, focus.x, focus.y) <= STREET_LOAD);
+  if (!near.every((s) => s.shown === goal(s))) return;
+  streetPending = false;
+  placeStreetCamera();
 }
 
 // ---------------------------------------------------------------- hud
 const compact = (n) => (n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? Math.round(n / 1e3) + 'k' : String(Math.round(n)));
 
 function updateHud() {
-  const done = stats.loaded + stats.failed;
+  stats.requested = stats.loaded = 0;
+  for (const s of slots) {
+    if (!s.want) continue;
+    stats.requested++;
+    if (s.shown === goal(s)) stats.loaded++;
+  }
+  stats.loading = inflight;
+  const kinds = [stats.full && `${stats.full} full`, stats.lod1 && `${stats.lod1} lod1`].filter(Boolean).join(', ');
   $('count').textContent = stats.requested
-    ? `tiles ${stats.loaded} / ${stats.requested}` + (stats.failed ? `, ${stats.failed} failed` : '')
+    ? `${stats.requested} tiles` + (kinds ? `: ${kinds}` : '') + (inflight ? ` \u00b7 loading ${inflight}` : '')
+      + (stats.failed ? `, ${stats.failed} failed` : '')
     : 'no tiles in range';
   $('tris').textContent = stats.triangles ? ` \u00b7 ${compact(stats.triangles)} tris` : '';
-  $('fill').style.width = stats.requested ? `${(100 * done / stats.requested).toFixed(1)}%` : '100%';
-  $('bar').classList.toggle('done', done >= stats.requested);
+  const done = stats.loaded >= stats.requested && !inflight;
+  $('fill').style.width = stats.requested ? `${(100 * stats.loaded / stats.requested).toFixed(1)}%` : '100%';
+  $('bar').classList.toggle('done', done);
   if (stats.failed) $('card').classList.add('err');
 }
 
@@ -644,6 +856,7 @@ function retone() {
     if (!o.isMesh) return;
     for (const m of Array.isArray(o.material) ? o.material : [o.material]) m.needsUpdate = true;
   });
+  for (const m of sharedMaterials.values()) m.needsUpdate = true;   // also the looks of tiles held out of the scene
 }
 
 function setWaterEnv(p) {
@@ -782,10 +995,13 @@ function frame(now) {
   }
   const moved = controls.update();
   if (loadDone && Number.isFinite(lowest) && camera.position.y < lowest + 1) camera.position.y = lowest + 1;
+  if (slots.length && lodMoved()) updateLod();   // swaps to tiles in memory happen before this frame draws
+  const settled = (stats.settled = isSettled());
   if (perf && loadDone) dirty = true;   // measure a moving scene too, not only the first frame
   if (!moved && !dirty) return;
   dirty = false;
-  const complete = loadDone;   // every tile was added before this frame started
+  // ready for a screenshot: settled after the first full load, and this frame draws that state
+  const complete = loadDone && settled;
   updateClipAndFog();
   const sunMoved = placeSun();
   if (shadowsOn) {
@@ -802,7 +1018,7 @@ function frame(now) {
     renderer.render(scene, camera);
   }
   if (t0) samplePerf(t0, now);
-  if (complete && !window.citygenReady) window.citygenReady = true;
+  window.citygenReady = complete;
 }
 
 // ---------------------------------------------------------------- night
@@ -810,7 +1026,7 @@ function frame(now) {
 // bloom), and the lamps nearest to the orbit target light the walls around them.
 let night = false;
 let lampPoints = null;          // centers of every glowing piece, three.js axes, built on demand
-const glowMeshes = [];          // instanced meshes drawn with a glowing material
+const glowMeshes = [];          // instanced meshes of the shown tiles drawn with a glowing material
 const lampLights = [];
 const LAMP_LIGHTS = 12;
 const NIGHT = { sky: 0x0c1a38, hemiSky: 0x3a5288, hemiGround: 0x241b12, hemi: 1.0, sun: 0xa8bfff, sunI: 0.7, glow: 4, lamp: 6 };
@@ -819,7 +1035,7 @@ const NIGHT = { sky: 0x0c1a38, hemiSky: 0x3a5288, hemiGround: 0x241b12, hemi: 1.
 // as glass_dark by day) from the household, so some flats look awake and others asleep. A kit
 // window's lit pane (a "..._pane_lit" piece over its glass) is drawn at night only.
 const LIT_AT_NIGHT = { glass_lit: [0xffa64a, 0.75] };
-const nightOnly = [];           // the lit panes of kit windows, hidden by day
+const nightOnly = [];           // the lit panes of the shown tiles' kit windows, hidden by day
 // lights seen from afar: at night the fog would mix them toward the dark sky (pale dots from the
 // air), so these stay out of it while the buildings fade; by day they keep the fog as before
 const CLEAR_AT_NIGHT = new Set(['glass_lit', 'lantern_glow', 'tr_glow']);
@@ -859,9 +1075,9 @@ function lampCenters() {
 // the lamps closest to what the camera looks at get real lights; the rest only glow
 function placeLampLights() {
   if (!lampLights.length) return;
-  if (!lampPoints || lampPoints.built !== glowMeshes.length) {
+  if (!lampPoints || lampPoints.built !== tileVersion) {
     lampPoints = lampCenters();
-    lampPoints.built = glowMeshes.length;
+    lampPoints.built = tileVersion;
   }
   const t = controls.target;
   const near = lampPoints.map((p) => [p.distanceToSquared(t), p]).sort((a, b) => a[0] - b[0]).slice(0, LAMP_LIGHTS);
@@ -1263,23 +1479,30 @@ async function boot() {
   await applyLight(['noon', 'golden', 'night'].includes(wanted) ? wanted
     : q.get('time') === 'night' ? 'night' : 'golden');
 
-  const list = selectTiles(index);
-  stats.requested = list.length;
-  if (list.length) extent = Math.max(...list.map((t) => t.far));
-  updateHud();
+  makeSlots(index);
+  if (LOD_MODE !== 'full' && slots.length && !slots.some((s) => s.lodFile)) console.warn('no lod1 tiles in this build');
   // with no spot from the index, the street preset looks for open ground once the nearby tiles are in
-  const wantsStreet = q.get('view') === 'street' && !triple('cam') && !triple('look') && !indexView(index, 'street');
-  await loadTiles(list, wantsStreet);
+  streetPending = q.get('view') === 'street' && !triple('cam') && !triple('look') && !indexView(index, 'street');
+  updateLod();
+  updateHud();
+  await new Promise((resolve) => {   // the first settled view: every tile at its version
+    const check = () => (isSettled() ? resolve() : setTimeout(check, 50));
+    check();
+  });
+  stats.settledMs = Math.round(performance.now());
   const pick = (q.get('pick') || '').split(',').map(Number);
   if (pick.length === 2 && pick.every(Number.isFinite)) await showInfo(pick[0], pick[1]);
   loadDone = true;
   dirty = true;
   updateHud();
-  if (stats.failed) console.warn(`${stats.failed} of ${stats.requested} tiles failed to load`);
+  if (PERF) console.log(`perf: every tile shown ${(stats.coveredMs / 1000).toFixed(2)} s, settled ` +
+                        `${(stats.settledMs / 1000).toFixed(2)} s after the page opened ` +
+                        `(${stats.full} full, ${stats.lod1} lod1 tiles, ${compact(stats.triangles)} triangles)`);
+  if (stats.failed) console.warn(`${stats.failed} tile files failed to load`);
 }
 
 // handle for the browser console and for tests
-window.citygen = { THREE, scene, camera, controls, renderer, sun, tiles, toThree, setNight, setLight: applyLight,
+window.citygen = { THREE, scene, camera, controls, renderer, sun, tiles, slots, toThree, setNight, setLight: applyLight,
                    applyQuality, showInfo, get focus() { return focus; }, get light() { return lightMode; },
                    get quality() { return quality; }, get composer() { return composer; } };
 setShadows(shadowsOn);

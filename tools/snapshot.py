@@ -84,6 +84,8 @@ def _serve_three(page, three_dir: Path) -> None:
 
 
 def _wait_ready(page, timeout: float) -> None:
+    """Wait for the viewer's settled state: every tile near the camera full, every far tile lod1, nothing
+    in flight, and a frame drawn of it (`citygenReady`, prompt 41), so one build always gives one picture."""
     deadline = time.monotonic() + timeout
     while True:
         state = page.evaluate("() => ({ready: window.citygenReady === true, error: window.citygenError || null,"
@@ -97,8 +99,9 @@ def _wait_ready(page, timeout: float) -> None:
                 print(f"warning: {stats['failed']} of {stats['requested']} tiles failed to load", file=sys.stderr)
             return
         if time.monotonic() > deadline:
+            kinds = f", {stats['full']} full, {stats['lod1']} lod1, {stats['loading']} loading" if "full" in stats else ""
             raise SnapshotError(f"timed out after {timeout:.0f} s waiting for the viewer "
-                                f"(tiles {stats.get('loaded', 0)}/{stats.get('requested', '?')}); software "
+                                f"(tiles {stats.get('loaded', 0)}/{stats.get('requested', '?')}{kinds}); software "
                                 "rendering is slow, try --query radius=800 or a longer --timeout")
         page.wait_for_timeout(250)
 
@@ -139,6 +142,7 @@ def snapshot(out_dir: str | Path, png_path: str | Path, view: str = "aerial", wi
                 page.goto(f"{base}/?{'&'.join(params)}", wait_until="commit")
                 _wait_ready(page, timeout)
                 page.evaluate("() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))")
+                _wait_ready(page, timeout)   # still settled two frames later (nothing started meanwhile)
                 page.screenshot(path=str(png), timeout=60_000)
             finally:
                 browser.close()

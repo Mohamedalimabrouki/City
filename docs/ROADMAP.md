@@ -52,7 +52,7 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
 - [x] 38 A8 Blender kit export
 - [x] 39 Q5 Lighter tiles (-45% bytes, densest 8.67 -> 4.67 MB; 3.5 MB target relaxed by the lead, see WORKLOG)
 - [x] 40 C2a Level-of-detail tiles (lod1 next to every tile: 3.6% of a city tile, 12.9% at worst)
-- [ ] 41 C2b Viewer level of detail
+- [x] 41 C2b Viewer level of detail (whole capital as lod1, full near the camera; aerial frame about 155 -> 90 ms, settled 5-7 -> 3 s)
 - [ ] 42 R1 Refresh the phone 3D page
 - [ ] 43 CP4 Checkpoint: people, landmarks, port
 - [ ] 44 H1 Interiors: the design
@@ -264,9 +264,10 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
   multiprocessing; each worker rebuilds the world from settings, which takes seconds), skip
   tiles that already exist unless `--force`, reuse saved city plans. Done when: the full
   capital (`--area capital`) builds at least 3x faster on 4 cores.
-- [ ] **C2 Level of detail** (M) - A light version of every tile (buildings merged into block
+- [x] **C2 Level of detail** (M) - A light version of every tile (buildings merged into block
   shapes, no trees, terrain step 32 m) written as `tile_<i>_<j>_lod1.glb` and listed in the
-  index; the viewer uses it beyond 1.5 km.
+  index (prompt 40); the viewer shows every tile of the build as lod1 and the tiles near the camera
+  full, turning full under 1.4 km and lod1 over 1.7 km, load then swap (prompt 41).
 - [ ] **C3 Godot 4 starter** (M, Sonnet high) - `engine/godot/`: a project that streams tiles
   around the player from `index.json`, a first-person walker with collision, sun and sky. Plus a
   short README in plain language.

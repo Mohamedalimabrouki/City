@@ -34,19 +34,12 @@ def page(title: str, start: str) -> str:
                     r'<meta name="theme-color"[^>]*>\s*', r'<link rel="icon"[^>]*>\s*', r"<title>[^<]*</title>\s*"):
         html = re.sub(pattern, "", html, count=1)
     swaps = {
-        "        addTile(await loader.loadAsync(new URL(t.file, tileBase).href));":
-            "        addTile(await fetchTile(new URL(t.file, tileBase).href));",
-        "async function loadTiles(list, wantsStreet) {":
-            "// tiles are .glb files stored as base64 text in JSON files: decode and parse them in memory\n"
-            "async function fetchTile(url) {\n"
-            "  const res = await fetch(url);\n"
-            "  if (!res.ok) throw new Error(`HTTP ${res.status}`);\n"
+        # tiles (full and lod1) are .glb files stored as base64 text in JSON files: decode, parse in memory
+        "  return loader.parseAsync(await res.arrayBuffer(), tileBase.href);":
             "  const text = atob((await res.json()).glb);\n"
             "  const bytes = new Uint8Array(text.length);\n"
             "  for (let i = 0; i < text.length; i++) bytes[i] = text.charCodeAt(i);\n"
-            "  return loader.parseAsync(bytes.buffer, '');\n"
-            "}\n\n"
-            "async function loadTiles(list, wantsStreet) {",
+            "  return loader.parseAsync(bytes.buffer, tileBase.href);",
         "const loader = new GLTFLoader();":
             "const loader = new GLTFLoader();\n"
             "// texture images travel as base64 JSON; each becomes one blob URL shared by every tile\n"
@@ -100,6 +93,14 @@ def slim_plan(plan: dict, box: tuple) -> dict:
             "households": [h for h in plan["households"] if h["building"] in keep]}
 
 
+def _store_tile(src: Path, art: Path, name: str) -> str:
+    """Copy one .glb tile as base64 text in a JSON file; returns the new file name."""
+    stored = name.replace(".glb", ".json")
+    glb = (src / "tiles" / name).read_bytes()
+    (art / "data" / "tiles" / stored).write_text(json.dumps({"glb": base64.b64encode(glb).decode()}))
+    return stored
+
+
 def make_artifact(src: Path, art: Path, title: str, start: str) -> int:
     shutil.rmtree(art, ignore_errors=True)
     (art / "data" / "tiles").mkdir(parents=True)
@@ -112,9 +113,11 @@ def make_artifact(src: Path, art: Path, title: str, start: str) -> int:
     if start not in index["views"] and start not in ("aerial", "top", "street"):
         start = "aerial"
     for t in index["tiles"]:
-        glb = (src / "tiles" / t["file"]).read_bytes()
-        t["file"] = t["file"].replace(".glb", ".json")
-        (art / "data" / "tiles" / t["file"]).write_text(json.dumps({"glb": base64.b64encode(glb).decode()}))
+        t["file"] = _store_tile(src, art, t["file"])
+        if "lod1" in t:   # the light twin the viewer shows far away (prompt 41)
+            old = t["lod1"]["file"]
+            t["lod1"]["file"] = _store_tile(src, art, old)
+            t["files"] = [t["lod1"]["file"] if f == old else f for f in t.get("files", [])]
     (art / "data" / "tiles" / "index.json").write_text(json.dumps(index))
     for city in index.get("cities", []):
         out = art / "data" / city["plan"]

@@ -3364,3 +3364,31 @@ def test_finished_tiles_need_their_lod1_file(tmp_path):
     assert finished_tiles(tmp_path, journal, "k", [(0, 0)]) == {}     # cut short
     (tmp_path / "tile_0_0_lod1.glb").write_bytes(b"xy")
     assert (0, 0) in finished_tiles(tmp_path, journal, "k", [(0, 0)])
+
+
+def test_phone_page_patches_the_viewer_and_stores_lod1_tiles(tmp_path):
+    """Prompt 41: make_artifact patches the streaming viewer by exact strings and converts lod1 files too."""
+    import base64
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
+    import make_artifact
+    src = tmp_path / "w"
+    (src / "tiles" / "textures").mkdir(parents=True)
+    (src / "tiles" / "textures" / "plaster.png").write_bytes(b"png")
+    (src / "tiles" / "tile_0_0.glb").write_bytes(b"full tile")
+    (src / "tiles" / "tile_0_0_lod1.glb").write_bytes(b"lod")
+    lod = {"file": "tile_0_0_lod1.glb", "bytes": 3, "triangles": 1}
+    entry = {"i": 0, "j": 0, "x0": 0, "y0": 0, "file": "tile_0_0.glb", "bytes": 9, "lod1": lod,
+             "files": ["textures/plaster.png", lod["file"]]}
+    (src / "tiles" / "index.json").write_text(json.dumps({"tile_size": 512, "tiles": [entry]}))
+    art = tmp_path / "art"
+    make_artifact.make_artifact(src, art, "T", "aerial")
+    tile = json.loads((art / "data" / "tiles" / "index.json").read_text())["tiles"][0]
+    assert tile["file"] == "tile_0_0.json" and tile["lod1"]["file"] == "tile_0_0_lod1.json"
+    assert tile["files"] == ["textures/plaster.png", "tile_0_0_lod1.json"]
+    for name, raw in (("tile_0_0.json", b"full tile"), ("tile_0_0_lod1.json", b"lod")):
+        assert base64.b64decode(json.loads((art / "data" / "tiles" / name).read_text())["glb"]) == raw
+    html = (art / "index.html").read_text()
+    assert "atob((await res.json()).glb)" in html and "res.arrayBuffer()" not in html
+    assert "fetch(url, { signal })" in html          # cancellable loads survive the patch

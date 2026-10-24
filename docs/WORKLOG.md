@@ -15,6 +15,31 @@ Entry format:
 - Doubts and questions for Ali: <none, or the question>
 ```
 
+## 2026-10-24 - Prompt 41 C2b Viewer level of detail
+- Commit: (see git log) | Model: Opus 5.5, high (playbook: Sonnet, high)
+- Changed: `tools/viewer/index.html` (tile slots with want/shown/roots/jobs, lod1 everywhere and full under
+  1.4 km / lod1 over 1.7 km from the camera, first split 1.5 km, RADIUS for full tiles around the orbit
+  target, lod1-first loading, cancellable `fetchTile`, prepare off-scene then swap in one task, dispose full
+  tiles, lod1 twins kept, image cache, shadow map only for swaps in the shadow frustum, stats line with full
+  and lod1 counts, live `citygenReady`, `?lod=full|lod1`, `?lod_distance=`), `tools/snapshot.py` (settled
+  state checked again two frames later, counts in the timeout message), `tools/make_artifact.py` (new
+  reading-line patch, lod1 files converted), a test, SPEC 6 and 9, HANDOFF, ROADMAP.
+- Measured (full capital, 168 tiles, aerial, golden, High, 1600x900, headless Chromium on the M1's Metal):
+  old viewer 94 full tiles 4.15M triangles, ready 5.0-7.5 s, 151-168 ms per frame; new 33 full + 135 lod1
+  2.38M triangles, whole capital shown 0.75-0.86 s, settled 2.6-3.1 s, 84-98 ms per frame. Street view:
+  67 -> 35 ms per frame, settled 4.0 -> 2.1 s. SwiftShader (snapshots): ready 34 s -> 9-13 s. A fast flight
+  out 3.5 km and back: never a hole or two versions of a tile, the renderer's geometry count returns to the
+  same value on each round trip (no leak).
+- Checks: tests 104 passed in 29 s (1 new, phone page patch and lod1 files); quick build fingerprint 0 changed;
+  `make_artifact` into a temp folder loads in the browser with 9 tiles, no console errors (only the
+  favicon 404 of a bare http.server). Old vs new viewer on the quick build: street 0.0, aerial 0.003.
+- Look: `output/checks/41.png` (aerial, quick capital: 26 full + 15 lod1, far blocks and the hills there, no
+  cracks; 0.00, both halves use the new viewer) and `output/checks/41-street.png` (0.00, every tile full).
+- Doubts: before_after's `--build-args "... --out output/full"` builds `--quick` into output/full, replacing
+  the full capital (rebuilt afterwards). From the air the frame time is draw calls of the ~33 full tiles;
+  merging a full tile's meshes per material would be the next big win. Near the build's edge the lod1
+  terrain-only tiles show their 32 m facets from the air.
+
 ## 2026-10-24 - Prompt 40 C2a Level-of-detail tiles
 - Commit: (see git log) | Model: Opus 5.5, high (playbook: Sonnet, high)
 - Changed: `citygen/mesh/lod.py` (new: terrain with 8 m edges and skirts, ribbons, merged blocks, solo
