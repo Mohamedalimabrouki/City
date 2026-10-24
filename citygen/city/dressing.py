@@ -16,7 +16,7 @@ from dataclasses import dataclass
 
 import numpy as np
 import shapely
-from shapely.geometry import LineString
+from shapely.geometry import LineString, Point
 from shapely.geometry.polygon import orient
 from shapely.strtree import STRtree
 
@@ -30,7 +30,7 @@ from .geo import frame
 from .massing import corner_faces, floors_at, main_mass, massed, probes, terrace_walls, wall_height
 from .openings import (DoorSpot, Walls, fits, joined, open_walls, path_to_street, piece_boxes, villa_lots,
                        wall_arrays)
-from .parking import Parking
+from .parking import Parking, street_frame
 from .roofs import roof_layout, roof_stream
 from .squares import Squares
 
@@ -129,6 +129,8 @@ class Dresser:
         self._covers = None                      # covered souks (prompt 31, city/covered.py, lazy; the tiles share theirs)
         self._seafront = None                    # the corniche promenade's lamps, benches, railing (prompt 36, lazy)
         self._front_tree = None                  # its walks, for the street lamps it replaces (lazy)
+        self._seaside = None                     # corniche street -> its seafront stretches (seaside, prompt 37)
+        self.terrace_cfg = world.style.get("corniche", {}).get("terrace", {})
         self._kept_roofs: dict = {}              # building -> main roof layout the tile mesher just made (keep_roof)
         self._stairs = {n for r in ("stair_window", "stair_door") for n in (self.roles[r][0] if r in self.roles else [r])}
         targets = self.surfaces + [w.polygon for w in getattr(plan, "walks", ())]
@@ -293,7 +295,7 @@ class Dresser:
             return None, None, None, None, None
         main, district, color, wealth, height = self._main(b, k, fac)
         floors = max(1, int(b.floors))
-        door_at, kind, piece, z = self._front(main, district, color, wealth, height, rng, out)
+        door_at, kind, piece, z = self._front(main, district, color, wealth, height, rng, out, k)
         self._windows(k, fac, district, color, wealth, floors, b.height / floors, high, door_at, rng, out, slots)
         return main, door_at, kind, piece, z
 
@@ -327,7 +329,7 @@ class Dresser:
                 self._front_of[k] = (None, None, None, None)
             else:
                 main, district, color, wealth, height = self._main(b, k, fac)
-                at, kind, piece, _ = self._front(main, district, color, wealth, height, self.rng("b", k), [])
+                at, kind, piece, _ = self._front(main, district, color, wealth, height, self.rng("b", k), [], k)
                 self._front_of[k] = (main, at, kind, piece)
         return self._front_of[k]
 
@@ -358,15 +360,19 @@ class Dresser:
         q = c + n * self.cfg.get("threshold_reach", 0.5)
         return float(self.ground.surface(float(q[0]), float(q[1])))
 
-    def _front(self, f: Facade, district, color, wealth, height, rng, out) -> tuple:
-        """(center, "shop" | "cafe" | "front", door piece, threshold) of the main facade; Nones when too short."""
+    def _front(self, f: Facade, district, color, wealth, height, rng, out, k: int = -1) -> tuple:
+        """(center, "shop" | "cafe" | "front", door piece, threshold) of the main facade; Nones when too short.
+
+        A main wall on the corniche's seafront stretch (`seaside`, prompt 37) may be a cafe by its own chance
+        (`[corniche.terrace] cafe`, stream `rng("terrace", "cafe", k)`), decided after the door's draws so the
+        windows draw as before; its tables, and those of a colonial cafe there, are the terrace's (city/terraces.py)."""
         cfg = self.cfg
         souk = self.souk_of.get(f.street) if f.kind == "souk" else None
         if souk is not None and f.length >= 3.0 and rng.random() < cfg.get("shop_on_souk", 0.85):
             c, z = self._shop(f, souk, rng, out)
             return c, "shop", None, z
         if district in CAFES and f.length >= 3.2 and rng.random() < cfg.get("cafe", 0.3):
-            c, z = self._cafe(f, rng, out)
+            c, z = self._cafe(f, rng, out, tables=self.seaside(f) is None)
             return c, "cafe", None, z
         if f.length < DOOR_WALL:
             return None, None, None, None
@@ -382,6 +388,7 @@ class Dresser:
 
         rich = wealth > cfg.get("rich_door", 0.72) and district in TRADITIONAL | {"colonial", "residential"}
         z = self.front_surface(c, n)
+        first = len(out)
         piece = self.put(out, color + "_rich" if rich else color, rng, c, z, yaw, on_ground=False)
         if rng.random() < cfg.get("door_hood", 0.15) * (0.5 + wealth):
             self.put(out, "door_hood", rng, c, cfg.get("hood_height", 3.15), yaw)
@@ -415,6 +422,10 @@ class Dresser:
             off = side() * 2.0
             if room(off, 1.15):
                 self.put(out, "planter", rng, c + u * off + n * 0.45, 0.0, yaw)
+        if f.length >= 3.2 and self._seaside_cafe(f, k):
+            del out[first:]
+            c, z = self._cafe(f, self.rng("terrace", "cafe", k), out, tables=False)
+            return c, "cafe", None, z
         return c, "front", piece, z
 
     def _plant(self, f, c, yaw, height, room, sd, rng, out) -> None:
@@ -451,8 +462,9 @@ class Dresser:
             self.put(out, "lamp", rng, c + u * side * 1.75, self.cfg.get("lamp_height", 2.95), yaw)
         return c, z
 
-    def _cafe(self, f: Facade, rng, out) -> tuple:
-        """A cafe front with tables outside: (center, threshold)."""
+    def _cafe(self, f: Facade, rng, out, tables: bool = True) -> tuple:
+        """A cafe front with tables outside: (center, threshold). Without `tables` (a seaside cafe, whose
+        terrace city/terraces.py lays out) the tables' draws are still made, so nothing after them moves."""
         yaw, u, n = yaw_of(f.n), f.u, f.n
         c = f.at(0.5)
         z = self.front_surface(c, n)
@@ -461,8 +473,32 @@ class Dresser:
         reach = self.arcade_cfg.get("cafe_reach", 1.7) if self._arcaded(f.kind, "colonial") else 1.7   # under an arcade
         for k in range(int(rng.integers(1, 3))):
             p = c + u * (k - 0.5) * 1.9 + n * reach
-            self.put(out, "cafe_set", rng, p, 0.0, yaw + rng.uniform(-0.4, 0.4))
+            self.put(out if tables else [], "cafe_set", rng, p, 0.0, yaw + rng.uniform(-0.4, 0.4))
         return c, z
+
+    def seaside(self, f: Facade):
+        """The seafront stretch (city/corniche.Front) a main wall faces across the corniche, or None: the wall on
+        the corniche, its middle within the stretch (`[corniche.terrace] end` m inside its ends), on the land side."""
+        if self._seaside is None:
+            self._seaside = {}
+            for fr in getattr(self.plan, "fronts", ()):
+                self._seaside.setdefault(fr.street, []).append(fr)
+        if f.street not in self._seaside:
+            return None
+        line = self.plan.streets[f.street].line
+        mid = f.at(0.5)
+        d = float(line.project(Point(mid)))
+        p, n = street_frame(line, np.array([d]))
+        end = float(self.terrace_cfg.get("end", 4.0))
+        for fr in self._seaside[f.street]:
+            if fr.span[0] + end <= d <= fr.span[1] - end and float((mid - p[0]) @ n[0]) * fr.side < 0.0:
+                return fr
+        return None
+
+    def _seaside_cafe(self, f: Facade, k: int) -> bool:
+        """Is this main wall a seaside cafe by its own chance (a wall on the seafront stretch, prompt 37)?"""
+        chance = float(self.terrace_cfg.get("cafe", 0.0))
+        return k >= 0 and chance > 0.0 and self.seaside(f) is not None and self.rng("terrace", "cafe", k).random() < chance
 
     def _floors_on(self, b, a, u, s) -> np.ndarray:
         """Floors of wall (a, u) at window centers `s` m along it: where a massed building's parts differ

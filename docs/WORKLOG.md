@@ -15,6 +15,41 @@ Entry format:
 - Doubts and questions for Ali: <none, or the question>
 ```
 
+## 2026-10-24 - Prompt 37 H3c Seaside cafe terraces
+- Commit: (see git log) | Model: Opus 5.5, medium (playbook: Sonnet, medium)
+- Changed: `citygen/city/terraces.py` (new: `Terraces`), `citygen/city/corniche.py` (`Seafront` makes the terraces,
+  kiosk gaps take no bench, `area`), `citygen/city/dressing.py` (`seaside`, seaside cafes in `_front`,
+  `_cafe(tables=False)`), `citygen/city/crowd.py` (waiters, a sitter's own parasol aside), `citygen/mesh/furniture.py`
+  (`parasol`, `parasol_pieces`, the kiosk's `look`: `kiosk_drinks`), `citygen/kit.py`, `styles/maghreb.toml`
+  (`[corniche.terrace]`, `[people.terrace]`, roles `parasol` and `cafe_kiosk`, `[dressing.furniture] parasol*`,
+  palette `parasol_*`, `kiosk_blue`), tests, docs.
+- Design: parasol = wooden pole standing in the table's hole, octagonal canvas dome (radius 1.2 m, rim 2.15 m, top
+  2.5 m) with a 13 cm valance, both smooth-shaded with real faces on both sides, 8 iron stretchers, finial; 158
+  triangles, no UVs, three colors (white, faded sea blue, faded sand) sharing pole and ribs. Cafes facing the sea
+  (colonial cafe chance or `cafe` 0.5 on main walls of the seafront stretch): 2-4 tables on the sidewalk, chairs
+  along the wall, shaded where a canopy fits (not under the awning), and with chance 0.6 a row of 2-3 shaded tables
+  across the road on the palm line, in the nearest lamp-free palm gap, within 2.3 m of the curb. Kiosk cafes: a
+  drinks kiosk (Sidi Bou Said blue, cans and bottles) backing onto the railing in a palm gap (chance 0.4, 60 m
+  apart, clear of the steps), 2-4 shaded tables along the railing beside it, within 2.8 m of the sea edge; that
+  gap loses its bench. Promenade groups only where it is 7.5 m wide (walkway 3 m and more free). Customers sit on
+  the measured chairs; some shaded tables get a waiter.
+- Counts: quick capital 4 cafes, 29 tables, 25 parasols, 6 kiosk cafes, 38 seated customers, 2 waiters; full
+  capital 34 cafes, 217 tables, 163 parasols, 41 kiosk cafes, 280 seated, about 24 waiters.
+- Checks: tests 95 passed (28 s; the new test 0.19 s); `build --quick` 12.2 s (HEAD 12.0 s); fingerprint: tiles
+  (quick 12_23 +1.1%, 13_24 +1.1%, 13_23 +0.4%), tiles/index and the new `kit/parasol_white`, `kit/parasol_blue`,
+  `kit/parasol_sand`, `kit/kiosk_drinks`, `kit/kiosk_drinks_lit`; nothing else. Full capital: 10 tiles +0.0-5.1%
+  (worst 66_107, 624 -> 657 KB); the two light sea tiles unchanged (no terrace in a tile without buildings). Full
+  capital 57.4 s before, 59.6 s after.
+- Look: `output/checks/37.png` (corniche view: a drinks kiosk by the railing, two customers under a blue parasol),
+  `output/checks/37-terrace.png` (a row of white parasols on the palm line with customers and a waiter, the cafe's
+  awning and table across the road). Blender: `output/bodjantouna-42/goumosbane.blend`.
+- Doubts and questions for Ali: few cafes face the sea on the land side (most corniche buildings have their door on
+  a side street), so the kiosk cafes carry the look; the kiosk is the newspaper kiosk recolored as a drinks kiosk
+  (a dedicated model would cost a new piece per tile); a tile drops a waiter when its figure budget keeps no
+  standing man.
+- Lead decisions: kept. Kiosk cafes only in tiles that hold buildings (a byte guard for the light sea tiles; revisit after prompt 39 makes pieces lighter); the drinks kiosk reuses the newspaper kiosk's model in its own colors; few buildings have their main wall on the corniche, so kiosk cafes carry most of the look.
+
+
 ## 2026-10-24 - Prompt 36 A6c Corniche promenade and beach
 - Commit: (see git log) | Model: Opus 5.5, medium (playbook: Sonnet, medium)
 - Changed: `citygen/city/corniche.py` (new: `plan_fronts`, `width_for`, `palms_of`, `Seafront`, `view`),

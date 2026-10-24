@@ -8,7 +8,8 @@ Figures are the kit's `person_*` pieces (prompt 28, mesh/people.py), drawn as in
   in the kit, the figure's origin under the middle of the seat;
 - sidewalks (by the district of the block) and the boulevard's promenade islands: strollers, pairs and
   families (a parent and a child side by side);
-- around the great mosque, at the medina gates, at kiosk windows and around fountains;
+- around the great mosque, at the medina gates, at kiosk windows and around fountains; now and then a waiter
+  beside a cafe table under a parasol (prompt 37);
 - medina lanes and village streets: a few walkers; modern estates: a few by the stair doors, on their paths.
 Outfits come from `[people.outfits]` by district kind (cafes have their own mix, children walk or stand
 with a parent). Every choice has its own stream: `rng("people", <place>, ...)` per street station, shop,
@@ -66,6 +67,7 @@ PEOPLE = {   # `[people]` in the style overrides these
     "square": {"kiosk": [0.8, 0.4], "kiosk_reach": [0.35, 0.7], "fountain": 6, "fountain_chance": 0.5,
                "fountain_reach": [0.45, 1.0]},
     "stair": {"chance": 0.35, "chat": 0.4, "reach": [1.6, 3.5]},
+    "terrace": {"waiter": 0.0, "reach": 0.85},
     "seats": {}, "outfits": {},
 }
 
@@ -257,6 +259,8 @@ class Crowd:
                 out += self._kiosk(p)
             elif pc.category == "fountain":
                 out += self._fountain(p)
+            elif pc.category == "parasol":
+                out += self._waiter(p)
         out += self._landmarks(region)
         out += self._stairs(region)
         return out
@@ -552,6 +556,22 @@ class Crowd:
             out += self._group(rng, "square", key + (j,), at, -n, self._mix("colonial"), "stand", 0.0, {}, ANY_FLOOR)
         return out
 
+    def _waiter(self, p) -> list:
+        """Now and then a waiter standing beside a shaded cafe table, facing it (prompt 37)."""
+        cfg = self.cfg["terrace"]
+        key = self._pos_key(p)
+        rng = self.d.rng("people", "waiter", *key)
+        if rng.random() >= self.chance(cfg["waiter"]):
+            return []
+        name = self._figure(rng, {"shirt": 1.0}, "stand")
+        if name is None:
+            return []
+        side = 1.0 if rng.random() < 0.5 else -1.0
+        u = np.array([math.cos(p.yaw), math.sin(p.yaw)])
+        n = np.array([-math.sin(p.yaw), math.cos(p.yaw)]) * side
+        at = np.array([p.x, p.y]) + n * float(cfg["reach"]) + u * rng.uniform(-0.3, 0.3)
+        return [Cand(RANK["square"], key + (100,), name, float(at[0]), float(at[1]), yaw_to(-n), ANY_FLOOR)]
+
     def _fountain(self, p) -> list:
         """People standing round a fountain's basin, facing the water."""
         cfg = self.cfg["square"]
@@ -841,7 +861,7 @@ class Crowd:
         a = idx[a]
         level = float(self.cfg["foot_level"])
         for m, j in zip(a.tolist(), b.tolist()):
-            if not out[m] or cands[m].seat == j:
+            if not out[m] or cands[m].seat == j or self._shades(cands[m].seat, near, j):
                 continue
             lo, hi = z[m] + level, z[m] + tops[m]
             if z0[j] >= hi or z1[j] <= lo:
@@ -857,6 +877,12 @@ class Crowd:
             if len(shape[0].query(shapely.Polygon(local), predicate="intersects")):
                 out[m] = False
         return out
+
+    def _shades(self, seat: int, near: list, j: int) -> bool:
+        """Is piece j the parasol standing in the hole of seat piece `seat`'s table (prompt 37)?"""
+        if seat < 0 or self.kit.pieces[near[j].piece].category != "parasol":
+            return False
+        return abs(near[j].x - near[seat].x) < 1e-6 and abs(near[j].y - near[seat].y) < 1e-6
 
     def _shape(self, name: str, lo: float, hi: float):
         """(STRtree, bounds) of a piece's triangles between heights lo and hi above its origin, in plan (piece

@@ -48,7 +48,7 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
 - [x] 34 A6a Quays, breakwater, lighthouse
 - [x] 35 A6b Boats and cranes
 - [x] 36 A6c Corniche promenade and beach
-- [ ] 37 H3c Seaside cafes
+- [x] 37 H3c Seaside cafes
 - [ ] 38 A8 Blender kit export
 - [ ] 39 Q5 Lighter tiles
 - [ ] 40 C2a Level-of-detail tiles
@@ -308,10 +308,11 @@ studio fills a few rooms by hand; rules fill every one of the 40,000 houses on d
 - [ ] **H2 Furnishing** (L) - Furniture and objects per room type from the kit (A0): banquettes,
   carpets (klim, mergoum), chests, low tables, lanterns, pottery, beds; fridge and TV in modern
   flats. A `density` setting: sparse, lived-in, extremely full.
-- [ ] **H3 Street life, part 2** (S) - Most street life came with A0 (stalls, goods, awnings,
-  carts, plants, lamps, cables, laundry, cats, mopeds). Left: parked cars along colonial and
-  modern streets, benches and kiosks on squares and the corniche, cafe terraces by the sea.
-  Tile-local and deterministic, through `[dressing.roles]`.
+- [x] **H3 Street life, part 2** (S) - Most street life came with A0 (stalls, goods, awnings,
+  carts, plants, lamps, cables, laundry, cats, mopeds). Done: parked cars and taxis along colonial and
+  modern streets (prompt 25), benches, kiosks, fountains and sabils (26), seaside cafe terraces under
+  parasols on the corniche, with drinks kiosks by the railing (37). Tile-local and deterministic, through
+  `[dressing.roles]`.
 - [ ] **H4 Hero scenes** (M) - `python -m citygen scene` exports one house or one street block at
   maximum detail (H1 + H2 + H3 + A0) as a single .glb or .blend for a story scene, a trailer or a
   game level, while the rest of the world stays light.

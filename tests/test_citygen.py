@@ -2961,3 +2961,107 @@ def test_corniche_promenade_sea_wall_palms_benches_and_railing(world, plan, grou
     cam, look = shapely.Point(view["cam"][:2]), shapely.Point(view["look"][:2])
     assert union.contains(cam) and union.contains(look) and 40.0 < cam.distance(look) < 80.0
     assert abs(view["cam"][2] - float(ground.surface(cam.x, cam.y)) - 1.7) < 0.06
+
+
+def test_seaside_cafe_terraces(world, plan, ground, built_mesh):
+    # prompt 37: cafe tables under parasols along the corniche: on the sidewalks of cafes facing the sea, across the
+    # road on the palm line and round drinks kiosks by the railing. Never on the carriageway, the railing or the
+    # steps, never in another piece or person; the walkway stays free; customers sit on the real chairs.
+    from dataclasses import replace
+    from citygen.city.dressing import ground_heights
+    from citygen.city.openings import piece_boxes
+    cfg, tcfg = world.style["corniche"], world.style["corniche"]["terrace"]
+    fur = world.style["dressing"]["furniture"]
+    tc, i, j, mb, placements = built_mesh
+    kit, dresser, fronts = tc.kit, tc.cities[0][4], plan.fronts
+    # the parasol: one piece per color sharing the pole and ribs, its canvas with faces on both sides
+    radius, rim, top, foot = fur["parasol"]
+    colors = fur["parasol_colors"]
+    pcs = [kit.pieces[c] for c in colors]
+    assert len(colors) == 3 and all(pc.category == "parasol" and pc.parts["wood"] is pcs[0].parts["wood"] for pc in pcs)
+    for pc, c in zip(pcs, colors):
+        tri = pc.parts[c]["pos"][pc.parts[c]["idx"].reshape(-1, 3)]
+        up = np.cross(tri[:, 1] - tri[:, 0], tri[:, 2] - tri[:, 0])[:, 1]             # glTF y is up
+        assert (up > 1e-9).sum() == (up < -1e-9).sum() > 0
+        lo, hi = pc.bounds
+        assert abs(hi[0] - radius * math.cos(math.pi / 8)) < 0.01 and abs(lo[1] - foot) < 1e-6 and top < hi[1] < top + 0.2
+        assert pc.triangles < 200
+    items = dresser.seafront().items()
+    tables = [p for p in items if p.piece == "cafe_set"]
+    shades = [p for p in items if p.piece in colors]
+    kiosks = [p for p in items if kit.pieces[p.piece].category == "kiosk"]
+    mine = tables + shades + kiosks
+    others = [p for p in items if p not in mine]
+    prom = shapely.union_all([w.polygon for w in plan.walks if w.kind == "seafront"]).buffer(0.01)
+    side = shapely.union_all([w.polygon for w in plan.walks if w.kind == "sidewalk"]).buffer(0.01)
+    on_prom = [p for p in tables if prom.contains(_plan_box(kit, p))]
+    on_side = [p for p in tables if side.contains(_plan_box(kit, p))]
+    assert len(on_prom) + len(on_side) == len(tables)                                   # never on the carriageway
+    assert len(on_side) >= 3 and len(on_prom) >= 8 and len(kiosks) >= 2 and len(shades) >= 10
+    assert all(prom.contains(_plan_box(kit, p)) for p in kiosks)
+    fp = STRtree([b.footprint for b in plan.buildings])
+    sea, edge = shapely.union_all([f.sea for f in fronts]), shapely.union_all([f.edge for f in fronts])
+    rails = shapely.union_all([_plan_box(kit, p) for p in others if p.piece == "railing_sea"])
+    stairs = shapely.union_all([shapely.Point(s[0], s[1]).buffer(cfg["stair"][0] / 2) for f in fronts for s in f.stairs])
+    at = {(p.x, p.y) for p in tables}
+    canopies = {}
+    for p in shades:                         # in a table's hole; the canopy over the walks, off walls and railing
+        canopy = shapely.Point(p.x, p.y).buffer(radius, quad_segs=2)
+        canopies[(p.x, p.y)] = canopy
+        assert (p.x, p.y) in at and (prom.contains(canopy) or side.contains(canopy)) and not len(fp.query(canopy, predicate="intersects"))
+        assert canopy.distance(sea) >= tcfg["rail_clear"] - 1e-6
+    for p in tables + kiosks:
+        box = _plan_box(kit, p)
+        assert not len(fp.query(box, predicate="intersects")) and not box.intersects(rails) and not box.intersects(stairs)
+        if prom.contains(box):               # the walkway stays free: by the curb or by the sea edge
+            pts = shapely.points(shapely.get_coordinates(box))
+            assert shapely.distance(edge, pts).max() <= tcfg["row_reach"] + 1e-6 or \
+                shapely.distance(sea, pts).max() <= tcfg["sea_reach"] + 1e-6
+    # nothing in another piece: the seafront's lamps, benches and railing, the walls' pieces, street props, trunks
+    region = shapely.union_all([_plan_box(kit, p) for p in mine]).buffer(3.0)
+    around = list(others)
+    for k in sorted(int(b) for b in fp.query(region, predicate="intersects")):
+        around += dresser.wall_pieces(k)
+    for k in sorted(int(s) for s in dresser.surface_tree.query(region, predicate="intersects")):
+        around += dresser.street_props(k, region)
+    around = [replace(p) for p in around if p.piece in kit.pieces]
+    solid = [replace(p) for p in tables + kiosks]
+    ground_heights(ground, around)
+    ground_heights(ground, solid)
+    trunks = [shapely.Point(t.x, t.y).buffer(0.3) for t in plan.trees if region.contains(shapely.Point(t.x, t.y))]
+    foot_a, a0, a1 = piece_boxes(kit, around, 0.0)
+    foot_s, s0, s1 = piece_boxes(kit, solid, 0.0)
+    for m, p in enumerate(solid):
+        z = float(ground.surface(p.x, p.y))
+        hit = (a0 < s1[m]) & (a1 > s0[m]) & shapely.intersects(foot_s[m], foot_a)
+        assert not hit.any() and not any(foot_s[m].intersects(t) for t in trunks), p
+        for n in range(m + 1, len(solid)):
+            assert foot_s[m].intersection(foot_s[n]).area < 1e-6, (p, solid[n])
+        if (p.x, p.y) in canopies:           # the canopy's height band against everything else
+            c0, c1 = z + rim - fur["parasol_valance"], z + top
+            hit = (a0 < c1) & (a1 > c0) & shapely.intersects(canopies[(p.x, p.y)], foot_a)
+            assert not hit.any() and not ((s0 < c1) & (s1 > c0) & shapely.intersects(canopies[(p.x, p.y)], foot_s)).any()
+            assert sum(c.intersection(canopies[(p.x, p.y)]).area > 1e-6 for c in canopies.values()) == 1
+    # customers on the real chairs of this tile's terrace tables, facing the table; some chairs stay empty
+    seats = world.style["people"]["seats"]["cafe_set"]
+    poses = {"person_" + k: s["pose"] for k, s in world.style["dressing"]["people"]["pieces"].items()}
+    here = [p for p in placements if p.piece == "cafe_set" and (round(p.x, 9), round(p.y, 9)) in
+            {(round(x, 9), round(y, 9)) for x, y in at}]
+    people = [p for p in placements if kit.pieces[p.piece].category == "person"]
+    seated = 0
+    for t in here:
+        c, s = math.cos(t.yaw), math.sin(t.yaw)
+        for sx, sy, face in seats["seats"]:
+            q = (t.x + sx * c - sy * s, t.y + sx * s + sy * c)
+            sit = [p for p in people if math.hypot(p.x - q[0], p.y - q[1]) < 1e-6]
+            if sit:
+                p = sit[0]
+                assert poses[p.piece] == "sit" and abs(p.z - (t.z + seats["height"] - 0.45)) < 1e-6
+                facing = np.array([-math.sin(p.yaw), math.cos(p.yaw)])
+                assert facing @ (np.array([t.x, t.y]) - q) / np.hypot(t.x - q[0], t.y - q[1]) > 0.85
+                seated += 1
+    assert len(here) >= 4 and 3 <= seated < 2 * len(here)
+    tops = [_plan_box(kit, t) for t in here]
+    for p in people:                         # nobody stands in a terrace table; nobody on a carriageway
+        if poses[p.piece] != "sit":
+            assert not any(_plan_box(kit, p).intersects(b) for b in tops), p

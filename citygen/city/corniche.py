@@ -29,6 +29,7 @@ Dressing (`Seafront`, built once per city by the dresser): lamps in the palm row
 between two palms; a bench (role `seafront_bench`, else `bench`) in each gap by chance, `bench_back` m in
 from the sea edge and facing the sea; the railing as `railing_sea` pieces stretched to fit the sea edge between
 its bends, broken at the steps. Each choice has its own stream (`rng("seafront", "lamp" | "bench", k, palm index)`).
+The cafe terraces come with them (prompt 37, city/terraces.py): a gap taken by a kiosk cafe gets no bench.
 """
 from __future__ import annotations
 
@@ -40,6 +41,7 @@ from shapely.strtree import STRtree
 from .model import Front, Walk
 from .moorings import land_zone
 from .parking import lying_on, street_frame
+from .terraces import Terraces
 
 
 def _cfg(style: dict) -> dict:
@@ -285,20 +287,36 @@ class Seafront:
         self.Placement, self.yaw_of = Placement, yaw_of
         self.d, self.plan = dresser, dresser.plan
         self.cfg = _cfg(dresser.world.style)
+        self.terraces = Terraces(self)
         self._items = None
+        self._area = None
 
     def placements(self, tile) -> list:
         """Fresh copies of the pieces whose anchor lies in the tile (x0 <= x < x1, y0 <= y < y1)."""
+        if not self.area().intersects(tile):
+            return []                                         # no need to lay out the seafront for a tile far from it
         x0, y0, x1, y1 = tile.bounds
         return [self.Placement(p.piece, p.x, p.y, p.z, p.yaw, p.on_ground, p.scale, p.stretch)
                 for p in self.items() if x0 <= p.x < x1 and y0 <= p.y < y1]
+
+    def area(self):
+        """Where the seafront's pieces may stand: round its stretches, across the corniche to the cafes' terraces."""
+        if self._area is None:
+            fronts = getattr(self.plan, "fronts", ()) if self.cfg else ()
+            parts = [f.sea.buffer(self.plan.streets[f.street].width + 2 * float(self.cfg["max_width"])) for f in fronts]
+            self._area = shapely.union_all(parts) if parts else Polygon()
+            shapely.prepare(self._area)
+        return self._area
 
     def items(self) -> list:
         if self._items is None:
             self._items = []
             if self.cfg:
                 for f in getattr(self.plan, "fronts", ()):
-                    self._items += self._lamps_and_benches(f) + self._railing(f)
+                    palms = palms_of(self.plan, f, self.cfg)
+                    kiosks = self.terraces.kiosks(f, palms)              # cafe kiosks take their gap's bench (prompt 37)
+                    base = self._lamps_and_benches(f, palms, kiosks) + self._railing(f)
+                    self._items += base + self.terraces.items(f, palms, base, kiosks)
         return self._items
 
     def _frame(self, f: Front, d: float) -> tuple:
@@ -313,11 +331,10 @@ class Seafront:
         w0, w1 = (float(np.hypot(*(outer[j] - inner[j]))) for j in (m, m + 1))
         return p[0], out, w0 + (w1 - w0) * (t - m)
 
-    def _lamps_and_benches(self, f: Front) -> list:
+    def _lamps_and_benches(self, f: Front, palms: list, taken: dict) -> list:
         cfg, d = self.cfg, self.d
         st = self.plan.streets[f.street]
         curb = st.width / 2.0 - float(cfg["curb"])
-        palms = palms_of(self.plan, f, cfg)
         stairs = [np.array(s[:2]) for s in f.stairs]
         clear = float(cfg["stair"][0]) / 2.0 + 1.6
         out = []
@@ -333,7 +350,7 @@ class Seafront:
                 out.append(self.Placement(name, float(q[0]), float(q[1]), 0.0, self.yaw_of(sea)))
             rng = d.rng("seafront", "bench", f.street, ia)
             role = "seafront_bench" if d.has("seafront_bench") else "bench"
-            if d.has(role) and rng.random() < float(cfg["bench"]):
+            if d.has(role) and rng.random() < float(cfg["bench"]) and m not in taken:
                 q = p + sea * (curb + width - float(cfg["bench_back"]))
                 if all(float(np.hypot(*(q - s))) > clear for s in stairs):
                     name, _ = d.pick(role, rng)

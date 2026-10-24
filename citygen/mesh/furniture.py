@@ -1,5 +1,5 @@
 """Street furniture (prompt 26): the iron bench, the newspaper kiosk, the colonial fountain and the sabil;
-the corniche's railing (prompt 36).
+the corniche's railing (prompt 36); the drinks kiosk and the cafe parasols (prompt 37).
 
 Generator axes as in mesh/props.py: x along the piece's width, y toward its front (the side people use),
 z up, meters. The bench, kiosk and fountain stand on the ground (origin at the bottom-center on the drawn
@@ -26,9 +26,18 @@ from .props import _arch_outline, _bar, _faces, _flat, _front, _side, _slab
 FURNITURE = {   # sizes in meters; `[dressing.furniture]` in the style overrides them
     "bench_length": 1.8, "seat": 0.45, "fountain_radius": 2.3, "fountain_height": 2.9,
     "kiosk": [2.2, 1.5, 2.45], "sabil": [1.9, 2.9], "sink": 0.25, "railing_length": 2.0, "railing_height": 1.0,
+    "parasol": [1.2, 2.15, 2.5, 0.7], "parasol_valance": 0.13,
+    "parasol_colors": ["parasol_white", "parasol_blue", "parasol_sand"],
 }
 COVERS = ("awning_red", "spice_yellow", "rug_blue", "plastic_white", "door_green", "spice_orange",
           "chechia_red", "cloth_2", "cloth_4", "rug_cream")   # magazine and newspaper covers
+DRINKS = ("awning_red", "awning_blue", "plastic_white", "awning_cream")   # cans, bottles and cups, in colors it has
+NEWS = {"name": "kiosk", "body": "kiosk_green", "band": "awning_red", "stripes": ("awning_green", "awning_cream"),
+        "covers": COVERS, "tobacco": True, "plinth": "concrete_dark"}
+CAFE_KIOSK = {"name": "kiosk_drinks", "body": "kiosk_blue", "band": "awning_red", "stripes": ("awning_blue", "awning_cream"),
+              "covers": DRINKS, "tobacco": False, "plinth": "kiosk_trim"}   # the corniche's drinks kiosk (prompt 37):
+                                                                           # few plain colors, no UVs (tile bytes)
+CANVAS = "CANVAS"   # stand-in, renamed to each parasol's color
 
 
 def _cfg(cfg: dict | None) -> dict:
@@ -120,26 +129,29 @@ def bench_iron(cfg: dict | None = None) -> MeshBuilder:
     return mb
 
 
-def kiosk(seed: int = 0, cfg: dict | None = None) -> MeshBuilder:
+def kiosk(seed: int = 0, cfg: dict | None = None, look: dict | None = None) -> MeshBuilder:
     """A newspaper and tobacco kiosk of a Tunis boulevard: a dark green booth on a low plinth with cream
     trims, a serving hatch with a glass pane (lit at night in its twin) over a wooden counter of folded
     papers, a striped awning on iron arms, racks of magazines on both sides, a sign board on the roof and
-    the red tobacco diamond on a corner bracket. The front (+y) is the hatch; about 300 triangles."""
+    the red tobacco diamond on a corner bracket. The front (+y) is the hatch; about 300 triangles.
+    `look` (CAFE_KIOSK): the corniche's drinks kiosk, Sidi Bou Said blue, racks of cans and bottles, no diamond."""
     c = _cfg(cfg)
+    look = look or NEWS
     w, d, h = (float(v) for v in c["kiosk"])
     x0, x1, y0, y1, sink = -w / 2, w / 2, -d / 2, d / 2, float(c["sink"])
     hx, z_counter, z_top = w / 2 - 0.32, 1.0, h - 0.4          # the hatch
-    rng = stream(seed, "piece", "kiosk")
+    rng = stream(seed, "piece", look["name"])
+    covers_of = look["covers"]
     mb = MeshBuilder()
     plinth, base = [], 0.14
     plinth += [_front(x0 - 0.03, x1 + 0.03, -sink, base, y1 + 0.03), _front(x0 - 0.03, x1 + 0.03, -sink, base, y0 - 0.03, back=True),
                _side(x1 + 0.03, y0 - 0.03, y1 + 0.03, -sink, base), _side(x0 - 0.03, y0 - 0.03, y1 + 0.03, -sink, base, left=True),
                _flat(x0 - 0.03, x1 + 0.03, y0 - 0.03, y1 + 0.03, base)]
-    _faces(mb, plinth, "concrete_dark")
+    _faces(mb, plinth, look["plinth"])
     walls = [_front(x0, -hx, base, h, y1), _front(hx, x1, base, h, y1), _front(-hx, hx, base, z_counter, y1),
              _front(-hx, hx, z_top, h, y1), _front(x0, x1, base, h, y0, back=True),
              _side(x1, y0, y1, base, h), _side(x0, y0, y1, base, h, left=True)]
-    _faces(mb, walls, "kiosk_green")
+    _faces(mb, walls, look["body"])
     inset = y1 - 0.12                                           # the hatch: reveals and the glass behind them
     _faces(mb, [_side(-hx, inset, y1, z_counter, z_top), _side(hx, inset, y1, z_counter, z_top, left=True),
                 _flat(-hx, hx, inset, y1, z_top, down=True)], "kiosk_trim")
@@ -155,7 +167,7 @@ def kiosk(seed: int = 0, cfg: dict | None = None) -> MeshBuilder:
     sign = [_front(sx0, sx1, h + 0.12, sz, sy1), _front(sx0, sx1, h + 0.12, sz, sy0, back=True), _flat(sx0, sx1, sy0, sy1, sz),
             _side(sx1, sy0, sy1, h + 0.12, sz), _side(sx0, sy0, sy1, h + 0.12, sz, left=True)]
     _faces(mb, sign, "kiosk_trim")
-    _faces(mb, [_front(-w / 2 + 0.2, w / 2 - 0.2, h + 0.2, h + 0.28, y1 - 0.015)], "awning_red")   # the name band
+    _faces(mb, [_front(-w / 2 + 0.2, w / 2 - 0.2, h + 0.2, h + 0.28, y1 - 0.015)], look["band"])   # the name band
     counter = [_flat(-hx - 0.05, hx + 0.05, inset, y1 + 0.28, z_counter + 0.04),
                _flat(-hx - 0.05, hx + 0.05, inset, y1 + 0.28, z_counter, down=True),
                _front(-hx - 0.05, hx + 0.05, z_counter, z_counter + 0.04, y1 + 0.28),
@@ -164,7 +176,7 @@ def kiosk(seed: int = 0, cfg: dict | None = None) -> MeshBuilder:
     _faces(mb, counter, "wood")
     for k in range(5):                                          # folded papers in piles on the counter
         px = -hx + 0.12 + k * (2 * hx - 0.24) / 4
-        mat = COVERS[int(rng.integers(len(COVERS)))]
+        mat = covers_of[int(rng.integers(len(covers_of)))]
         top = z_counter + 0.045 + 0.012 * (k % 3)
         _faces(mb, [_flat(px - 0.13, px + 0.13, y1 + 0.02, y1 + 0.24, top)], "plastic_white")
         _faces(mb, [_flat(px - 0.13, px + 0.13, y1 + 0.16, y1 + 0.24, top + 0.002)], mat)
@@ -175,7 +187,7 @@ def kiosk(seed: int = 0, cfg: dict | None = None) -> MeshBuilder:
             for col in range(4):
                 yc = y0 + 0.2 + col * (d - 0.4) / 3
                 q = _side(x, yc - 0.1, yc + 0.1, z, z + 0.29, left=sx < 0)
-                covers.setdefault(COVERS[int(rng.integers(len(COVERS)))], []).append(q)
+                covers.setdefault(covers_of[int(rng.integers(len(covers_of)))], []).append(q)
             covers.setdefault("iron", []).append(_side(x + sx * 0.01, y0 + 0.06, y1 - 0.06, z - 0.03, z, left=sx < 0))
         for mat, quads in covers.items():
             _faces(mb, quads, mat)
@@ -183,12 +195,14 @@ def kiosk(seed: int = 0, cfg: dict | None = None) -> MeshBuilder:
     ya, yb, za, zb = y1 + 0.01, y1 + 0.75, h - 0.05, h - 0.42
     for k in range(stripes):
         sx0, sx1 = -w / 2 - 0.05 + k * (w + 0.1) / stripes, -w / 2 - 0.05 + (k + 1) * (w + 0.1) / stripes
-        mat = "awning_green" if k % 2 == 0 else "awning_cream"
+        mat = look["stripes"][k % 2]
         add_sheet(mb, [[(sx0, ya, za), (sx0, yb, zb), (sx1, yb, zb)], [(sx0, ya, za), (sx1, yb, zb), (sx1, ya, za)],
                        [(sx0, yb, zb), (sx0, yb, zb - 0.16), (sx1, yb, zb - 0.16)], [(sx0, yb, zb), (sx1, yb, zb - 0.16), (sx1, yb, zb)]],
                   mat)
     for sx in (-1.0, 1.0):
         _bar(mb, (sx * (w / 2 - 0.02), y1, za - 0.55), (sx * (w / 2 + 0.03), yb - 0.02, zb + 0.01), 0.015, "iron")
+    if not look["tobacco"]:
+        return mb
     bx, by = x0 - 0.02, y1 - 0.08                               # the tobacco diamond on its bracket
     _bar(mb, (bx, by, h - 0.25), (bx - 0.32, by, h - 0.25), 0.015, "iron")
     add_cone(mb, bx - 0.3, by, h - 0.48, 0.09, 0.2, "awning_red", segments=4)
@@ -324,12 +338,74 @@ def railing_sea(cfg: dict | None = None) -> MeshBuilder:
     return mb
 
 
+def parasol(cfg: dict | None = None) -> MeshBuilder:
+    """A cafe parasol standing in a table's hole (prompt 37): a wooden pole from just under the table top, an
+    octagonal canvas (CANVAS) in a gentle dome with a short valance round its rim, both with real faces on both
+    sides (thin cloth rule), eight iron stretchers from a runner on the pole to the canopy's ribs, and a finial.
+    Radius, rim and top heights, pole bottom: `parasol` in `[dressing.furniture]`; about 170 triangles."""
+    c = _cfg(cfg)
+    radius, rim, top, foot = (float(v) for v in c["parasol"])
+    drop, sides = float(c["parasol_valance"]), 8
+    mb = MeshBuilder()
+    _tube(mb, (0.0, 0.0, foot), (0.0, 0.0, top + 0.05), (0.022, 0.022), "wood", cap=True)
+    a = (np.arange(sides) + 0.5) * 2 * math.pi / sides
+    ring = np.stack([np.cos(a), np.sin(a), np.zeros(sides)], 1)
+    mid_r, mid_z = 0.5 * radius, rim + 0.55 * (top - rim)         # a little fuller than a cone
+    apex = np.array([0.0, 0.0, top])
+    mid = ring * mid_r + [0.0, 0.0, mid_z]
+    edge = ring * radius + [0.0, 0.0, rim]
+    m, e = 1 + np.arange(sides), 1 + sides + np.arange(sides)
+    nxt = np.roll(np.arange(sides), -1)
+    tris = np.concatenate([np.stack([np.zeros(sides, int), m, m[nxt]], 1),          # counter-clockwise from above
+                           np.stack([m, e, e[nxt]], 1), np.stack([m, e[nxt], m[nxt]], 1)])
+    _soft_sheet(mb, np.vstack([apex, mid, edge]), tris, 0.012)
+    low = edge - [0.0, 0.0, drop]
+    i = np.arange(sides)
+    flaps = np.concatenate([np.stack([i, sides + i, sides + nxt], 1), np.stack([i, sides + nxt, nxt], 1)])   # facing out
+    _soft_sheet(mb, np.vstack([edge, low]), flaps, 0.008)
+    runner = rim - 0.32
+    for k in range(sides):
+        rib = mid[k] * 0.98 + [0.0, 0.0, -0.03]
+        _tube(mb, (0.0, 0.0, runner), rib, (0.008, 0.008), "iron")
+    add_cone(mb, 0.0, 0.0, top + 0.05, 0.035, 0.09, "wood", segments=4)
+    return mb
+
+
+def _soft_sheet(mb: MeshBuilder, pos: np.ndarray, tris: np.ndarray, thickness: float) -> None:
+    """A smooth-shaded canvas sharing its corners (CANVAS), with its back as real faces `thickness` behind it."""
+    face = np.cross(pos[tris[:, 1]] - pos[tris[:, 0]], pos[tris[:, 2]] - pos[tris[:, 0]])
+    nrm = np.zeros_like(pos)
+    for c in range(3):
+        np.add.at(nrm, tris[:, c], face)
+    nrm /= np.maximum(np.linalg.norm(nrm, axis=1), 1e-12)[:, None]
+    uv = np.zeros((len(pos), 2))
+    mb.add(CANVAS, pos, nrm, uv, tris)
+    mb.add(CANVAS, pos - nrm * thickness, -nrm, uv, tris[:, ::-1])
+
+
+def parasol_pieces(cfg: dict | None) -> dict:
+    """{name: glTF parts} of the parasols, one piece per canvas color in `parasol_colors` (instancing cannot
+    recolor): the pieces share every part dict but the canvas, so a tile writes the pole and ribs once; no UVs."""
+    c = _cfg(cfg)
+    colors = [str(v) for v in c.get("parasol_colors", [])]
+    if not colors:
+        return {}
+    shared = {m: {**part, "uv": None} for m, part in parasol(c).gltf_parts().items()}
+    return {color: {(color if m == CANVAS else m): part for m, part in shared.items()} for color in colors}
+
+
+def _plain(mb: MeshBuilder) -> dict:
+    """glTF parts without UVs, for a piece drawn in plain palette colors."""
+    return {m: {**part, "uv": None} for m, part in mb.gltf_parts().items()}
+
+
 def furniture_pieces(seed: int, cfg: dict | None) -> dict:
     """{name: (MeshBuilder, category, anchor)} of the furniture pieces; only the kiosk draws randomness, on its
     own stream."""
     return {
         "bench_iron": (bench_iron(cfg), "bench", "ground"),
         "kiosk": (kiosk(seed, cfg), "kiosk", "ground"),
+        "kiosk_drinks": (_plain(kiosk(seed, cfg, CAFE_KIOSK)), "kiosk", "ground"),   # the corniche's cafe kiosks (prompt 37)
         "fountain_colonial": (fountain_colonial(cfg), "fountain", "ground"),
         "sabil": (sabil(cfg), "fountain", "wall"),
         "railing_sea": (railing_sea(cfg), "railing", "ground"),   # the corniche's railing (prompt 36)

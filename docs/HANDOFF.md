@@ -596,6 +596,21 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
   (60_106, 68_106: the coast runs along the tile row edge y = 54,272 m, so they get the promenade's sea half)
   grow +18-20% (about +45-50 KB: bench, lamp, railing, one figure, paving); quick tiles +5.1% at most. The
   headless snapshot hides the narrow beach and the steps' lower treads (under 1 m above the sea).
+- **Seaside cafe terraces** (prompt 37, `city/terraces.py`, `[corniche.terrace]`): only 5 of the 24 quick buildings
+  on the corniche have their main wall there (`FRONT_PREF` ranks a side street higher), so the land side gives few
+  cafes; kiosk cafes by the railing carry the corniche view. A seaside cafe is decided after the door's draws and the
+  door pieces dropped (`del out[first:]`), so `rng("b", k)` makes the same draws and the windows stay; a colonial
+  cafe there keeps its draws with `_cafe(tables=False)`. The parasol stands in the table's hole (one placement at
+  the table's point), so the people test must ignore a sitter's own parasol pole (`Crowd._shades`) and the overlap
+  test pairs them. Obstacles come grown by `Squares` `piece_clear` (0.2): a canopy beside a kiosk needs that too.
+  The sea edge bends between stations: place railing-side tables with the width at their own station, not the gap's.
+  Passing the whole stretch's pieces to `Squares._obstacles` cost 4.9 s per process on the full capital (it sets
+  ground heights for all of them): keep only those near the region (1.9 s with the town's sidewalks;
+  `Seafront.placements` skips tiles far from the seafront). Bytes: a kiosk cafe added 20% to the two light sea
+  tiles (about 300 KB: the promenade's sea half, no building); pieces now anchor only in tiles holding a
+  building (`town_tile`), the drinks kiosk has nine plain materials without UVs (29 -> 21 KB) and the parasol
+  shares its canvas corners (12 -> 8 KB). Waiters are often left out by `_cast` (no standing figure kept in a
+  seafront tile): "if cheap", as asked.
 - **Old-town tiles** reach about 5 MB on the quick build and 8 MB on the full capital
   (`tile_65_106`, mostly roofs since prompt 15); task Q5 (prompt 39) brings them down.
 

@@ -17,7 +17,7 @@ import numpy as np
 
 from .config import ROOT
 from .mesh.gltf import read_parts
-from .mesh.furniture import furniture_pieces
+from .mesh.furniture import furniture_pieces, parasol_pieces
 from .mesh.people import people_pieces
 from .mesh.port import port_pieces
 from .mesh.props import catalog, lit_pane
@@ -81,10 +81,12 @@ class Kit:
         for name, parts in vehicle_pieces(seed, vehicles).items():   # parked cars (prompt 25): no lit twins
             self.pieces[name] = Piece(name, "vehicle", "ground", parts, "procedural")
         for name, (mb, category, anchor) in furniture_pieces(seed, furniture).items():   # prompt 26
-            parts = mb.gltf_parts()
+            parts = mb if isinstance(mb, dict) else mb.gltf_parts()       # the drinks kiosk comes as plain parts
             if category in PLAIN:
                 parts = {m: {**part, "uv": None} for m, part in parts.items()}
             self.pieces[name] = Piece(name, category, anchor, parts, "procedural")
+        for name, parts in parasol_pieces(furniture).items():           # cafe parasols, one per color (prompt 37)
+            self.pieces[name] = Piece(name, "parasol", "ground", parts, "procedural")
         for name, parts in people_pieces(seed, people).items():          # prompt 28: no lit twins
             self.pieces[name] = Piece(name, "person", "ground", parts, "procedural")
         for name, (mb, category, anchor) in port_pieces(seed, port).items():       # bollards and fenders (prompt 34)

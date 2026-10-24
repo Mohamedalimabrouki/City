@@ -169,6 +169,10 @@ marble = { color = "#E6E0D3", roughness = 0.4 }          # fountain basins, bowl
 water_pool = { color = "#3B8EA0", roughness = 0.05 }     # fountain water; never `water`, which Blender hides for its sea
 kiosk_green = { color = "#2E5444", roughness = 0.55 }    # the painted sheet metal of a newspaper kiosk
 kiosk_trim = { color = "#E6DDC4", roughness = 0.6 }
+kiosk_blue = { color = "#2D5F8C", roughness = 0.55 }     # the corniche's drinks kiosk (prompt 37): Sidi Bou Said blue
+parasol_white = { color = "#EDE9DF", roughness = 0.9 }   # cafe parasols (prompt 37): sun-bleached canvas
+parasol_blue = { color = "#5D86A6", roughness = 0.9 }    # faded sea blue
+parasol_sand = { color = "#CDB283", roughness = 0.9 }    # faded sand
 door_blue = { color = "#1F5FA8", roughness = 0.55 }
 door_green = { color = "#2E6B4F", roughness = 0.55 }
 door_yellow = { color = "#D9A632", roughness = 0.55 }
@@ -806,6 +810,37 @@ foot = 0.35                # the wall reaches this far under the sand or the sea
 stair_every = 72.0         # meters between flights of steps down to the beach ...
 stair_sand = 2.4           # ... where at least this much sand lies beyond the wall
 stair = [2.4, 0.18, 0.32]  # a flight's width, highest riser, tread
+
+# Seaside cafe terraces (prompt 37, city/terraces.py): like the seafront cafes of La Marsa, Sidi Bou Said or Sousse.
+# A main wall on the promenade's stretch may be a cafe; its terrace stands on its sidewalk and, by chance, across the
+# road on the palm line; drinks kiosks by the railing have tables beside them. Tables are `cafe_set` (chairs along
+# the row), shaded by parasols of one color per group (role `parasol`).
+[corniche.terrace]
+cafe = 0.5                 # chance a main wall on the stretch is a cafe (besides the colonial cafe chance)
+end = 4.0                  # its middle at least this far inside the stretch's ends
+tables = [2, 4]            # tables on a cafe's sidewalk ...
+reach = 1.7                # ... their centers this far from the wall
+wall_margin = 0.5          # ... the chairs this far inside the wall's ends
+pitch = 2.6                # meters between two tables of a row (two canopies just clear)
+across = 0.6               # chance a cafe also has tables across the road, in the nearest palm gap without a lamp ...
+across_tables = [2, 3]
+across_reach = 16.0        # ... that gap's middle at most this far along from the cafe's middle
+row_reach = 2.3            # the palm line's tables stay within this far from the curb: the walkway beyond is free
+kiosk = 0.4                # chance of a drinks kiosk by the railing in a palm gap ...
+kiosk_gap = 10.0           # ... at least this long, clear of the steps
+kiosk_spacing = 60.0       # meters between two kiosk cafes, at least
+kiosk_back = 0.3           # the kiosk's back this far from the sea edge
+kiosk_tables = [2, 4]      # tables along the railing beside it
+kiosk_lit = 0.6            # chance a kiosk is open and lit at night
+sea_reach = 2.8            # a kiosk cafe stays within this far from the sea edge
+min_width = 7.5            # promenade groups only where the promenade is this wide (the walkway keeps 3 m and more)
+rail_clear = 0.2           # canopies stay this far inside the sea edge
+stair_clear = 1.2          # nothing this close to the side of a flight of steps
+parasol_clear = 0.15       # a canopy from any piece (lamps, trunks, crowns, awnings, other canopies)
+piece_clear = 0.15         # a table set from any piece
+jitter = 0.12              # radians a table turns off its row, at most
+town_tile = 1              # terraces only in tiles holding this many buildings: a tile with only the sea half of the
+                           # promenade and the beach is light (about 300 KB), and one kiosk cafe would add a fifth
 
 [district.park]
 tree_spacing = 13.0
@@ -1472,6 +1507,9 @@ fountain_height = 2.9      # to the finial
 kiosk = [2.2, 1.5, 2.45]   # width, depth, wall height
 sabil = [1.9, 2.9]         # frame width and height
 sink = 0.25                # how far bases reach below their origin, for sloping ground
+parasol = [1.2, 2.15, 2.5, 0.7]   # cafe parasol (prompt 37): canopy radius, rim and top heights, pole bottom (in the table's hole)
+parasol_valance = 0.13     # the valance hanging round the rim
+parasol_colors = ["parasol_white", "parasol_blue", "parasol_sand"]   # one piece per color, named as its canvas
 
 # People (prompt 28, mesh/people.py): one kit piece person_<key> per entry (instancing cannot recolor).
 # Outfits: jebba (robe, trim, under, cap, shoes), shirt (shirt, trousers, shoes, sleeves long or short),
@@ -1576,6 +1614,10 @@ carry = 0.1
 pair = 0.35
 family = 0.25
 
+[people.terrace]           # seaside cafe terraces (prompt 37): a waiter by some tables under a parasol
+waiter = 0.35
+reach = 1.0                # meters from the table's middle, beside it, facing it
+
 [people.landmark]          # round the great mosque (along its outline) and at the medina gates
 mosque = { step = 3.5, chance = 0.45, reach = [1.5, 6.0] }
 gate = { count = 10, chance = 0.5, reach = [2.5, 10.0] }
@@ -1649,6 +1691,8 @@ pot = [["tounes/pot_geranium", 2], ["tounes/pot_flowers_bougainvillea", 1.5], ["
 roof_pot = [["tounes/pot_geranium", 1], ["tounes/pot_cactus", 1], ["pot_plant", 1]]
 door_bench = [["doukkana", 3], ["tounes/bench_sbs", 1]]   # beside traditional doors
 bench = [["bench_iron", 3], ["tounes/bench_sbs", 1]]        # on the boulevard's promenade (prompt 26)
+parasol = [["parasol_white", 1.2], ["parasol_blue", 1], ["parasol_sand", 1]]   # seaside cafe terraces (prompt 37)
+cafe_kiosk = [["kiosk_drinks", 1]]     # the drinks kiosk of a kiosk cafe on the corniche promenade (prompt 37)
 seafront_bench = [["bench_iron", 1]]   # along the corniche's railing (prompt 36): the bench mix less the kit's blue
                                        # bench, whose 43 KB mesh alone would take most of a light seafront tile's budget
 planter = [["tounes/planter_sbs", 1]]

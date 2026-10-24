@@ -129,6 +129,7 @@ build.build()                 orchestrates the above into output/<country>-<seed
 | `citygen/city/landmarks.py` | the boulevard's cathedral and theatre (prompt 32): sites on merged colonial lots, the local frame and plan shapes shared with the mesh, names, their camera views |
 | `citygen/city/port.py` | the harbor (prompt 34): quay lines from the port districts' coast, aprons and level cores, the breakwater, basin and lighthouse (name, color scheme), the ground zones (shore, raised side, walls, dredge), the "port" camera |
 | `citygen/city/corniche.py` | the corniche's seafront (prompt 36): `plan_fronts` fills `CityPlan.fronts` and the seafront walks and moves the beach-side palms; `Seafront` (lamps, benches, railing; `Dresser.seafront()`); the "corniche" camera |
+| `citygen/city/terraces.py` | seaside cafe terraces (prompt 37): `Terraces` (cafes facing the sea, rows across the road, kiosk cafes by the railing), made by `Seafront` |
 | `citygen/city/moorings.py` | boats, cranes and cargo (prompt 35): `plan_props` fills `CityPlan.props`; `box` (a prop's plan envelope), `land_zone` (where props stand on land) |
 | `citygen/city/station.py` | the railway station (prompt 33): site at the colonial edge, track layout and corridor, street and walk clipping, buildings and name, its camera view |
 | `citygen/city/massing.py` | building massing (prompt 23): the planning step, `masses(b)` (the volumes drawn and dressed), `floors_at`/`wall_height` (floors and wall height at a point of the outer wall), `outline`, `inner_walls`, `terrace_walls` |
@@ -435,6 +436,35 @@ block on `rng("impasse", block)`: lot line jitter, widths, covered share and len
   the promenade of the longest stretch near the center, looking 60 m along it). Quick capital: 752 m of
   promenade (272 m with a beach), 6 flights, 53 palms, 26 lamps, 40 benches; full capital: 4192 m (all with a
   beach), 58 flights, 295 palms, 146 lamps, 221 benches.
+- **Seaside cafe terraces** (prompt 37, `city/terraces.py`, `[corniche.terrace]`, `Seafront.terraces`): a main wall
+  on a seafront stretch, on the land side (`Dresser.seaside`: its middle `end` m inside the stretch) is a cafe when
+  the colonial cafe chance makes it one, or by `cafe` on `rng("terrace", "cafe", k)`, drawn after the door's draws,
+  whose pieces are then dropped, so the windows draw as before (`_front`; `_cafe(tables=False)` still makes the
+  tables' draws). Its terrace (`rng("terrace", "front", k)`): `tables` `cafe_set`s on its sidewalk, chairs along the
+  wall, `reach` m out, `pitch` m apart from the middle outward, inside the wall's ends, each under a parasol where the
+  canopy fits (not under the awning, a crown or a lamp), else in the open; with chance `across`
+  (`rng("terrace", "across", k)`) a row of `across_tables` under parasols on the palm line across the road, in the
+  lamp-free palm gap nearest the cafe (within `across_reach` m), all within `row_reach` m of the curb. Kiosk cafes
+  (decided before the benches; that gap gets no bench): in a palm gap of `kiosk_gap` m or more, clear of the steps,
+  chance `kiosk` on `rng("terrace", "kiosk", k, palm)`, `kiosk_spacing` m apart, a `kiosk_drinks` (role
+  `cafe_kiosk`; lit with chance `kiosk_lit`) backing onto the railing `kiosk_back` m from the sea edge and facing
+  the promenade, `kiosk_tables` tables along the railing beside it under parasols, all within `sea_reach` m of the
+  sea edge. Promenade groups only where the promenade is `min_width` m wide, so a walkway of 3 m and more stays
+  free. One parasol color per group (role `parasol`); each table turns up to `jitter` off its row and its parasol's
+  octagon at random (`rng("terrace", "table", ...)`). Checks: table sets by kit bounds (`piece_clear`), canopies as
+  circles in their height band (`parasol_clear`), against `Squares._obstacles` (trunks and crowns, street lamps,
+  doors with their free zone, the buildings' wall pieces) plus the seafront's lamps, benches and railing, the steps
+  (`stair_clear`) and the pieces already placed; tables on their sidewalk or the promenade, canopies over them,
+  off the walls, `rail_clear` m inside the sea edge; every piece in a tile holding `town_tile` buildings (a tile
+  with only the promenade's sea half and the beach is light: a kiosk cafe would add a fifth to it). Customers sit
+  on the chairs (`[people.seats] cafe_set`), a waiter stands by some shaded tables (`[people.terrace]`). Pieces:
+  `parasol_white`, `parasol_blue`, `parasol_sand` (`parasol` in `mesh/furniture.py`, one piece per
+  `parasol_colors` entry sharing the pole and ribs: a wooden pole from just under the table top, an octagonal
+  canvas in a gentle dome and a valance, smooth-shaded with real faces on both sides, eight iron stretchers, a
+  finial; 158 triangles, no UVs; sizes `parasol` and `parasol_valance` in `[dressing.furniture]`) and
+  `kiosk_drinks` (the kiosk in Sidi Bou Said blue, racks of cans and bottles, no tobacco diamond, nine plain
+  materials, no UVs; lit twin `kiosk_drinks_lit`). Quick capital: 4 cafes, 29 tables, 25 parasols, 6 kiosk cafes,
+  38 customers seated; full capital: 34 cafes, 217 tables, 163 parasols, 41 kiosk cafes, 280 seated.
 
 Invariants (tested): buildings are valid polygons inside the city and stay off street surfaces
 (impasses included); every old-town dwelling's main door opens on a street, alley or impasse; an
@@ -797,7 +827,8 @@ shaders (which ignore the image and the tint) and takes their palette color from
   `parking.walk_extents`); promenade strollers on the boulevard's islands (`[people.promenade]`) and on the
   corniche's seafront promenade between the palms and the benches (`[people.seafront]`); people
   along the great mosque's outline and round each medina gate (`[people.landmark]`, half standing and
-  facing it); kiosk customers at the window and people round a fountain (`[people.square]`); walkers in
+  facing it); kiosk customers at the window and people round a fountain (`[people.square]`); now and then a
+  waiter beside a shaded cafe table, facing it (`[people.terrace]`; a seated customer's own parasol aside); walkers in
   medina lanes and village streets (`[people.lane]`); and on the stair paths of modern estates
   (`[people.stair]`, walking or two neighbours chatting). A walker may come as a pair or a parent with a
   child, side by side (`pair_gap`). Outfits from `[people.outfits]` by district kind (`cafe` for cafes,
