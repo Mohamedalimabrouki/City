@@ -18,6 +18,7 @@ import numpy as np
 from .config import ROOT
 from .mesh.gltf import read_parts
 from .mesh.furniture import furniture_pieces
+from .mesh.people import people_pieces
 from .mesh.props import catalog, lit_pane
 from .mesh.vehicles import vehicle_pieces
 from .rng import stream
@@ -68,7 +69,7 @@ class Kit:
     def __init__(self, seed: int, kits=(), palette: dict | None = None, trees: dict | None = None,
                  climber: dict | None = None, lit: dict | None = None, arcade: dict | None = None,
                  iron: dict | None = None, hedge: dict | None = None, vehicles: dict | None = None,
-                 furniture: dict | None = None):
+                 furniture: dict | None = None, people: dict | None = None):
         self.pieces: dict[str, Piece] = {}
         self.materials: dict = dict(palette or {})
         table = catalog(stream(seed, "props"), seed, trees, climber, arcade, iron, hedge)
@@ -78,6 +79,8 @@ class Kit:
             self.pieces[name] = Piece(name, "vehicle", "ground", parts, "procedural")
         for name, (mb, category, anchor) in furniture_pieces(seed, furniture).items():   # prompt 26
             self.pieces[name] = Piece(name, category, anchor, mb.gltf_parts(), "procedural")
+        for name, parts in people_pieces(seed, people).items():          # prompt 28: no lit twins
+            self.pieces[name] = Piece(name, "person", "ground", parts, "procedural")
         self.panes: dict = {}   # kit piece -> (x0, x1, y0, y1, z) of its glass, glTF axes (manifest "glass")
         for kit in kits:
             folder = Path(kit) if Path(kit).is_dir() else ROOT / "kits" / kit
@@ -126,4 +129,4 @@ def make_kit(seed: int, cfg: dict, style: dict) -> Kit:
     iron = {**dressing.get("balcony_iron", {}), "sill": dressing.get("window_sill", 0.95)}
     return Kit(seed, cfg["build"].get("kits", []), style["palette"], dressing.get("trees"), dressing.get("climber"),
                dressing.get("lit"), dressing.get("arcade"), iron, dressing.get("hedge"), dressing.get("vehicles"),
-               dressing.get("furniture"))
+               dressing.get("furniture"), dressing.get("people"))

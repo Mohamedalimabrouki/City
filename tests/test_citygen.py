@@ -2169,3 +2169,51 @@ def test_benches_kiosks_and_fountains_stand_clear_on_walks(world, plan, built_me
         for p in lamps:
             box = _plan_box(kit, p)
             assert box.distance(circle) >= sq["lamp_clear"] and not island.intersects(box), (p.x, p.y)
+
+
+# --- people (prompt 28) ----------------------------------------------------------------------------
+
+def _gen(parts: dict) -> np.ndarray:
+    """All of a piece's positions in generator axes (x, y, z up)."""
+    pos = np.concatenate([p["pos"] for p in parts.values()])
+    return np.stack([pos[:, 0], -pos[:, 2], pos[:, 1]], axis=1)
+
+
+def test_people_are_low_poly_figures_standing_or_seated_right(world, built_tile):
+    from citygen.mesh.people import people_pieces
+    cfg = world.style["dressing"]["people"]
+    seat = cfg["seat"]
+    pieces = people_pieces(world.seed, cfg)
+    assert 20 <= len(pieces) <= 30 and all(n.startswith("person_") for n in pieces)
+    assert {s["pose"] for s in cfg["pieces"].values()} == {"stand", "walk", "sit", "carry"}
+    assert {s["outfit"] for s in cfg["pieces"].values()} == {"jebba", "shirt", "safsari", "dress", "boy", "girl"}
+    assert seat == world.style["dressing"]["furniture"]["seat"]          # the iron bench's seat
+    kit = built_tile[0].kit
+    for name, parts in pieces.items():
+        spec = cfg["pieces"][name[len("person_"):]]
+        pc = kit.pieces[name]
+        assert pc.category == "person" and pc.anchor == "ground" and name + "_lit" not in kit.pieces
+        assert 200 <= pc.triangles <= 400, (name, pc.triangles)
+        g = _gen(parts)
+        assert np.isfinite(g).all()
+        for part in parts.values():                                      # no degenerate triangles
+            t = part["pos"][part["idx"].reshape(-1, 3)].astype(np.float64)
+            area = np.linalg.norm(np.cross(t[:, 1] - t[:, 0], t[:, 2] - t[:, 0]), axis=1) / 2
+            assert area.min() > 1e-7, name
+        assert abs(g[:, 2].min()) < 1e-6, name                           # feet on the ground
+        assert np.abs(g[:, 0]).max() < 0.6 and -0.5 < g[:, 1].min() and g[:, 1].max() < 0.8, name
+        top = g[:, 2].max()
+        if spec["pose"] == "sit":                                        # the hips' underside on the seat
+            over = g[(np.abs(g[:, 0]) < 0.2) & (g[:, 1] > -0.15) & (g[:, 1] < 0.2) & (g[:, 2] > 0.3)]
+            assert abs(over[:, 2].min() - seat) < 0.005, (name, over[:, 2].min())
+            assert 1.2 < top < 1.5, (name, top)
+        elif spec["outfit"] in ("boy", "girl"):
+            assert 1.05 < top < 1.35, (name, top)
+        else:
+            assert 1.55 < top < 1.9, (name, top)
+    again = people_pieces(world.seed, cfg)                               # deterministic bytes, own streams
+    for name, parts in pieces.items():
+        for m, part in parts.items():
+            assert all(np.array_equal(part[k], again[name][m][k]) for k in ("pos", "nrm", "idx"))
+    other = people_pieces(world.seed + 1, cfg)
+    assert not np.array_equal(_gen(other["person_shirt_stand"]), _gen(pieces["person_shirt_stand"]))

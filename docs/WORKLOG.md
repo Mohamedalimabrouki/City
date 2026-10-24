@@ -15,6 +15,26 @@ Entry format:
 - Doubts and questions for Ali: <none, or the question>
 ```
 
+## 2026-10-24 - Prompt 28 P1 People: low-poly figures
+- Commit: (see git log) | Model: Opus 5.5, high (playbook: Sonnet, high)
+- Changed: `citygen/mesh/people.py` (new: skeleton, poses, outfits), `citygen/kit.py` (person pieces),
+  `styles/maghreb.toml` (`[dressing.people]` with 26 pieces; palette: 17 muted `cloth_*`, 4 skin, 3 hair,
+  shoes, balgha, basket, bag, bread), `tests/test_citygen.py` (1 test), docs.
+- Pieces (triangles): jebba stand/walk/walk_b 329, sit 369, carry 389; shirt stand/walk 328, walk_b 352,
+  sit 304, sit_b 328, carry 356; safsari stand/walk 227, sit 263, carry 319; dress stand/walk/sit 360;
+  hijab stand/walk 319, sit 343, carry 347; boy 352; girl 368. Standing adults 1.60-1.79 m to the top (a
+  chechia included; walkers 4-7 cm lower mid-stride), children 1.17-1.27 m.
+- Seats found in the kit: `bench_iron` 0.45, `doukkana` 0.45, `cafe_set` chairs 0.46, `tounes/bench_sbs`
+  0.48. Sitters touch 0.45 exactly; prompt 29 lifts them by seat - 0.45 (1 cm, 3 cm). Checked side and
+  three-quarter renders on all three seats: on the seat, back clear of the backrest, feet under the
+  cafe table.
+- Checks: tests 82 passed (21.4 s, the new one about 0.3 s); `build --quick` 9.9 s; fingerprint against
+  `before`: 26 parts changed, all new `kit/person_*`; no tile changed (no Blender refresh needed).
+- Look: `output/checks/28.png` (kit sheet from about 20 m) and `output/checks/28-eye.png` (street eye
+  height, 5-20 m): jebba and chechia, safsari, headscarves, children read as people; strides visible.
+- Doubts and questions for Ali: none. The seated shins are 2-6 cm longer than standing ones so level
+  thighs reach the ground (see HANDOFF).
+
 ## 2026-10-24 - Prompt 27 CP3 Checkpoint: facades and street life
 - Commits: "CP3 fixes: paint and cars agree, cut-corner arcade zones, lamps, lit keys" and "CP3
   speed: tiles 26% faster, tests 31 s -> 20 s, output byte-identical" (see git log) | Model: Opus

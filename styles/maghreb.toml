@@ -177,6 +177,36 @@ cloth_3 = { color = "#C0392B", double_sided = true }
 cloth_4 = { color = "#E3B23C", double_sided = true }
 cloth_5 = { color = "#5A8F4E", double_sided = true }
 cloth_6 = { color = "#8E5AA8", double_sided = true }
+# people (prompt 28): muted everyday cloth, warm skin tones, hair, shoes and what they carry
+cloth_wool_cream = { color = "#E2D8C2", roughness = 0.95 }   # jebba wools
+cloth_wool_grey = { color = "#9A958B", roughness = 0.95 }
+cloth_wool_brown = { color = "#76604A", roughness = 0.95 }
+cloth_safsari = { color = "#F1EDE3", roughness = 0.7 }       # the safsari's white silk and wool
+cloth_white = { color = "#ECEAE4", roughness = 0.85 }
+cloth_sky = { color = "#9FB5C8", roughness = 0.85 }
+cloth_navy = { color = "#2F3A4E", roughness = 0.85 }
+cloth_charcoal = { color = "#46474B", roughness = 0.85 }
+cloth_khaki = { color = "#A79A78", roughness = 0.9 }
+cloth_sand = { color = "#CDBC9C", roughness = 0.9 }
+cloth_denim = { color = "#4E6380", roughness = 0.9 }
+cloth_olive = { color = "#69694A", roughness = 0.9 }
+cloth_teal = { color = "#3F6D6B", roughness = 0.85 }
+cloth_rose = { color = "#B88A8C", roughness = 0.85 }
+cloth_mustard = { color = "#BA9342", roughness = 0.85 }
+cloth_plum = { color = "#6C4A5C", roughness = 0.85 }
+cloth_brick = { color = "#9A503F", roughness = 0.9 }
+skin_1 = { color = "#E6C09C", roughness = 0.7 }
+skin_2 = { color = "#CF9E76", roughness = 0.7 }
+skin_3 = { color = "#B07B55", roughness = 0.7 }
+skin_4 = { color = "#87583A", roughness = 0.7 }
+hair_black = { color = "#1E1916", roughness = 0.8 }
+hair_brown = { color = "#47322A", roughness = 0.8 }
+hair_grey = { color = "#9C978F", roughness = 0.8 }
+shoe_dark = { color = "#2A2522", roughness = 0.6 }
+leather_yellow = { color = "#D4B46A", roughness = 0.6 }      # balgha slippers
+basket_straw = { color = "#C6A56C", roughness = 0.95 }       # palm-leaf couffin
+bag_plastic = { color = "#6F8CAA", roughness = 0.5 }
+bread_crust = { color = "#C68C4A", roughness = 0.9 }
 # parked cars (prompt 25): muted, sun-faded body colors, as on a Tunis street
 car_white = { color = "#E6E4DE", roughness = 0.35 }
 car_cream = { color = "#E4DCC8", roughness = 0.4 }
@@ -1071,6 +1101,47 @@ fountain_height = 2.9      # to the finial
 kiosk = [2.2, 1.5, 2.45]   # width, depth, wall height
 sabil = [1.9, 2.9]         # frame width and height
 sink = 0.25                # how far bases reach below their origin, for sloping ground
+
+# People (prompt 28, mesh/people.py): one kit piece person_<key> per entry (instancing cannot recolor).
+# Outfits: jebba (robe, trim, under, cap, shoes), shirt (shirt, trousers, shoes, sleeves long or short),
+# safsari (wrap), dress (dress, legs, sleeves; `scarf` adds a headscarf), boy (shirt, shorts), girl (dress);
+# all take skin, hair (not safsari or a scarf), hem (fraction of the height). Poses: stand, walk, sit (thighs
+# level on a seat `seat` m up, the origin under the middle of the seat), carry (walking, `carry` = basket or
+# bag in the right hand). Height, shoulder width and a man's belly are drawn on each piece's own stream.
+[dressing.people]
+seat = 0.45                # bench_iron, doukkana 0.45; cafe_set 0.46; tounes/bench_sbs 0.48
+heights = { male = [1.68, 1.80], female = [1.60, 1.70], child = [1.10, 1.30] }
+shoulders = 0.05           # shoulder width varies by this fraction either way
+belly = 0.035              # meters of belly at most (men)
+lean = 6.0                 # degrees a seated figure leans back
+
+[dressing.people.pieces]
+jebba_stand = { outfit = "jebba", pose = "stand", robe = "cloth_wool_cream", trim = "cloth_wool_brown", skin = "skin_3" }
+jebba_walk = { outfit = "jebba", pose = "walk", robe = "cloth_wool_grey", trim = "cloth_charcoal", skin = "skin_2" }
+jebba_walk_b = { outfit = "jebba", pose = "walk", robe = "cloth_navy", trim = "cloth_wool_cream", skin = "skin_4", hair = "hair_black" }
+jebba_sit = { outfit = "jebba", pose = "sit", robe = "cloth_wool_brown", trim = "cloth_wool_cream", skin = "skin_3" }
+jebba_carry = { outfit = "jebba", pose = "carry", carry = "basket", robe = "cloth_white", trim = "cloth_sand", skin = "skin_2" }
+shirt_stand = { outfit = "shirt", pose = "stand", shirt = "cloth_sky", trousers = "cloth_charcoal", skin = "skin_2" }
+shirt_walk = { outfit = "shirt", pose = "walk", shirt = "cloth_white", trousers = "cloth_navy", skin = "skin_3" }
+shirt_walk_b = { outfit = "shirt", pose = "walk", shirt = "cloth_khaki", trousers = "cloth_denim", skin = "skin_4", sleeves = "short" }
+shirt_sit = { outfit = "shirt", pose = "sit", shirt = "cloth_sand", trousers = "cloth_wool_brown", skin = "skin_3", hair = "hair_grey" }
+shirt_sit_b = { outfit = "shirt", pose = "sit", shirt = "cloth_teal", trousers = "cloth_khaki", skin = "skin_2", sleeves = "short" }
+shirt_carry = { outfit = "shirt", pose = "carry", carry = "bag", shirt = "cloth_olive", trousers = "cloth_denim", skin = "skin_1", hair = "hair_brown" }
+safsari_stand = { outfit = "safsari", pose = "stand", skin = "skin_2" }
+safsari_walk = { outfit = "safsari", pose = "walk", skin = "skin_3", shoes = "leather_yellow" }
+safsari_sit = { outfit = "safsari", pose = "sit", skin = "skin_1" }
+safsari_carry = { outfit = "safsari", pose = "carry", carry = "basket", skin = "skin_2" }
+dress_stand = { outfit = "dress", pose = "stand", dress = "cloth_teal", skin = "skin_1", legs = "skin_1" }
+dress_walk = { outfit = "dress", pose = "walk", dress = "cloth_rose", skin = "skin_2", legs = "skin_2", hair = "hair_black" }
+dress_sit = { outfit = "dress", pose = "sit", dress = "cloth_mustard", skin = "skin_3", legs = "skin_3" }
+hijab_stand = { outfit = "dress", pose = "stand", dress = "cloth_navy", scarf = "cloth_sand", skin = "skin_2", legs = "shoe_dark", sleeves = "long", hem = 0.07 }
+hijab_walk = { outfit = "dress", pose = "walk", dress = "cloth_olive", scarf = "cloth_wool_cream", skin = "skin_3", legs = "shoe_dark", sleeves = "long", hem = 0.07 }
+hijab_sit = { outfit = "dress", pose = "sit", dress = "cloth_charcoal", scarf = "cloth_teal", skin = "skin_1", legs = "shoe_dark", sleeves = "long", hem = 0.07 }
+hijab_carry = { outfit = "dress", pose = "carry", carry = "bag", dress = "cloth_khaki", scarf = "cloth_plum", skin = "skin_2", legs = "shoe_dark", sleeves = "long", hem = 0.07 }
+boy_stand = { outfit = "boy", pose = "stand", shirt = "cloth_2", shorts = "cloth_navy", skin = "skin_2" }
+boy_walk = { outfit = "boy", pose = "walk", shirt = "cloth_4", shorts = "cloth_denim", skin = "skin_3" }
+girl_stand = { outfit = "girl", pose = "stand", dress = "cloth_rose", skin = "skin_1", hair = "hair_brown" }
+girl_walk = { outfit = "girl", pose = "walk", dress = "cloth_6", skin = "skin_3" }
 
 # Which pieces play each part, by weight: [piece, weight] or [piece, weight, extra height].
 # "tounes/..." pieces come from the Tounes Rush kit (kits/tounes); the others are made by the

@@ -84,6 +84,7 @@ build.build()                 orchestrates the above into output/<country>-<seed
 | `citygen/mesh/tile.py` | what goes into one tile |
 | `citygen/mesh/plants.py` | shared plant shapes: clumps (icosahedron, octahedron, 4-face bract) and tapered tubes |
 | `citygen/mesh/props.py` | the generator's own kit pieces (doors, shops by trade, awnings, goods, lamps, trees...) |
+| `citygen/mesh/people.py` | people (prompt 28): low-poly figures, one piece per outfit, pose and color scheme from `[dressing.people]` |
 | `citygen/mesh/vehicles.py` | parked cars (prompt 25): hatchback, sedan, van, louage, yellow taxi; one piece per body color, sharing their part arrays |
 | `citygen/mesh/trees.py` | broadleaf, olive and citrus crowns (jittered clumps, 3 variants each; citrus with oranges) from `[dressing.trees]` |
 | `citygen/mesh/climbers.py` | bougainvillea curtains (2 variants, 250 triangles each) from `[dressing.climber]` |
@@ -510,6 +511,31 @@ shaders (which ignore the image and the tint) and takes their palette color from
   4 sabils. Water: `water_pool` (never `water`, which the Blender scripts hide for their sea) gets the
   viewer's `/^water/` look but never starts the viewer's sea plane, and `shade_pool` in
   `tools/blender_beauty.py`.
+- **People** (prompt 28, `mesh/people.py`, `[dressing.people]`): 26 kit pieces `person_<key>`, category
+  `person`, ground anchor, no lit twin, 227-389 triangles each, no UVs (plain colors, like the cars). A
+  figure is a skeleton in its pose dressed by its outfit: level-ring lofts (8 sides, smooth normals) for the
+  torso, robe, wrap and skirts; mitred ring chains (6 sides) for limbs, so a bent knee or elbow stays
+  closed; a latitude-longitude ellipsoid head whose faces are cut into skin and hair, or hidden under a
+  hood or a chechia; octahedron hands; wedge shoes. No faces. Body types `male`, `female`, `child`
+  (`_BODIES`: joint heights, widths and radii as fractions of the height; the child's head is bigger).
+  Poses: `stand`; `walk` (left leg forward, right arm swinging forward, the back heel lifted 28 degrees,
+  the hips lowered to reach the stride); `sit` (the hips' underside and the level thighs at `seat` = 0.45
+  m, knees at seat + knee radius, shins vertical, feet flat; the origin is under the middle of the seat,
+  so a sitter is placed at the seat's center, facing away from its back, at height seat height - 0.45:
+  `bench_iron` and `doukkana` 0.45, `cafe_set` chairs 0.46 (0.7 m either side of the table, facing it),
+  `tounes/bench_sbs` 0.48; the upper body leans back `lean` degrees); `carry` (walking, the right hand
+  held out past the clothes with a palm-leaf basket and a loaf, or a plastic bag). Outfits: `jebba` (wool
+  robe to the ankles with a trimmed neck, wide sleeves with doubled cuffs over white undersleeves, red
+  `chechia_red` cap, `leather_yellow` balgha), `shirt` (shirt and trousers, sleeves long or short),
+  `safsari` (a hood open from chin to brow, the wrap falling to the ankles, one hand holding it at the
+  chin, its front edge a doubled strip), `dress` (modern dress, hair gathered at the nape; with `scarf` a
+  headscarf hood and a short cape over the shoulders, long sleeves and a long hem), `boy` (t-shirt,
+  shorts), `girl` (knee-length dress). Robes and skirts grow round the legs at each ring's height, so a
+  stride spreads the hem; every hem and cuff and the hood's rim have faces inside too. Height (per body
+  type in `heights`), shoulder width (`shoulders`) and a man's belly (`belly`) are drawn in that order on
+  `stream(seed, "piece", name)`. Palette: muted `cloth_*` everyday colors, `skin_1`-`skin_4`, `hair_*`,
+  `shoe_dark`, `leather_yellow`, `basket_straw`, `bag_plastic`, `bread_crust`. Nobody is placed yet
+  (prompt 29).
 - **Massed buildings** (prompt 23, `city/massing.py`): the street windows, open-wall windows and slab
   windows of each column go up to the floors of the wall there (`floors_at` under the window's whole
   width, `[dressing] window_half` m each side), so none floats above a lower step or on a set-back

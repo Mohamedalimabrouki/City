@@ -453,6 +453,17 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
   role is now `door_bench` (same pieces and draws), so `bench` is the promenade's mix. A fountain removes
   the planned trees it replaces through `tree_spots`, so parked cars and tiles agree. Cost: 0.36 s per
   process on the quick capital, 0.87 s on the full one; full capital 52.4 -> 53.7 s, worst quick tile +1.6%.
+- **People** (prompt 28, `mesh/people.py`): build a figure as a skeleton plus an outfit; limbs as one
+  chain of mitred rings (no open joints at a bent knee), robes as one loft from the neckline to the
+  hem (a separate torso and skirt cost 16 more triangles for an unseen seam). A seated person's real
+  shin is too short for a 0.45 m seat with level thighs (the real thigh slopes down and squashes): the
+  sit pose places the knee at seat + knee radius and lets the shin reach the ground (2-6 cm longer;
+  it reads right). A hood is the head's ellipsoid scaled up with the face faces removed; with rings at
+  -45/0/45 degrees the opening reached the crown and the hood looked like a bald head: rings at
+  -45/15/50 put its top at the brow. An octagon's flat sides lie inside its ellipse, so rings fitted
+  round legs grow by 1/cos(22.5 degrees) or a shin pokes through a skirt. A skirt above the knee needs
+  the thighs drawn. Check shapes with a throwaway z-buffer render first: a painter's sort showed the
+  head through its own hood.
 - **Old-town tiles** reach about 5 MB on the quick build and 8 MB on the full capital
   (`tile_65_106`, mostly roofs since prompt 15); task Q5 (prompt 39) brings them down.
 
