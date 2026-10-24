@@ -105,7 +105,30 @@ town gets a studded Sidi Bou Said door, a carved frame and maybe a wooden balcon
 potters fills its shelves with pots.
 
 To see every piece in one 3D grid: `python -m citygen kit-sheet`, then
-`python -m citygen view output/kit-sheet`.
+`python -m citygen view output/kit-sheet`. Another kit: `python -m citygen kit-sheet --kits mykit`.
+
+### Your own pieces from Blender
+
+1. In Blender, put the pieces in one **collection** (for example `Kit`). Each mesh object becomes
+   one piece named after the object (`Blue Door` becomes `blue_door`).
+2. Put each object's **origin** where it touches the world: bottom-center on the ground for a
+   ground piece, on the wall face for a wall piece (a window: at the sill). Rotation, scale and
+   modifiers are applied for you.
+3. Model the piece **looking toward +Y** (the street side). If you modeled it looking toward -Y,
+   say so, and it is turned around on export.
+4. Add **custom properties** (Object Properties > Custom Properties): `category` (door, window,
+   lamp, pot, sign...), `anchor` (`ground` or `wall`), `front` (`+Y` or `-Y`, only when not +Y),
+   `tags` (optional words, separated by commas). A missing one gets a default and a warning.
+5. **Materials**: give a material a palette name (for example `cabin_white`) to use the city's
+   color; any other material keeps its own Principled BSDF color.
+6. Save, then in the terminal (in the City folder):
+   `.venv/bin/python tools/blender_kit_export.py my_pieces.blend --collection Kit --name mykit`
+   The kit lands in `kits/mykit/` (one `.glb` per piece and `manifest.json`). Check it with
+   `python -m citygen kit-sheet --kits mykit` and `python -m citygen view output/kit-sheet`:
+   each piece should face you from the north.
+7. To use it in the city: add `"mykit"` to `kits` under `[build]` in `citygen/defaults.toml`,
+   then name a piece in a role of `styles/maghreb.toml`, for example
+   `door_blue = [["mykit/blue_door", 2], ["tounes/door_medina_blue", 3]]`.
 
 ## Make your own world
 

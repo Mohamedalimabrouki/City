@@ -68,6 +68,8 @@ def main(argv=None) -> None:
 
     ks = sub.add_parser("kit-sheet", help="every 3D piece (doors, shops, goods...) in one viewable grid")
     ks.add_argument("--out", default="output/kit-sheet")
+    ks.add_argument("--kits", nargs="+", default=None, metavar="KIT",
+                    help="kit names or folders to show (default: [build] kits)")
 
     ts = sub.add_parser("texture-sheet", help="every generated texture tiled 2 x 2, tinted, with its name")
     ts.add_argument("--out", default="output/checks/texture-sheet.png")
@@ -99,7 +101,7 @@ def main(argv=None) -> None:
         snapshot(folder, png, view=args.view, width=args.width, height=args.height)
     elif args.cmd == "kit-sheet":
         from .kitsheet import kit_sheet
-        print(kit_sheet(args.out))
+        print(kit_sheet(args.out, kits=args.kits))
     elif args.cmd == "texture-sheet":
         from .texturesheet import texture_sheet
         cfg = load_config()

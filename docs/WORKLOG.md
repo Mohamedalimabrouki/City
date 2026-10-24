@@ -15,6 +15,26 @@ Entry format:
 - Doubts and questions for Ali: <none, or the question>
 ```
 
+## 2026-10-24 - Prompt 38 A8 Blender kit export
+- Commit: (see git log) | Model: Opus 5.5, medium (playbook: Sonnet, medium)
+- Changed: `tools/blender_kit_export.py` (new), `citygen/__main__.py` (`kit-sheet --kits`),
+  `tests/data/blender_kit/` (new fixture: `source.py`, `house.glb`, `arrow.glb`, `manifest.json`), tests, README
+  (step by step for Ali), SPEC 6b, CLAUDE.md (Blender rule), HANDOFF, ROADMAP.
+- Design: `blender_kit_export.py FILE --collection C --name KIT` (or `--out FOLDER`) starts Blender 5.2 in the
+  background with its own code, refused inside a sandbox. Each mesh object -> `kits/KIT/<object>.glb`; custom
+  properties `category`, `anchor`, `front` (+Y or -Y), `tags`, defaults with warnings; rotation, scale and
+  modifiers baked, origin = anchor, -Y pieces turned 180 degrees; palette-named materials keep the palette, others
+  become `KIT_<material>` with sRGB hex colors from Blender's linear values. Refuses to overwrite a kit it did not
+  make (`tounes`).
+- Proof: `source.py` (a house modeled facing -Y with object scale 1.5, an arrow modeled along +X then turned to +Y)
+  exported headlessly in Blender 5.2; re-export byte-identical; the new test loads it through `Kit` (door and
+  arrow tip at glTF -Z, scale baked, colors) and plays `blender_kit/house` in a role of a style copy (0.10 s).
+- Checks: tests 96 passed (28 s); `build --quick` 12.1 s; fingerprint 271 parts, 0 changed.
+- Look: `output/checks/38.png` (kit sheet with `--kits tests/data/blender_kit`): the house's blue door and the
+  arrow both face the camera standing north, toward the street. Three snapshots: the first view hid the pieces.
+- Doubts and questions for Ali: you may add `.venv/bin/python tools/blender_kit_export.py *` to your sandbox
+  exclusions (as for make_blend) if you want agents to run it; otherwise run it yourself in your terminal.
+
 ## 2026-10-24 - Prompt 37 H3c Seaside cafe terraces
 - Commit: (see git log) | Model: Opus 5.5, medium (playbook: Sonnet, medium)
 - Changed: `citygen/city/terraces.py` (new: `Terraces`), `citygen/city/corniche.py` (`Seafront` makes the terraces,

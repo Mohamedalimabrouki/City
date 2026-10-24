@@ -49,7 +49,7 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
 - [x] 35 A6b Boats and cranes
 - [x] 36 A6c Corniche promenade and beach
 - [x] 37 H3c Seaside cafes
-- [ ] 38 A8 Blender kit export
+- [x] 38 A8 Blender kit export
 - [ ] 39 Q5 Lighter tiles
 - [ ] 40 C2a Level-of-detail tiles
 - [ ] 41 C2b Viewer level of detail
@@ -222,7 +222,7 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
 - [x] **A7 More greenery** (S) - Trees along arterials in colonial and modern districts, green
   garden ground in villa lots, olive or citrus trees in some courtyards. Done when: map and
   snapshot show it, tree count rises without slowing the build by more than 15%.
-- [ ] **A8 Blender kit export** (S) - Kits and instancing exist (A0). Add
+- [x] **A8 Blender kit export** (S) - Kits and instancing exist (A0). Add
   `tools/blender_kit_export.py`: every object of a Blender collection becomes `kits/<name>/<object>.glb`
   (front +Y in Blender = glTF -Z, origin at the anchor; prompt 38) plus `manifest.json` (category and anchor
   from custom properties). Done when: a kit made in Blender shows in `python -m citygen kit-sheet`

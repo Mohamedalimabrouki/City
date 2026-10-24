@@ -615,6 +615,24 @@ shaders (which ignore the image and the tint) and takes their palette color from
   `tree_palm`). **Kit pieces** load from `kits/<kit>/manifest.json` (`citygen-kit/1`: materials,
   then pieces with file, category, anchor, tags, optional `materials_map`) and are named
   `<kit>/<piece>`, so a kit never replaces a procedural piece. `[build] kits` lists the kits used.
+  `python -m citygen kit-sheet --kits <kit or folder> ...` shows other kits (default `[build] kits`).
+- **Kits from Blender** (prompt 38, `tools/blender_kit_export.py FILE --collection C --name KIT`):
+  a plain script that starts Blender in the background (refused inside a sandbox, `sandboxed()`
+  of `make_blend.py`) with its own export code. Every mesh object of the collection (sub-collections
+  too) becomes `kits/<KIT>/<object>.glb` (name lowercased, other characters `_`) plus the manifest
+  (`"made_by"` marks it; the tool refuses to write over a kit it did not make, such as `tounes`,
+  and removes the .glb of pieces gone from the collection). Custom properties on the object:
+  `category` (default `ground_prop`), `anchor` (`ground` or `wall`, default `ground`; warnings for
+  both), `front` (`+Y` or `-Y`, default `--front`, `+Y`), `tags` (comma-separated). Axes: the
+  front is Blender +Y = generator +y; the glTF exporter (`export_yup`) maps it to glTF -Z. A piece
+  modeled facing -Y is turned 180 degrees about Z. Rotation, scale (a mirrored one flips the
+  normals) and modifiers are baked into the mesh, the translation is dropped, so the object's
+  origin is the anchor and the .glb has no node transform (`read_parts` ignores them). Materials
+  with a palette name keep the palette's look; others become `<KIT>_<material>` with the Principled
+  BSDF base color, roughness, metallic and emission written to the manifest (Blender's linear
+  values as sRGB hex). No UVs and no vertex colors are exported. A `.py` file instead of a `.blend`
+  builds the scene in a fresh Blender first: `tests/data/blender_kit/source.py` makes the test
+  fixture (a house modeled facing -Y and an arrow), re-exported byte for byte the same.
 - **Roles** (`[dressing.roles]` in the style): a role (`door_blue_rich`, `lamp`, `souk_awning`,
   `tree_palm`...) lists `[piece, weight]` or `[piece, weight, extra height]`; missing pieces are
   skipped and a role with no entry uses the piece of the same name, so the city dresses itself

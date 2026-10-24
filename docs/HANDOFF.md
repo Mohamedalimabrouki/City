@@ -173,6 +173,14 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
   ctypes, not an environment variable, which stays set in excluded commands) and stops before
   starting Blender. Checked: sandboxed run stops, the exact excluded command still saves the
   .blend, Ali's own terminal sees no sandbox. Direct `blender ...` calls are not guarded: never use them.
+- **Blender kit export** (prompt 38, `tools/blender_kit_export.py`): the second sanctioned way to start
+  Blender (it imports `sandboxed()` from `make_blend.py`). One file runs on both sides: in Blender
+  (`--inside`, bpy only, no citygen imports) it bakes and exports, printing `blender_kit_export: <kind>
+  <json>` lines; outside it writes the manifest and checks each .glb with `read_parts`. Lessons: in
+  Blender 5.2 `mesh.materials.clear()` drops the faces' material indices (assign slots in place);
+  filter glTF exporter options by `op.get_rna_type().properties` so a renamed option never breaks
+  it; no UVs or vertex colors (`read_parts` cannot read Blender's normalized uint16 colors). The
+  fixture `tests/data/blender_kit/` re-exports byte for byte the same.
 - **Resumable builds** (`citygen/buildkey.py`, `build.py`): `build_key` = SHA-256 of settings (minus
   `output`, `workers`, `area`), style bytes, kit manifests and .glb files, every `citygen/**/*.py`
   and the sorted planned settlement ids, plus the Python and library versions; stored in `summary.json` and `tiles/index.json`. Plans

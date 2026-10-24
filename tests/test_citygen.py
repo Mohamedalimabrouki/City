@@ -413,6 +413,43 @@ def test_kit_names_and_roles(world):
             assert name in world.style["dressing"]["roles"] or name in kit.pieces or "/" in name, name
 
 
+def test_blender_kit_fixture(world, plan):
+    """Prompt 38: pieces exported by tools/blender_kit_export.py (fixture made in Blender 5.2 from
+    tests/data/blender_kit/source.py) load through Kit facing the street and can play a role."""
+    import copy
+    import sys
+    from pathlib import Path
+    from citygen.city.dressing import Dresser
+    from citygen.kit import Kit
+    from citygen.mesh.gltf import hex_to_rgb, srgb_to_linear
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
+    from blender_kit_export import front_of, linear_to_srgb_hex, piece_name
+    style = copy.deepcopy(world.style)
+    style["dressing"]["roles"]["door_blue_rich"] = [["blender_kit/house", 1]]
+    kit = Kit(world.seed, [str(Path(__file__).parent / "data" / "blender_kit")], style["palette"])
+    house, arrow = kit.pieces["blender_kit/house"], kit.pieces["blender_kit/arrow"]
+    assert (house.category, house.anchor, house.tags) == ("house", "ground", ("test", "door"))
+    assert (arrow.category, arrow.anchor) == ("sign", "ground")        # no anchor property: the default
+    walls = house.parts["cabin_white"]["pos"]                          # 2 m walls, object scale 1.5 baked
+    assert np.allclose([walls.min(axis=0), walls.max(axis=0)], [[-1.5, 0.0, -1.5], [1.5, 3.0, 1.5]], atol=1e-4)
+    door = house.parts["blender_kit_door_blue"]["pos"]                 # modeled facing -Y, turned on export
+    assert np.allclose([door[:, 2].min(), door[:, 2].max()], [-1.65, -1.5], atol=1e-4)   # front: glTF -Z
+    tip = arrow.parts["blender_kit_arrow_yellow"]["pos"]               # rotation baked: the tip is at -Z
+    assert np.isclose(tip[:, 2].min(), -0.8, atol=1e-4) and abs(tip[tip[:, 2].argmin(), 0]) < 1e-4
+    assert kit.materials["blender_kit_door_blue"]["color"] == "#1F5FA8"
+    assert kit.materials["blender_kit_arrow_yellow"] == {"color": "#E8B82E", "roughness": 0.4, "metallic": 0.0,
+                                                        "note": "Blender material 'Arrow Yellow'"}
+    assert kit.materials["cabin_white"] == style["palette"]["cabin_white"]   # a palette name keeps its look
+    for color in ("#1F5FA8", "#000000", "#FFFFFF", "#7F8081"):
+        assert linear_to_srgb_hex(srgb_to_linear(hex_to_rgb(color))) == color
+    assert (piece_name("Door Blue.001"), front_of("-y", "+Y"), front_of(None, "+Y"), front_of("x", "+Y")) == \
+        ("door_blue_001", "-Y", "+Y", None)
+    test_world = copy.copy(world)
+    test_world.style = style
+    dresser = Dresser(test_world, plan, kit, None)
+    assert dresser.pick("door_blue_rich", stream(1, "test")) == ("blender_kit/house", 0.0)
+
+
 def test_dressing_is_deterministic_and_on_the_walls(world, plan, built_tile, rebuilt_tile):
     from shapely.geometry import Point
     tc, i, j, first = built_tile

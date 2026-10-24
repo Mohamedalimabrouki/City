@@ -1,0 +1,82 @@
+{
+ "format": "citygen-kit/1",
+ "source": "Blender: source.py, collection Kit",
+ "made_by": "tools/blender_kit_export.py",
+ "units": "meters",
+ "axes": "glTF: +Y up, front faces -Z, x along the wall, origin at the anchor",
+ "materials": {
+  "blender_kit_arrow_yellow": {
+   "color": "#E8B82E",
+   "roughness": 0.4,
+   "metallic": 0.0,
+   "note": "Blender material 'Arrow Yellow'"
+  },
+  "blender_kit_door_blue": {
+   "color": "#1F5FA8",
+   "roughness": 0.6,
+   "metallic": 0.0,
+   "note": "Blender material 'Door Blue'"
+  },
+  "blender_kit_roof_red": {
+   "color": "#B5532F",
+   "roughness": 0.8,
+   "metallic": 0.0,
+   "note": "Blender material 'Roof Red'"
+  }
+ },
+ "pieces": {
+  "arrow": {
+   "file": "arrow.glb",
+   "category": "sign",
+   "anchor": "ground",
+   "tags": [],
+   "size": [
+    0.8,
+    0.3,
+    1.4
+   ],
+   "triangles": 24,
+   "source": "Blender object 'Arrow', modeled facing +Y",
+   "bounds": {
+    "min": [
+     -0.4,
+     0.0,
+     -0.8
+    ],
+    "max": [
+     0.4,
+     0.3,
+     0.6
+    ]
+   }
+  },
+  "house": {
+   "file": "house.glb",
+   "category": "house",
+   "anchor": "ground",
+   "tags": [
+    "test",
+    "door"
+   ],
+   "size": [
+    3.3,
+    4.35,
+    3.3
+   ],
+   "triangles": 30,
+   "source": "Blender object 'House', modeled facing -Y",
+   "bounds": {
+    "min": [
+     -1.65,
+     0.0,
+     -1.65
+    ],
+    "max": [
+     1.65,
+     4.35,
+     1.65
+    ]
+   }
+  }
+ }
+}
