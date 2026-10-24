@@ -1170,6 +1170,7 @@ curb_gap = 0.2             # car side to the curb face
 junction_clear = 5.0       # from any other street's surface
 crossing_clear = 1.5       # from a zebra crossing
 front_clear = 2.6          # half the gap in front of a cafe or shop front, along the curb
+front_gap = 0.5            # ... and how far a car keeps from that gap (deliveries and cafe terraces need the curb)
 door_clear = 0.3           # from a door's free zone ([dressing.open_walls] door_clear in front of it)
 door_reach = 8.0           # buildings this close to the row may have a door zone reaching it
 path_clear = 0.6           # from a stair door's paved path, carried on ([dressing.paths] cross) over the sidewalk

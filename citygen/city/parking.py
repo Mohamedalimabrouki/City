@@ -364,7 +364,7 @@ class Parking:
         doors, paths, fronts = self._doors(k, strip, row)
         add(doors, float(cfg["door_clear"]))
         add(paths, float(cfg["path_clear"]) + float(d.path_cfg.get("width", 1.4)) / 2)
-        add(fronts, 0.0)
+        add(fronts, float(cfg["front_gap"]))   # a clearance of 0 never blocked a car (distance < 0), till the fix
         add(self._landmark_steps(strip), 0.05)
         return geoms, np.array(clear)
 

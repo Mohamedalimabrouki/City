@@ -2029,6 +2029,13 @@ def test_parked_cars_keep_clear_of_trees_crossings_junctions_walks_lamps_doors_a
             assert not any(foot.intersects(q) for q in doors), "a car in front of a door"
             checked += 1
     assert checked > 30
+    # no car stands before a shop or cafe front (its width, out to the street), nor within front_gap of it
+    gap = world.style["dressing"]["parking"]["front_gap"]
+    fronts = [_plan_box(kit, p, 0.0, 15.0) for p in placements if kit.pieces[p.piece].category == "shop"]
+    tree = STRtree(fronts)
+    near = [min(foot.distance(fronts[int(m)]) for m in tree.query(foot, predicate="dwithin", distance=gap))
+            for foot in feet if len(tree.query(foot, predicate="dwithin", distance=gap))]
+    assert fronts and not near, sorted(near)[:5]
 
 
 def test_parking_rows_follow_the_carriageway_width_and_a_taxi_rank_waits(world, plan, built_mesh):

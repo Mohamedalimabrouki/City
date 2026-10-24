@@ -15,6 +15,20 @@ Entry format:
 - Doubts and questions for Ali: <none, or the question>
 ```
 
+## 2026-10-24 - Fix: parking keeps clear of shop and cafe fronts
+- Commit: (see git log) | Model: Opus 5.5, high
+- Changed: `citygen/city/parking.py` (fronts get `front_gap`), `styles/maghreb.toml` (`[dressing.parking]
+  front_gap = 0.5`), `tests/test_citygen.py` (the parked-car test now checks the placed shop and cafe fronts).
+- Bug (prompt 25): shop and cafe front zones had clearance 0.0 and a car was blocked only where `distance <
+  clearance`, never true at 0, so cars parked right before cafe and shop fronts (on the capital's tile, 15
+  cafe fronts had a car in them). Now a car keeps `front_gap` m from the zone (the front, `front_clear` m each
+  way along the curb, out to the street). The extended test fails on the old code.
+- Checks: tests 90 passed; `build --quick` 11.9 s; fingerprint against HEAD 7694643: `tiles/index` and 4 tiles
+  (bytes -0.1% at most). Parked cars on the quick capital 1,506 -> 1,431.
+- Look: `output/checks/32.1-parking.png` (street view, difference 0.00: no parked car in that view).
+  Blender: `output/bodjantouna-42/goumosbane.blend`.
+- Doubts and questions for Ali: none.
+
 ## 2026-10-24 - Prompt 32 A5c Cathedral and theatre on the boulevard
 - Commit: (see git log) | Model: Opus 5.5, high (playbook: Sonnet, high)
 - Changed: `citygen/city/landmarks.py` (new: sites on merged lots, `merge`, buildings and names, the local
