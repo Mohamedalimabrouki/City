@@ -30,4 +30,11 @@ def weighted(rng: np.random.Generator, pairs):
         pairs = list(pairs.items())
     values = [p[0] for p in pairs]
     weights = np.array([float(p[1]) for p in pairs])
-    return values[int(rng.choice(len(values), p=weights / weights.sum()))]
+    p = weights / weights.sum()
+    if not (p >= 0.0).all() or abs(p.sum() - 1.0) > 1e-6:   # let numpy raise its own error
+        return values[int(rng.choice(len(values), p=p))]
+    # exactly what Generator.choice(n, p=p) does, one uniform draw on the cumulative odds, without
+    # its validation overhead (the planner picks hundreds of thousands of times)
+    cdf = p.cumsum()
+    cdf /= cdf[-1]
+    return values[int(cdf.searchsorted(rng.random(), side="right"))]

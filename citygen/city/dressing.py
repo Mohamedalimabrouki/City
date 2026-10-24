@@ -122,6 +122,7 @@ class Dresser:
         self._stair_spots: dict = {}             # apartment block -> its stair doors (door_spots)
         self._parking = None                     # parked cars (prompt 25, city/parking.py, lazy)
         self._squares = None                     # benches, kiosks and fountains (prompt 26, city/squares.py, lazy)
+        self._kept_roofs: dict = {}              # building -> main roof layout the tile mesher just made (keep_roof)
         self._stairs = {n for r in ("stair_window", "stair_door") for n in (self.roles[r][0] if r in self.roles else [r])}
         targets = self.surfaces + [w.polygon for w in getattr(plan, "walks", ())]
         self.target_tree = STRtree(targets) if targets else None   # where a garden path may end
@@ -523,13 +524,23 @@ class Dresser:
                  "grille" if (traditional and roll < 0.7) or roll < 0.2 else "shutter")
         return next((r for r in (f"window_{style}_{tint}", f"window_grille_{tint}") if self.has(r)), None)
 
+    def keep_roof(self, k: int, roofs: list) -> None:
+        """The roofs the tile mesher just laid out for building k (`roofs.roof_layouts`, same stream and
+        rules): `_roof` takes the main one instead of laying it out again."""
+        b = self.plan.buildings[k]
+        main = next((lay for m, lay in roofs if m.main), None)
+        if main is not None and b.roof_shape == "flat" and b.kind in DRESSED:
+            self._kept_roofs[k] = main
+
     def _roof(self, b, k: int, high: float, rng, out) -> None:
         if b.roof_shape != "flat" or b.kind not in DRESSED:
             return
         main = main_mass(b)
         top = high + main.top                      # the main roof: a set-back top floor, the tallest step
         cfg = self.cfg
-        layout = roof_layout(b, self.kinds[b.district], roof_stream(self.seed, self.sid, k), self.roofs)
+        layout = self._kept_roofs.pop(k, None)
+        if layout is None:
+            layout = roof_layout(b, self.kinds[b.district], roof_stream(self.seed, self.sid, k), self.roofs)
         area = layout.inner if layout.inner is not None else main.polygon
         for role, chance, margin in (("roof_tank", cfg.get("roof_tank", 0.3), 0.9),
                                      ("roof_dish", cfg.get("roof_dish", 0.2), 0.9),

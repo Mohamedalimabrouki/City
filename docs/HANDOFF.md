@@ -81,6 +81,13 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
   `Ground.height` sampled the noise terrain at every point even where the edge blend gives it
   weight 0. Use an STRtree or a dict instead, and time the capital after any planner or
   tile change.
+- **Speed without changing a byte** (CP3): per-call overhead, not maths, dominated tiles (a 1-point
+  `Ground.height` cost 47 us, a 1-point terrain 726 us: 23 Perlin calls; `np.allclose` 15 us). Safe:
+  plain-float or stacked versions of elementwise formulas in the same order (`Ground._height_one`,
+  `noise._Octaves`), one ground query per tile for many pieces, reusing a result already made from the
+  same stream (`Dresser.keep_roof`), replaying `Generator.choice` exactly (`rng.weighted`). Each change
+  was checked against the old path on 30,000 points before the fingerprints. Plan pickles differ run to
+  run (`stats["seconds"]`): compare plans attribute by attribute, never by one pickle hash.
 - **Test the drawn triangles, not the function against itself** (CP2). The prompt 13 test
   compared `Ground.surface` with the same formula, so it passed while 14% of sidewalk corners
   missed their street (they lie exactly on its outline) and long sidewalk and paint triangles

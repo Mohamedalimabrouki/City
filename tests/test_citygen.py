@@ -1,4 +1,5 @@
 """Fast checks for the whole pipeline (about 20 seconds). Run: python -m pytest -q"""
+import functools
 import json
 import math
 
@@ -14,7 +15,7 @@ from citygen.mesh.builder import MeshBuilder, add_hip_roof, extrude, rectangle
 from citygen.mesh.gltf import read_glb, read_parts, triangle_count, write_glb
 from citygen.mesh.textures import (NAMES, PIXELS, encoded, images_for, spec_for, texture,
                                     texture_names, write_shared_textures)
-from citygen.mesh.tile import TileContext, export_tile, texture_files
+from citygen.mesh.tile import TileContext, texture_files
 from citygen.rng import stream
 from citygen.world import generate_world
 
@@ -225,10 +226,16 @@ def test_texture_images_are_deterministic():
     assert a.data != encoded("plaster", 10, {"pixels": 256}).data
 
 
+@functools.lru_cache(maxsize=None)
+def _texture(name: str, size: int):
+    """Texture images shared by the texture tests (each one costs up to 0.1 s)."""
+    return texture(name, 42, {"pixels": size})
+
+
 def test_texture_sizes_follow_the_style():
     for name in NAMES:
         for size in PIXELS:
-            assert texture(name, 4, {"pixels": size}).size == (size, size)
+            assert _texture(name, size).size == (size, size)
     with pytest.raises(ValueError):
         texture("unobtainium", 4)
 
@@ -236,7 +243,7 @@ def test_texture_sizes_follow_the_style():
 def test_textures_are_seamless():
     """The last column/row is as close to the first as any two neighbours inside the image."""
     for name in NAMES:
-        a = np.asarray(texture(name, 42, {"pixels": 256}), dtype=np.float64)
+        a = np.asarray(_texture(name, 256), dtype=np.float64)
         lr = np.abs(a[:, 0] - a[:, -1]).mean()
         tb = np.abs(a[0, :] - a[-1, :]).mean()
         inner = (np.abs(np.diff(a, axis=1)).mean() + np.abs(np.diff(a, axis=0)).mean()) / 2.0
@@ -267,11 +274,9 @@ def test_tile_entry_lists_shared_textures():
     assert texture_files(FakeTC, parts, []) == []
 
 
-def test_tile_is_valid_glb(world, plan, tmp_path):
-    tc = TileContext(world, [plan])
-    s = world.capital()
-    info = export_tile(tc, int(s.x // tc.size), int(s.y // tc.size), tmp_path)
-    gltf, binary = read_glb(tmp_path / info["file"])
+def test_tile_is_valid_glb(rebuilt_tile):
+    _, path, info = rebuilt_tile
+    gltf, binary = read_glb(path)
     assert triangle_count(gltf) == info["triangles"] > 1000
     assert {"lime_white", "plinth_blue", "asphalt", "paving", "road_paint", "sidewalk", "curb"} <= {m["name"] for m in gltf["materials"]}
     for prim in gltf["meshes"][0]["primitives"]:
@@ -399,11 +404,10 @@ def test_kit_names_and_roles(world):
             assert name in world.style["dressing"]["roles"] or name in kit.pieces or "/" in name, name
 
 
-def test_dressing_is_deterministic_and_on_the_walls(world, plan, built_tile):
+def test_dressing_is_deterministic_and_on_the_walls(world, plan, built_tile, rebuilt_tile):
     from shapely.geometry import Point
-    from citygen.mesh.tile import build_tile
     tc, i, j, first = built_tile
-    _, again = build_tile(tc, i, j)
+    again = rebuilt_tile[0]
     assert len(first) > 200 and [(p.piece, p.x, p.y, p.z) for p in first] == [(p.piece, p.x, p.y, p.z) for p in again]
     assert all(p.piece in tc.kit.pieces and np.isfinite([p.x, p.y, p.z, p.yaw, p.scale]).all() for p in first)
     tree = STRtree([b.footprint.exterior for b in plan.buildings])
@@ -414,11 +418,9 @@ def test_dressing_is_deterministic_and_on_the_walls(world, plan, built_tile):
         assert plan.buildings[int(near[0])].footprint.exterior.distance(Point(p.x, p.y)) < 0.05
 
 
-def test_tile_instances_are_valid(world, plan, tmp_path):
-    tc = TileContext(world, [plan])
-    s = world.capital()
-    info = export_tile(tc, int(s.x // tc.size), int(s.y // tc.size), tmp_path)
-    gltf, binary = read_glb(tmp_path / info["file"])
+def test_tile_instances_are_valid(rebuilt_tile):
+    _, path, info = rebuilt_tile
+    gltf, binary = read_glb(path)
     assert "EXT_mesh_gpu_instancing" in gltf["extensionsUsed"]
     nodes = [n for n in gltf["nodes"] if "EXT_mesh_gpu_instancing" in n.get("extensions", {})]
     assert sum(gltf["accessors"][n["extensions"]["EXT_mesh_gpu_instancing"]["attributes"]["TRANSLATION"]]["count"]
@@ -530,6 +532,18 @@ def built_mesh(world, plan, ground):
 def built_tile(built_mesh):
     tc, i, j, _, placements = built_mesh
     return tc, i, j, placements
+
+
+@pytest.fixture(scope="module")
+def rebuilt_tile(built_mesh, tmp_path_factory):
+    """The same tile built again on the same context (the dresser's caches are warm) and written as a
+    .glb, as export_tile does: (placements, path, index entry)."""
+    from citygen.mesh.tile import build_tile, write_tile
+    tc, i, j, _, _ = built_mesh
+    mb, placements = build_tile(tc, i, j)
+    folder = tmp_path_factory.mktemp("tile")
+    info = write_tile(tc, i, j, mb, placements, folder)
+    return placements, folder / info["file"], info
 
 
 def test_wall_feet_stay_in_the_terrain_and_doors_meet_the_street(world, plan, ground, built_tile):
@@ -1414,8 +1428,9 @@ def test_build_key_ignores_workers_and_output():
     assert build_key(a, [3, 1]) == build_key(b, [1, 3]) != build_key(c, [1, 3]) != build_key(a, [1, 3, 4])
 
 
-def test_cached_plan_is_reused_with_the_worlds_own_settlement(world, plan, tmp_path):
+def test_cached_plan_is_reused_with_the_worlds_own_settlement(world, plan, tmp_path, monkeypatch):
     from citygen import build as builder
+    monkeypatch.setattr(builder, "plan_city", lambda w, s: plan)   # planning itself: test_same_seed_same_city
     messages = []
     first = builder.load_or_plan(world, world.capital(), tmp_path / "cache", "aaaa", False, messages.append)
     assert first.settlement is world.capital() and messages[0].startswith("planned")

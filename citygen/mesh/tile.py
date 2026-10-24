@@ -27,8 +27,8 @@ from ..city.roofs import RoofLayout, roof_layouts, roof_stream
 from ..kit import make_kit
 from ..noise import Fractal
 from ..terrain import BIOME_MATERIAL, SEA, classify
-from .builder import (MeshBuilder, add_cap, add_dome, add_draped_cap, add_hip_roof, add_loft, add_ribbon,
-                      add_sheet, add_skirt, add_walls, extrude, rectangle, regular_polygon)
+from .builder import (MeshBuilder, add_cap, add_dome, add_draped_cap, add_draped_caps, add_hip_roof, add_loft,
+                      add_ribbon, add_sheet, add_skirt, add_walls, closed, extrude, rectangle, regular_polygon)
 from .gltf import write_glb
 from .props import tree_mesh
 from .textures import images_for
@@ -195,13 +195,16 @@ def paint_meshes(mb: MeshBuilder, tc: TileContext, plan, paint_tree, tile) -> No
     cfg = tc.world.style.get("streets", {})
     lift = float(cfg.get("paint_lift", 0.03))
     step = float(cfg.get("paint_step", 6.0))   # same spacing as the ribbon, so a long line never sinks into it
+    caps, lifts = [], []
     for k in paint_tree.query(tile, predicate="intersects"):
         mark = plan.paint[int(k)]
         st = plan.streets[mark.street]
         z = STREET_LIFT.get(st.kind, 0.24) + lift
         for poly in polygons(mark.polygon.intersection(tile)):
             if poly.area > 0.005:
-                add_draped_cap(mb, shapely.segmentize(poly, step), lambda x, y, z=z: tc.height(x, y) + z, "road_paint")
+                caps.append(shapely.segmentize(poly, step))
+                lifts.append(z)
+    add_draped_caps(mb, caps, tc.height, "road_paint", lifts)   # one ground query for the whole tile
 
 
 def walk_meshes(mb: MeshBuilder, tc: TileContext, plan, tile, street_tree=None) -> None:
@@ -453,8 +456,8 @@ def _coping(mb: MeshBuilder, b, band, z: float, z_top: float, roof: str | None =
     band = orient(band, sign=1.0)
     outer = np.asarray(band.exterior.coords)[:, :2]
     holes = [np.asarray(h.coords)[:, :2] for h in band.interiors]
-    outer = outer[:-1] if len(outer) > 1 and np.allclose(outer[0], outer[-1]) else outer
-    holes = [h[:-1] if len(h) > 1 and np.allclose(h[0], h[-1]) else h for h in holes]
+    outer = outer[:-1] if closed(outer) else outer
+    holes = [h[:-1] if closed(h) else h for h in holes]
     roof = b.roof if roof is None else roof
     if len(holes) != 1 or len(holes[0]) != len(outer):
         add_cap(mb, band, z_top, roof)                   # rare outline the offset could not pair
@@ -551,7 +554,7 @@ def street_frontage(ring, plan, walk_width: np.ndarray, street_tree, reach: floa
     half the street plus the raised sidewalk on that street.
     """
     pts = np.asarray(ring, dtype=np.float64)[:, :2]
-    if len(pts) > 1 and np.allclose(pts[0], pts[-1]):
+    if closed(pts):
         pts = pts[:-1]
     if len(pts) < 2 or street_tree is None:
         return np.zeros(max(len(pts), 0), dtype=bool)
@@ -601,6 +604,8 @@ def build_tile(tc: TileContext, i: int, j: int) -> tuple:
                 frontage = street_frontage(outline(b), plan, walk_width, street_tree, reach)
             roofs = roof_layouts(b, kind, roof_stream(tc.world.seed, plan.settlement.id, int(k)), tc.roofs)
             building_mesh(mb, b, tc.height, plinth=plinth, frontage=frontage, roofs=roofs)
+            if dresser is not None:
+                dresser.keep_roof(int(k), roofs)
             if b.apron is not None:
                 apron_mesh(mb, tc, b, street_tree)
         if dresser is not None:
@@ -683,6 +688,11 @@ def texture_files(tc: TileContext, parts: dict, instances: list) -> list[str]:
 
 def export_tile(tc: TileContext, i: int, j: int, folder: Path) -> dict:
     mb, placements = build_tile(tc, i, j)
+    return write_tile(tc, i, j, mb, placements, folder)
+
+
+def write_tile(tc: TileContext, i: int, j: int, mb: MeshBuilder, placements: list, folder: Path) -> dict:
+    """Write a built tile (`build_tile`) as tile_i_j.glb in `folder`; returns its index entry."""
     x0, y0, _, _ = tile_bounds(tc, i, j)
     instances = instance_groups(tc, placements, x0, y0)
     parts = mb.gltf_parts()

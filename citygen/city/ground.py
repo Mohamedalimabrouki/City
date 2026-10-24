@@ -84,9 +84,10 @@ class _Blur:
         if i0 > i1 or j0 > j1:
             return
         sub = self.values[j0:j1 + 1, i0:i1 + 1]
-        rj, ri = np.nonzero(np.isnan(sub))
-        if not len(ri):
+        missing = np.isnan(sub)
+        if not missing.any():
             return
+        rj, ri = np.nonzero(missing)
         self._raw_fill(i0 - self.k, i1 + self.k, j0 - self.k, j1 + self.k)
         ii, jj = ri + i0, rj + j0
         total = np.zeros(len(ii))
@@ -102,16 +103,37 @@ class _Blur:
         fx = np.asarray(x, dtype=np.float64) / self.lattice - self.i0
         fy = np.asarray(y, dtype=np.float64) / self.lattice - self.j0
         h, w = self.shape
-        fx = np.clip(fx, 0.0, w - 1.0)
-        fy = np.clip(fy, 0.0, h - 1.0)
-        i = np.clip(np.floor(fx).astype(np.int64), 0, w - 2)
-        j = np.clip(np.floor(fy).astype(np.int64), 0, h - 2)
+        fx = np.minimum(np.maximum(fx, 0.0), w - 1.0)
+        fy = np.minimum(np.maximum(fy, 0.0), h - 1.0)
+        i = np.minimum(np.maximum(np.floor(fx).astype(np.int64), 0), w - 2)
+        j = np.minimum(np.maximum(np.floor(fy).astype(np.int64), 0), h - 2)
         self._fill(int(i.min()), int(i.max()) + 1, int(j.min()), int(j.max()) + 1)
+        tx, ty = fx - i, fy - j
+        v = self.values.ravel()   # a view: values is contiguous
+        at = j * w + i
+        top = v[at] * (1.0 - tx) + v[at + 1] * tx
+        bottom = v[at + w] * (1.0 - tx) + v[at + w + 1] * tx
+        return top * (1.0 - ty) + bottom * ty
+
+    def one(self, x: float, y: float) -> float:
+        """`__call__` at one point with plain floats: the same operations in the same order."""
+        h, w = self.shape
+        fx = min(max(x / self.lattice - self.i0, 0.0), w - 1.0)
+        fy = min(max(y / self.lattice - self.j0, 0.0), h - 1.0)
+        i = min(max(math.floor(fx), 0), w - 2)
+        j = min(max(math.floor(fy), 0), h - 2)
+        self._fill(i, i + 1, j, j + 1)
         tx, ty = fx - i, fy - j
         v = self.values
         top = v[j, i] * (1.0 - tx) + v[j, i + 1] * tx
         bottom = v[j + 1, i] * (1.0 - tx) + v[j + 1, i + 1] * tx
-        return top * (1.0 - ty) + bottom * ty
+        return float(top * (1.0 - ty) + bottom * ty)
+
+
+def _smoothstep(edge0: float, edge1: float, x: float) -> float:
+    """`noise.smoothstep` for one float (same operations)."""
+    t = min(max((x - edge0) / (edge1 - edge0), 0.0), 1.0)
+    return t * t * (3.0 - 2.0 * t)
 
 
 class _City:
@@ -131,6 +153,27 @@ class _City:
         self.bounds_xy = np.asarray(bounds, dtype=np.float64).reshape(-1, 4)
         self.terrace = np.full(len(self.blocks), np.nan)
         self.tree = STRtree(self.blocks) if self.blocks else None
+        self.bounds = plan.boundary.bounds
+        self.edge_line = plan.boundary.boundary
+        self._overlap = None
+
+    def _overlapping(self) -> bool:
+        """True when two terraced blocks share interior points (then a point's block depends on
+        the tree's order, so `block_at` keeps the tree query)."""
+        if self._overlap is None:
+            a, b = self.tree.query(self.blocks, predicate="intersects")
+            pair = a < b
+            geoms = np.asarray(self.blocks, dtype=object)
+            self._overlap = bool(shapely.relate_pattern(geoms[a[pair]], geoms[b[pair]], "T********").any())
+        return self._overlap
+
+    def _candidates(self, x: np.ndarray, y: np.ndarray):
+        """Blocks whose bounds meet the points' bounding box."""
+        lo_x, hi_x, lo_y, hi_y = x.min(), x.max(), y.min(), y.max()
+        if self._overlapping():
+            return self.tree.query(box(lo_x, lo_y, hi_x, hi_y))
+        b = self.bounds_xy
+        return np.nonzero((b[:, 0] <= hi_x) & (b[:, 2] >= lo_x) & (b[:, 1] <= hi_y) & (b[:, 3] >= lo_y))[0]
 
     def terraces(self, k: np.ndarray) -> np.ndarray:
         """Terrace height per block, computed once at the block center."""
@@ -141,13 +184,28 @@ class _City:
             out = self.terrace[k]
         return out
 
-    def block_at(self, x: np.ndarray, y: np.ndarray) -> tuple:
-        """Index of the terraced block under each point (-1 = none) and distance to its edge."""
+    def block_one(self, x: float, y: float, pt) -> tuple:
+        """`block_at` for one point (`pt` the same point as a shapely Point)."""
+        if self.tree is None:
+            return -1, 0.0
+        for k in self._candidates(np.array([x]), np.array([y])):
+            x0, y0, x1, y1 = self.bounds_xy[k]
+            if x0 <= x <= x1 and y0 <= y <= y1 and shapely.contains_xy(self.blocks[int(k)], x, y):
+                return int(k), float(shapely.distance(pt, self.blocks[int(k)].boundary))
+        return -1, 0.0
+
+    def block_at(self, x: np.ndarray, y: np.ndarray, pts=None) -> tuple:
+        """Index of the terraced block under each point (-1 = none) and distance to its edge.
+
+        `pts`: the same points as shapely points, when the caller has them already.
+        """
         idx = np.full(len(x), -1, dtype=np.int64)
         dist = np.zeros(len(x))
         if self.tree is None or not len(x):
             return idx, dist
-        for k in self.tree.query(box(x.min(), y.min(), x.max(), y.max())):
+        if pts is None:
+            pts = shapely.points(x, y)
+        for k in self._candidates(x, y):
             x0, y0, x1, y1 = self.bounds_xy[k]
             sel = np.nonzero((idx < 0) & (x >= x0) & (x <= x1) & (y >= y0) & (y <= y1))[0]
             if not len(sel):
@@ -158,7 +216,7 @@ class _City:
             if not len(sel):
                 continue
             idx[sel] = k
-            dist[sel] = shapely.distance(shapely.points(x[sel], y[sel]), poly.boundary)
+            dist[sel] = shapely.distance(pts[sel], poly.boundary)
         return idx, dist
 
 
@@ -202,7 +260,7 @@ class Ground:
         inside = shapely.contains_xy(self.area, x, y)
         out = []
         for city in self.cities:
-            x0, y0, x1, y1 = city.plan.boundary.bounds
+            x0, y0, x1, y1 = city.bounds
             sel = np.nonzero(inside & (x >= x0) & (x <= x1) & (y >= y0) & (y <= y1))[0]
             if len(sel):
                 sel = sel[shapely.contains_xy(city.plan.boundary, x[sel], y[sel])]
@@ -230,19 +288,45 @@ class Ground:
         """
         blur = city.blur(x, y)
         out = blur.copy()
-        idx, dist = city.block_at(x, y)
+        pts = shapely.points(x, y)
+        idx, dist = city.block_at(x, y, pts)
         hit = idx >= 0
         if hit.any():
             terrace = city.terraces(idx[hit])
             w = smoothstep(0.0, self.edge, dist[hit])
             out[hit] = blur[hit] + w * np.clip(terrace - blur[hit], -self.terrace_max, self.terrace_max)
-        edge = shapely.distance(shapely.points(x, y), city.plan.boundary.boundary)
+        edge = shapely.distance(pts, city.edge_line)
         b = smoothstep(0.0, self.edge_band, edge)
         near = b < 1.0
         if near.any():
             natural = np.asarray(self.terrain.height(x[near], y[near]), dtype=np.float64)
             out[near] = natural * (1.0 - b[near]) + out[near] * b[near]
         return out
+
+    def _graded_one(self, city: _City, x: float, y: float) -> float:
+        """`_graded` at one point with plain floats: the same operations in the same order."""
+        blur = out = city.blur.one(x, y)
+        pt = shapely.points(x, y)
+        k, dist = city.block_one(x, y, pt)
+        if k >= 0:
+            terrace = float(city.terraces(np.array([k]))[0])
+            w = _smoothstep(0.0, self.edge, dist)
+            out = blur + w * min(max(terrace - blur, -self.terrace_max), self.terrace_max)
+        b = _smoothstep(0.0, self.edge_band, float(shapely.distance(pt, city.edge_line)))
+        if b < 1.0:
+            natural = float(self.terrain.height(np.array([x]), np.array([y]))[0])
+            out = natural * (1.0 - b) + out * b
+        return out
+
+    def _height_one(self, x: float, y: float) -> float:
+        """`height` at one point: most dressing calls ask for one, and plain floats skip numpy's
+        per-call overhead (same operations, same order, so the same bits)."""
+        if shapely.contains_xy(self.area, x, y):
+            for city in self.cities:
+                x0, y0, x1, y1 = city.bounds
+                if x0 <= x <= x1 and y0 <= y <= y1 and shapely.contains_xy(city.plan.boundary, x, y):
+                    return self._graded_one(city, x, y)
+        return float(self.terrain.height(np.array([x]), np.array([y]))[0])
 
     def height(self, x, y):
         """Graded ground height in meters, in arrays out for arrays in (or a float for floats)."""
@@ -251,6 +335,9 @@ class Ground:
         if self.area is None or x.size == 0:
             h = np.asarray(self.terrain.height(x, y), dtype=np.float64)
             return float(h) if h.ndim == 0 else h
+        if x.size == 1 and y.size == 1:
+            h = self._height_one(float(x.flat[0]), float(y.flat[0]))
+            return h if x.ndim == 0 else np.full(x.shape, h)
         xf, yf = np.ravel(x), np.ravel(y)
         out = np.empty(len(xf))
         rest = np.ones(len(xf), dtype=bool)
@@ -412,10 +499,18 @@ def apron_cells(poly, cell: float) -> np.ndarray:
     x0, y0, x1, y1 = poly.bounds
     xs = np.arange(math.floor(x0 / cell), math.ceil(x1 / cell)) * cell
     ys = np.arange(math.floor(y0 / cell), math.ceil(y1 / cell)) * cell
-    cells = shapely.intersection(np.array([box(x, y, x + cell, y + cell) for x in xs for y in ys]), poly)
+    cells = shapely.intersection(boxes(xs, ys, cell), poly)
     parts = [p for g in cells for p in getattr(g, "geoms", [g]) if p.geom_type == "Polygon" and p.area > 1e-6]
     tris = [triangulate(p) for p in parts]
     return np.concatenate(tris) if tris else np.zeros((0, 3, 2))
+
+
+def boxes(xs: np.ndarray, ys: np.ndarray, cell: float) -> np.ndarray:
+    """`box(x, y, x + cell, y + cell)` for every x in `xs`, then every y in `ys` (same rings, same order)."""
+    x, y = (a.ravel() for a in np.meshgrid(xs, ys, indexing="ij"))
+    x1, y1 = x + cell, y + cell
+    return shapely.polygons(np.stack([np.stack(c, axis=-1) for c in
+                                      ((x1, y), (x1, y1), (x, y1), (x, y), (x1, y))], axis=1).reshape(-1, 5, 2))
 
 
 def terrain_cells(poly, step: float) -> np.ndarray:

@@ -11,7 +11,7 @@ import math
 
 import numpy as np
 
-from .noise import Fractal, smoothstep
+from .noise import Fractal, FractalSet, smoothstep, stackable
 from .rng import stream
 
 # biome codes
@@ -46,29 +46,46 @@ class Terrain:
         self.island_noise = Fractal(seed, "islands", 5500.0, octaves=3)
         self.detail = Fractal(seed, "detail", 650.0, octaves=3)
         self.wetness = Fractal(seed, "wetness", 11000.0, octaves=3)
+        # the height's fractals in one pass for small queries (same values, see noise.FractalSet)
+        self.height_set = FractalSet([self.coast_big, self.coast_small, self.hills, self.massif, self.ridges,
+                                      self.detail] + ([self.island_noise] if self.islands else []))
 
     def inland(self, x, y):
         """Signed distance from the coastline in country widths: > 0 inland, < 0 at sea (roughly)."""
         x = np.asarray(x, dtype=np.float64)
         y = np.asarray(y, dtype=np.float64)
+        return self._inland(x, y, self.coast_big(x, y), self.coast_small(x, y))
+
+    def _inland(self, x, y, coast_big, coast_small):
         s = (x / self.size - 0.5) * self.sea_dir[0] + (y / self.size - 0.5) * self.sea_dir[1]
-        warp = 0.2 * self.coast_big(x, y) + 0.06 * self.coast_small(x, y)
+        warp = 0.2 * coast_big + 0.06 * coast_small
         return self.coast_position - s + warp
+
+    def _height_noise(self, x, y) -> list:
+        """[coast_big, coast_small, hills, massif, ridged ridges, detail, islands or None] at x, y."""
+        if stackable(x, y):
+            p = self.height_set.pairs(x, y)
+            total, ridged = Fractal.total, Fractal.ridged_total
+            return [total(p[0]), total(p[1]), total(p[2]), total(p[3]), ridged(p[4]), total(p[5]),
+                    total(p[6]) if self.islands else None]
+        return [self.coast_big(x, y), self.coast_small(x, y), self.hills(x, y), self.massif(x, y),
+                self.ridges.ridged(x, y), self.detail(x, y), self.island_noise(x, y) if self.islands else None]
 
     def height(self, x, y):
         """Ground height in meters (sea level = 0) at any point(s)."""
         x = np.asarray(x, dtype=np.float64)
         y = np.asarray(y, dtype=np.float64)
-        t = self.inland(x, y)
+        coast_big, coast_small, hills, massif, ridged, detail, island = self._height_noise(x, y)
+        t = self._inland(x, y, coast_big, coast_small)
         h = np.where(t > 0, t * self.inland_rise, t * 520.0)
         plain = smoothstep(0.0, 0.10, t)
-        h = h + self.hill_height * self.hills(x, y) * plain
+        h = h + self.hill_height * hills * plain
         band = np.exp(-((t - self.mountain_band) / 0.17) ** 2)
-        band = band * (0.35 + 0.65 * smoothstep(-0.35, 0.45, self.massif(x, y)))
-        h = h + self.mountain_height * band * self.ridges.ridged(x, y) ** 2
-        h = h + 3.0 * self.detail(x, y) * plain
+        band = band * (0.35 + 0.65 * smoothstep(-0.35, 0.45, massif))
+        h = h + self.mountain_height * band * ridged ** 2
+        h = h + 3.0 * detail * plain
         if self.islands:
-            bump = np.clip(self.island_noise(x, y) - 0.42, 0.0, None) * 420.0
+            bump = np.clip(island - 0.42, 0.0, None) * 420.0
             h = h + bump * smoothstep(-0.015, -0.11, t)
         return h
 

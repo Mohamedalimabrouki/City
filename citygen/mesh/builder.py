@@ -19,6 +19,15 @@ from shapely.geometry.polygon import orient
 _QUAD = np.array([[0, 1, 2], [0, 2, 3]])
 
 
+def closed(pts) -> bool:
+    """`len(pts) > 1 and np.allclose(pts[0], pts[-1])` for float64 rows: the same test, without
+    numpy's per-call cost (rings are checked thousands of times per tile)."""
+    if len(pts) < 2:
+        return False
+    return all((abs(p - q) <= 1e-8 + 1e-5 * abs(q) and math.isfinite(q)) or p == q
+               for p, q in zip(pts[0].tolist(), pts[-1].tolist()))
+
+
 class MeshBuilder:
     def __init__(self, origin=(0.0, 0.0)):
         self.origin = np.array([origin[0], origin[1], 0.0])
@@ -116,7 +125,7 @@ def _wall_band(mb: MeshBuilder, ring, z0: float, z1: float, material: str, z_ref
                mask=None) -> None:
     """One vertical band of a wall; v = 0 at z_ref so wall textures line up along a street."""
     pts = np.asarray(ring, dtype=np.float64)[:, :2]
-    if len(pts) > 1 and np.allclose(pts[0], pts[-1]):
+    if closed(pts):
         pts = pts[:-1]
     if len(pts) < 2:
         return
@@ -174,6 +183,30 @@ def add_draped_cap(mb: MeshBuilder, poly: Polygon, height_fn, material: str, alo
         return
     pos = np.concatenate([tri, np.zeros((len(tri), 3, 1))], axis=2).reshape(-1, 3)
     pos[:, 2] = height_fn(pos[:, 0], pos[:, 1])
+    _add_cap(mb, tri, pos, material, along)
+
+
+def add_draped_caps(mb: MeshBuilder, polys: list, height_fn, material: str, lifts: list) -> None:
+    """`add_draped_cap(mb, poly, height_fn + lift, material)` for each polygon and lift in turn, with
+    one `height_fn` call for all their vertices (`height_fn` must work point by point, as the ground does)."""
+    tris, adds = [], []
+    for poly, lift in zip(polys, lifts):
+        tri = triangulate(poly)
+        if len(tri):
+            tris.append(tri)
+            adds.append(lift)
+    if not tris:
+        return
+    pos = [np.concatenate([t, np.zeros((len(t), 3, 1))], axis=2).reshape(-1, 3) for t in tris]
+    every = np.concatenate(pos)
+    z = np.split(np.asarray(height_fn(every[:, 0], every[:, 1]), dtype=np.float64),
+                 np.cumsum([len(p) for p in pos])[:-1])
+    for t, p, zz, lift in zip(tris, pos, z, adds):
+        p[:, 2] = zz + lift
+        _add_cap(mb, t, p, material)
+
+
+def _add_cap(mb: MeshBuilder, tri: np.ndarray, pos: np.ndarray, material: str, along=None) -> None:
     nrm = np.tile([0.0, 0.0, 1.0], (len(pos), 1))
     if along is None:
         uv = np.stack([pos[:, 0], -pos[:, 1]], axis=1)
@@ -193,7 +226,7 @@ def add_skirt(mb: MeshBuilder, ring, top, bottom, material: str, only=None) -> N
     `only` (one bool per segment) draws just those segments.
     """
     pts = np.asarray(ring, dtype=np.float64)[:, :2]
-    if len(pts) > 1 and np.allclose(pts[0], pts[-1]):
+    if closed(pts):
         pts = pts[:-1]
     top, bottom = np.asarray(top, dtype=np.float64), np.asarray(bottom, dtype=np.float64)
     if len(top) == len(pts) + 1:
@@ -233,9 +266,9 @@ def add_loft(mb: MeshBuilder, inner, z_inner: float, outer, z_outer: float, mate
     """
     a = np.asarray(inner, dtype=np.float64)[:, :2]
     b = np.asarray(outer, dtype=np.float64)[:, :2]
-    if len(a) > 1 and np.allclose(a[0], a[-1]):
+    if closed(a):
         a = a[:-1]
-    if len(b) > 1 and np.allclose(b[0], b[-1]):
+    if closed(b):
         b = b[:-1]
     if len(a) < 3 or len(a) != len(b):
         return
