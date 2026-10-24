@@ -15,6 +15,34 @@ Entry format:
 - Doubts and questions for Ali: <none, or the question>
 ```
 
+## 2026-10-24 - Prompt 29 P2 People in the streets
+- Commit: (see git log) | Model: Opus 5.5, medium (playbook: Sonnet, medium)
+- Changed: `citygen/city/crowd.py` (new: candidates per place, halo, thinning, figure cast, checks),
+  `citygen/city/dressing.py` (`Dresser.crowd()`; door benches on the street's level, `tounes/bench_sbs` backs
+  onto the wall), `citygen/mesh/tile.py` (people at the end of each city), `citygen/mesh/builder.py`
+  (`MeshBuilder.sizes`), `styles/maghreb.toml` (`[people]` with souk, shop, lane, sidewalk, promenade,
+  landmark, square, stair, seats and outfits tables), tests (1 new), `docs/SPEC.md`, `docs/HANDOFF.md`.
+- Quick capital (9 tiles): 1,857 people: 523 souk walkers, 128 shop browsers, 157 seated (106 at cafes, 37
+  on doukkanas, 14 on benches), 855 on sidewalks, 11 on the promenade, 32 at the great mosque, 10 at gates,
+  5 at the kiosk and fountain, 128 in medina lanes, 8 on estate stair paths; 669 walk in pairs or families
+  (95 children). Outfits: 519 shirt, 417 hijab, 366 jebba, 258 safsari, 202 dress, 53 boys, 42 girls.
+  Quick village 4: 23 people (16 jebba, 6 safsari, 1 dress; 5 on door benches).
+- Checks: tests 84 passed (22.4 s; the new ones 0.5 s and 0.06 s); `build --quick` 10.6 s (10.0 s at density 0);
+  fingerprint: the 9 tiles and `tiles/index` changed (allowed `tiles/*`); density 0 gives 0 changed parts.
+  Worst quick tile bytes +7.7% (`tile_13_22`), full capital +8.3% (`tile_66_102`), budget 10%; drawn
+  triangles worst +23.0% quick (`tile_13_23`), +18.1% on the 25 central full tiles, budget 30%. Full
+  capital 48.0 -> 50.4 s (CPU 207 -> 224 s).
+- Look: `output/checks/29.png` (souk: walkers both ways, browsers facing the goods, nobody floating) and
+  `output/checks/29-cafe.png` (arcade cafe at 10 m: two men in jebba seated on the chairs facing each other,
+  feet under the table, walkers under the arcade). Blender: `output/bodjantouna-42/goumosbane.blend`.
+- Doubts and questions for Ali: none. For the lead: (1) bytes are the tight budget: each figure costs about
+  14 KB per tile, so light tiles show only their 3-6 most frequent figures (`bytes_share`); (2) door benches
+  moved up to the street's level (they stood about 0.2 m below souk ribbons) and `tounes/bench_sbs` out of
+  the wall; (3) lead review: fixed the crash in `Squares._sabil_fits` on a settlement without streets
+  (quick village 5): squares queries go through `_streets`/`_buildings` (nothing without streets or
+  buildings), no street means no sabil, the crowd's mosque outline needs buildings; a new test dresses
+  village 5 (0.06 s). Prompt 39 now notes that quantized meshes should let light tiles show more figures.
+
 ## 2026-10-24 - Prompt 28 P1 People: low-poly figures
 - Commit: (see git log) | Model: Opus 5.5, high (playbook: Sonnet, high)
 - Changed: `citygen/mesh/people.py` (new: skeleton, poses, outfits), `citygen/kit.py` (person pieces),

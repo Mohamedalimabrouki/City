@@ -56,6 +56,16 @@ class Squares:
         self._dressed: dict = {}
         self._crown: dict = {}
 
+    def _streets(self, geom, **kw) -> np.ndarray:
+        """`surface_tree.query`, or nothing for a settlement without streets."""
+        tree = self.d.surface_tree
+        return tree.query(geom, **kw) if tree is not None else np.zeros(0, dtype=int)
+
+    def _buildings(self, geom, **kw) -> np.ndarray:
+        """`fp_tree.query`, or nothing for a settlement without buildings."""
+        tree = self.d.fp_tree
+        return tree.query(geom, **kw) if tree is not None else np.zeros(0, dtype=int)
+
     def c(self, key: str, default: float) -> float:
         return float(self.cfg.get(key, default))
 
@@ -106,7 +116,7 @@ class Squares:
                     continue
                 prom = shapely.union_all(proms)
                 inside = lying_on(k, st.line, self.d.surfaces[k], line_tree, lines, self.d.cfg.get("parking", {}))
-                cut = [self.d.surfaces[j] for j in sorted(int(i) for i in self.d.surface_tree.query(prom, predicate="intersects"))
+                cut = [self.d.surfaces[j] for j in sorted(int(i) for i in self._streets(prom, predicate="intersects"))
                        if j not in inside]
                 if cut:
                     prom = prom.difference(shapely.union_all(cut).buffer(clear))
@@ -156,7 +166,7 @@ class Squares:
             circle = Point(p[0]).buffer(radius, quad_segs=8)
             if not part.contains(circle) or self._crossing(circle, self.c("crossing_clear", 0.6)):
                 continue
-            near = sorted(int(j) for j in self.d.surface_tree.query(circle, predicate="dwithin", distance=self.c("lamp_reach", 3.0)))
+            near = sorted(int(j) for j in self._streets(circle, predicate="dwithin", distance=self.c("lamp_reach", 3.0)))
             if any(circle.distance(box) < self.c("lamp_clear", 0.3) for j in near for box in self._street_lamps(j)):
                 continue
             reach = radius + self.c("fountain_trees", 1.6)
@@ -254,7 +264,7 @@ class Squares:
         out = []
         reach = self.c("apron_reach", 1.0)
         surface = self.d.surfaces[k]
-        for b in sorted(int(i) for i in self.d.fp_tree.query(surface, predicate="dwithin", distance=reach + 1.0)):
+        for b in sorted(int(i) for i in self._buildings(surface, predicate="dwithin", distance=reach + 1.0)):
             apron = self.plan.buildings[b].apron
             if apron is None or apron.distance(surface) > reach:
                 continue
@@ -311,7 +321,7 @@ class Squares:
     # --- sabils -------------------------------------------------------------------------------------
     def _sabils(self) -> list:
         table = self.cfg.get("sabil", {})
-        if not table or not self.d.has("sabil"):
+        if not table or not self.d.has("sabil") or not self.plan.streets:   # no street, no square to dress
             return []
         out = []
         medina = self.plan.medina
@@ -338,7 +348,7 @@ class Squares:
         steps = np.arange(0.5, face + 1e-9, 0.5)
         here = Point(lm.x, lm.y)
         cands = []
-        for b in sorted(int(i) for i in self.d.fp_tree.query(here, predicate="dwithin", distance=self.c("sabil_reach", 40.0))):
+        for b in sorted(int(i) for i in self._buildings(here, predicate="dwithin", distance=self.c("sabil_reach", 40.0))):
             bd = self.plan.buildings[b]
             dressed = bd.kind in self.DRESSED
             if not dressed and bd.kind not in MONUMENTS:
@@ -371,10 +381,10 @@ class Squares:
         u = np.array([n[1], -n[0]])
         half = piece.width / 2 + gap
         front = shapely.Polygon([c + u * half + n * 0.05, c - u * half + n * 0.05, c - u * half + n * room, c + u * half + n * room])
-        if len(self.d.fp_tree.query(front, predicate="intersects")):
+        if len(self._buildings(front, predicate="intersects")):
             return False                                         # the wall bends or another house stands in front
         foot = piece_box(piece, cand.x, cand.y, cand.yaw, 0.0)[0]
-        for j in self.d.surface_tree.query(foot, predicate="intersects").tolist():
+        for j in self._streets(foot, predicate="intersects").tolist():
             if self.plan.streets[int(j)].kind not in FOOT:
                 return False                                     # never on a carriageway
         boxes = self._obstacles(front.buffer(3.0), dress=True, props=True)
@@ -398,7 +408,7 @@ class Squares:
             clear = self.c("crossing_clear", 0.6)
             hit = sorted(int(i) for i in self.cross_tree.query(region, predicate="dwithin", distance=clear))
             add([self.crossings[i].buffer(clear) for i in hit], -INF, INF)
-        streets = sorted(int(i) for i in self.d.surface_tree.query(region, predicate="intersects"))
+        streets = sorted(int(i) for i in self._streets(region, predicate="intersects"))
         for j in streets:
             add([box.buffer(self.c("lamp_clear", 0.3)) for box in self._street_lamps(j) if box.intersects(region)], -INF, INF)
         self._trees(region, add)
@@ -478,7 +488,7 @@ class Squares:
         lights); doors also add their free zone."""
         depth = float(self.d.open_cfg.get("door_clear", 2.0))
         out = []
-        for b in sorted(int(i) for i in self.d.fp_tree.query(region, predicate="dwithin", distance=self.c("dressed_reach", 4.0))):
+        for b in sorted(int(i) for i in self._buildings(region, predicate="dwithin", distance=self.c("dressed_reach", 4.0))):
             if self.plan.buildings[b].kind not in self.DRESSED:
                 continue
             if b not in self._dressed:

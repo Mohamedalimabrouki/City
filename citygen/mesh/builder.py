@@ -50,6 +50,11 @@ class MeshBuilder:
     def triangles(self) -> int:
         return sum(sum(len(t) for t in part[3]) for part in self._parts.values())
 
+    def sizes(self) -> list:
+        """[(vertices, triangles, has colors)] per material, without building the arrays."""
+        return [(part[4], sum(len(t) for t in part[3]), any(c is not None for c in part[5]))
+                for part in self._parts.values()]
+
     def gltf_parts(self) -> dict:
         out = {}
         for mat, (pos, nrm, uv, tris, _count, col) in self._parts.items():

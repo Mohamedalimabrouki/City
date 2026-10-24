@@ -40,7 +40,7 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
 - [x] 26 H3b Benches, kiosks, fountains
 - [x] 27 CP3 Checkpoint: facades and street life
 - [x] 28 P1 People figures
-- [ ] 29 P2 People in the streets
+- [x] 29 P2 People in the streets
 - [ ] 30 A5a The kasbah
 - [ ] 31 A5b Covered souks
 - [ ] 32 A5c Cathedral and theatre

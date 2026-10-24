@@ -23,6 +23,7 @@ from shapely.strtree import STRtree
 from ..mesh.props import ARCADE
 from ..rng import stream, weighted
 from .arcades import Run, band, free_spans, layout, level_steps, spans_of, turn
+from .crowd import Crowd
 from .geo import frame
 from .massing import corner_faces, floors_at, main_mass, massed, probes, terrace_walls, wall_height
 from .openings import (DoorSpot, Walls, fits, joined, open_walls, path_to_street, piece_boxes, villa_lots,
@@ -122,6 +123,7 @@ class Dresser:
         self._stair_spots: dict = {}             # apartment block -> its stair doors (door_spots)
         self._parking = None                     # parked cars (prompt 25, city/parking.py, lazy)
         self._squares = None                     # benches, kiosks and fountains (prompt 26, city/squares.py, lazy)
+        self._crowd = None                       # people in the streets (prompt 29, city/crowd.py, lazy)
         self._kept_roofs: dict = {}              # building -> main roof layout the tile mesher just made (keep_roof)
         self._stairs = {n for r in ("stair_window", "stair_door") for n in (self.roles[r][0] if r in self.roles else [r])}
         targets = self.surfaces + [w.polygon for w in getattr(plan, "walks", ())]
@@ -389,8 +391,12 @@ class Dresser:
                 self.put(out, "pot", rng, c + u * off + n * 0.4, 0.0, rng.uniform(0, 6.28))
         if district in TRADITIONAL and rng.random() < cfg.get("doukkana", 0.25):
             off = side() * 2.1
-            if room(off, 1.05):
-                self.put(out, "door_bench", rng, c + u * off, 0.0, yaw)
+            if room(off, 1.05):   # on the street's level, like the door; a free-standing bench backs onto the wall
+                at = c + u * off
+                name = self.put(out, "door_bench", rng, at, self.front_surface(at, n), yaw, on_ground=False)
+                if name is not None and self.kit.pieces[name].anchor != "wall":
+                    back = float(self.kit.pieces[name].bounds[1][2])
+                    out[-1].x, out[-1].y = float(at[0] + n[0] * back), float(at[1] + n[1] * back)
         if rng.random() < cfg.get("cat", 0.07):
             self.put(out, "cat", rng, c + n * 0.6 + u * rng.uniform(-0.4, 0.4), 0.0, rng.uniform(0, 6.28))
         if rng.random() < cfg.get("door_plant", 0.2) * (0.5 + wealth):
@@ -993,6 +999,12 @@ class Dresser:
         if self._squares is None:
             self._squares = Squares(self)
         return self._squares
+
+    def crowd(self) -> Crowd:
+        """The city's people (prompt 29): their rules and caches, built once, lazily."""
+        if self._crowd is None:
+            self._crowd = Crowd(self)
+        return self._crowd
 
     def _arcade_spots(self, xy: np.ndarray) -> tuple:
         """Where planned trees stand (prompt 22): a trunk inside an arcade band (wall to pillar face and

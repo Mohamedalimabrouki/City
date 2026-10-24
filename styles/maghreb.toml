@@ -1143,6 +1143,100 @@ boy_walk = { outfit = "boy", pose = "walk", shirt = "cloth_4", shorts = "cloth_d
 girl_stand = { outfit = "girl", pose = "stand", dress = "cloth_rose", skin = "skin_1", hair = "hair_brown" }
 girl_walk = { outfit = "girl", pose = "walk", dress = "cloth_6", skin = "skin_3" }
 
+# People in the streets (prompt 29, city/crowd.py): who walks, stands and sits where. `density` scales
+# every chance (0 = nobody). Gaps are between kit boxes in plan, meters. Each person has its own stream
+# per street station, shop, seat, landmark point or stair door.
+[people]
+density = 1.0
+halo = 4.5                 # a tile checks what its neighbours own this far beyond its edges
+clear = 0.5                # between two standing people
+pair_gap = 0.15            # side by side in a pair or a family
+seated_gap = 0.2           # between a standing person and a seated one
+wall_gap = 0.05            # from building walls (seated people may touch the wall behind them)
+piece_gap = 0.05           # from goods, stalls, lamps, pillars, trunks, benches, kiosks, cars...
+foot_level = 0.06          # pieces lower than this above the floor (mats, paving) do not count
+flip = 0.2                 # chance a souk walker walks on the left
+jitter = 0.15              # radians a walker turns off the street's direction, at most
+bytes_share = 0.085        # people may add this share to a tile's bytes: each figure shown costs its mesh
+                           # (about 14 KB), so a light tile shows only its most frequent few (budget +10%)
+
+[people.souk]              # walkers in two lanes down the middle, every `step` m per lane
+step = 2.6
+chance = 0.75
+lane = 0.6                 # meters from the center line to a lane
+spread = 0.25
+carry = 0.35               # a basket or a bag
+pair = 0.12
+family = 0.06
+
+[people.shop]              # browsers at a souk shop, beyond its goods, facing them
+slots = [0.75, 0.35]       # chance of a first and a second browser
+reach = [1.6, 1.95]        # meters from the wall
+along = 1.1                # meters either side of the shop's middle, at most
+turn = 0.35
+family = 0.1
+
+[people.lane]              # a few walkers in medina lanes and village streets
+step = 12.0
+chance = { medina = 0.3, village = 0.15 }
+carry = 0.25
+pair = 0.1
+
+[people.sidewalk]          # strollers every `step` m on each sidewalk, by the district behind it
+step = 8.0
+chance = { colonial = 0.55, modern = 0.3, residential = 0.3, suburb = 0.1, industrial = 0.04, port = 0.06 }
+edge = 0.55                # meters kept from either edge of the sidewalk (for the middle point)
+carry = 0.15
+pair = 0.25
+family = 0.12
+
+[people.promenade]         # strollers on the boulevard's promenade, either side of the tree row
+step = 5.0
+chance = 0.6
+offset = [1.5, 3.3]        # meters from the center line
+carry = 0.1
+pair = 0.3
+family = 0.2
+
+[people.landmark]          # round the great mosque (along its outline) and at the medina gates
+mosque = { step = 3.5, chance = 0.45, reach = [1.5, 6.0] }
+gate = { count = 10, chance = 0.5, reach = [2.5, 10.0] }
+stand = 0.5                # the others walk past
+pair = 0.2
+
+[people.square]            # kiosk customers at the window, people round a fountain
+kiosk = [0.8, 0.4]
+kiosk_reach = [0.35, 0.7]
+fountain = 6
+fountain_chance = 0.5
+fountain_reach = [0.45, 1.0]
+
+[people.stair]             # modern estates: on a stair door's path, walking it or two chatting
+chance = 0.35
+chat = 0.4
+reach = [1.6, 3.5]         # meters from the door
+
+# Where people sit on a piece, measured on the kit pieces: seats = [[x, y, facing], ...] in piece space
+# (x along, y toward its front, meters; facing in degrees from the piece's front, counter-clockwise),
+# `height` the seat's top. Cafe chairs face the table; their two customers turn by `turn` degrees the
+# same way so their feet pass under it. Figures sit at 0.45 m: on a higher seat their feet hang 1-3 cm.
+[people.seats]
+cafe_set = { height = 0.46, seats = [[0.7, 0.0, 90], [-0.7, 0.0, -90]], chance = 0.65, turn = [12, 24], mix = "cafe" }
+doukkana = { height = 0.45, seats = [[-0.4, 0.26, 0], [0.4, 0.26, 0]], chance = 0.35 }
+bench_iron = { height = 0.45, seats = [[-0.42, 0.0, 0], [0.42, 0.0, 0]], chance = 0.4 }
+"tounes/bench_sbs" = { height = 0.48, seats = [[-0.5, 0.0, 0], [0.5, 0.0, 0]], chance = 0.4 }
+
+# Outfit weights by district kind ("other" for the rest); cafes have their own mix (customers are
+# mostly men, as in most Tunisian cafes); children only walk or stand beside a parent.
+[people.outfits]
+medina = { jebba = 3.0, safsari = 2.5, shirt = 2.0, hijab = 2.0, dress = 0.5 }
+village = { jebba = 3.5, safsari = 3.0, shirt = 1.5, hijab = 1.0 }
+colonial = { shirt = 3.0, dress = 2.0, hijab = 2.0, jebba = 1.0, safsari = 0.5 }
+modern = { shirt = 3.0, hijab = 2.5, dress = 2.0, jebba = 0.5, safsari = 0.3 }
+other = { shirt = 3.0, hijab = 2.0, dress = 1.5, jebba = 1.0, safsari = 0.5 }
+cafe = { shirt = 3.0, jebba = 2.0, dress = 0.6, hijab = 0.6 }
+children = { boy = 1.0, girl = 1.0 }
+
 # Which pieces play each part, by weight: [piece, weight] or [piece, weight, extra height].
 # "tounes/..." pieces come from the Tounes Rush kit (kits/tounes); the others are made by the
 # generator (citygen/mesh/props.py). Pieces that are missing are skipped, so the city still

@@ -85,6 +85,7 @@ build.build()                 orchestrates the above into output/<country>-<seed
 | `citygen/mesh/plants.py` | shared plant shapes: clumps (icosahedron, octahedron, 4-face bract) and tapered tubes |
 | `citygen/mesh/props.py` | the generator's own kit pieces (doors, shops by trade, awnings, goods, lamps, trees...) |
 | `citygen/mesh/people.py` | people (prompt 28): low-poly figures, one piece per outfit, pose and color scheme from `[dressing.people]` |
+| `citygen/city/crowd.py` | people in the streets (prompt 29): who walks, stands and sits where, per tile, from `[people]` |
 | `citygen/mesh/vehicles.py` | parked cars (prompt 25): hatchback, sedan, van, louage, yellow taxi; one piece per body color, sharing their part arrays |
 | `citygen/mesh/trees.py` | broadleaf, olive and citrus crowns (jittered clumps, 3 variants each; citrus with oranges) from `[dressing.trees]` |
 | `citygen/mesh/climbers.py` | bougainvillea curtains (2 variants, 250 triangles each) from `[dressing.climber]` |
@@ -534,8 +535,45 @@ shaders (which ignore the image and the tint) and takes their palette color from
   stride spreads the hem; every hem and cuff and the hood's rim have faces inside too. Height (per body
   type in `heights`), shoulder width (`shoulders`) and a man's belly (`belly`) are drawn in that order on
   `stream(seed, "piece", name)`. Palette: muted `cloth_*` everyday colors, `skin_1`-`skin_4`, `hair_*`,
-  `shoe_dark`, `leather_yellow`, `basket_straw`, `bag_plastic`, `bread_crust`. Nobody is placed yet
-  (prompt 29).
+  `shoe_dark`, `leather_yellow`, `basket_straw`, `bag_plastic`, `bread_crust`. Placed by prompt 29 (next).
+- **People in the streets** (prompt 29, `city/crowd.py`, `[people]`): `Dresser.crowd().people(tile, placements,
+  centers, tile_bytes)` runs at the end of each city in `build_tile`, after the tile's other placements got
+  absolute heights. Candidates, each on its own stream `rng("people", <place>, ...)`: souk walkers
+  (`[people.souk]`: two lanes `lane` m off the center line, a station every `step` m per lane staggered by
+  half a step, keeping to the right with chance 1 - `flip`, some carrying a basket or a bag); browsers at
+  each souk shop front (`[people.shop]`: two slots, `reach` m from the wall, beyond the goods, facing the
+  shop); sitters on every seat piece of `[people.seats]` (seat points, height and facing measured on the
+  kit: `cafe_set` chairs 0.7 m either side of the table facing it, both customers turned `turn` degrees
+  the same way so their feet pass; `doukkana`, `bench_iron`, `tounes/bench_sbs` facing their front; at
+  seat height - `[dressing.people] seat`); sidewalk strollers on both sides of every street with walks
+  (`[people.sidewalk]`, chance by the district behind the walk, along the walk's middle from
+  `parking.walk_extents`); promenade strollers on the boulevard's islands (`[people.promenade]`); people
+  along the great mosque's outline and round each medina gate (`[people.landmark]`, half standing and
+  facing it); kiosk customers at the window and people round a fountain (`[people.square]`); walkers in
+  medina lanes and village streets (`[people.lane]`); and on the stair paths of modern estates
+  (`[people.stair]`, walking or two neighbours chatting). A walker may come as a pair or a parent with a
+  child, side by side (`pair_gap`). Outfits from `[people.outfits]` by district kind (`cafe` for cafes,
+  `children` beside a parent); every chance times `density`.
+  The tile also gathers a halo (`halo` m) of what its neighbours own: wall pieces of their buildings
+  (`Dresser.wall_pieces`), street props and cars, squares and trees. Candidates are sorted (seats, squares,
+  shops, landmarks, stairs, promenade, sidewalks, souks, lanes) and one gives way to any earlier one too
+  close, judged on the candidates alone with each pose's largest kit box: standing people `clear` apart,
+  `seated_gap` from a seated one, `pair_gap` within a group; so tiles agree at their edges. The tile's own
+  then go through `_cast` (each figure shown costs its mesh in the tile: the most frequent figures are
+  kept while they fit in `bytes_share` of the tile's estimated bytes, `tile_bytes`; others take a kept
+  figure of the same pose and outfit, else body, else are left out) and the checks: no footprint within
+  `wall_gap` (seated: touching); all four box corners and the origin on one floor kind the place allows
+  (a walk or paved corner, a pedestrian lane: souk, alley, impasse, medina street or earth village street,
+  or open ground; never a carriageway; seated: anywhere but a carriageway); no piece's triangles below
+  head height and above `foot_level` within `piece_gap` (a person may stand under an arcade, an awning or a
+  crown, not in a pillar, trunk, lamp post, stall, cart, goods, bench, kiosk, fountain or car; a sitter's
+  own seat piece aside). Heights: walks from their drawn triangles (as `walk_meshes` drapes them, a few cm
+  off `Ground.surface` between outline points), lanes and paved corners `Ground.surface`, open ground the
+  terrain mesh (`Ground.drawn`), a stair path its top. The door bench (`_front`) now stands on the street's
+  level like the door (`front_surface`), and a free-standing one (`tounes/bench_sbs`) backs onto the wall
+  instead of half inside it. Quick capital: 1,857 people (523 souk walkers, 128 browsers, 157 seated, 855
+  on sidewalks, 11 on the promenade, 42 at the mosque and gates, 128 in lanes); the old-town tile shows all
+  26 figures, light tiles 3-6. Costs: worst tile +8.3% bytes and +23% drawn triangles.
 - **Massed buildings** (prompt 23, `city/massing.py`): the street windows, open-wall windows and slab
   windows of each column go up to the floors of the wall there (`floors_at` under the window's whole
   width, `[dressing] window_half` m each side), so none floats above a lower step or on a set-back
@@ -565,7 +603,8 @@ variants (citrus with `fruit` oranges), `[dressing.hedge]` the villa hedges and 
 `[dressing.vehicles]` the car body colors and `[dressing.parking]` the parking rule, gaps, car mix and
 taxi rank,
 `[greenery]` the street, courtyard and villa trees of prompt 24 and `[dressing.climber]` the bougainvillea curtains (clump count and size, drop,
-stems, colors). Adding a style = a new file; code must not assume
+stems, colors), `[dressing.people]` the figures and `[people]` where they go (density, gaps, one table per
+place, `[people.seats]` the seats measured on the kit, `[people.outfits]` the mix by district). Adding a style = a new file; code must not assume
 Maghreb-specific values.
 
 ## 8. Performance budgets

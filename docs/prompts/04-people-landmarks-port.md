@@ -261,6 +261,9 @@ tiles smaller.
    - no instancing `SCALE` accessor for a piece whose instances all have scale 1 (windows,
      doors, balconies): since prompt 20.1 the modern-estate tiles are mostly such instances
      (40 bytes each today) and grew by up to +37% (accepted by the lead, CP3 rechecks).
+   - light tiles currently show only their 3-6 most common figures to stay under the +10% byte
+     budget (about 14 KB per figure mesh, `[people] bytes_share`); quantized meshes should free room
+     to show more figure variety there.
 3. Teach both readers the new types: `read_parts` in `mesh/gltf.py` (int8 and int16 in its dtype
    table, normalization) and `instance_transforms` in `tools/blender_import.py` (used by
    `blender_beauty.py` too).

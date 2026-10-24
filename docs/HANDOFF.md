@@ -464,6 +464,25 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
   round legs grow by 1/cos(22.5 degrees) or a shin pokes through a skirt. A skirt above the knee needs
   the thighs drawn. Check shapes with a throwaway z-buffer render first: a painter's sort showed the
   head through its own hood.
+- **People in the streets** (prompt 29, `city/crowd.py`, `[people]`): tile bytes are the tight budget, not
+  triangles: each figure a tile shows costs its mesh (about 14 KB as written), so all 26 cost 500 KB and a
+  light tile (300-800 KB) can afford 2-5. A cast by people count passed the quick build and failed the full
+  capital (+15% on 360 KB tiles); `_cast` now keeps the most frequent figures within `bytes_share` of
+  `tile_bytes` (within 10% of the written size; people are estimated on the high side). A person belongs
+  to the tile holding its origin, but who gives way must agree on both sides of an edge: candidates come
+  from sources that do not depend on the tile (street stations, seats, shops), and one gives way to any
+  earlier candidate too close whatever becomes of that one (no chain), measured with its pose's largest kit
+  box so a tile may still swap the figure. Obstacles across an edge come from a halo (`wall_pieces` of the
+  neighbours' buildings, their street props, cars, squares, trees). Kit boxes are too coarse for arcade
+  bays, trees, lamps and kiosks with awnings: test the piece's triangles in the person's height band, as
+  plan hulls (an upright face is a line) in an STRtree; a union of buffered hulls cost 0.57 s per tile.
+  Drawn walks sit up to 5 cm off `Ground.surface` between their 15 m outline points: people stand on the
+  walk's own triangles (`_walk_z`); a walk piece is drawn by the tile holding its centroid, so the test adds
+  the neighbours' walks. Door benches stood on the terrain at the wall, about 0.2 m below the souk ribbon
+  (a sitter's feet sank): `_front` now sets them on `front_surface`, and `tounes/bench_sbs` (ground anchor)
+  no longer stands half inside the wall. Doukkana walls are a few mm off straight: sitters 0.26 m out.
+  A settlement without streets (quick village 5) crashed `Squares._sabil_fits` (`surface_tree` None): squares
+  now query through `_streets`/`_buildings` and give such a place no sabil, kiosk, fountain or bench.
 - **Old-town tiles** reach about 5 MB on the quick build and 8 MB on the full capital
   (`tile_65_106`, mostly roofs since prompt 15); task Q5 (prompt 39) brings them down.
 

@@ -2217,3 +2217,127 @@ def test_people_are_low_poly_figures_standing_or_seated_right(world, built_tile)
             assert all(np.array_equal(part[k], again[name][m][k]) for k in ("pos", "nrm", "idx"))
     other = people_pieces(world.seed + 1, cfg)
     assert not np.array_equal(_gen(other["person_shirt_stand"]), _gen(pieces["person_shirt_stand"]))
+
+
+# --- people in the streets (prompt 29) -------------------------------------------------------------
+
+def _low_hull(kit, p, top: float):
+    """Plan outline (placed) of the convex hull of a piece's vertices less than `top` m above its origin, or None."""
+    pos = np.concatenate([q["pos"] for q in kit.pieces[p.piece].parts.values()])
+    pos = pos[pos[:, 1] < top / p.scale]
+    if not len(pos):
+        return None
+    x, y = pos[:, 0] * p.scale * p.stretch, -pos[:, 2] * p.scale
+    c, s = math.cos(p.yaw), math.sin(p.yaw)
+    return shapely.MultiPoint(np.stack([p.x + x * c - y * s, p.y + x * s + y * c], 1)).convex_hull
+
+
+def test_people_stand_on_the_drawn_ground_clear_of_walls_cars_pieces_and_each_other(world, plan, built_mesh):
+    tc, i, j, mb, placements = built_mesh
+    kit, cfg = tc.kit, world.style["people"]
+    x0, y0 = i * tc.size, j * tc.size
+    poses = {"person_" + k: s["pose"] for k, s in world.style["dressing"]["people"]["pieces"].items()}
+    people = [p for p in placements if kit.pieces[p.piece].category == "person"]
+    assert len(people) > 500 and all(x0 <= p.x < x0 + tc.size and y0 <= p.y < y0 + tc.size for p in people)
+    sit = [p for p in people if poses[p.piece] == "sit"]
+    stand = [p for p in people if poses[p.piece] != "sit"]
+    assert len(sit) > 40 and len({p.piece for p in people}) >= 20
+    feet = [_plan_box(kit, p) for p in stand]
+    seats = [_plan_box(kit, p) for p in sit]
+    dresser, centers = tc.cities[0][4], tc.cities[0][1]        # with what the neighbouring tiles draw nearby
+    around = placements + dresser.crowd()._halo(shapely.box(x0, y0, x0 + tc.size, y0 + tc.size), shapely.box(
+        x0 - cfg["halo"], y0 - cfg["halo"], x0 + tc.size + cfg["halo"], y0 + tc.size + cfg["halo"]), centers)
+    # never inside a building or a car
+    fps = STRtree([b.footprint for b in plan.buildings])
+    assert not len(fps.query(feet + seats, predicate="intersects")[0])
+    cars = [_plan_box(kit, p) for p in around if kit.pieces[p.piece].category == "vehicle"]
+    assert cars and not len(STRtree(cars).query(feet + seats, predicate="intersects")[0])
+    # standing people keep `clear` apart; closer only side by side in a pair or a family (same heading)
+    tree = STRtree(feet)
+    a, b = tree.query(feet, predicate="dwithin", distance=cfg["clear"] - 1e-6)
+    partners = np.zeros(len(stand), dtype=int)
+    for m, n in zip(a.tolist(), b.tolist()):
+        if m >= n:
+            continue
+        p, q = stand[m], stand[n]
+        heading = np.array([-math.sin(p.yaw), math.cos(p.yaw)])
+        assert abs(p.yaw - q.yaw) < 1e-9 and abs(heading @ (q.x - p.x, q.y - p.y)) < 1e-6, (p, q)   # abreast
+        assert feet[m].distance(feet[n]) >= cfg["pair_gap"] - 1e-6
+        partners[[m, n]] += 1
+    assert partners.max() <= 1 and partners.sum() > 20
+    a, b = STRtree(seats).query(feet, predicate="dwithin", distance=cfg["seated_gap"])
+    assert all(feet[m].distance(seats[n]) >= cfg["seated_gap"] - 1e-6 for m, n in zip(a.tolist(), b.tolist()))
+    # clear of goods, stalls, carts, pots, benches, cafe sets, kiosks, fountains, lamp posts and tree trunks
+    # (the hull of their parts below 1.5 m), except the seat a person sits on
+    solid = {"vehicle", "kiosk", "goods", "ground_prop", "furniture", "bench", "pot", "cat", "lamp", "tree", "fountain"}
+    things = [p for p in around if kit.pieces[p.piece].category in solid and kit.pieces[p.piece].anchor == "ground"]
+    boxes = [_low_hull(kit, p, 1.5) for p in things]
+    things, boxes = [p for p, q in zip(things, boxes) if q is not None], [q for q in boxes if q is not None]
+    assert len(things) > 500
+    hit_p, hit_t = STRtree(boxes).query(feet, predicate="intersects")
+    for m, k in zip(hit_p.tolist(), hit_t.tolist()):
+        assert feet[m].intersection(boxes[k]).area < 1e-4, (stand[m], things[k])   # a standing person in a piece
+    things = [p for p in around if p.piece in cfg["seats"]]
+    on = zip(*STRtree([_low_hull(kit, p, 1.5) for p in things]).query(seats, predicate="intersects"))
+    # seated people sit on a real seat, at its height: an upward face of the piece under their origin
+    seat_h = world.style["dressing"]["people"]["seat"]
+    found = set()
+    for m, k in on:
+        p, t = sit[int(m)], things[int(k)]
+        pc = kit.pieces[t.piece]
+        dx, dy = p.x - t.x, p.y - t.y
+        lx = (dx * math.cos(t.yaw) + dy * math.sin(t.yaw)) / (t.scale * t.stretch)
+        ly = (-dx * math.sin(t.yaw) + dy * math.cos(t.yaw)) / t.scale
+        for part in pc.parts.values():
+            tri = part["pos"][part["idx"].reshape(-1, 3)]
+            nrm = np.cross(tri[:, 1] - tri[:, 0], tri[:, 2] - tri[:, 0])
+            up = tri[nrm[:, 1] > 0.9 * np.linalg.norm(nrm, axis=1)]
+            if not len(up):
+                continue
+            inside = shapely.contains_xy(shapely.polygons(np.stack([up[:, :, 0], -up[:, :, 2]], 2)), lx, ly)
+            for h in up[inside][:, :, 1].mean(axis=1):
+                if abs(p.z + seat_h - (t.z + h * t.scale)) < 0.015:
+                    found.add(int(m))
+    assert found == set(range(len(sit))), [sit[m] for m in set(range(len(sit))) - found]
+    # standing on the drawn surface: the highest drawn face under the origin, below the hips, is the floor
+    # (with the walks a neighbouring tile draws: a walk piece belongs to the tile holding its centroid)
+    from citygen.mesh.tile import walk_meshes
+    walks = MeshBuilder(origin=(x0, y0))
+    walk_meshes(walks, tc, plan, shapely.box(x0 - 150.0, y0 - 150.0, x0 + tc.size + 150.0, y0 + tc.size + 150.0))
+    tris = np.concatenate([q["pos"][q["idx"].reshape(-1, 3)] for m in (mb, walks) for q in m.gltf_parts().values()])
+    nrm = np.cross(tris[:, 1] - tris[:, 0], tris[:, 2] - tris[:, 0])
+    tris = tris[nrm[:, 1] > 0.2 * np.linalg.norm(nrm, axis=1)]
+    plan_tris = shapely.polygons(np.stack([tris[:, :, 0] + x0, y0 - tris[:, :, 2]], 2))
+    pi, ti = STRtree(plan_tris).query(shapely.points([(p.x, p.y) for p in stand]), predicate="intersects")
+    top = np.full(len(stand), -np.inf)
+    for m, k in zip(pi.tolist(), ti.tolist()):
+        t = tris[k]
+        q = np.array([stand[m].x - x0, y0 - stand[m].y])
+        e1, e2 = t[1, [0, 2]] - t[0, [0, 2]], t[2, [0, 2]] - t[0, [0, 2]]
+        det = e1[0] * e2[1] - e1[1] * e2[0]
+        u = ((q - t[0, [0, 2]])[0] * e2[1] - (q - t[0, [0, 2]])[1] * e2[0]) / det
+        v = (e1[0] * (q - t[0, [0, 2]])[1] - e1[1] * (q - t[0, [0, 2]])[0]) / det
+        z = t[0, 1] + u * (t[1, 1] - t[0, 1]) + v * (t[2, 1] - t[0, 1])
+        if z < stand[m].z + 0.5:
+            top[m] = max(top[m], z)
+    err = np.abs(top - np.array([p.z for p in stand]))
+    assert err.max() < 0.05, (err.max(), stand[int(np.argmax(err))])
+    # outfits follow the district: robes and wraps in the medina, more modern clothes outside it
+    medina = [p for p in stand if plan.medina.contains(shapely.Point(p.x, p.y))]
+    outside = [p for p in stand if not plan.medina.contains(shapely.Point(p.x, p.y))]
+    trad = lambda ps: sum(p.piece.split("_")[1] in ("jebba", "safsari") for p in ps) / len(ps)   # noqa: E731
+    assert len(medina) > 200 and len(outside) > 100 and trad(medina) > trad(outside) + 0.15
+
+
+def test_a_settlement_without_streets_dresses_without_squares_or_crowd_errors(world, built_tile, monkeypatch):
+    # quick village 5 has a mosque but no streets: no sabil, kiosk, fountain or bench, and tiles still build
+    from citygen.mesh.tile import build_tile
+    s = world.settlements[5]
+    village = plan_city(world, s)
+    assert not village.streets and any(lm.kind in world.style["dressing"]["squares"]["sabil"] for lm in village.landmarks)
+    monkeypatch.setattr("citygen.mesh.tile.make_kit", lambda *a: built_tile[0].kit)   # the same kit, made once
+    tc = TileContext(world, [village])
+    dresser = tc.cities[0][4]
+    assert dresser.squares().items() == []
+    mb, placements = build_tile(tc, int(s.x // tc.size), int(s.y // tc.size))
+    assert mb.triangles > 0 and all(dresser.kit.pieces[p.piece].category != "fountain" for p in placements)

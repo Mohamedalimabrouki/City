@@ -19,6 +19,7 @@ from shapely.geometry.polygon import orient
 from shapely.ops import unary_union
 from shapely.strtree import STRtree
 
+from ..city.crowd import tile_bytes
 from ..city.dressing import Dresser, Placement, building_highs, ground_heights
 from ..city.geo import frame, lines, polygons
 from ..city.ground import STREET_LIFT, Ground, apron_cells, terrain_cells
@@ -644,6 +645,9 @@ def build_tile(tc: TileContext, i: int, j: int) -> tuple:
                         placements.append(kit_tree)
                     else:
                         tree_mesh(mb, t, float(z))
+        if dresser is not None and dresser.world.style.get("people"):     # people in the streets (prompt 29)
+            ground_heights(tc.ground, placements)
+            placements += dresser.crowd().people(tile, placements, centers, tile_bytes(tc.kit, mb, placements))
     ground_heights(tc.ground, placements)
     for span in spans:
         if span.kind == "sabat":
