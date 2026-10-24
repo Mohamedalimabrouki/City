@@ -12,6 +12,8 @@ The code builds the world; agents only improve the code. Keep every session smal
 - On Ali's Mac use `.venv/bin/python` instead of `python`.
 
 ## Before you code
+- Where the work stands: the checklist in `docs/ROADMAP.md` and the newest entry at the top of
+  `docs/WORKLOG.md` (a "Resume here" entry when the work paused: read it first).
 - Read only what the task needs: the task in `docs/ROADMAP.md`, the matching parts of
   `docs/SPEC.md`, and the files the task names.
 - Never open files in `output/` (huge generated data). Use `python -m citygen stats`,
@@ -30,8 +32,8 @@ The code builds the world; agents only improve the code. Keep every session smal
 - Never write the em dash character anywhere; use "-".
 
 ## Check your work before committing
-- `python -m pytest -q` (about 21 s here) must pass; `python -m citygen build --quick` must
-  finish (about 10 s here). For visual changes, look at `output/*/maps/*.png` or a snapshot.
+- `python -m pytest -q` (about 29 s here) must pass; `python -m citygen build --quick` must
+  finish (about 13 s here). For visual changes, look at `output/*/maps/*.png` or a snapshot.
 - Mark the task done in `docs/ROADMAP.md`, update docs the change touches, then commit only the
   files you changed (never `git add -A`) with a clear message, and push (GitHub is the backup).
 

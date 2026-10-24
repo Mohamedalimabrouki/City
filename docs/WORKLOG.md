@@ -15,6 +15,41 @@ Entry format:
 - Doubts and questions for Ali: <none, or the question>
 ```
 
+## 2026-10-24 - Resume here (paused after prompt 41)
+- State: prompts 1-41 are done, committed and pushed (branch `claude/procedural-city-generator-xop72h`,
+  last prompt commit 7213a25). Ali paused the work at 60% of his weekly limit; continue when he says
+  (for example "Do prompt 42." or "continue the playbook").
+- How the work runs since prompt 20 (DeepSeek usage ended after 19): the lead session (Opus) briefs one
+  Opus `city-builder` helper per prompt (effort from the playbook table). The helper reads CLAUDE.md, its
+  prompt section and the HANDOFF lessons, implements, tests, fingerprints, takes the pictures and writes
+  the docs, but never commits. The lead reviews the diff, tests, fingerprint and pictures (the GPU
+  browser pane for night glass and things near the sea, which headless snapshots draw wrong), sends
+  follow-ups, then commits one commit per prompt and pushes. Checkpoints add an independent Opus
+  reviewer that reads only the committed history with git, so it can run beside a builder.
+- Next: 42 R1 phone page. Quick build; derive the page's camera spots from the index views (heights
+  from `Ground.surface` + 1.7 m); `tools/make_artifact.py output/bodjantouna-42 output/artifact --title
+  "Goumosbane in 3D"`; then with Claude's Artifact tool read
+  https://claude.ai/artifact/HMtdFZUV9sGmyPn4q8mKsq and publish the folder to that same link (keep its
+  icon; 16 MB per file, 64 MB per publish; check it loads). Then 43 CP4: the routine of prompt 6 for
+  prompts 28-42, compared with `fp-cp3`, plus the extra checks of its section (several seeds, landmark
+  and port placement, tile sizes, LOD switching, the phone page).
+- For CP4, collected while reviewing 28-41: (1) speed: the full capital went from about 48 s after CP3
+  to about 60 s, tests from 20 s to 29 s: profile and win time back with byte-identical output, as CP3
+  did; (2) light tiles over their byte budgets, accepted one by one (estate windows in 20.1; harbor and
+  sea tiles in 34-36; household re-rolls after the kasbah, the cathedral and the station in 30, 32, 33):
+  look at them together; (3) prompt 39's 3.5 MB target was relaxed (densest quick tile 4.67 MB): the
+  next gains are merging each full tile's meshes per material (draw calls, prompt 41) and welding flat
+  vertices with a flat-shading path; (4) kiosk cafes only in tiles that hold buildings (37, a byte
+  guard); (5) quick builds lose lod1 blocks whose centroid lies in an unexported tile (40); (6) the
+  station's level ground (33) and the port's level band (34) sit in `Ground`'s hot paths: check their
+  cost; (7) `output/full` holds stale files from older builds (harmless; a clean rebuild removes the
+  fingerprint noise); (8) two tests were loosened after plan shifts (pillars on paved corners > 1,
+  menzah count > 2): make them robust rather than count-based.
+- Other cities, built with today's code on 24 October: `output/megine/bodjantouna-42` (Megine) and
+  `output/city1/bodjantouna-42` (Sazouches el Gharbi). `python -m citygen list` names every settlement;
+  `python -m citygen build --area city:NAME --out output/FOLDER` builds one, then `citygen view` it.
+- Doubts and questions for Ali: none.
+
 ## 2026-10-24 - Prompt 41 C2b Viewer level of detail
 - Commit: (see git log) | Model: Opus 5.5, high (playbook: Sonnet, high)
 - Changed: `tools/viewer/index.html` (tile slots with want/shown/roots/jobs, lod1 everywhere and full under

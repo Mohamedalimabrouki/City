@@ -73,7 +73,15 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
   arcade zones at cut corners, lamps inside wider streets, a float in the lit-flat stream key and
   an unbounded cache; a speed round made tiles 26% faster and tests 31 s -> 20 s with
   byte-identical output. Reference for checkpoint 43: `output/checks/fp-cp3.json` and
-  `output/checks/cp3-street.png`, `cp3-souk.png`. Next: prompt 28.
+  `output/checks/cp3-street.png`, `cp3-souk.png`.
+- Prompts 28-41 are done (people, landmarks, port, performance): 26 people figures and crowds,
+  the kasbah, covered souks, cathedral and theatre, the station with its tracks, quays with a
+  breakwater and lighthouse, boats and cranes, the corniche promenade, seaside cafes, the
+  Blender kit export, lighter tiles (quantized, -45%), lod1 tiles and the viewer's level of
+  detail (whole capital shown in 0.8 s from the air). Not yet reviewed by a checkpoint: CP4
+  (prompt 43) does that. The work paused on 24 October 2026 (Ali at 60% of his weekly limit);
+  the "Resume here" entry at the top of `docs/WORKLOG.md` lists what is next and what CP4 must
+  check. Next: prompt 42 (phone page, needs Claude's Artifact tool), then 43.
 - Seed 42 makes the country **Bodjantouna** with the capital **Goumosbane**.
   `python -m citygen build --quick` writes it to `output/bodjantouna-42/` in about 10 seconds on
   Ali's Mac (20 seconds in the cloud).
@@ -82,6 +90,8 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
 - 3D page for the phone (made from the quick build):
   https://claude.ai/artifact/HMtdFZUV9sGmyPn4q8mKsq . Rebuild it with `tools/make_artifact.py`
   after a big visual step, then publish the folder to that same link from a Claude session.
+  It still shows the city of mid-October (before prompts 17-41); prompt 42 refreshes it. The
+  builder itself works with today's tiles, textures and lod1 files (checked in prompts 39 and 41).
 
 ## Decisions and lessons (do not relearn them)
 
@@ -683,11 +693,17 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
 
 ## Known weak spots
 
-Task Q5 in the roadmap: heavy old-town tiles. Prompt 39 quantized them and dropped flat normals (densest
-quick tile 8.7 -> 4.7 MB, full capital 11.1 -> 5.8 MB, all 168 full tiles 310 -> 171 MB), still over the
-3.5 MB goal (WORKLOG, prompt 39). The viewer still renders the street view in about 4.6 ms per
-frame on High (M1, golden hour), so prompts 39-41 (lighter tiles, level of detail) have room to
-work before it matters. Since prompt 20.2 every dwelling in old towns,
+Tile weight: prompt 39 quantized tiles and dropped flat normals (densest quick tile 8.7 -> 4.7 MB,
+full capital 11.1 -> 5.8 MB, all 168 full tiles 310 -> 171 MB); the 3.5 MB goal was relaxed by the
+lead (welding flat vertices would break the AO normal pass and Blender/Godot smoothing). Prompt 41
+showed that from the air most frame time is draw calls of the full tiles: merging each full tile's
+meshes per material is the next big viewer gain. Several light tiles went over their per-prompt byte
+budgets for reasons the lead accepted (estate windows, harbor and sea tiles, household re-rolls after
+landmarks): CP4 should look at them together. Build time crept up again after CP3 (full capital
+about 48 s -> 60 s by prompt 40; tests 20 s -> 29 s): CP4 should profile and win time back with
+byte-identical output, as CP3 did. Headless snapshots (SwiftShader) draw lit window glass as grey
+dots from afar and hide geometry within about 1 m above the sea: judge those in the GPU viewer
+(the browser pane; `.claude/launch.json` has viewer entries, untracked). Since prompt 20.2 every dwelling in old towns,
 villages, residential and suburb districts opens on a street, alley or impasse (full capital: 6,641
 impasses, 160 km; none enclosed). The planner is 4.9 s slower for it (15.5 s on the full capital);
 cutting several far-apart lanes per block per round would shorten the old town's 300 rounds.
