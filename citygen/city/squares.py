@@ -32,7 +32,9 @@ from .geo import polygons
 from .openings import piece_box, piece_boxes, wall_arrays
 from .parking import lying_on, street_frame
 
-MONUMENTS = {"mosque_hall", "mosque_court", "wall", "tower", "marabout"}   # undressed walls a sabil may use
+MONUMENTS = {"mosque_hall", "mosque_court", "wall", "tower", "marabout",
+             "kasbah_wall", "kasbah_tower", "kasbah_gate"}   # undressed walls a sabil may use
+SABIL_ON = {"kasbah": "kasbah_gate"}       # landmarks whose sabil stands on one building: by the kasbah gate
 FOOT = ("souk", "alley", "impasse")         # pedestrian lanes: a sabil's basin may stand on them
 INF = 1e9
 
@@ -351,13 +353,17 @@ class Squares:
         for b in sorted(int(i) for i in self._buildings(here, predicate="dwithin", distance=self.c("sabil_reach", 40.0))):
             bd = self.plan.buildings[b]
             dressed = bd.kind in self.DRESSED
-            if not dressed and bd.kind not in MONUMENTS:
+            if not dressed and bd.kind not in MONUMENTS or SABIL_ON.get(lm.kind, bd.kind) != bd.kind:
                 continue
             a, q, n, length = wall_arrays(bd.footprint)
             for i in np.nonzero(length >= width + 2 * gap)[0].tolist():
                 u = (q[i] - a[i]) / length[i]
                 s = np.arange(width / 2 + gap, length[i] - width / 2 - gap + 1e-9, 1.0)
                 cs = a[i] + u * s[:, None]
+                for ax, ay, _yaw, aw, _ah, sill, af, _mat in bd.arches:    # never in front of a gate or a
+                    if sill <= 0.0:                                         # door (prompt 30)
+                        cs = cs[np.hypot(cs[:, 0] - ax, cs[:, 1] - ay) >= aw / 2 + af + width / 2 + gap]
+                s = np.arange(len(cs))
                 probe = (cs[:, None, :] + n[i] * steps[:, None]).reshape(-1, 2)
                 hit = self.d.streets_at(probe).reshape(len(s), len(steps))
                 for m in range(len(s)):

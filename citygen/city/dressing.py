@@ -1375,7 +1375,8 @@ class Dresser:
             if p.piece in self._stairs:
                 key, odds = ("stair", part[0]), stair
             else:
-                key, odds = (round(math.degrees(p.yaw)) % 360, max(0, int((p.z - high + 0.01) // fh))) + part, chance
+                side = math.floor(math.degrees(p.yaw) + 0.5 + 1e-7) % 360   # a wall at exactly x.5 degrees stays
+                key, odds = (side, max(0, int((p.z - high + 0.01) // fh))) + part, chance   # one side (float noise)
             if key not in draws:
                 draws[key] = self.rng("lit", k, *key).random()
             if draws[key] < odds:

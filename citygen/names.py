@@ -130,7 +130,8 @@ class NameMaker:
             return f"{core} {article(desc)} {desc}"
         return core
 
-    def district(self, kind: str) -> str:
+    def district(self, kind: str, **extra) -> str:
+        """A name from the `[names.districts]` templates of `kind`; `extra` fills other fields ({s})."""
         templates = self.n.get("districts", {}).get(kind, ["{n}"])
         core = self.core()
-        return self._pick(templates).format(n=core, a=article(core))
+        return self._pick(templates).format(n=core, a=article(core), **extra)

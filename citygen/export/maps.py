@@ -27,6 +27,8 @@ BUILDING_RGB = {
 }
 TREE_RGB = {"citrus": (214, 136, 46)}   # bitter oranges (prompt 24); every other tree is green
 GARDEN_RGB = (176, 204, 128)            # villa gardens (prompt 24)
+KASBAH_RGB = {"kasbah_wall": (120, 82, 50), "kasbah_tower": (120, 82, 50), "kasbah_gate": (120, 82, 50),
+              "kasbah_palace": (236, 226, 204), "kasbah_ground": (214, 198, 166)}   # prompt 30
 ROAD_STYLE = {"national": ((196, 72, 52), 3.2), "regional": ((222, 150, 60), 2.2),
               "local": ((120, 110, 96), 1.2)}
 
@@ -140,15 +142,18 @@ def city_map(world, plan, path, meters_per_px: float | None = None, max_px: int 
     kinds = {i: d.kind for i, d in enumerate(plan.districts)}
     for j in villa_lots(plan, [k for k, b in enumerate(plan.buildings) if b.kind == "villa"]).values():
         fill_poly(plan.parcels[j].polygon, GARDEN_RGB)
-    for b in plan.buildings:
+    for b in sorted(plan.buildings, key=lambda b: b.kind != "kasbah_ground"):   # paving under the rest
         color = BUILDING_RGB.get(kinds.get(b.district, "residential"), (150, 140, 130))
         if b.kind in ("mosque_hall", "minaret", "mosque_court"):
             color = (60, 120, 90)
         elif b.kind in ("wall", "tower"):
             color = (150, 110, 70)
+        elif b.kind in KASBAH_RGB:
+            color = KASBAH_RGB[b.kind]
         fill_poly(Polygon(b.footprint.exterior), color)
+        court = KASBAH_RGB["kasbah_ground"] if b.kind in KASBAH_RGB else DISTRICT_RGB.get(kinds.get(b.district), (235, 225, 205))
         for hole in b.footprint.interiors:
-            draw.polygon(ring(hole.coords), fill=DISTRICT_RGB.get(kinds.get(b.district), (235, 225, 205)))
+            draw.polygon(ring(hole.coords), fill=court)
     tree_r = max(1.0, 2.2 / mpp)
     for t in plan.trees:
         cx, cy = (t.x - minx) / mpp, (maxy - t.y) / mpp

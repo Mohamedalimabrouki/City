@@ -15,6 +15,43 @@ Entry format:
 - Doubts and questions for Ali: <none, or the question>
 ```
 
+## 2026-10-24 - Prompt 30 A5a The kasbah
+- Commit: (see git log) | Model: Opus 5.5, high (playbook: Sonnet, high)
+- Changed: `citygen/city/kasbah.py` (new: placement, walls, towers, gate, palace, mosque, parade ground),
+  `citygen/city/medina.py` (alleys drop crossings in the kasbah's cut, a souk from its gate; the rampart
+  leaves out its outer wall and towers), `citygen/city/__init__.py` (kasbah buildings and landmark appended
+  last), `citygen/city/model.py` (`Building.battlement`, `Building.arches`), `citygen/city/roofs.py` (no
+  parapet under merlons), `citygen/mesh/builder.py` (`add_boxes`, `add_battlement`, `add_arch`),
+  `citygen/mesh/tile.py` (battlements, arches, `paving_mesh` for `kasbah_ground`), `citygen/city/squares.py`
+  (kasbah walls are monuments; its sabil stands on the gate tower, never before a door),
+  `citygen/city/dressing.py` (lit-flat key at exactly x.5 degrees), `citygen/names.py`, `citygen/export/maps.py`,
+  `citygen/export/lore.py`, `styles/maghreb.toml` (`[kasbah]`, `kasbah = true` for capital and city,
+  `stone_kasbah`, names, sabil chance), tests (3 new, 2 extended, 2 adjusted), docs.
+- Kasbah: quick capital "Kasbah of Goumosbane", walls 99 x 84 m (8 wall pieces, 7 towers, gate tower),
+  palace 42 x 29 m (4 floors, 14 m), mosque hall 22 m wide, minaret 26.7 m; full capital 163 x 122 m (10
+  towers), palace 60 x 46 m, hall 30 m, minaret 36 m. Every full-size city gets one (7 more); no town or
+  village. Its walls sit on the 82-97th percentile of the old town's outline height.
+- Plan parts (the kasbah takes old-town space; every later household and massing choice re-rolls): quick
+  capital streets 488 -> 454, impasses 173 -> 151, blocks 158 -> 154, parcels 1,756 -> 1,707, buildings
+  1,708 -> 1,683 (25 kasbah ones appended), households 1,367 -> 1,313, souks 14 -> 15 (from the kasbah gate
+  to the great mosque), trees 8,017 -> 8,010, landmarks 9 -> 10. Full capital streets 11,402 -> 11,284,
+  impasses 6,641 -> 6,541, parcels 41,947 -> 41,775, buildings 39,225 -> 39,121, households 38,568 ->
+  38,451, souks 13 -> 16.
+- Checks: tests 87 passed (23.0 s; new ones about 0.5 s); `build --quick` 10.6 s; fingerprint: `plan/*`,
+  the 9 tiles, `tiles/index`, `maps/goumosbane.png`, `gazetteer` (all allowed). Worst quick tile +9.0%
+  (`tile_12_23`, a light tile: other car, figure and door variants after the re-roll, not the kasbah; the
+  kasbah's own tiles +2.6% and +7.4%); full capital worst +8.7% (`tile_68_100`), budget 10%. Full capital
+  50.1 -> 50.9 s (planner 16.2 -> 16.3 s, CPU 227 -> 218 s).
+- Look: `output/checks/30.png` (aerial: the walled square on the old town's south edge) and
+  `output/checks/30-kasbah.png` (from the old town, 200 m: crenellated walls over the roofs, square towers,
+  the gate tower with its horseshoe arch, the palace with arched windows, the minaret, the paved parade
+  ground). City map: the kasbah in dark stone, labelled. Blender: `output/bodjantouna-42/goumosbane.blend`.
+- Doubts and questions for Ali: none. For the lead: (1) `test_cut_corners...` pillar guard lowered from > 5
+  to > 1: the re-rolled massing leaves 2 pillar feet on paved corners in the quick capital (the checks on
+  them pass); (2) a latent lit-flat bug surfaced (a wall at exactly -127.5 degrees split a flat into two
+  stream keys) and is fixed in `Dresser._light`; (3) no people on the parade ground yet (the bonus): the
+  crowd has no source there.
+
 ## 2026-10-24 - Prompt 29 P2 People in the streets
 - Commit: (see git log) | Model: Opus 5.5, medium (playbook: Sonnet, medium)
 - Changed: `citygen/city/crowd.py` (new: candidates per place, halo, thinning, figure cast, checks),

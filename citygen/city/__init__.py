@@ -3,6 +3,7 @@
 Pipeline (each step is its own module):
   layout     land, city limit, old town outline, neighborhoods and their kinds
   medina     great mosque, gates, souks and alleys, ramparts
+  kasbah     the citadel on the old town's high edge (capital and cities; its buildings come last)
   streets    arterials, ring road, boulevard, road links, local street grids, street trees
   parcels    blocks between streets, split into building lots
   impasses   dead-end lanes to the lots without a street (old town and neighborhoods)
@@ -62,7 +63,7 @@ def plan_city(world, settlement) -> CityPlan:
     medina = medina_outline(ctx, boundary)
     districts = neighborhoods(ctx, boundary, medina)
     assign_kinds(ctx, districts, medina, axis, land)
-    streets, buildings, landmarks, cut = [], [], [], None
+    streets, buildings, landmarks, cut, kasbah = [], [], [], None, None
     if medina is not None:
         kind = "village" if medina is boundary else "medina"
         name = s.name if kind == "village" else "Medina of " + s.name
@@ -73,7 +74,7 @@ def plan_city(world, settlement) -> CityPlan:
         for r in roads:
             hit = LineString(r.coords).intersection(medina.exterior)
             crossings += [p for p in getattr(hit, "geoms", [hit]) if p.geom_type == "Point"]
-        streets, buildings, cut, landmarks, _gates = old_town(ctx, medina, 0, axis, crossings)
+        streets, buildings, cut, landmarks, _gates, kasbah = old_town(ctx, medina, 0, axis, crossings)
     streets += major_streets(ctx, districts, medina, axis, land)
     streets += road_links(ctx, roads, streets)
     streets += local_streets(ctx, districts)
@@ -87,9 +88,13 @@ def plan_city(world, settlement) -> CityPlan:
     houses, trees = make_buildings(ctx, parcels, districts, used)
     green_buildings, green_trees = cemetery_and_parks(ctx, districts, blocks)
     buildings += houses + mosques + green_buildings
+    marks = landmarks + mosque_marks
+    if kasbah is not None:   # appended last: every earlier building and landmark keeps its index
+        buildings += kasbah.buildings
+        marks.append(kasbah.landmark)
     trees += green_trees + street_trees(ctx, streets)
     plan = CityPlan(s, boundary, land, medina, districts, streets, blocks, parcels, buildings,
-                    trees, landmarks + mosque_marks, walks)
+                    trees, marks, walks)
     plan.households = households(ctx, buildings, districts)
     plan.souks = souks(ctx, streets)
     apply_massing(ctx, plan)

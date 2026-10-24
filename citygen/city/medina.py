@@ -12,6 +12,7 @@ from shapely.geometry import LineString, MultiPoint, Point
 from shapely.ops import unary_union
 
 from ..mesh.builder import rectangle
+from . import kasbah as citadel
 from .geo import jittered_grid, largest, lines, polygons, ray_exit, tangent_angle
 from .model import Building, Landmark, Street
 
@@ -69,12 +70,18 @@ def gates(ctx, medina, axis: float, crossings: list, count: int) -> list:
     return out
 
 
-def alley_network(ctx, area, site, gate_pts, entrance, dc, medina=None, wall=0.0, reach=0.0) -> list:
-    """Alleys from a Voronoi pattern: souks join gates to the mosque, other alleys are thinned out."""
+def alley_network(ctx, area, site, gate_pts, entrance, dc, medina=None, wall=0.0, reach=0.0, kasbah=None) -> list:
+    """Alleys from a Voronoi pattern: souks join gates to the mosque, other alleys are thinned out.
+
+    A `kasbah` (prompt 30) is left out like the mosque site, after the crossings are drawn (so the rest
+    of the old town keeps its crossings), and a souk runs from its gate to the mosque."""
     rng = ctx.rng("medina-alleys")
     cell = float(dc["cell"])
     inner = area.difference(site) if site is not None else area
     pts = jittered_grid(inner, cell, rng)
+    if kasbah is not None:
+        inner = inner.difference(kasbah.cut)
+        pts = pts[~shapely.contains_xy(kasbah.cut, pts[:, 0], pts[:, 1])] if len(pts) else pts
     if len(pts) < 4:
         return []
     cells = shapely.voronoi_polygons(MultiPoint(pts), extend_to=inner.envelope.buffer(3 * cell))
@@ -107,10 +114,13 @@ def alley_network(ctx, area, site, gate_pts, entrance, dc, medina=None, wall=0.0
     target = int(tree.query([entrance.x, entrance.y])[1])
     _, pred = dijkstra(graph, indices=target, return_predecessors=True)
     souk = set()
-    gate_nodes = []
-    for g in gate_pts:
-        cur = int(tree.query([g.x, g.y])[1])
-        gate_nodes.append(cur)
+    gate_nodes = [int(tree.query([g.x, g.y])[1]) for g in gate_pts]
+    if kasbah is not None:   # the crossing nearest the kasbah gate, wholly in front of it
+        ahead = (nodes - kasbah.face) @ kasbah.inward >= float(dc["souk_width"]) / 2 + 2.0
+        d = np.hypot(*(nodes - kasbah.front).T) + np.where(ahead, 0.0, 1e9)
+        gate_nodes.append(int(np.argmin(d)))
+    for start in gate_nodes:
+        cur = start
         for _ in range(n):
             prev = pred[cur]
             if prev < 0:
@@ -130,6 +140,10 @@ def alley_network(ctx, area, site, gate_pts, entrance, dc, medina=None, wall=0.0
             pts = [(g.x + n[0] * reach, g.y + n[1] * reach), (g.x, g.y),
                    (g.x - n[0] * (wall + 3.0), g.y - n[1] * (wall + 3.0)), tuple(nodes[node])]
         streets.append(Street("souk", float(dc["souk_width"]), LineString(pts)))
+    if kasbah is not None:   # from the gate tower's face, straight out, then to the first crossing
+        start = kasbah.face + kasbah.inward * 0.3
+        streets.append(Street("souk", float(dc["souk_width"]),
+                              LineString([tuple(start), tuple(kasbah.front), tuple(nodes[gate_nodes[-1]])])))
     return _merge(streets)
 
 
@@ -174,10 +188,12 @@ def _outward(medina, p: Point, angle: float):
     return n if not medina.contains(Point(p.x + n[0], p.y + n[1])) else -n
 
 
-def ramparts(ctx, medina, gate_pts, district: int, dc, streets=()) -> list:
+def ramparts(ctx, medina, gate_pts, district: int, dc, streets=(), kasbah=None) -> list:
     """City walls along the old town's edge, with towers and an opening at each gate.
 
-    Where a street still meets the wall, the wall gets an opening and the tower is left out.
+    Where a street still meets the wall, the wall gets an opening and the tower is left out. The
+    kasbah's outer wall replaces the stretch it stands on (its towers close the ends), and the
+    rampart towers close to it are left out.
     """
     t, h = float(dc["wall_thickness"]), float(dc["wall_height"])
     ring = medina.exterior
@@ -196,6 +212,8 @@ def ramparts(ctx, medina, gate_pts, district: int, dc, streets=()) -> list:
                                 "rampart", "rampart"))
     openings += [st.line.buffer(st.width / 2 + 0.5, cap_style="flat") for st in streets]
     walls = band.difference(unary_union(openings)) if openings else band
+    if kasbah is not None:
+        walls = walls.difference(kasbah.keep_out)
     for p in polygons(walls):
         if p.area > 4.0:
             out.append(Building(p, "wall", district, h, "rampart", "rampart"))
@@ -211,11 +229,16 @@ def ramparts(ctx, medina, gate_pts, district: int, dc, streets=()) -> list:
     if streets:
         clear = unary_union(openings[len(gate_pts):])
         out = [b for b in out if b.kind != "tower" or b.footprint.intersection(clear).area < 0.5]
+    if kasbah is not None:
+        near = kasbah.keep_out.buffer(float(ctx.style["kasbah"]["rampart_tower_clear"]))
+        out = [b for b in out if b.kind != "tower" or not b.footprint.intersects(near)]
     return out
 
 
 def old_town(ctx, medina, district, axis, crossings) -> tuple:
-    """Everything inside the old town except houses: (streets, buildings, cut polygon, landmarks, gates)."""
+    """Everything inside the old town except houses: (streets, buildings, cut polygon, landmarks, gates,
+    kasbah). The kasbah (prompt 30, or None) carries its own buildings and landmark: the planner appends
+    them after every other building and landmark."""
     s, kc = ctx.s, ctx.kc
     kind = "village" if kc["medina_radius"] >= 1.0 else "medina"
     dc = ctx.style["district"][kind]
@@ -231,16 +254,21 @@ def old_town(ctx, medina, district, axis, crossings) -> tuple:
     gate_pts = gates(ctx, medina, axis, crossings, count)
     wall = float(dc.get("wall_thickness", 3.0)) / 2 if kc.get("walls") else 0.0
     inner = medina.buffer(-(wall + float(dc["alley_width"]) / 2 + 0.6))
+    kasbah = citadel.place(ctx, medina, site, entrance, gate_pts) if kind == "medina" else None
     streets = alley_network(ctx, inner, site, gate_pts, entrance, dc,
-                            medina if kc.get("walls") else None, wall, ring_offset(ctx))
+                            medina if kc.get("walls") else None, wall, ring_offset(ctx), kasbah)
     buildings = list(mosque)
     cut = [site]
     if kc.get("walls"):
-        walls = ramparts(ctx, medina, gate_pts, district, dc, streets)
+        walls = ramparts(ctx, medina, gate_pts, district, dc, streets, kasbah)
         buildings += walls
         cut += [b.footprint for b in walls]
+    if kasbah is not None:
+        cut.append(kasbah.cut)
+        kasbah.buildings = citadel.buildings(ctx, kasbah, district, ctx.qibla)
+        kasbah.landmark = citadel.landmark(ctx, kasbah)
     landmarks = [landmark]
     names = ctx.namer
     for g in gate_pts:
         landmarks.append(Landmark("gate", names.district("gate"), g.x, g.y))
-    return streets, buildings, unary_union(cut), landmarks, gate_pts
+    return streets, buildings, unary_union(cut), landmarks, gate_pts, kasbah

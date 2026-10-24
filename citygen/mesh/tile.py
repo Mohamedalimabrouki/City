@@ -28,7 +28,8 @@ from ..city.roofs import RoofLayout, roof_layouts, roof_stream
 from ..kit import make_kit
 from ..noise import Fractal
 from ..terrain import BIOME_MATERIAL, SEA, classify
-from .builder import (MeshBuilder, add_cap, add_dome, add_draped_cap, add_draped_caps, add_hip_roof, add_loft,
+from .builder import (MeshBuilder, add_arch, add_battlement, add_cap, add_dome, add_draped_cap, add_draped_caps,
+                      add_hip_roof, add_loft,
                       add_ribbon, add_sheet, add_skirt, add_walls, closed, extrude, rectangle, regular_polygon)
 from .gltf import write_glb
 from .props import tree_mesh
@@ -299,6 +300,7 @@ def street_directions(street_tree, x, y) -> np.ndarray:
 
 
 PLINTH_KINDS = frozenset({"house", "domed", "apartments", "villa", "shed", "mosque_hall", "marabout"})
+PAVED_KINDS = frozenset({"kasbah_ground"})   # open ground drawn as paving on the terrain, not as a solid
 
 
 def building_mesh(mb: MeshBuilder, b, height_fn, roof: RoofLayout | None = None,
@@ -341,6 +343,33 @@ def building_mesh(mb: MeshBuilder, b, height_fn, roof: RoofLayout | None = None,
         extrude(mb, rectangle(cx, cy, side, side, angle), z1 + 0.6, z1 + h, b.top["material"],
                 b.top["material"], z_ref=high)
         add_dome(mb, cx, cy, z1 + h, side * 0.5, b.top["cap"], height=side * 0.62)
+    if b.battlement:
+        bt = b.battlement
+        add_battlement(mb, bt["chains"], z1, bt["breast"], bt["merlon"], bt["depth"], b.wall)
+    if b.arches:
+        arch_meshes(mb, b, height_fn, high)
+
+
+def arch_meshes(mb: MeshBuilder, b, height_fn, high: float) -> None:
+    """A building's horseshoe-arched gates, doors and windows (prompt 30): a door stands on the ground at
+    its spot, a window's sill is measured from the building's highest ground."""
+    xy = np.array([(a[0], a[1]) for a in b.arches])
+    ground = np.atleast_1d(height_fn(xy[:, 0], xy[:, 1]))
+    for (x, y, yaw, width, height, sill, frame_w, mat), g in zip(b.arches, ground):
+        z = float(g) if sill <= 0.0 else high + sill
+        add_arch(mb, x, y, z, yaw, width, height, frame_w, mat)
+
+
+def paving_mesh(mb: MeshBuilder, tc: TileContext, b) -> None:
+    """Open ground paved and draped on the terrain mesh `b.height` m up (the kasbah's parade ground and
+    courtyards, prompt 30), cut on the terrain's own triangles like the villa gardens."""
+    tri = terrain_cells(b.footprint, tc.step)
+    if not len(tri):
+        return
+    pts, inv = np.unique(tri.reshape(-1, 2), axis=0, return_inverse=True)
+    z = np.asarray(tc.ground.drawn(pts[:, 0], pts[:, 1]), dtype=np.float64) + float(b.height)
+    mb.add(b.roof, np.column_stack([pts, z]), np.tile([0.0, 0.0, 1.0], (len(pts), 1)),
+           np.stack([pts[:, 0], -pts[:, 1]], axis=1), np.asarray(inv).reshape(-1, 3))
 
 
 def _masses_mesh(mb: MeshBuilder, b, roofs: list, z0: float, high: float, plinth, frontage) -> None:
@@ -597,6 +626,9 @@ def build_tile(tc: TileContext, i: int, j: int) -> tuple:
         owned = np.nonzero(inside)[0]
         for k in owned:
             b = plan.buildings[int(k)]
+            if b.kind in PAVED_KINDS:
+                paving_mesh(mb, tc, b)
+                continue
             kind = plan.districts[b.district].kind
             plinth = frontage = None
             if b.kind in PLINTH_KINDS and kind in tc.plinths:

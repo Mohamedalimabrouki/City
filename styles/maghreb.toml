@@ -48,6 +48,7 @@ park = ["Parc {n}", "Belvedere {n}"]
 cemetery = ["Cemetery of Sidi {n}"]
 gate = ["Bab {n}", "Bab {a} {n}"]
 mosque = ["Jamaa {n}", "Jamaa {a} {n}"]
+kasbah = ["Kasbah of {s}", "Kasbah of {s}", "Kasbah {a} {n}", "Dar {a} {n}", "Bordj {a} {n}"]   # {s}: the city
 
 [lore]
 # Fictional history: settlements are said to date from one of these eras.
@@ -76,6 +77,7 @@ concrete_dark = { color = "#9A958C", texture = "concrete", texture_size = [2.4, 
 metal = { color = "#A6ACB1", roughness = 0.5, metallic = 0.3 }
 rampart = { color = "#CFAE7C", texture = "stone", texture_size = [2.4, 1.8] }
 minaret_stone = { color = "#D9C398", texture = "stone", texture_size = [2.4, 1.8] }
+stone_kasbah = { color = "#C4A272", texture = "stone", texture_size = [3.0, 2.2] }   # the kasbah: bigger, warmer ashlar
 roof_white = { color = "#E4DFD4", texture = "roof_flat", texture_size = [2.5, 2.5] }
 roof_tile = { color = "#B5593B", roughness = 0.8, texture = "roof_tile", texture_size = [2.0, 1.6] }
 dome_white = { color = "#F5F3EE", texture = "plaster", texture_size = [2.0, 2.0] }
@@ -371,6 +373,35 @@ dome_chance = 0.02
 courtyard_tree_chance = 0.45
 menzah = 0.04
 
+[kasbah]                   # the citadel on the old town's highest edge (prompt 30, city/kasbah.py)
+side = [0.3, 60.0, 160.0]  # side along the city wall: share of the old town's width, kept within [min, max] m
+depth = 0.75               # how far it reaches into the old town, times the side
+step = 10.0                # meters between samples of the old town's outline (its highest stretch wins)
+tries = 80                 # outline samples tried, highest first
+clearance = 8.0            # meters from the wall line kept free of lots and alleys (tower faces stand 4.9 m out)
+mosque_clear = 15.0        # from the great mosque's site
+gate_clear = 30.0          # from a city gate
+souk_clear = 5.0           # from the straight line between a city gate and the great mosque
+wall_thickness = 2.5
+wall_height = 11.0         # above the ramparts' 8 m
+tower_side = 6.5           # square towers, flush inside, standing out of the wall
+tower_height = 15.0
+tower_gap = [40.0, 60.0]   # towers at the corners and every 40-60 m between
+corner_turn = 25.0         # degrees: a sharper bend of the outline takes a corner tower
+rampart_tower_clear = 14.0 # city rampart towers this close to the kasbah are left out
+gate = [12.0, 10.0, 16.5]  # gate tower facing the old town: along the wall, depth, height
+gate_arch = [4.2, 7.2, 0.7]   # its horseshoe arch, on both faces: width, height, stone frame band
+battlement = { breast = 1.0, merlon = [0.9, 0.7, 0.8], depth = 0.5 }   # breastwork height; merlon width, gap, height; thickness
+palace = { length = [0.42, 24.0, 60.0], depth = [0.4, 20.0, 46.0], wing = 9.0, floors = 4, floor_height = 3.5, wall = "lime_white", roof = "roof_white" }
+palace_door = [2.4, 3.8, 0.35]       # toward the gate: width, height, frame
+palace_windows = [1.0, 1.7, 4.5]     # upper floors, outer walls: width, height, spacing
+gap = 3.0                  # meters kept between the palace, the mosque, the walls and the towers
+mosque = [0.22, 18.0, 30.0]   # small mosque: hall width as a share of the side, kept within [min, max] m
+mosque_depth = [0.62, 0.5]    # its prayer hall and courtyard depth, times the hall width
+minaret = [0.21, 1.2, 22.0]   # square minaret: side and height times the hall width, lowest height
+paving = "paving"          # the parade ground and the palace courtyard, draped on the terrain ...
+paving_lift = 0.05         # ... this high
+
 [district.colonial]        # the "ville nouvelle": boulevards and apartment buildings from the protectorate era
 grid = [96.0, 72.0]        # block length and width
 street_width = 12.0
@@ -565,6 +596,7 @@ colonial = true
 colonial_reach = 0.5
 colonial_share = 0.14      # share of neighborhoods in the colonial style
 walls = true
+kasbah = true              # a walled citadel on the old town's high edge (prompt 30)
 port = true                # only if the city is on the coast
 parks = 2
 cemetery = true
@@ -589,6 +621,7 @@ colonial = true
 colonial_reach = 0.55
 colonial_share = 0.1
 walls = true
+kasbah = true
 port = true
 parks = 1
 cemetery = true
@@ -1084,7 +1117,7 @@ dressed_reach = 4.0        # buildings this close to a spot have their wall piec
 lamp_clear = 0.3
 crossing_clear = 0.6
 piece_clear = 0.2          # from any other piece (cars, doors, shops, cafes, arcades, other furniture)
-sabil = { mosque = 1.0, gate = 0.25 }  # chance by landmark (the great mosque only, not neighbourhood ones)
+sabil = { mosque = 1.0, gate = 0.25, kasbah = 0.8 }  # chance by landmark (the great mosque only, not neighbourhood ones; the kasbah's is its gate)
 sabil_reach = 40.0         # walls this close to the landmark
 area_reach = 25.0          # furniture is looked for this far around the islands ...
 sabil_area_pad = 10.0      # ... and sabil_reach plus this around a sabil's landmark

@@ -54,6 +54,14 @@ class Building:
                               # cut, at the old corner point
     apron: object = None      # the lot corner a cut leaves open, paved like the sidewalk (a Polygon or
                               # MultiPolygon inside the block, drawn by the tile owning the building)
+    # fortifications and openings (prompt 30, city/kasbah.py)
+    battlement: dict | None = None  # {"chains": [[(x, y), ...]], "breast", "merlon": [width, gap, height],
+                              # "depth"}: a breastwork with merlons on the roof edge along each chain (the
+                              # building's inside to the left; a chain closed when its first point is its last)
+    arches: list = field(default_factory=list)    # [(x, y, yaw, width, height, sill, frame, material)]:
+                              # horseshoe-arched gates, doors and windows on a wall face (yaw = outward
+                              # normal), with a stone frame band `frame` m wide; `sill` 0 stands on the ground
+                              # at the spot, a window's sill is measured from the highest ground (as floors)
 
 
 @dataclass

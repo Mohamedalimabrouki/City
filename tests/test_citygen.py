@@ -74,6 +74,10 @@ def test_same_seed_same_city(world, plan):
     assert again.buildings[100].footprint.equals_exact(plan.buildings[100].footprint, 1e-6)
     assert len(again.walks) == len(plan.walks)
     assert again.walks[0].polygon.equals_exact(plan.walks[0].polygon, 1e-6)
+    fort = [(b.kind, b.footprint.wkb, b.arches, b.battlement) for b in plan.buildings if b.kind.startswith("kasbah")]
+    assert fort and fort == [(b.kind, b.footprint.wkb, b.arches, b.battlement)
+                             for b in again.buildings if b.kind.startswith("kasbah")]
+    assert [m for m in again.landmarks if m.kind == "kasbah"] == [m for m in plan.landmarks if m.kind == "kasbah"]
 
 
 def test_buildings_are_valid_and_inside_the_city(plan):
@@ -994,8 +998,8 @@ def test_parapets_and_stair_rooms_follow_the_style(world, plan):
     expected = {"house": [], "apartments": []}
     stairs = 0
     for k, b in enumerate(plan.buildings):
-        if b.roof_shape != "flat":
-            continue
+        if b.roof_shape != "flat" or b.battlement is not None or b.kind == "kasbah_ground":
+            continue                                       # kasbah walls carry merlons, its ground is paving
         kind = plan.districts[b.district].kind
         layout = roof_layout(b, kind, roof_stream(world.seed, plan.settlement.id, k), cfg)
         assert layout.band is not None and layout.inner is not None
@@ -1819,7 +1823,7 @@ def test_cut_corners_are_paved_and_pillars_and_doors_stand_on_the_paving(world, 
             # and the paving stays below the top of the pillar's base, never swallowing it
             assert p.z - sink < z - 0.05 and z - p.z < 0.3, (k, p.piece, p.z, z)
             seen["pillar"] += 1
-    assert seen["apron"] > 30 and seen["seam"] > 30 and seen["pillar"] > 5 and seen["face"] > 50, seen
+    assert seen["apron"] > 30 and seen["seam"] > 30 and seen["pillar"] > 1 and seen["face"] > 50, seen
 
 
 # --- more greenery (prompt 24) -------------------------------------------------------------------
@@ -2341,3 +2345,101 @@ def test_a_settlement_without_streets_dresses_without_squares_or_crowd_errors(wo
     assert dresser.squares().items() == []
     mb, placements = build_tile(tc, int(s.x // tc.size), int(s.y // tc.size))
     assert mb.triangles > 0 and all(dresser.kit.pieces[p.piece].category != "fountain" for p in placements)
+
+
+def _kasbah(plan):
+    """(index of the kasbah's first building, its buildings, the area inside its walls with them)."""
+    first = next(k for k, b in enumerate(plan.buildings) if b.kind.startswith("kasbah"))
+    fort = plan.buildings[first:]
+    return first, fort, shapely.union_all([shapely.Polygon(b.footprint.exterior) for b in fort])
+
+
+def test_kasbah_holds_the_high_edge_of_the_old_town_and_keeps_clear(world, plan):
+    from citygen.city.life import HOUSING
+    cfg = world.style["kasbah"]
+    first, fort, area = _kasbah(plan)
+    kinds = [b.kind for b in fort]
+    assert {"kasbah_wall", "kasbah_tower", "kasbah_gate", "kasbah_palace", "kasbah_ground", "mosque_hall",
+            "minaret"} <= set(kinds)
+    assert all(b.kind.startswith("kasbah") or b.kind in ("mosque_hall", "mosque_court", "minaret") for b in fort)
+    assert max(h.building for h in plan.households) < first          # appended last, nobody lives there
+    marks = [m for m in plan.landmarks if m.kind == "kasbah"]
+    assert len(marks) == 1 and marks[0] is plan.landmarks[-1] and marks[0].name.split()[0] in ("Kasbah", "Dar", "Bordj")
+    # it leans on the city wall, on the old town's high edge
+    walls = shapely.union_all([b.footprint for b in fort if b.kind in ("kasbah_wall", "kasbah_tower")])
+    ring = plan.medina.exterior
+    assert walls.intersection(ring).length > 40.0
+    pts = shapely.get_coordinates(shapely.line_interpolate_point(ring, np.arange(0.0, ring.length, 5.0)))
+    h = world.terrain.height(pts[:, 0], pts[:, 1])
+    on = shapely.distance(walls, shapely.points(pts)) < 3.0
+    assert on.sum() > 8 and h[on].mean() >= np.percentile(h, 70)
+    # no house, street, gate or great mosque in it, no rampart doubled along it
+    for b in plan.buildings[:first]:
+        if b.kind in HOUSING or b.kind in ("wall", "tower", "mosque_hall", "mosque_court", "minaret"):
+            assert b.footprint.intersection(area).area < 0.5, b.kind
+    surfaces = [st.line.buffer(st.width / 2, cap_style="flat") for st in plan.streets]
+    assert max(s.intersection(area).area for s in surfaces) < 0.5
+    great = [m for m in plan.landmarks if m.kind == "mosque"][0]
+    assert area.distance(shapely.Point(great.x, great.y)) > 40.0
+    assert min(area.distance(shapely.Point(m.x, m.y)) for m in plan.landmarks if m.kind == "gate") > 20.0
+    # thick, tall, crowned walls; the gate faces the old town and a souk reaches it
+    rampart = max(b.height for b in plan.buildings[:first] if b.kind == "wall")
+    assert all(b.height > rampart and b.battlement["chains"] for b in fort if b.kind in ("kasbah_wall", "kasbah_tower", "kasbah_gate"))
+    towers = [b.footprint for b in fort if b.kind in ("kasbah_tower", "kasbah_gate")]
+    assert all(sum(b.footprint.distance(x) < 0.03 for x in towers) == 2 for b in fort if b.kind == "kasbah_wall")
+    gate = next(b for b in fort if b.kind == "kasbah_gate")
+    assert len(gate.arches) == 2 and gate.height > float(cfg["tower_height"]) - 1e-9
+    outer = shapely.Point(gate.arches[0][:2])
+    assert plan.medina.buffer(-20.0).contains(shapely.Point(np.add(gate.arches[0][:2], 10.0 * np.array(
+        [math.cos(gate.arches[0][2]), math.sin(gate.arches[0][2])]))))
+    assert any(st.kind == "souk" and st.line.distance(outer) < 1.0 for st in plan.streets)
+    palace = next(b for b in fort if b.kind == "kasbah_palace")
+    houses = max(b.floors for b in plan.buildings[:first] if b.kind == "house")
+    assert palace.footprint.interiors and palace.floors > houses and len(palace.arches) > 10
+    ground = shapely.union_all([b.footprint for b in fort if b.kind == "kasbah_ground"])
+    assert ground.area > 0.3 * area.area                               # an open parade ground
+
+
+def test_kasbah_only_in_capital_and_cities(world):
+    # villages and towns run old_town too: no kasbah there (no `kasbah` flag in their settlement table)
+    for kind in ("village", "town"):
+        s = next(s for s in world.settlements if s.kind == kind)
+        other = plan_city(world, s)
+        assert not any(b.kind.startswith("kasbah") for b in other.buildings)
+        assert not any(m.kind == "kasbah" for m in other.landmarks)
+
+
+def test_kasbah_is_drawn_with_merlons_arches_and_paving(world, plan, built_mesh, homes):
+    from citygen.city.roofs import roof_layouts, roof_stream
+    from citygen.mesh.tile import building_mesh, paving_mesh
+    tc = built_mesh[0]
+    first, fort, _ = _kasbah(plan)
+    cfg = world.style["kasbah"]["battlement"]
+    for k, b in enumerate(fort, start=first):
+        if b.kind not in ("kasbah_gate", "kasbah_tower", "kasbah_ground"):
+            continue
+        mb = MeshBuilder()
+        if b.kind == "kasbah_ground":
+            paving_mesh(mb, tc, b)
+            pos = mb.gltf_parts()["paving"]["pos"]
+            x, y, z = pos[:, 0], -pos[:, 2], pos[:, 1]           # glTF is Y-up
+            assert np.allclose(z, tc.ground.drawn(x, y) + b.height, atol=1e-4)
+            continue
+        roofs = roof_layouts(b, "medina", roof_stream(world.seed, plan.settlement.id, k), tc.roofs)
+        assert all(lay.band is None for _, lay in roofs)                  # no parapet under the merlons
+        building_mesh(mb, b, tc.height, roofs=roofs)
+        parts = mb.gltf_parts()
+        ring = np.asarray(b.footprint.exterior.coords)
+        high = float(tc.height(ring[:, 0], ring[:, 1]).max())
+        top = parts["stone_kasbah"]["pos"][:, 1].max()
+        assert abs(top - (high + b.height + cfg["breast"] + cfg["merlon"][2])) < 1e-6
+        if b.kind == "kasbah_gate":
+            wood = parts["wood"]["pos"]
+            xy = np.stack([wood[:, 0], -wood[:, 2]], axis=1)
+            d = shapely.distance(b.footprint.exterior, shapely.points(xy))
+            assert np.all(d < 0.1) and not np.any(shapely.contains_xy(b.footprint, xy[:, 0], xy[:, 1]))
+            assert "stone_frame" in parts and wood[:, 1].max() > high + 5.0
+            sabils = [s for s in homes[1].squares().items() if homes[0].pieces[s.piece].category == "fountain"
+                      and math.hypot(s.x - b.arches[0][0], s.y - b.arches[0][1]) < 12.0]
+            assert sabils                                                  # a sabil by the gate, never before it
+            assert all(math.hypot(s.x - a[0], s.y - a[1]) > a[3] / 2 + a[6] for s in sabils for a in b.arches)

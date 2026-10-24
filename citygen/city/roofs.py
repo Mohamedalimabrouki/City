@@ -78,7 +78,7 @@ def _parapet(poly, kind: str, cfg: dict) -> RoofLayout:
 
 def roof_layout(b, kind: str, rng, cfg: dict) -> RoofLayout:
     """Parapet, stair room and menzah of building `b`'s main roof in a district of `kind` (`[roofs]`)."""
-    if b.roof_shape != "flat":
+    if b.roof_shape != "flat" or b.battlement is not None:   # a kasbah wall has its own battlement
         return RoofLayout()
     poly = main_mass(b).polygon
     layout = _parapet(poly, kind, cfg)

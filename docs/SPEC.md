@@ -49,6 +49,8 @@ config.load_config()          defaults.toml + worlds/*.toml + CLI overrides
     city.plan_city()          one settlement -> CityPlan (seconds to a minute)
       layout                  land polygon, city limit, old town outline, neighborhoods, kinds
       medina                  great mosque, gates, souks, alleys (spanning tree), ramparts
+      kasbah                  the citadel on the old town's high edge (capital and cities);
+                              placed before the alleys, its buildings appended last
       streets                 arterials (neighborhood borders), ring road, boulevard,
                               corniche, links to country roads, local grids, street trees
       parcels                 blocks = district minus street surfaces; recursive lot split
@@ -99,6 +101,7 @@ build.build()                 orchestrates the above into output/<country>-<seed
 | `citygen/city/impasses.py` | impasses: lanes cut along lot lines to landlocked lots, one round per lane for every block at once |
 | `citygen/city/roofs.py` | roof layout: parapet band and coping, stair room and its door, menzah, one random stream per building; `roof_layouts` for every roof of a massed building |
 | `citygen/city/greenery.py` | more greenery (prompt 24): arterial tree pits, courtyard trees, villa fruit trees, appended after every older tree |
+| `citygen/city/kasbah.py` | the kasbah (prompt 30): placement on the old town's high edge, walls, towers, gate tower, palace, mosque, parade ground |
 | `citygen/city/massing.py` | building massing (prompt 23): the planning step, `masses(b)` (the volumes drawn and dressed), `floors_at`/`wall_height` (floors and wall height at a point of the outer wall), `outline`, `inner_walls`, `terrace_walls` |
 | `citygen/kitsheet.py` | `python -m citygen kit-sheet`: every piece in one viewable grid |
 | `citygen/export/maps.py` | country and city PNG maps |
@@ -208,6 +211,34 @@ block on `rng("impasse", block)`: lot line jitter, widths, covered share and len
   (`l_share`): the hip-roofed part across one end (`l_main` of the length), a flat terrace wing one
   floor lower (`l_wing` of the depth, `terrace_roof`). Old-town courtyard houses get a menzah with
   chance `menzah`.
+  Fortification fields (prompt 30, `city/kasbah.py`): `battlement` ({"chains", "breast", "merlon",
+  "depth"}: a breastwork with merlons along each chain of the roof edge, the building's inside on the
+  left; such a building gets no parapet from `roof_layout`) and `arches` ([(x, y, yaw, width, height,
+  sill, frame, material)]: horseshoe-arched gates, doors and windows on a wall face, drawn by
+  `building_mesh`; sill 0 stands on the ground at the spot, a window's sill counts from the highest
+  ground).
+- **Kasbah** (prompt 30, `[kasbah]`, settlements with `kasbah = true`: capital and cities, never towns
+  or villages): after the great mosque and gates, before the alleys, the old town's outline is sampled
+  every `step` m and scored by the mean terrain height of the stretch the kasbah would take; highest
+  first, a rectangle of side clamp(`side`[0] x the old town's width, `side`[1], `side`[2]) along the
+  wall and `depth` x side deep, cut by the outline (so its outer side IS the city wall line), must lean
+  on the wall over 60% of its side and keep its `cut` (outline + `clearance`, plus the gate tower) at
+  `mosque_clear` from the great mosque's site, `gate_clear` from every city gate and `souk_clear` from
+  the straight line between each gate and the mosque. The alleys drop the crossings inside the cut (the
+  rest of the old town keeps its own) and route around it; a souk runs from in front of its gate tower
+  to the mosque; lots and impasses avoid the cut like the mosque site. The rampart leaves out the outer
+  wall and the kasbah towers (`keep_out`), and its towers within `rampart_tower_clear` m. Buildings,
+  appended after every other building (no household, so none moves) with the landmark after every other
+  landmark: `kasbah_wall` pieces between the towers (`wall_thickness` 2.5 m, `wall_height` above the
+  ramparts), square `kasbah_tower`s flush inside and standing out (at bends sharper than `corner_turn`
+  and every `tower_gap` m), the `kasbah_gate` tower facing the old town with a horseshoe arch on both
+  faces, all in `stone_kasbah` with a battlement; the `kasbah_palace` round a courtyard in a back
+  corner (`palace`: more floors than any house, arched windows on the upper floors, its door toward the
+  gate); a small mosque facing the qibla (`mosque_complex`: `mosque_hall`, `mosque_court`, `minaret`);
+  and `kasbah_ground`, the parade ground and courtyards, paving draped on the terrain mesh (never
+  extruded). `Landmark("kasbah")` stands at the gate's face (its sabil, `[dressing.squares] sabil`,
+  stands beside the arch on the gate tower); its name comes from `[names.districts] kasbah` on
+  `ctx.rng("kasbah", "name")`. Massing never touches it (no housing kind).
 
 Invariants (tested): buildings are valid polygons inside the city and stay off street surfaces
 (impasses included); every old-town dwelling's main door opens on a street, alley or impasse; an
@@ -226,7 +257,9 @@ the arcade round it when both its facades have one; its paved lot corner meets t
 sidewalk's height and `Ground.surface` there is what is drawn;
 sidewalks never enter a building footprint, keep at least `min_carriageway` meters of asphalt,
 and stand `curb_height` above the street ribbon; every road marking lies inside its street's
-carriageway; everything is deterministic.
+carriageway; the kasbah leans on the city wall on the old town's high edge, holds no house, street,
+gate or great mosque, no rampart runs along it, a souk reaches its gate, its merlons crown walls drawn
+without a parapet and its paving lies on the terrain mesh; everything is deterministic.
 
 ## 6. Output files (`output/<country>-<seed>/`)
 

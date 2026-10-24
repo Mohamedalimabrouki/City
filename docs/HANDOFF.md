@@ -483,6 +483,21 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
   no longer stands half inside the wall. Doukkana walls are a few mm off straight: sitters 0.26 m out.
   A settlement without streets (quick village 5) crashed `Squares._sabil_fits` (`surface_tree` None): squares
   now query through `_streets`/`_buildings` and give such a place no sabil, kiosk, fountain or bench.
+- **The kasbah** (prompt 30, `city/kasbah.py`, `[kasbah]`): a landmark that takes space shifts every later
+  house, so every later household (one sequential stream) and every massing choice keyed on the building
+  index re-rolls: about half the full capital's tiles change and light tiles swing by car, figure and
+  door variants (+8.7% worst, budget 10%); a sample-count guard in a test (pillars on paved corners) fell
+  from 6 to 2 for that reason only. Draw the alley crossings first and drop the ones in the kasbah's cut:
+  the rest of the old town keeps its crossings. Cut the kasbah rectangle by the old town's outline so its
+  outer side IS the rampart line, and leave the outer wall plus the kasbah towers out of the rampart: no
+  doubled wall, and the towers close the rampart's ends. A gate's souk must start at a crossing wholly in
+  front of the gate tower: the nearest crossing could lie beside it and the street clipped the tower
+  (two full-size cities). Battlements: a building with merlons gets no parapet (`roof_layout`), the
+  breastwork stands on the roof deck flush with the wall face (no face drawn twice), and each side after
+  the first starts `depth` in, so no two boxes share a corner square. A sabil by a monument with
+  `arches` keeps clear of its doors (it first landed in the kasbah gate). Lit flats were keyed on
+  `round(degrees(yaw))`: a wall at exactly x.5 degrees split one flat in two keys by float noise; the key
+  now floors `degrees + 0.5 + 1e-7`.
 - **Old-town tiles** reach about 5 MB on the quick build and 8 MB on the full capital
   (`tile_65_106`, mostly roofs since prompt 15); task Q5 (prompt 39) brings them down.
 

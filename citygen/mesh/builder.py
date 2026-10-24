@@ -344,6 +344,119 @@ def add_sheet(mb: MeshBuilder, tris, material: str, thickness: float = 0.01) -> 
 
 # --- roofs and details ------------------------------------------------------
 
+def add_boxes(mb: MeshBuilder, a, u, s0, s1, depth: float, z0, z1, material: str) -> None:
+    """Many boxes with no bottom in one call: box i runs from a[i] + u[i] * s0[i] to a[i] + u[i] * s1[i]
+    along its outer face and `depth` m to the left of u (inward), from z0[i] to z1[i]. Walls u in meters
+    along each face, v = -z, like `add_walls`; tops planar (x, -y)."""
+    a, u = np.asarray(a, dtype=np.float64).reshape(-1, 2), np.asarray(u, dtype=np.float64).reshape(-1, 2)
+    k = len(a)
+    if not k:
+        return
+    s0, s1, z0, z1 = (np.broadcast_to(np.asarray(v, dtype=np.float64), (k,)) for v in (s0, s1, z0, z1))
+    n = np.stack([-u[:, 1], u[:, 0]], axis=1) * depth
+    p0, p1 = a + u * s0[:, None], a + u * s1[:, None]
+    q0, q1 = p0 + n, p1 + n
+    sides = [(p0, p1), (q1, q0), (q0, p0), (p1, q1)]     # outer, inner, start and end faces (normal on the right)
+    pa = np.concatenate([s[0] for s in sides])
+    pb = np.concatenate([s[1] for s in sides])
+    lo, hi = np.tile(z0, 4), np.tile(z1, 4)
+    d = pb - pa
+    length = np.maximum(np.hypot(d[:, 0], d[:, 1]), 1e-9)
+    m = len(pa)
+    pos = np.empty((m, 4, 3))
+    pos[:, 0, :2], pos[:, 1, :2], pos[:, 2, :2], pos[:, 3, :2] = pa, pb, pb, pa
+    pos[:, :2, 2], pos[:, 2:, 2] = lo[:, None], hi[:, None]
+    nrm = np.zeros((m, 4, 3))
+    nrm[:, :, 0], nrm[:, :, 1] = (d[:, 1] / length)[:, None], (-d[:, 0] / length)[:, None]
+    uv = np.empty((m, 4, 2))
+    uv[:, 0, 0], uv[:, 1, 0], uv[:, 2, 0], uv[:, 3, 0] = 0.0, length, length, 0.0
+    uv[:, :, 1] = -pos[:, :, 2]
+    top = np.stack([p0, p1, q1, q0], axis=1)
+    tpos = np.concatenate([top, np.broadcast_to(z1[:, None, None], (k, 4, 1))], axis=2)
+    tnrm = np.tile([0.0, 0.0, 1.0], (k, 4, 1))
+    tuv = np.stack([top[:, :, 0], -top[:, :, 1]], axis=2)
+    pos = np.concatenate([pos, tpos]).reshape(-1, 3)
+    nrm = np.concatenate([nrm, tnrm]).reshape(-1, 3)
+    uv = np.concatenate([uv, tuv]).reshape(-1, 2)
+    tris = (np.arange(m + k) * 4)[:, None, None] + _QUAD[None]
+    mb.add(material, pos, nrm, uv, tris)
+
+
+def add_battlement(mb: MeshBuilder, chains: list, z: float, breast: float, merlon, depth: float,
+                   material: str) -> None:
+    """A breastwork `breast` m high and `depth` m thick along each chain of points (the building's inside
+    on its left) standing on a flat roof at z, with merlons on it (width, gap, height), spread evenly
+    along each side. In a chain each side after the first (and every side of a closed chain) starts
+    `depth` m in, so two boxes never share a corner square (their tops would flicker)."""
+    w, gap, mh = (float(v) for v in merlon)
+    a, u, s0, s1, z0, z1 = [], [], [], [], [], []
+    for chain in chains:
+        pts = np.asarray(chain, dtype=np.float64)[:, :2]
+        ring = len(pts) > 3 and np.allclose(pts[0], pts[-1])
+        for i in range(len(pts) - 1):
+            d = pts[i + 1] - pts[i]
+            length = float(np.hypot(*d))
+            start = depth if (i > 0 or ring) else 0.0
+            if length - start < 0.1:
+                continue
+            ui = d / length
+            a.append(pts[i]), u.append(ui), s0.append(start), s1.append(length), z0.append(z), z1.append(z + breast)
+            count = int((length - start + gap) // (w + gap))
+            if count <= 0:
+                continue
+            first = start + (length - start - (count * w + (count - 1) * gap)) / 2
+            for j in range(count):
+                a.append(pts[i]), u.append(ui)
+                s0.append(first + j * (w + gap)), s1.append(first + j * (w + gap) + w)
+                z0.append(z + breast), z1.append(z + breast + mh)
+    add_boxes(mb, a, u, s0, s1, depth, z0, z1, material)
+
+
+def _horseshoe(width: float, height: float, segments: int) -> np.ndarray:
+    """(N, 2) outline (s, z) of a horseshoe arch, counter-clockwise from the bottom left: jambs `width`
+    apart, the arc a circle a little wider than them closing at `height`."""
+    tilt = math.radians(30.0)                       # the arc runs on 30 degrees below its center each side
+    r = width / 2 / math.cos(tilt)
+    zc = max(height - r, r * math.sin(tilt))
+    t = np.linspace(-tilt, math.pi + tilt, segments + 1)
+    arc = np.stack([r * np.cos(t), zc + r * np.sin(t)], axis=1)
+    return np.vstack([[-width / 2, 0.0], [width / 2, 0.0], arc])
+
+
+def add_arch(mb: MeshBuilder, x: float, y: float, z: float, yaw: float, width: float, height: float,
+             frame: float, material: str, frame_material: str = "stone_frame") -> None:
+    """A horseshoe-arched door or window on a wall face: the panel just in front of the wall at (x, y)
+    (yaw = outward normal), its foot at z, and a stone band `frame` m wide round the jambs and arc."""
+    n = np.array([math.cos(yaw), math.sin(yaw)])
+    t = np.array([-math.sin(yaw), math.cos(yaw)])      # (t, up, n) right-handed: CCW in (s, z) faces out
+    segs = 10 if width > 2.0 else 6
+    out = _horseshoe(width, height, segs)
+
+    def world(sz, off):
+        xy = np.array([x, y]) + n * off + sz[:, :1] * t
+        return np.column_stack([xy, z + sz[:, 1]])
+
+    r = width / 2 / math.cos(math.radians(30.0))
+    zc = max(height - r, r * 0.5)
+    center = np.array([[0.0, zc]])
+    pos = world(np.vstack([center, out]), 0.06)
+    m = len(out)
+    fan = np.stack([np.zeros(m, dtype=np.int64), 1 + np.arange(m), 1 + (np.arange(m) + 1) % m], axis=1)
+    nrm = np.tile([n[0], n[1], 0.0], (len(pos), 1))
+    mb.add(material, pos, nrm, np.column_stack([np.vstack([center, out])[:, 0], -np.vstack([center, out])[:, 1]]), fan)
+    if frame <= 0.0:
+        return
+    inner = out[1:]                                    # from the right foot up, over, down to the left foot
+    outer = _horseshoe(width + 2 * frame, height + frame, segs)[1:]
+    outer = np.vstack([outer, [[-(width / 2 + frame), 0.0]]])
+    inner = np.vstack([inner, [[-width / 2, 0.0]]])
+    pos = np.vstack([world(inner, 0.12), world(outer, 0.12)])
+    k = len(inner)
+    i = np.arange(k - 1)
+    tris = np.concatenate([np.stack([i, k + i, k + i + 1], axis=1), np.stack([i, k + i + 1, i + 1], axis=1)])
+    both = np.vstack([inner, outer])
+    mb.add(frame_material, pos, np.tile([n[0], n[1], 0.0], (len(pos), 1)), np.column_stack([both[:, 0], -both[:, 1]]), tris)
+
 def add_dome(mb: MeshBuilder, cx: float, cy: float, z: float, radius: float, material: str,
              height: float | None = None, segments: int = 12, rings: int = 4) -> None:
     """Smooth half-ellipsoid sitting on z."""
