@@ -7,6 +7,7 @@ Pipeline (each step is its own module):
   streets    arterials, ring road, boulevard, road links, local street grids, street trees
   parcels    blocks between streets, split into building lots
   impasses   dead-end lanes to the lots without a street (old town and neighborhoods)
+  landmarks  a cathedral and a theatre on merged colonial lots facing the boulevard (their buildings come last)
   buildings  a building per lot following the district rules, landmarks, parks, cemetery
   massing    rows, cut corners, domes, set-back top floors, stepped slabs, villa L's, roof rooms
              (after households and souks: it never adds, removes or reorders a building)
@@ -27,6 +28,7 @@ from .layout import assign_kinds, city_boundary, land_near, main_axis, medina_ou
 from .life import households, souks
 from .massing import apply_massing
 from .impasses import cut_impasses
+from . import landmarks as boulevard
 from .medina import old_town
 from .model import CityPlan, District
 from .parcels import make_blocks, make_parcels
@@ -85,14 +87,20 @@ def plan_city(world, settlement) -> CityPlan:
     mosques, mosque_marks, used = neighborhood_mosques(ctx, districts, parcels)
     parcels, used, lanes = cut_impasses(ctx, blocks, districts, parcels, streets, used)
     streets += lanes   # appended last: every earlier street keeps its index (walks, souks, paint)
-    houses, trees = make_buildings(ctx, parcels, districts, used)
+    sites = boulevard.sites(ctx, parcels, districts, streets, used)
+    parcels, used = boulevard.merge(parcels, used, sites)   # merged lots at the end, nothing built on them
+    houses, trees = make_buildings(ctx, parcels, districts, used | {s.parcel for s in sites})
     green_buildings, green_trees = cemetery_and_parks(ctx, districts, blocks)
     buildings += houses + mosques + green_buildings
     marks = landmarks + mosque_marks
     if kasbah is not None:   # appended last: every earlier building and landmark keeps its index
         buildings += kasbah.buildings
         marks.append(kasbah.landmark)
-    trees += green_trees + street_trees(ctx, streets)
+    civic, civic_marks = boulevard.buildings(ctx, sites)   # after the kasbah, for the same reason
+    buildings += civic
+    marks += civic_marks
+    tree_clear = float(ctx.style.get("landmarks", {}).get("tree_clear", 0.0))
+    trees += green_trees + boulevard.clear_fronts(street_trees(ctx, streets), sites, tree_clear)
     plan = CityPlan(s, boundary, land, medina, districts, streets, blocks, parcels, buildings,
                     trees, marks, walks)
     plan.households = households(ctx, buildings, districts)

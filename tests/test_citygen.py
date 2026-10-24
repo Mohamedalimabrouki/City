@@ -2350,7 +2350,7 @@ def test_a_settlement_without_streets_dresses_without_squares_or_crowd_errors(wo
 def _kasbah(plan):
     """(index of the kasbah's first building, its buildings, the area inside its walls with them)."""
     first = next(k for k, b in enumerate(plan.buildings) if b.kind.startswith("kasbah"))
-    fort = plan.buildings[first:]
+    fort = [b for b in plan.buildings[first:] if b.kind not in ("cathedral", "theatre")]   # they come after it (prompt 32)
     return first, fort, shapely.union_all([shapely.Polygon(b.footprint.exterior) for b in fort])
 
 
@@ -2364,7 +2364,8 @@ def test_kasbah_holds_the_high_edge_of_the_old_town_and_keeps_clear(world, plan)
     assert all(b.kind.startswith("kasbah") or b.kind in ("mosque_hall", "mosque_court", "minaret") for b in fort)
     assert max(h.building for h in plan.households) < first          # appended last, nobody lives there
     marks = [m for m in plan.landmarks if m.kind == "kasbah"]
-    assert len(marks) == 1 and marks[0] is plan.landmarks[-1] and marks[0].name.split()[0] in ("Kasbah", "Dar", "Bordj")
+    civic = [m for m in plan.landmarks if m.kind in ("cathedral", "theatre")]       # after it (prompt 32)
+    assert len(marks) == 1 and marks[0] is plan.landmarks[-1 - len(civic)] and marks[0].name.split()[0] in ("Kasbah", "Dar", "Bordj")
     # it leans on the city wall, on the old town's high edge
     walls = shapely.union_all([b.footprint for b in fort if b.kind in ("kasbah_wall", "kasbah_tower")])
     ring = plan.medina.exterior
@@ -2539,3 +2540,91 @@ def test_covered_roof_runs_on_across_a_tile_edge(plan, built_mesh):
     reach = shapely.distance(plan.streets[s.street].line, shapely.points(pos[:, :2]))
     mitre = math.cos(math.radians(covers.cfg["max_turn"] / 2))          # a bend's outer corner reaches farther
     assert reach.max() <= (s.shape.w + s.shape.bd) / mitre + 1e-6        # within the impost bands' depth
+
+
+def test_boulevard_landmarks_stand_on_merged_lots_drawn_light_and_kept_clear(world, plan, ground, built_mesh):
+    # prompt 32: a cathedral and a theatre appended last, each on 3-6 colonial lots of one block merged into one
+    # lot facing the boulevard, nobody living there; under 6,000 triangles with meter UVs, drawn in the tile;
+    # no arcade, car, bench, kiosk, person or tree trunk on them, no car or planned tree before their steps;
+    # the "cathedral" and "theatre" cameras each frame a whole facade from the boulevard
+    from citygen.build import camera_views
+    from citygen.city import CityContext
+    from citygen.city.landmarks import Frame, rect
+    from citygen.city.parcels import subdivide
+    from citygen.mesh.tile import building_mesh
+    cfg = world.style["landmarks"]
+    n = len(plan.buildings)
+    civic = [n - 2, n - 1]
+    assert [plan.buildings[k].kind for k in civic] == ["cathedral", "theatre"]
+    assert not {h.building for h in plan.households} & set(civic)
+    marks = {m.kind: m.name for m in plan.landmarks[-2:]}
+    saint = marks["cathedral"].removeprefix("Cathedral of St ").split(" de ")[0]
+    assert saint in cfg["cathedral"]["saints"] and plan.settlement.name in marks["theatre"]
+    boulevards = [st for st in plan.streets if st.kind == "boulevard"]
+    ctx = CityContext(world, plan.settlement)
+    tc, _, _, mb, placements = built_mesh
+    assert {"stone_cathedral", "stone_dressed", "plaster_theatre", "verdigris"} <= set(mb.gltf_parts())
+    kit, fps, fronts = tc.kit, [], []
+    for k in civic:
+        b = plan.buildings[k]
+        lot = next(q for q in plan.parcels if q.polygon.buffer(0.05).contains(b.footprint))
+        assert lot in plan.parcels[-2:] and plan.districts[lot.district].kind == "colonial"
+        assert any(lot.polygon.exterior.intersection(st.line.buffer(st.width / 2 + 0.6, cap_style="flat")).length
+                   >= cfg["min_front"] for st in boulevards)
+        block, _ = plan.blocks[lot.block]                     # the block's lots as cut before the merge
+        dc = world.style["district"]["colonial"]
+        before = subdivide(block, float(dc["parcel_area"]), ctx.rng("parcels", lot.block))
+        inside = [p for p in before if p.intersection(lot.polygon).area > 0.5 * p.area]
+        assert cfg["lots"][0] <= len(inside) <= cfg["lots"][1]
+        assert abs(shapely.union_all(inside).area - lot.polygon.area) < 1.0
+        assert all(q.polygon.intersection(lot.polygon).area < 1.0 for q in plan.parcels if q is not lot)
+        one = MeshBuilder()
+        building_mesh(one, b, tc.height, landmarks=cfg)
+        assert 1500 < one.triangles < 6000, (b.kind, one.triangles)
+        pts = np.concatenate([np.concatenate(part[0]) for part in one._parts.values()])
+        assert shapely.contains_xy(b.footprint.buffer(1.0), pts[:, 0], pts[:, 1]).all()   # the canopy: 0.8 m out
+        for mat in (b.wall, b.roof):                          # textures in meters, not smeared
+            part = one._parts[mat]
+            pos, uv, idx = np.concatenate(part[0]), np.concatenate(part[2]), np.concatenate(part[3])
+            t3, t2 = pos[idx], uv[idx]
+            a3 = np.linalg.norm(np.cross(t3[:, 1] - t3[:, 0], t3[:, 2] - t3[:, 0]), axis=1) / 2
+            e1, e2 = t2[:, 1] - t2[:, 0], t2[:, 2] - t2[:, 0]
+            ratio = np.abs(e1[:, 0] * e2[:, 1] - e1[:, 1] * e2[:, 0]) / 2 / np.maximum(a3, 1e-12)
+            assert np.all(np.abs(ratio[a3 > 0.05] - 1.0) < 0.02), (b.kind, mat)
+        f = b.facade
+        fps.append(b.footprint)
+        fronts.append(Frame(f).poly(rect(-f["width"] / 2 - 1.0, f["width"] / 2 + 1.0, -15.0, 0.0)))
+    near = shapely.union_all(fps).buffer(40.0)
+    checked = set()
+    for p in placements:
+        if not near.contains(shapely.Point(p.x, p.y)):
+            continue
+        cat = kit.pieces[p.piece].category
+        checked.add(cat)
+        if cat in ("tree", "plant"):                           # a crown may reach over the steps, never a trunk
+            assert not any(fp.buffer(0.5).contains(shapely.Point(p.x, p.y)) for fp in fps), p.piece
+            continue
+        box = _plan_box(kit, p)
+        assert all(box.intersection(fp).area < 1e-3 for fp in fps), (p.piece, cat)
+        if cat == "vehicle":
+            assert all(box.intersection(z).area < 1e-3 for z in fronts), p.piece
+    assert {"arcade", "vehicle", "person", "tree"} <= checked
+    trees = shapely.points([(t.x, t.y) for t in plan.trees])
+    clear = [Frame(plan.buildings[k].facade).poly(rect(-plan.buildings[k].facade["width"] / 2,
+                                                       plan.buildings[k].facade["width"] / 2,
+                                                       -cfg["tree_clear"] + 0.5, 0.0)) for k in civic]
+    assert not any(shapely.contains(z, trees).any() for z in clear)
+    views, cam_cfg = camera_views(plan, ground, style=world.style), cfg["camera"]
+    for k in civic:                                           # a camera on the boulevard sees each whole facade
+        f = plan.buildings[k].facade
+        cam = np.array(views[plan.buildings[k].kind]["cam"])
+        look = np.array(views[plan.buildings[k].kind]["look"])
+        fr = Frame(f)
+        mid = fr.xy(0.0, f["steps"])
+        assert np.allclose(look[:2], mid, atol=0.1) and cam[2] > float(ground.surface(cam[0], cam[1])) + 1.0
+        to = cam[:2] - mid
+        assert np.linalg.norm(to) >= cam_cfg["min_distance"] and (-fr.n) @ to >= cam_cfg["facing"] * np.linalg.norm(to)
+        ends = [fr.xy(s, f["steps"]) - cam[:2] for s in (-f["width"] / 2, f["width"] / 2)]
+        cos = ends[0] @ ends[1] / np.linalg.norm(ends[0]) / np.linalg.norm(ends[1])
+        assert math.degrees(math.acos(cos)) <= cam_cfg["spread"] + 1e-6
+        assert not any(b.footprint.contains(shapely.Point(*cam[:2])) for b in plan.buildings)

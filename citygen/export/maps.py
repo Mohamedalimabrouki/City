@@ -29,6 +29,7 @@ TREE_RGB = {"citrus": (214, 136, 46)}   # bitter oranges (prompt 24); every othe
 GARDEN_RGB = (176, 204, 128)            # villa gardens (prompt 24)
 KASBAH_RGB = {"kasbah_wall": (120, 82, 50), "kasbah_tower": (120, 82, 50), "kasbah_gate": (120, 82, 50),
               "kasbah_palace": (236, 226, 204), "kasbah_ground": (214, 198, 166)}   # prompt 30
+LANDMARK_RGB = {"cathedral": (226, 200, 132), "theatre": (170, 64, 70)}   # the boulevard's landmarks (prompt 32)
 ROAD_STYLE = {"national": ((196, 72, 52), 3.2), "regional": ((222, 150, 60), 2.2),
               "local": ((120, 110, 96), 1.2)}
 
@@ -111,6 +112,11 @@ def _scale_bar(draw, k, w, h):
     draw.text((x0, y0 - 20), label, fill=(20, 20, 20), font=_font(14))
 
 
+def _overlap(a, b) -> float:
+    """Area two (left, top, right, bottom) boxes share."""
+    return max(0, min(a[2], b[2]) - max(a[0], b[0])) * max(0, min(a[3], b[3]) - max(a[1], b[1]))
+
+
 def city_map(world, plan, path, meters_per_px: float | None = None, max_px: int = 4096) -> Path:
     minx, miny, maxx, maxy = plan.boundary.buffer(150).bounds
     span = max(maxx - minx, maxy - miny)
@@ -150,6 +156,8 @@ def city_map(world, plan, path, meters_per_px: float | None = None, max_px: int 
             color = (150, 110, 70)
         elif b.kind in KASBAH_RGB:
             color = KASBAH_RGB[b.kind]
+        elif b.kind in LANDMARK_RGB:
+            color = LANDMARK_RGB[b.kind]
         fill_poly(Polygon(b.footprint.exterior), color)
         court = KASBAH_RGB["kasbah_ground"] if b.kind in KASBAH_RGB else DISTRICT_RGB.get(kinds.get(b.district), (235, 225, 205))
         for hole in b.footprint.interiors:
@@ -165,8 +173,17 @@ def city_map(world, plan, path, meters_per_px: float | None = None, max_px: int 
         p = d.polygon.representative_point()
         draw.text(((p.x - minx) / mpp, (maxy - p.y) / mpp), d.name, fill=(70, 60, 50), font=font,
                   anchor="mm", stroke_width=2, stroke_fill=(250, 246, 236))
+    placed: list = []         # a label moves one line up or down when that covers less of the earlier ones
+    step = getattr(font, "size", 14) + 6
     for lm in plan.landmarks:
-        draw.text(((lm.x - minx) / mpp, (maxy - lm.y) / mpp - 14), lm.name, fill=(20, 60, 45),
+        x, y = (lm.x - minx) / mpp, (maxy - lm.y) / mpp - 14
+        tries = []
+        for dy in (0, -step, step):
+            box = draw.textbbox((x, y + dy), lm.name, font=font, anchor="mm", stroke_width=2)
+            tries.append((sum(_overlap(box, b) for b in placed), dy, box))
+        _, dy, box = min(tries, key=lambda t: t[0])
+        placed.append(box)
+        draw.text((x, y + dy), lm.name, fill=(20, 60, 45),
                   font=font, anchor="mm", stroke_width=2, stroke_fill=(250, 246, 236))
     s = plan.settlement
     draw.text((16, 12), f"{s.name}  -  {s.kind}, population {s.population:,}", fill=(25, 25, 30),

@@ -43,7 +43,7 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
 - [x] 29 P2 People in the streets
 - [x] 30 A5a The kasbah
 - [x] 31 A5b Covered souks
-- [ ] 32 A5c Cathedral and theatre
+- [x] 32 A5c Cathedral and theatre
 - [ ] 33 A5d Station and clock tower
 - [ ] 34 A6a Quays, breakwater, lighthouse
 - [ ] 35 A6b Boats and cranes

@@ -342,6 +342,21 @@ def add_sheet(mb: MeshBuilder, tris, material: str, thickness: float = 0.01) -> 
     add_triangles(mb, tris[:, ::-1] - n[:, None, :] * thickness, material)
 
 
+def add_quads(mb: MeshBuilder, mat: str, quads: np.ndarray, toward: np.ndarray) -> None:
+    """Flat quads (q, 4, 3), each turned so its normal points along `toward` (q, 3); planar meter UVs."""
+    if not len(quads):
+        return
+    n = np.cross(quads[:, 2] - quads[:, 0], quads[:, 3] - quads[:, 1])
+    n /= np.maximum(np.linalg.norm(n, axis=1), 1e-12)[:, None]
+    flip = (n * toward).sum(axis=1) < 0
+    quads[flip] = quads[flip][:, ::-1]
+    n[flip] *= -1.0
+    u = np.where(np.abs(n[:, 2:3]) > 0.7, quads[:, :, 0], quads[:, :, 0] * -n[:, 1:2] + quads[:, :, 1] * n[:, 0:1])
+    v = np.where(np.abs(n[:, 2:3]) > 0.7, -quads[:, :, 1], -quads[:, :, 2])
+    tris = (np.arange(len(quads)) * 4)[:, None, None] + np.array([[0, 1, 2], [0, 2, 3]])[None]
+    mb.add(mat, quads.reshape(-1, 3), np.repeat(n, 4, axis=0), np.stack([u, v], axis=-1).reshape(-1, 2), tris)
+
+
 # --- roofs and details ------------------------------------------------------
 
 def add_boxes(mb: MeshBuilder, a, u, s0, s1, depth: float, z0, z1, material: str) -> None:
@@ -423,21 +438,35 @@ def _horseshoe(width: float, height: float, segments: int) -> np.ndarray:
     return np.vstack([[-width / 2, 0.0], [width / 2, 0.0], arc])
 
 
+def round_head(width: float, height: float, segments: int) -> np.ndarray:
+    """(N, 2) outline (s, z) of a round-arched opening, counter-clockwise from the bottom left: jambs `width`
+    apart, a half circle closing at `height` (prompt 32)."""
+    t = np.linspace(0.0, math.pi, segments + 1)
+    zc = max(height - width / 2, 0.0)
+    arc = np.stack([width / 2 * np.cos(t), zc + width / 2 * np.sin(t)], axis=1)
+    return np.vstack([[-width / 2, 0.0], [width / 2, 0.0], arc])
+
+
 def add_arch(mb: MeshBuilder, x: float, y: float, z: float, yaw: float, width: float, height: float,
-             frame: float, material: str, frame_material: str = "stone_frame") -> None:
-    """A horseshoe-arched door or window on a wall face: the panel just in front of the wall at (x, y)
-    (yaw = outward normal), its foot at z, and a stone band `frame` m wide round the jambs and arc."""
+             frame: float, material: str, frame_material: str = "stone_frame", head: str = "horseshoe") -> None:
+    """A horseshoe-arched (or with `head` "round", round-arched) door or window on a wall face: the panel
+    just in front of the wall at (x, y) (yaw = outward normal), its foot at z, and a stone band `frame` m
+    wide round the jambs and arc."""
     n = np.array([math.cos(yaw), math.sin(yaw)])
     t = np.array([-math.sin(yaw), math.cos(yaw)])      # (t, up, n) right-handed: CCW in (s, z) faces out
     segs = 10 if width > 2.0 else 6
-    out = _horseshoe(width, height, segs)
+    shape = _horseshoe if head == "horseshoe" else round_head
+    out = shape(width, height, segs)
 
     def world(sz, off):
         xy = np.array([x, y]) + n * off + sz[:, :1] * t
         return np.column_stack([xy, z + sz[:, 1]])
 
-    r = width / 2 / math.cos(math.radians(30.0))
-    zc = max(height - r, r * 0.5)
+    if head == "horseshoe":
+        r = width / 2 / math.cos(math.radians(30.0))
+        zc = max(height - r, r * 0.5)
+    else:
+        zc = max(height - width / 2, 0.0)
     center = np.array([[0.0, zc]])
     pos = world(np.vstack([center, out]), 0.06)
     m = len(out)
@@ -447,7 +476,7 @@ def add_arch(mb: MeshBuilder, x: float, y: float, z: float, yaw: float, width: f
     if frame <= 0.0:
         return
     inner = out[1:]                                    # from the right foot up, over, down to the left foot
-    outer = _horseshoe(width + 2 * frame, height + frame, segs)[1:]
+    outer = shape(width + 2 * frame, height + frame, segs)[1:]
     outer = np.vstack([outer, [[-(width / 2 + frame), 0.0]]])
     inner = np.vstack([inner, [[-width / 2, 0.0]]])
     pos = np.vstack([world(inner, 0.12), world(outer, 0.12)])

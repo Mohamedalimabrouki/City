@@ -62,6 +62,10 @@ class Building:
                               # horseshoe-arched gates, doors and windows on a wall face (yaw = outward
                               # normal), with a stone frame band `frame` m wide; `sill` 0 stands on the ground
                               # at the spot, a window's sill is measured from the highest ground (as floors)
+    # landmarks of the boulevard (prompt 32, city/landmarks.py)
+    facade: dict | None = None  # a cathedral's or theatre's front: {"x", "y"} middle of the front on the street
+                              # edge, "yaw" (outward, toward the street), "width", "depth" (behind the steps),
+                              # "steps" (meters of front steps), a cathedral's tower "cap"; no car parks before it
 
 
 @dataclass

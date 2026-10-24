@@ -13,7 +13,7 @@ from __future__ import annotations
 import numpy as np
 
 from ..city.covered import owns, runs
-from .builder import MeshBuilder
+from .builder import MeshBuilder, add_quads as _flat
 
 VAULT = "lime_white"           # whitewashed plaster, inside and out
 PAINT = ("door_red", "door_green")   # the painted corbels under the arches, as in the souks of Tunis
@@ -55,21 +55,6 @@ def _grid(mb: MeshBuilder, mat: str, pos: np.ndarray, nrm: np.ndarray, uv: np.nd
     quads = inv.reshape(-1, 4)
     tris = np.concatenate([quads[:, [0, 1, 2]], quads[:, [0, 2, 3]]])
     mb.add(mat, p[used], nn[used], uv.reshape(-1, 2)[used], tris)
-
-
-def _flat(mb: MeshBuilder, mat: str, quads: np.ndarray, toward: np.ndarray) -> None:
-    """Flat quads (q, 4, 3), each turned so its normal points along `toward` (q, 3); planar meter UVs."""
-    if not len(quads):
-        return
-    n = np.cross(quads[:, 2] - quads[:, 0], quads[:, 3] - quads[:, 1])
-    n /= np.maximum(np.linalg.norm(n, axis=1), 1e-12)[:, None]
-    flip = (n * toward).sum(axis=1) < 0
-    quads[flip] = quads[flip][:, ::-1]
-    n[flip] *= -1.0
-    u = np.where(np.abs(n[:, 2:3]) > 0.7, quads[:, :, 0], quads[:, :, 0] * -n[:, 1:2] + quads[:, :, 1] * n[:, 0:1])
-    v = np.where(np.abs(n[:, 2:3]) > 0.7, -quads[:, :, 1], -quads[:, :, 2])
-    tris = (np.arange(len(quads)) * 4)[:, None, None] + np.array([[0, 1, 2], [0, 2, 3]])[None]
-    mb.add(mat, quads.reshape(-1, 3), np.repeat(n, 4, axis=0), np.stack([u, v], axis=-1).reshape(-1, 2), tris)
 
 
 def _shell(mb: MeshBuilder, s, i0: int, i1: int, radius: float, sign: float, keep, edge: float | None = None):

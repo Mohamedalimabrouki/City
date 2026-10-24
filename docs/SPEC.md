@@ -56,6 +56,8 @@ config.load_config()          defaults.toml + worlds/*.toml + CLI overrides
       parcels                 blocks = district minus street surfaces; recursive lot split
       impasses                dead-end lanes along lot lines to lots without a street door
                               (old town, village, residential, suburb); appended to the streets
+      landmarks               cathedral and theatre: 3-6 colonial lots facing the boulevard merged
+                              into one lot each; their buildings appended after the kasbah's
       walks                   raised sidewalks along blocks and the boulevard promenade
       buildings               per-district building rules, mosques, parks, cemetery
       life                    a household behind every house door, a trade for every souk
@@ -87,6 +89,7 @@ build.build()                 orchestrates the above into output/<country>-<seed
 | `citygen/mesh/gltf.py` | dependency-free .glb writer and reader |
 | `citygen/mesh/tile.py` | what goes into one tile |
 | `citygen/mesh/vaults.py` | covered souks (prompt 31): barrel vaults, impost bands, transverse arches, light openings, lantern rods |
+| `citygen/mesh/landmarks.py` | the cathedral and the theatre (prompt 32): portals, rose window, towers, gables, crossing dome, apse; rounded corners, parapet, pavilion, crown, canopy, stage tower |
 | `citygen/mesh/plants.py` | shared plant shapes: clumps (icosahedron, octahedron, 4-face bract) and tapered tubes |
 | `citygen/mesh/props.py` | the generator's own kit pieces (doors, shops by trade, awnings, goods, lamps, trees...) |
 | `citygen/mesh/people.py` | people (prompt 28): low-poly figures, one piece per outfit, pose and color scheme from `[dressing.people]` |
@@ -106,6 +109,7 @@ build.build()                 orchestrates the above into output/<country>-<seed
 | `citygen/city/roofs.py` | roof layout: parapet band and coping, stair room and its door, menzah, one random stream per building; `roof_layouts` for every roof of a massed building |
 | `citygen/city/greenery.py` | more greenery (prompt 24): arterial tree pits, courtyard trees, villa fruit trees, appended after every older tree |
 | `citygen/city/kasbah.py` | the kasbah (prompt 30): placement on the old town's high edge, walls, towers, gate tower, palace, mosque, parade ground |
+| `citygen/city/landmarks.py` | the boulevard's cathedral and theatre (prompt 32): sites on merged colonial lots, the local frame and plan shapes shared with the mesh, names, their camera views |
 | `citygen/city/massing.py` | building massing (prompt 23): the planning step, `masses(b)` (the volumes drawn and dressed), `floors_at`/`wall_height` (floors and wall height at a point of the outer wall), `outline`, `inner_walls`, `terrace_walls` |
 | `citygen/kitsheet.py` | `python -m citygen kit-sheet`: every piece in one viewable grid |
 | `citygen/export/maps.py` | country and city PNG maps |
@@ -243,6 +247,31 @@ block on `rng("impasse", block)`: lot line jitter, widths, covered share and len
   extruded). `Landmark("kasbah")` stands at the gate's face (its sabil, `[dressing.squares] sabil`,
   stands beside the arch on the gate tower); its name comes from `[names.districts] kasbah` on
   `ctx.rng("kasbah", "name")`. Massing never touches it (no housing kind).
+- **Boulevard landmarks** (prompt 32, `city/landmarks.py`, `mesh/landmarks.py`, `[landmarks]`, settlements
+  with `boulevard_landmarks`: capital and cities, when the boulevard has room): after the impasses, before
+  the ordinary buildings, each kind in turn (cathedral, then theatre) slides its footprint (front steps on
+  the boulevard's edge, `inset` off it, the building behind) along every colonial lot with `min_front` m of
+  boulevard frontage, `shift` m either way, at the largest of `scales` x `size` that fits somewhere; the
+  lots of that block it touches must be 3-6 (`lots`) free lots whose union holds it (`slack`). The best site
+  is seen from the street camera (`streets.view_spot`, shared with `build.camera_views`: 50-300 m ahead within
+  `view`[2] degrees), then on a block of its own, then the biggest. `merge` removes its lots from the parcel
+  list and appends the merged lot at the end (nothing ordinary is built there: every later colonial lot
+  re-rolls its draws); the buildings (kind `cathedral` / `theatre`, `facade` {x, y, yaw, width, depth, steps,
+  cap}) and `Landmark`s (at the footprint's centroid; names from `[names.districts]` on
+  `ctx.rng("landmarks", kind, "name")`, a saint from `saints`) come after the kasbah's. Boulevard trees within `tree_clear` m in front of the steps are left
+  out. No household lives there, the massing and the dresser leave them alone (not housing, not `DRESSED`),
+  no car parks in front of the steps (`Parking._landmark_steps`). `building_mesh` hands them to
+  `mesh/landmarks.py`: cathedral (neo-Romanesque with a Byzantine dome): two square towers with belfries,
+  octagonal lanterns and domes or pyramids, a gabled nave with clerestory, lean-to aisles with buttresses,
+  three recessed round-arched portals with tympana, a rose window of three rings and twelve spokes, a
+  crossing dome on a windowed drum, a semicircular apse; theatre (Art Nouveau): rounded street corners with
+  cupolas, three rows of round-arched windows, cornice, a parapet with piers and urns, a central pavilion
+  with a great window, a curved gable and a dome, a glass and iron canopy, a stage tower. The floor stands
+  `base` m over the foot of the steps (higher where the ground behind is higher), walls reach 0.6 m under the
+  lowest ground; each under 6,000 triangles (quick capital 2,995 and 3,081, full capital 3,095 and 3,285;
+  faces share their corner vertices to save bytes). The index gets a
+  "cathedral" and a "theatre" camera view (`landmark_views`: from the boulevard, near `distance` m, the whole
+  facade within `spread` degrees).
 
 Invariants (tested): buildings are valid polygons inside the city and stay off street surfaces
 (impasses included); every old-town dwelling's main door opens on a street, alley or impasse; an
@@ -263,7 +292,10 @@ sidewalks never enter a building footprint, keep at least `min_carriageway` mete
 and stand `curb_height` above the street ribbon; every road marking lies inside its street's
 carriageway; the kasbah leans on the city wall on the old town's high edge, holds no house, street,
 gate or great mosque, no rampart runs along it, a souk reaches its gate, its merlons crown walls drawn
-without a parapet and its paving lies on the terrain mesh; everything is deterministic.
+without a parapet and its paving lies on the terrain mesh; the cathedral and the theatre stand on one merged
+lot of 3-6 colonial lots facing the boulevard, house nobody, stay under 6,000 triangles with meter UVs, carry
+no arcade, car, furniture, person or trunk, have no car or planned tree before their steps, and their camera
+views see the whole facade; everything is deterministic.
 
 ## 6. Output files (`output/<country>-<seed>/`)
 
@@ -275,7 +307,7 @@ without a parapet and its paving lies on the terrain mesh; everything is determi
 | `maps/country.png`, `maps/<city>.png` | 2D maps, north up |
 | `tiles/tile_<i>_<j>.glb` | 3D tile covering x `i*512..(i+1)*512`, y `j*512..(j+1)*512` |
 | `tiles/textures/*.png` | base-color images shared by the tiles (`[tiles] textures = "shared"`, the default) |
-| `tiles/index.json` | `citygen-tiles/1`: tile list (bytes, unique and drawn triangles, dressing pieces), `"parapets": true` when the tiles carry their own roof parapets, `focus` point, camera `views`, `cities` (name, plan file, bounds) |
+| `tiles/index.json` | `citygen-tiles/1`: tile list (bytes, unique and drawn triangles, dressing pieces), `"parapets": true` when the tiles carry their own roof parapets, `focus` point, camera `views` (street, souk, and cathedral and theatre when the city has them), `cities` (name, plan file, bounds) |
 | `summary.json` | counts and timings (read this instead of big files) |
 
 **.glb conventions:** one root node per tile with `translation = [x0, 0, -y0]`; vertices are

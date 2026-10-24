@@ -16,6 +16,8 @@ from shapely.geometry import Point, box
 from .buildkey import build_key
 from .city import plan_city
 from .city.ground import Ground
+from .city.landmarks import landmark_views
+from .city.streets import view_spot
 from .export.lore import gazetteer, plan_json, slug, write_json
 from .export.maps import city_map, country_map
 from .mesh.tile import TileContext, export_tile
@@ -53,28 +55,23 @@ def select_area(world, area: str) -> tuple:
     return region, focus, needed
 
 
-def camera_views(plan, ground, reach: float = 600.0) -> dict:
-    """Eye-level camera spots near the city center (generator coords): the boulevard, a souk."""
+def camera_views(plan, ground, reach: float = 600.0, style: dict | None = None) -> dict:
+    """Eye-level camera spots near the city center (generator coords): the boulevard, a souk, and one on each
+    boulevard landmark the city has, "cathedral" and "theatre" (prompt 32, the style's `[landmarks] camera`)."""
     center = Point(plan.settlement.x, plan.settlement.y)
     views = {}
     for name, kinds in (("street", ("boulevard", "arterial", "street")), ("souk", ("souk",))):
-        for kind in kinds:  # the first kind with a long street near the center wins
-            near = [st for st in plan.streets
-                    if st.kind == kind and st.line.length > 60.0 and st.line.distance(center) < reach]
-            if near:
-                break
-        else:
+        spot = view_spot(plan.streets, center, kinds, reach)
+        if spot is None:
             continue
-        street = max(near, key=lambda st: st.line.length)
-        line = street.line
-        if street.width > 16.0:  # wide street: step off the middle row of trees
-            line = line.offset_curve(street.width / 4)
-        d = min(max(line.project(center), 10.0), line.length - 10.0)
-        step = 50.0 if line.length - d >= d else -50.0  # look along the longer side
-        a, b = line.interpolate(d), line.interpolate(min(max(d + step, 0.0), line.length))
+        a, b = spot
         ga, gb = float(ground.surface(a.x, a.y)), float(ground.surface(b.x, b.y))
         views[name] = {"cam": [round(a.x, 1), round(a.y, 1), round(ga + 1.7, 1)],
                        "look": [round(b.x, 1), round(b.y, 1), round(gb + 4.0, 1)]}
+    camera = (style or {}).get("landmarks", {}).get("camera")
+    for name, ((cx, cy, ch), (lx, ly, lh)) in (landmark_views(plan, camera) if camera else {}).items():
+        views[name] = {"cam": [round(cx, 1), round(cy, 1), round(float(ground.surface(cx, cy)) + ch, 1)],
+                       "look": [round(lx, 1), round(ly, 1), round(float(ground.surface(lx, ly)) + lh, 1)]}
     return views
 
 
@@ -329,7 +326,7 @@ def build(cfg: dict, area: str | None = None, log=print, force: bool = False) ->
                 "parapets": True,   # the tiles carry their own roof parapets (tools/blender_beauty.py skips its own)
                 "focus": {"x": round(focus.x, 1), "y": round(focus.y, 1),
                           "z": round(float(ground.surface(focus.x, focus.y)), 1), "name": focus.name},
-                "views": next((camera_views(p, ground) for p in plans if p.settlement is focus), {}),
+                "views": next((camera_views(p, ground, style=world.style) for p in plans if p.settlement is focus), {}),
                 "cities": [{"name": p.settlement.name, "plan": f"cities/{slug(p.settlement.name)}/plan.json",
                             "bounds": [round(v, 1) for v in p.boundary.bounds]} for p in plans],
                 "tiles": tiles})

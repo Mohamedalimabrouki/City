@@ -116,6 +116,9 @@ def gazetteer(world, plans) -> str:
         kasbahs = [m.name for m in plan.landmarks if m.kind == "kasbah"]
         if kasbahs:
             lines.append(f"- **kasbah** (the citadel on the old town's high edge): {', '.join(kasbahs)}")
+        civic = [m.name for m in plan.landmarks if m.kind in ("cathedral", "theatre")]
+        if civic:
+            lines.append(f"- **on the boulevard**: {', '.join(civic)}")
         if plan.souks:
             seen = {}
             for k in plan.souks:

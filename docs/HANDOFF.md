@@ -515,6 +515,20 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
   stays under the band; upper windows behind the vault go (hidden anyway), awnings and lamps are lowered
   instead (`lower`). Cost: about 26 triangles per meter; worst tile +6.0% quick, +6.8% full; capital time
   unchanged (50.0 -> 50.9 s, noise).
+- **Boulevard landmarks** (prompt 32, `city/landmarks.py`, `mesh/landmarks.py`, `[landmarks]`): merging lots
+  removes buildings, so every later building index, household and massing choice shifts; on the full capital
+  light tiles swung +10-17% by door and shutter variants (re-rolled door colors), not by the landmarks. Read
+  "boulevard-facing" as the merged site facing the boulevard: a colonial block offers 20-30 m of frontage,
+  so a cathedral needs the lots behind the front ones. Check containment with the real footprint, not its
+  bounding rectangle: the rectangle with a 1 m2 slack poked 0.15 m into the ring road at a rounded corner.
+  Lot unions can be MultiPolygons by hair gaps (cuts that do not quite meet): close with a 2 cm grow and
+  shrink. Two facades facing each other across a 34 m boulevard cannot be framed by one camera: one view per
+  landmark. Draw in a local frame (s along the facade, d into the lot) shared by planner and mesh, so the
+  footprint and the drawn shape agree. Bytes, not triangles, are the cost: a non-indexed cap or face costs 3
+  vertices per triangle (32 bytes each); sharing corners (`np.unique`) cut the two landmarks from about 395 to
+  335 KB. Parking "fronts" with clearance 0.0 never block a car (`distance < 0` is never true): the landmark
+  steps use 0.05; the shop and cafe fronts of prompt 25 still use 0.0 (a latent bug, left for review).
+  Metallic dome materials band with the viewer's sky reflection: keep patina matte.
 - **Old-town tiles** reach about 5 MB on the quick build and 8 MB on the full capital
   (`tile_65_106`, mostly roofs since prompt 15); task Q5 (prompt 39) brings them down.
 

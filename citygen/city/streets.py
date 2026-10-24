@@ -132,3 +132,23 @@ def street_trees(ctx, streets) -> list:
                 p = line.interpolate(d)
                 out.append(Tree(p.x, p.y, kind, float(rng.uniform(7.0, 11.0))))
     return out
+
+
+def view_spot(streets, center, kinds, reach: float = 600.0):
+    """(eye, look) points of the eye-level camera on the longest street of the first of `kinds` with one
+    longer than 60 m within `reach` of `center`, or None: 50 m along the street's longer side from the
+    point nearest the center (stepped off the middle row of trees on a wide street). The street camera
+    (`build.camera_views`) and the boulevard landmarks (prompt 32) share it."""
+    for kind in kinds:  # the first kind with a long street near the center wins
+        near = [st for st in streets if st.kind == kind and st.line.length > 60.0 and st.line.distance(center) < reach]
+        if near:
+            break
+    else:
+        return None
+    street = max(near, key=lambda st: st.line.length)
+    line = street.line
+    if street.width > 16.0:  # wide street: step off the middle row of trees
+        line = line.offset_curve(street.width / 4)
+    d = min(max(line.project(center), 10.0), line.length - 10.0)
+    step = 50.0 if line.length - d >= d else -50.0  # look along the longer side
+    return line.interpolate(d), line.interpolate(min(max(d + step, 0.0), line.length))

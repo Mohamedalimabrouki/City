@@ -25,6 +25,7 @@ from ..city.dressing import Dresser, Placement, building_highs, ground_heights
 from ..city.geo import frame, lines, polygons
 from ..city.ground import STREET_LIFT, Ground, apron_cells, terrain_cells
 from ..city.massing import inner_walls, massed, outline
+from ..city.landmarks import KINDS as LANDMARKS
 from ..city.roofs import RoofLayout, roof_layouts, roof_stream
 from ..kit import make_kit
 from ..noise import Fractal
@@ -33,6 +34,7 @@ from .builder import (MeshBuilder, add_arch, add_battlement, add_cap, add_dome, 
                       add_hip_roof, add_loft,
                       add_ribbon, add_sheet, add_skirt, add_walls, closed, extrude, rectangle, regular_polygon)
 from .gltf import write_glb
+from .landmarks import landmark_mesh
 from .props import tree_mesh
 from .textures import images_for
 from .vaults import covered_meshes
@@ -51,6 +53,7 @@ class TileContext:
         self.palette = world.style["palette"]
         self.roofs = world.style.get("roofs", {})
         self.plinths = world.style.get("plinth", {})
+        self.landmarks = world.style.get("landmarks", {})
         self.road_lines = [LineString(r.coords) for r in world.roads]
         self.road_tree = STRtree(self.road_lines) if self.road_lines else None
         self.plans = plans
@@ -307,14 +310,20 @@ def street_directions(street_tree, x, y) -> np.ndarray:
 
 
 PLINTH_KINDS = frozenset({"house", "domed", "apartments", "villa", "shed", "mosque_hall", "marabout"})
+LANDMARK_KINDS = frozenset(LANDMARKS)   # drawn by mesh/landmarks.py (prompt 32)
 PAVED_KINDS = frozenset({"kasbah_ground"})   # open ground drawn as paving on the terrain, not as a solid
 
 
 def building_mesh(mb: MeshBuilder, b, height_fn, roof: RoofLayout | None = None,
-                  plinth: tuple[str, float] | None = None, frontage=None, roofs: list | None = None) -> None:
+                  plinth: tuple[str, float] | None = None, frontage=None, roofs: list | None = None,
+                  landmarks: dict | None = None) -> None:
     """One building. `roofs` ([(Mass, RoofLayout)], roofs.roof_layouts) draws a massed building (prompt
     23); otherwise `roof` is its one flat roof's layout. `frontage` is one bool per segment of
-    `massing.outline(b)` (the footprint ring for a plain building): the walls that get the plinth."""
+    `massing.outline(b)` (the footprint ring for a plain building): the walls that get the plinth. A
+    cathedral or theatre (prompt 32) is drawn by `mesh/landmarks.py` with the style's `[landmarks]`."""
+    if b.kind in LANDMARK_KINDS:
+        landmark_mesh(mb, b, height_fn, landmarks or {})
+        return
     fp = orient(b.footprint, sign=1.0)
     ring = np.asarray(fp.exterior.coords)
     ground = height_fn(ring[:, 0], ring[:, 1])
@@ -643,6 +652,9 @@ def build_tile(tc: TileContext, i: int, j: int) -> tuple:
                 spec = tc.plinths[kind]
                 plinth = (str(spec["material"]), float(spec["height"]))
                 frontage = street_frontage(outline(b), plan, walk_width, street_tree, reach)
+            if b.kind in LANDMARK_KINDS:                       # the cathedral and the theatre (prompt 32)
+                building_mesh(mb, b, tc.height, landmarks=tc.landmarks)
+                continue
             roofs = roof_layouts(b, kind, roof_stream(tc.world.seed, plan.settlement.id, int(k)), tc.roofs)
             building_mesh(mb, b, tc.height, plinth=plinth, frontage=frontage, roofs=roofs)
             if dresser is not None:

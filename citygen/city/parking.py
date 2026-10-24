@@ -8,6 +8,8 @@ cars in it, so both must agree. `Parking` lays the cars out for `Dresser.street_
 """
 from __future__ import annotations
 
+import math
+
 import numpy as np
 import shapely
 from shapely.strtree import STRtree
@@ -363,7 +365,21 @@ class Parking:
         add(doors, float(cfg["door_clear"]))
         add(paths, float(cfg["path_clear"]) + float(d.path_cfg.get("width", 1.4)) / 2)
         add(fronts, 0.0)
+        add(self._landmark_steps(strip), 0.05)
         return geoms, np.array(clear)
+
+    def _landmark_steps(self, strip) -> list:
+        """The street in front of a cathedral's or theatre's steps (prompt 32), `front_clear` m wider each side
+        and 15 m out: no car parks there."""
+        d, half = self.d, float(self.cfg["front_clear"])
+        out = []
+        near = d.fp_tree.query(strip, predicate="dwithin", distance=float(self.cfg["door_reach"]))
+        for b in sorted(int(i) for i in near):
+            f = d.plan.buildings[b].facade
+            if f is not None:
+                n = np.array([math.cos(f["yaw"]), math.sin(f["yaw"])])
+                out.append(shapely.Polygon(_rect(np.array([f["x"], f["y"]]), n, f["width"] / 2 + half, 15.0)))
+        return out
 
     def _trees(self, strip) -> list:
         """Trunk points of the planned trees near the strip, where the tile draws them (`tree_spots`)."""

@@ -49,6 +49,8 @@ cemetery = ["Cemetery of Sidi {n}"]
 gate = ["Bab {n}", "Bab {a} {n}"]
 mosque = ["Jamaa {n}", "Jamaa {a} {n}"]
 kasbah = ["Kasbah of {s}", "Kasbah of {s}", "Kasbah {a} {n}", "Dar {a} {n}", "Bordj {a} {n}"]   # {s}: the city
+cathedral = ["Cathedral of St {g} de {n}"]   # {g}: a saint from [landmarks.cathedral] saints; {n} an invented place
+theatre = ["Theatre Municipal de {s}", "Theatre Municipal de {s}", "Grand Theatre de {s}"]
 
 [lore]
 # Fictional history: settlements are said to date from one of these eras.
@@ -78,6 +80,10 @@ metal = { color = "#A6ACB1", roughness = 0.5, metallic = 0.3 }
 rampart = { color = "#CFAE7C", texture = "stone", texture_size = [2.4, 1.8] }
 minaret_stone = { color = "#D9C398", texture = "stone", texture_size = [2.4, 1.8] }
 stone_kasbah = { color = "#C4A272", texture = "stone", texture_size = [3.0, 2.2] }   # the kasbah: bigger, warmer ashlar
+stone_cathedral = { color = "#DCCBA6", texture = "stone", texture_size = [2.8, 1.9] }   # the cathedral: pale limestone ashlar (prompt 32)
+plaster_theatre = { color = "#F3EEE3", texture = "render", texture_size = [3.0, 3.0] }   # the theatre: white Art Nouveau render
+stone_dressed = { color = "#C9AF83", texture = "stone", texture_size = [1.8, 1.2] }   # the cathedral's portals, rose, bands and steps: finer, warmer
+verdigris = { color = "#6E9A86", roughness = 0.75 }   # matte green patina of the landmarks' copper domes (no metal: the sky would band on it)
 roof_white = { color = "#E4DFD4", texture = "roof_flat", texture_size = [2.5, 2.5] }
 roof_tile = { color = "#B5593B", roughness = 0.8, texture = "roof_tile", texture_size = [2.0, 1.6] }
 dome_white = { color = "#F5F3EE", texture = "plaster", texture_size = [2.0, 2.0] }
@@ -402,6 +408,72 @@ minaret = [0.21, 1.2, 22.0]   # square minaret: side and height times the hall w
 paving = "paving"          # the parade ground and the palace courtyard, draped on the terrain ...
 paving_lift = 0.05         # ... this high
 
+[landmarks]                # the cathedral and the municipal theatre on the boulevard (prompt 32, city/landmarks.py, mesh/landmarks.py)
+lots = [3, 6]              # adjacent colonial lots of one block merged into one site
+front_reach = 0.6          # meters: a lot faces the boulevard where its edge lies this close to the street's edge
+min_front = 8.0            # meters of boulevard frontage of the lot a site grows from
+inset = 0.15               # meters from the lot edges, as every building
+shift = [12.0, 2.0]        # meters along the boulevard the body may move from that lot's front (either way), in steps of
+scales = [1.0, 0.92, 0.84, 0.76]   # ... and the share of the style's size it may shrink to when that does not fit
+slack = 0.05               # square meters of the footprint allowed outside the merged lot (rounding at its corners)
+view = [50.0, 300.0, 35.0] # best 50-300 m ahead of the street camera, within this many degrees of its axis
+tree_clear = 7.0           # no boulevard tree this close in front of the steps
+# the "cathedral" and "theatre" camera views: eye and look heights, best distance, nearest, widest angle the
+# facade may span, cosine of the most oblique view allowed, meters between the spots tried on the boulevard
+camera = { height = 4.0, look = 11.0, distance = 48.0, min_distance = 28.0, spread = 50.0, facing = 0.35, step = 2.0 }
+
+[landmarks.cathedral]      # neo-Romanesque with a Byzantine dome, like St Vincent de Paul in Tunis
+size = [24.0, 48.0]        # meters: facade width (two towers and the nave), depth behind the steps
+steps = 3.2                # meters of front steps before the facade
+base = 1.0                 # floor above the foot of the steps (more where the ground behind is higher)
+riser = 0.17               # highest step
+height = 15.5              # nave walls above the floor
+pitch = 32.0               # degrees, nave roof
+tower = [0.25, 27.0, 2.6]  # square towers: side times the facade width, shaft height, belfry openings' height
+lantern = [0.36, 2.8]      # octagonal lantern on each tower: radius times the side, height
+cap = { dome = 1.15, pyramid = 2.8 }   # tower caps: dome rise times its radius, pyramid height
+dome_chance = 0.6          # domes on the towers, else pyramids
+aisle = [9.0, 2.2]         # side aisles behind the towers: wall height, lean-to roof rise to the nave
+bay = 5.2                  # meters between windows along the aisles and the nave
+portal = [3.4, 6.2, 0.9, 0.7]        # central portal: width, height, frame width, depth it stands out
+side_portal = [2.2, 4.4, 0.6, 0.45]  # one in each tower
+rose = [2.8, 11.2]         # rose window: radius, height of its center above the floor
+aisle_window = [1.3, 3.0, 3.6]       # width, height, sill
+clerestory = [1.2, 2.3]    # nave windows over the aisle roofs: width, height
+crossing = [0.4, 3.0, 1.1] # dome over the crossing: drum radius times the nave width, drum height, dome rise
+transept_window = [2.6, 6.5, 4.0]    # the great window on each side of the crossing: width, height, sill
+apse = [11.5, 3.4]         # apse wall height, half-cone roof rise
+wall = "stone_cathedral"
+roof = "roof_tile"
+trim = "stone_dressed"
+dome = "verdigris"
+saints = ["Aurele", "Firmin", "Anselme", "Eloi", "Honorat", "Leonce", "Hilaire", "Gatien", "Fulcran", "Cyprien",
+          "Theodore", "Romain", "Ambroise", "Felicien", "Austremoine", "Lazare", "Prosper", "Saturnin"]
+
+[landmarks.theatre]        # Art Nouveau, like the Municipal Theatre of Tunis
+size = [30.0, 32.0]        # meters: facade width, depth behind the steps
+steps = 3.0
+base = 0.6
+riser = 0.17
+height = 14.5              # cornice above the floor
+corner_radius = 6.0        # the two street corners are rounded (four faces each)
+pavilion = [10.0, 1.4, 4.0]          # central pavilion: width, how far it stands out, how much higher it rises
+crown = [3.0, 2.8, 1.3]    # its crown: dome radius, drum height (the dome rises over the curved gable), dome rise
+corner_cupola = [1.5, 2.6, 1.3]      # a small cupola over each rounded corner: radius, drum height from the roof, dome rise
+parapet = [1.0, 0.3, 3.6, 0.6]       # height, thickness, meters between piers, how far the piers rise over it
+cornice = [0.6, 0.35]      # height, how far it stands out
+bay = 4.4                  # meters between windows along the sides
+ground_window = [2.0, 3.4] # arched doors and windows of the ground floor: width, height
+main_window = [2.2, 4.4, 5.4]        # the tall arched windows of the main floor: width, height, sill
+attic_window = [1.2, 1.5, 11.6]
+big_window = [6.0, 7.0, 5.6]         # the pavilion's great arched window: width, height, sill
+canopy = [4.3, 2.4, 0.35]  # glass and iron canopy over the entrance: height, reach, fascia
+fly = [0.6, 0.45, 7.0]     # stage tower at the back: width and depth times the body's, height over the cornice
+wall = "plaster_theatre"
+roof = "roof_white"
+trim = "marble"
+dome = "verdigris"
+
 [district.colonial]        # the "ville nouvelle": boulevards and apartment buildings from the protectorate era
 grid = [96.0, 72.0]        # block length and width
 street_width = 12.0
@@ -597,6 +669,7 @@ colonial_reach = 0.5
 colonial_share = 0.14      # share of neighborhoods in the colonial style
 walls = true
 kasbah = true              # a walled citadel on the old town's high edge (prompt 30)
+boulevard_landmarks = ["cathedral", "theatre"]   # on merged colonial lots facing the boulevard (prompt 32)
 port = true                # only if the city is on the coast
 parks = 2
 cemetery = true
@@ -622,6 +695,7 @@ colonial_reach = 0.55
 colonial_share = 0.1
 walls = true
 kasbah = true
+boulevard_landmarks = ["cathedral", "theatre"]   # when the boulevard has room
 port = true
 parks = 1
 cemetery = true

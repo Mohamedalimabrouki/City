@@ -15,6 +15,47 @@ Entry format:
 - Doubts and questions for Ali: <none, or the question>
 ```
 
+## 2026-10-24 - Prompt 32 A5c Cathedral and theatre on the boulevard
+- Commit: (see git log) | Model: Opus 5.5, high (playbook: Sonnet, high)
+- Changed: `citygen/city/landmarks.py` (new: sites on merged lots, `merge`, buildings and names, the local
+  `Frame` and plan shapes shared with the mesh, boulevard trees cleared before the steps, camera views),
+  `citygen/mesh/landmarks.py` (new: the cathedral and the theatre), `citygen/city/__init__.py` (the step after
+  the impasses), `citygen/city/model.py` (`Building.facade`), `citygen/city/streets.py` (`view_spot`, the
+  street camera's rule, now shared), `citygen/build.py` (`camera_views` uses it; "cathedral" and "theatre"
+  views), `citygen/city/parking.py` (no car before the steps), `citygen/mesh/tile.py` (dispatch in
+  `building_mesh`), `citygen/mesh/builder.py` (`add_arch` round head, `add_quads` moved from `vaults.py`),
+  `citygen/export/maps.py` (colors; a landmark label moves a line up or down when that covers less),
+  `citygen/export/lore.py` (gazetteer line), `styles/maghreb.toml` (`[landmarks]`, names, `stone_cathedral`,
+  `stone_dressed`, `plaster_theatre`, `verdigris`, `boulevard_landmarks` for capital and city), tests (1 new,
+  2 kasbah tests now skip the buildings after the kasbah), docs.
+- Design: each kind slides its footprint along the boulevard-facing colonial lots (shift 0-12 m, scales 1.0 to
+  0.76 of its size); the lots of one block it touches (3-6) are merged and must hold it. Quick capital: the
+  boulevard is 76 m and the street camera stands 10 m from its start, so no site lies 50-300 m ahead (the
+  cathedral's block is 48 m ahead, behind palms): cathedral 20.2 x 40.3 m on 4 lots (block 40, the far end),
+  theatre 25.2 x 26.9 m on 3 lots (block 48, near the start), facing each other across the boulevard; new
+  index views "cathedral" and "theatre" (also in the viewer menu and the .blend cameras). Full capital: both
+  about 100 m ahead of the street camera, facing each other: cathedral 22.1 x 44.2 m on 4 lots, theatre
+  30 x 32 m on 6. Triangles: quick 2,995 and 3,081, full 3,095 and 3,285 (limit 6,000). Names: "Cathedral of St
+  Ambroise de Goba", "Theatre Municipal de Goumosbane". Plan parts (quick): buildings 1,683 -> 1,678 (7 apartments
+  gone, 2 landmarks appended after the kasbah), parcels 1,707 -> 1,702 (7 lots merged into 2 appended at the
+  end), households 1,313 -> 1,306, trees 8,010 -> 8,006 (4 boulevard palms before the steps), landmarks 10 -> 12;
+  every later colonial lot re-rolls its draws, every later building index, household and massing choice shifts.
+- Checks: tests 90 passed (23.6 s; the new one 0.15 s), slow tests pass; `build --quick` 10.8 s (HEAD 10.7 s);
+  fingerprint: `plan/*`, `maps/*`, `gazetteer`, `tiles/index` and all 8 tiles, worst +3.5% (`tile_14_22`), the
+  landmark tile +2.6%. Full capital 50.6 -> 50.8 s (HEAD rebuilt 49.8 s; planner +0.2 s), 37 of 168 tiles
+  change: the landmark tile `tile_65_107` +7.9%, but `tile_70_102` +17.0% (269 -> 315 KB) and `tile_66_107`
+  +10.2%: re-rolled household door colors bring other door and shutter variants into light tiles (the kasbah's
+  effect, larger here).
+- Look: `output/checks/32.png` (street view: the cathedral's towers and rose 48 m ahead on the left, half behind
+  a palm; the theatre is hidden by the promenade trees) and `output/checks/32-landmarks.png` (from the ring road
+  15 m up: the cathedral far left with towers, domes, rose and crossing dome; the theatre close on the right with
+  its rounded corner, cupola, crown dome and canopy). Both were taken before two small byte trims (urns of 10
+  triangles, matte domes). Blender: `output/bodjantouna-42/goumosbane.blend`.
+- Doubts and questions for Ali: on the quick capital the two landmarks cannot stand 50-300 m ahead of the street
+  camera (its boulevard is 76 m), so they have their own camera views; light full-capital tiles over +10% from
+  re-rolled door colors (not from the landmarks); "boulevard-facing" read as the merged site facing the
+  boulevard (lots behind the front lots join, else no cathedral fits a 25 m frontage).
+
 ## 2026-10-24 - Prompt 31 A5b Covered souks
 - Commit: (see git log) | Model: Opus 5.5, high (playbook: Sonnet, high)
 - Changed: `citygen/city/covered.py` (new: which souks, the covered stretches, springing, stations, arches,
