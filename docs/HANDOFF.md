@@ -50,7 +50,9 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
   designs and the phone page (list in `docs/PROMPTS.md`). Checkpoint 16 judged the trial
   (prompts 7-15): good code and honest reports, but it let speed slip and its tests did not
   look at the drawn result; recommendation: continue with it, checkpoints catch the rest. The
-  git tag `before-deepseek` stays as the backup point.
+  git tag `before-deepseek` stays as the backup point. DeepSeek usage ended after prompt 19
+  (23 October 2026): from prompt 20 the lead session (Opus) runs each prompt with an Opus helper,
+  reviews its diff, tests, fingerprint and pictures, fixes, then commits one commit per prompt.
 - Prompts 1-5 (tools and fast builds) are done and checked by checkpoint 1 (CP1, 22 October
   2026): fingerprint, before/after pictures, parallel and resumable builds all work as
   documented. Reference for checkpoint 16: `output/checks/fp-cp1.json` (quick build) and the
@@ -61,7 +63,17 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
   A1 (roof parapets and stair rooms). Checkpoint 2 (CP2, 23 October 2026) reviewed them, fixed
   sidewalk corners and paint lines that sank under the asphalt, and won back the build time the
   trial had lost. Reference for checkpoint 27: `output/checks/fp-cp2.json` and
-  `output/checks/cp2-street.png`, `cp2-souk.png`. Next: prompt 18.
+  `output/checks/cp2-street.png`, `cp2-souk.png`.
+- Prompts 17-26 are done (facades and street life): textures on walls, roofs and ground, a door
+  and windows for every home (20.1), impasses to every landlocked house (20.2), lit windows by
+  household, colonial arcades and iron balconies, building massing (cut corners, domes, set-back
+  floors, stepped slabs, L villas), greenery (avenue trees, villa gardens, courtyard citrus),
+  parked cars and taxis, benches, kiosks and fountains. Checkpoint 3 (CP3, 24 October 2026): an
+  independent reviewer and the lead found and fixed paint rows outside parking districts,
+  arcade zones at cut corners, lamps inside wider streets, a float in the lit-flat stream key and
+  an unbounded cache; a speed round made tiles 26% faster and tests 31 s -> 20 s with
+  byte-identical output. Reference for checkpoint 43: `output/checks/fp-cp3.json` and
+  `output/checks/cp3-street.png`, `cp3-souk.png`. Next: prompt 28.
 - Seed 42 makes the country **Bodjantouna** with the capital **Goumosbane**.
   `python -m citygen build --quick` writes it to `output/bodjantouna-42/` in about 10 seconds on
   Ali's Mac (20 seconds in the cloud).
@@ -446,7 +458,11 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
 
 ## Known weak spots
 
-Task Q5 in the roadmap: heavy old-town tiles. Since prompt 20.2 every dwelling in old towns,
+Task Q5 in the roadmap: heavy old-town tiles (CP3: the densest quick tile is 7.4 MB, 5.8 MB at
+CP2; quick drawn triangles 4.05 M, 2.45 M at CP2; three suburb tiles of the full capital just over
+3 MB with their garden ground). The viewer still renders the street view in about 4.6 ms per
+frame on High (M1, golden hour), so prompts 39-41 (lighter tiles, level of detail) have room to
+work before it matters. Since prompt 20.2 every dwelling in old towns,
 villages, residential and suburb districts opens on a street, alley or impasse (full capital: 6,641
 impasses, 160 km; none enclosed). The planner is 4.9 s slower for it (15.5 s on the full capital);
 cutting several far-apart lanes per block per round would shorten the old town's 300 rounds.

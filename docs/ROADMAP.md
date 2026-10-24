@@ -38,7 +38,7 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
 - [x] 24 A7 More greenery
 - [x] 25 H3a Parked cars and taxis
 - [x] 26 H3b Benches, kiosks, fountains
-- [ ] 27 CP3 Checkpoint: facades and street life
+- [x] 27 CP3 Checkpoint: facades and street life
 - [ ] 28 P1 People figures
 - [ ] 29 P2 People in the streets
 - [ ] 30 A5a The kasbah

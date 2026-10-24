@@ -36,7 +36,9 @@ of every prompt is in `docs/prompts/`; Claude reads it there, so you only type t
   `CLAUDE.md`). Keep these on Claude: the checkpoints (6, 16, 27, 43, 58, 69, 78, 91, 100), the
   big designs (44, 51, 94, 98) and the phone page (42, 99: they need Claude's Artifact tool).
   Never run two agents on this folder at the same time. Checkpoint 16 judges the trial; the
-  backup point before it is the git tag `before-deepseek`.
+  backup point before it is the git tag `before-deepseek`. The trial ended after prompt 19
+  (DeepSeek usage ran out): since prompt 20 the lead Claude session runs the prompts with Opus
+  helpers and reviews each one before it commits.
 - **Engines.** Godot and Unreal are not on your Mac. Prompts 72-75 ask you before installing
   anything; you can also postpone them.
 - **Stuck session.** If it repeats the same error more than twice, stop it (Esc), switch to

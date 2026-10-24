@@ -15,6 +15,42 @@ Entry format:
 - Doubts and questions for Ali: <none, or the question>
 ```
 
+## 2026-10-24 - Prompt 27 CP3 Checkpoint: facades and street life
+- Commits: "CP3 fixes: paint and cars agree, cut-corner arcade zones, lamps, lit keys" and "CP3
+  speed: tiles 26% faster, tests 31 s -> 20 s, output byte-identical" (see git log) | Model: Opus
+  5.5, medium (lead), with an independent Opus reviewer that read only the committed history
+- Reviewed prompts 17-26 with 20.1 and 20.2 (17-19 DeepSeek; 20-26 Opus helpers, each reviewed by
+  the lead before its commit): every "Done when" met. Documented, kept: 52% of arcade bays flex to
+  3.2-4.4 m (22); the taxi rank stands in a side street, the quick boulevard is only 76 m (25);
+  colonial arterials keep their arcades as shade instead of street trees (24).
+- Found and fixed (independent review, verified): paint gave empty parking rows to sides without
+  parking districts; arcade zones probed cut-corner faces differently from `Dresser.walls`, so a
+  side-street lamp could stand under a wrap bay; lit flats keyed a side on a float yaw (a south
+  wall could split a flat); lamps of a grid street under the boulevard stood on the promenade, one
+  1.3 m from the fountain (`lamp_spot` now drops lamps inside a wider street); fountain clear of
+  crowns; numbers moved to `[dressing.squares]` and `[dressing.parking]`; one shared stair-path
+  function; the terrain-corner cache cleared per tile; three tests made to check the real result.
+- Speed (identical output, fingerprints of the quick and the full capital 0 changed): quick tiles
+  4.81 -> 3.58 s in one process, full capital about 54 -> 48 s back to back, planner 17.3 -> 16.3 s,
+  `pytest -q` 30.7 -> 20.4 s, `build --quick` 11.4 -> 9.9 s.
+- Checks: tests 81 passed (20.4 s), 2 slow passed; `build --quick` 9.9 s; stats 296,713 triangles,
+  4,046,565 drawn, 27,255 dressing pieces, 18.4 MB in 9 tiles. Against `cp2`: 98 parts changed (81
+  new kit pieces, plan buildings, streets, trees and households, every tile; densest quick tile
+  5.81 -> 7.40 MB). Saved `fp-cp3`.
+- Textures: 14 shared images, about 0.7 MB (limit 2 MB); sharp at street level (anisotropy 8); no
+  visible repeat from 135 m (`20-air.png`). Phone page rebuilt from the quick build (26 MB, biggest
+  file 9.9 MB) and served locally: 9/9 tiles with textures, no console errors. Blender file
+  refreshed by every prompt (`tools/make_blend.py`).
+- Doors and windows: every dwelling has a door (tests); slabs have windows on every floor; no
+  enclosed home on the quick or the full capital (6,641 impasses on the full capital).
+- Street life: boulevard, souk and colonial streets walked in the GPU viewer: no car in a tree or
+  on a crossing, no lamp or tree in an arcade after the fixes, benches and kiosk clear. The street
+  view renders in 4.6 ms per frame (High, golden hour).
+- Look: `output/checks/cp3-street.png` (difference 0.24: the two promenade lamps are gone) and
+  `output/checks/cp3-souk.png` (0.00). Blender: `output/bodjantouna-42/goumosbane.blend`.
+- Doubts and questions for Ali: none. Tile weight is the open budget (densest quick tile 7.4 MB,
+  three suburb tiles just over 3 MB): prompts 39-41 handle it.
+
 ## 2026-10-24 - Prompt 26 H3b Benches, kiosks and fountains
 - Commit: (see git log) | Model: Opus 5.5, medium (playbook: Sonnet, medium)
 - Changed: `citygen/mesh/furniture.py` (new: `bench_iron` 180 triangles, `kiosk` 232 with a lit twin,
