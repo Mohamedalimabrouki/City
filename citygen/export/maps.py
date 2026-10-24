@@ -30,6 +30,8 @@ GARDEN_RGB = (176, 204, 128)            # villa gardens (prompt 24)
 KASBAH_RGB = {"kasbah_wall": (120, 82, 50), "kasbah_tower": (120, 82, 50), "kasbah_gate": (120, 82, 50),
               "kasbah_palace": (236, 226, 204), "kasbah_ground": (214, 198, 166)}   # prompt 30
 LANDMARK_RGB = {"cathedral": (226, 200, 132), "theatre": (170, 64, 70)}   # the boulevard's landmarks (prompt 32)
+STATION_RGB = {"station": (196, 120, 60), "station_platforms": (150, 140, 128), "station_forecourt": (214, 204, 184)}
+RAIL_BED_RGB, RAIL_RGB = (160, 150, 138), (70, 62, 58)   # the tracks (prompt 33)
 ROAD_STYLE = {"national": ((196, 72, 52), 3.2), "regional": ((222, 150, 60), 2.2),
               "local": ((120, 110, 96), 1.2)}
 
@@ -142,13 +144,20 @@ def city_map(world, plan, path, meters_per_px: float | None = None, max_px: int 
 
     for d in plan.districts:
         fill_poly(d.polygon, DISTRICT_RGB.get(d.kind, (230, 230, 230)))
+    station = getattr(plan, "station", None)
+    if station is not None:                       # the sleeper beds under the streets, the rails over them
+        for t in station.tracks:
+            draw.line(ring(t.coords), fill=RAIL_BED_RGB, width=max(2, round(4.0 / mpp)))
     for st in sorted(plan.streets, key=lambda s: s.width):
         color = (250, 250, 248) if st.kind not in ("alley", "souk", "impasse") else (252, 246, 232)
         draw.line(ring(st.line.coords), fill=color, width=max(1, round(st.width / mpp)))
+    if station is not None:
+        for t in station.tracks:
+            draw.line(ring(t.coords), fill=RAIL_RGB, width=max(1, round(1.4 / mpp)))
     kinds = {i: d.kind for i, d in enumerate(plan.districts)}
     for j in villa_lots(plan, [k for k, b in enumerate(plan.buildings) if b.kind == "villa"]).values():
         fill_poly(plan.parcels[j].polygon, GARDEN_RGB)
-    for b in sorted(plan.buildings, key=lambda b: b.kind != "kasbah_ground"):   # paving under the rest
+    for b in sorted(plan.buildings, key=lambda b: b.kind not in ("kasbah_ground", "station_forecourt")):   # paving under the rest
         color = BUILDING_RGB.get(kinds.get(b.district, "residential"), (150, 140, 130))
         if b.kind in ("mosque_hall", "minaret", "mosque_court"):
             color = (60, 120, 90)
@@ -158,6 +167,8 @@ def city_map(world, plan, path, meters_per_px: float | None = None, max_px: int 
             color = KASBAH_RGB[b.kind]
         elif b.kind in LANDMARK_RGB:
             color = LANDMARK_RGB[b.kind]
+        elif b.kind in STATION_RGB:
+            color = STATION_RGB[b.kind]
         fill_poly(Polygon(b.footprint.exterior), color)
         court = KASBAH_RGB["kasbah_ground"] if b.kind in KASBAH_RGB else DISTRICT_RGB.get(kinds.get(b.district), (235, 225, 205))
         for hole in b.footprint.interiors:

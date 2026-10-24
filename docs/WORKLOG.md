@@ -15,6 +15,42 @@ Entry format:
 - Doubts and questions for Ali: <none, or the question>
 ```
 
+## 2026-10-24 - Prompt 33 A5d Train station and clock tower
+- Commit: (see git log) | Model: Opus 5.5, medium (playbook: Sonnet, medium)
+- Changed: `citygen/city/station.py` (new: site at the colonial edge, track layout, corridor, street and walk
+  clipping, buildings, name, camera view), `citygen/mesh/station.py` (new: head building, clock tower,
+  platforms and canopies, tracks per tile, `keep_off`), `citygen/city/__init__.py` (the step after the local
+  streets; buildings after the boulevard's), `citygen/city/model.py` (`CityPlan.station`), `citygen/city/
+  ground.py` (level ground under the station, `walk_step`), `citygen/city/crowd.py` (walk triangles use
+  `walk_step`), `citygen/mesh/tile.py` (station kinds, rails, placement filter), `citygen/mesh/textures.py`
+  (`ballast` texture with sleepers), `citygen/export/maps.py`, `citygen/export/lore.py` (map, gazetteer,
+  plan.json `rail`), `citygen/build.py` ("station" view), `styles/maghreb.toml` (`[station]`, palette, names,
+  `station = true` for capital and cities), tests, docs.
+- Design: a terminus across the avenue from the colonial quarter (quick capital: in the port district,
+  toward the port and the regional road; full capital: in a residential district). Head building 64 x 16 m
+  in pale yellow render with a tiled gable roof, an entrance pavilion with pediments and a great recessed
+  arch, round-arched windows and doors, a 28 m square clock tower with four dials and real hands; 4 tracks
+  between 3 platforms (side, island, side) under ridged iron canopies on posts, buffer stops; the tracks close
+  to 4 m spacing over a 70 m throat and run straight 40 m past the city limit through a corridor (tracks plus
+  4 m). Level crossings: rails at the street surface (quick capital: 3 streets and the corniche).
+- Plan changes (quick capital, why): buildings 1,678 -> 1,668, parcels 1,702 -> 1,692, streets 454 -> 449,
+  impasses 151 -> 147, households 1,306 -> 1,300, trees 8,006 -> 8,003, landmarks 12 -> 13, new `rail`. The cut
+  changes the port's blocks; the impasse step advances all blocks together, so old-town lanes and lots change
+  too (first changed parcel is an old-town one) and every later household re-rolls. Full capital: buildings
+  39,114 -> 38,965, streets 11,284 -> 11,179, households 38,442 -> 38,301; tracks 2.05 km.
+  Station: "Gare de Goumosbane" on both.
+- Checks: tests 91 passed (25 s; the new test 0.7 s); `build --quick` 11.4 s; fingerprint: plan/*, maps,
+  gazetteer, tiles/index (new view) and 8 tiles, no kit part. Station tile 14_24 +9.7% (budget 10%), 13_24
+  +5.3% (walks in the level band drawn finer, plan shift); 12_23 +31.6% from the plan shift alone (re-rolled
+  door, shutter and cafe variants: 22 piece kinds it did not show before, no station geometry); the other 5
+  tiles: 13_22 +0.7%, four shrank (-1.2% to -9.4%). Full capital 52.0 -> 57.1 s (CPU 230 -> 247 s, +7.7%; planner +0.5 s).
+- Look: `output/checks/33.png` (aerial, the station far right in the haze), `output/checks/33-station.png`
+  (110 m off, 30 m up: hall, pavilion, clock tower, canopies, tracks). Blender: `output/bodjantouna-42/
+  goumosbane.blend` (new "station" camera).
+- Doubts and questions for Ali: the quick capital's coast slopes 8%, so the station's ground is graded level
+  and blends back over 100 m (a gentle regrade of the neighbourhood). The +31.6% tile is plan shift, not the
+  station. The full capital time rose about 5 s; part may be noise.
+
 ## 2026-10-24 - Fix: parking keeps clear of shop and cafe fronts
 - Commit: (see git log) | Model: Opus 5.5, high
 - Changed: `citygen/city/parking.py` (fronts get `front_gap`), `styles/maghreb.toml` (`[dressing.parking]

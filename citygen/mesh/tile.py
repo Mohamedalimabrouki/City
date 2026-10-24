@@ -35,6 +35,7 @@ from .builder import (MeshBuilder, add_arch, add_battlement, add_cap, add_dome, 
                       add_ribbon, add_sheet, add_skirt, add_walls, closed, extrude, rectangle, regular_polygon)
 from .gltf import write_glb
 from .landmarks import landmark_mesh
+from .station import forecourt_skirt, keep_off, rail_meshes, rail_zone, station_mesh
 from .props import tree_mesh
 from .textures import images_for
 from .vaults import covered_meshes
@@ -54,6 +55,7 @@ class TileContext:
         self.roofs = world.style.get("roofs", {})
         self.plinths = world.style.get("plinth", {})
         self.landmarks = world.style.get("landmarks", {})
+        self.station = world.style.get("station", {})
         self.road_lines = [LineString(r.coords) for r in world.roads]
         self.road_tree = STRtree(self.road_lines) if self.road_lines else None
         self.plans = plans
@@ -74,6 +76,7 @@ class TileContext:
         self.cities = []
         self.paint_trees = []
         self.covers = []                         # covered souks (prompt 31): one rule for mesher and dresser
+        self.rail_zones = [rail_zone(p) for p in plans]   # the station's ground, kept clear (prompt 33)
         for p in plans:
             fps = [b.footprint for b in p.buildings]
             centers = shapely.get_coordinates(shapely.centroid(fps)) if fps else np.zeros((0, 2))
@@ -232,7 +235,7 @@ def walk_meshes(mb: MeshBuilder, tc: TileContext, plan, tile, street_tree=None) 
         c = walk.polygon.centroid
         if not (x0 <= c.x < x1 and y0 <= c.y < y1):
             continue
-        poly = shapely.segmentize(orient(walk.polygon, sign=1.0), step)   # long blocks follow the ground
+        poly = shapely.segmentize(orient(walk.polygon, sign=1.0), tc.ground.walk_step(walk.polygon, step))   # long blocks follow the ground
         add_draped_cap(mb, poly, tc.ground.walk_top, "sidewalk", along)
         for ring in (poly.exterior, *poly.interiors):
             pts = np.asarray(ring.coords)[:-1]
@@ -311,7 +314,8 @@ def street_directions(street_tree, x, y) -> np.ndarray:
 
 PLINTH_KINDS = frozenset({"house", "domed", "apartments", "villa", "shed", "mosque_hall", "marabout"})
 LANDMARK_KINDS = frozenset(LANDMARKS)   # drawn by mesh/landmarks.py (prompt 32)
-PAVED_KINDS = frozenset({"kasbah_ground"})   # open ground drawn as paving on the terrain, not as a solid
+PAVED_KINDS = frozenset({"kasbah_ground", "station_forecourt"})   # open ground drawn as paving on the terrain
+STATION_KINDS = frozenset({"station", "station_platforms"})   # drawn by mesh/station.py (prompt 33)
 
 
 def building_mesh(mb: MeshBuilder, b, height_fn, roof: RoofLayout | None = None,
@@ -627,6 +631,9 @@ def build_tile(tc: TileContext, i: int, j: int) -> tuple:
     placements: list = []
     spans: list = []
     for ci, (plan, centers, trees, street_tree, dresser) in enumerate(tc.cities):
+        zone = tc.rail_zones[ci]
+        if zone is not None and zone.intersects(tile):      # the tracks run on past the city limit
+            rail_meshes(mb, tc, plan, tile)
         if not plan.boundary.intersects(tile):
             continue
         street_meshes(mb, tc, plan, street_tree, tile)
@@ -645,6 +652,11 @@ def build_tile(tc: TileContext, i: int, j: int) -> tuple:
             b = plan.buildings[int(k)]
             if b.kind in PAVED_KINDS:
                 paving_mesh(mb, tc, b)
+                if b.kind == "station_forecourt":
+                    forecourt_skirt(mb, b, tc.ground.drawn)
+                continue
+            if b.kind in STATION_KINDS:                         # the railway station (prompt 33)
+                station_mesh(mb, b, tc.height, tc.station, tc.world.seed)
                 continue
             kind = plan.districts[b.district].kind
             plinth = frontage = None
@@ -702,6 +714,8 @@ def build_tile(tc: TileContext, i: int, j: int) -> tuple:
             placements[:] = dresser.under_roofs(placements)   # nothing pierces a souk roof (prompt 31)
         if dresser is not None and dresser.world.style.get("people"):     # people in the streets (prompt 29)
             placements += dresser.crowd().people(tile, placements, centers, tile_bytes(tc.kit, mb, placements))
+        if zone is not None:                                # nothing stands on the tracks (prompt 33)
+            placements[:] = keep_off(placements, zone, tc.kit)
     ground_heights(tc.ground, placements)
     for span in spans:
         if span.kind == "sabat":

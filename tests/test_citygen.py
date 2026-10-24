@@ -78,6 +78,8 @@ def test_same_seed_same_city(world, plan):
     assert fort and fort == [(b.kind, b.footprint.wkb, b.arches, b.battlement)
                              for b in again.buildings if b.kind.startswith("kasbah")]
     assert [m for m in again.landmarks if m.kind == "kasbah"] == [m for m in plan.landmarks if m.kind == "kasbah"]
+    assert again.station.facade == plan.station.facade                       # the railway station (prompt 33)
+    assert [t.wkb for t in again.station.tracks] == [t.wkb for t in plan.station.tracks]
 
 
 def test_buildings_are_valid_and_inside_the_city(plan):
@@ -1102,7 +1104,7 @@ def test_drawn_sidewalks_and_paint_stay_above_the_ribbon(world, plan, ground):
         return z, ground.height(c[:, 0], c[:, 1]) + ground.lift(c[:, 0], c[:, 1])
 
     for w in plan.walks:
-        z, ribbon = centers(w.polygon, ground.walk_top, float(cfg["walk_step"]))
+        z, ribbon = centers(w.polygon, ground.walk_top, ground.walk_step(w.polygon, float(cfg["walk_step"])))
         assert np.all(z >= ribbon + 0.5 * curb)   # a junction with a higher ribbon eats part of the curb
     for m in plan.paint:
         z0 = STREET_LIFT.get(plan.streets[m.street].kind, 0.24) + lift
@@ -1708,7 +1710,7 @@ def test_massed_buildings_dress_only_walls_and_roofs_that_exist(world, plan, gro
                     assert any(math.hypot(p.x - v[0], p.y - v[1]) < 1e-6 for p in bends), (k, v)
                     seen["bend"] += 1
     assert seen["window"] > 1500 and seen["upper"] > 50 and seen["prop"] > 20 and seen["tank_stand"] > 10, seen
-    assert seen["menzah"] > 3 and seen["cut"] > 5 and seen["bend"] > 10, seen
+    assert seen["menzah"] > 2 and seen["cut"] > 5 and seen["bend"] > 10, seen   # menzah 4 -> 3: prompt 33's plan shift
 
 
 def test_villa_l_is_a_hip_part_and_a_terrace_wing(world):
@@ -2287,6 +2289,8 @@ def test_people_stand_on_the_drawn_ground_clear_of_walls_cars_pieces_and_each_ot
     assert len(things) > 500
     hit_p, hit_t = STRtree(boxes).query(feet, predicate="intersects")
     for m, k in zip(hit_p.tolist(), hit_t.tolist()):
+        if things[k].z - stand[m].z > 2.0:                     # a string lantern hangs over the head (prompt 33)
+            continue
         assert feet[m].intersection(boxes[k]).area < 1e-4, (stand[m], things[k])   # a standing person in a piece
     things = [p for p in around if p.piece in cfg["seats"]]
     on = zip(*STRtree([_low_hull(kit, p, 1.5) for p in things]).query(seats, predicate="intersects"))
@@ -2357,7 +2361,8 @@ def test_a_settlement_without_streets_dresses_without_squares_or_crowd_errors(wo
 def _kasbah(plan):
     """(index of the kasbah's first building, its buildings, the area inside its walls with them)."""
     first = next(k for k, b in enumerate(plan.buildings) if b.kind.startswith("kasbah"))
-    fort = [b for b in plan.buildings[first:] if b.kind not in ("cathedral", "theatre")]   # they come after it (prompt 32)
+    later = ("cathedral", "theatre", "station", "station_platforms", "station_forecourt")   # after it (prompts 32, 33)
+    fort = [b for b in plan.buildings[first:] if b.kind not in later]
     return first, fort, shapely.union_all([shapely.Polygon(b.footprint.exterior) for b in fort])
 
 
@@ -2371,7 +2376,7 @@ def test_kasbah_holds_the_high_edge_of_the_old_town_and_keeps_clear(world, plan)
     assert all(b.kind.startswith("kasbah") or b.kind in ("mosque_hall", "mosque_court", "minaret") for b in fort)
     assert max(h.building for h in plan.households) < first          # appended last, nobody lives there
     marks = [m for m in plan.landmarks if m.kind == "kasbah"]
-    civic = [m for m in plan.landmarks if m.kind in ("cathedral", "theatre")]       # after it (prompt 32)
+    civic = [m for m in plan.landmarks if m.kind in ("cathedral", "theatre", "station")]   # after it (prompts 32, 33)
     assert len(marks) == 1 and marks[0] is plan.landmarks[-1 - len(civic)] and marks[0].name.split()[0] in ("Kasbah", "Dar", "Bordj")
     # it leans on the city wall, on the old town's high edge
     walls = shapely.union_all([b.footprint for b in fort if b.kind in ("kasbah_wall", "kasbah_tower")])
@@ -2560,11 +2565,11 @@ def test_boulevard_landmarks_stand_on_merged_lots_drawn_light_and_kept_clear(wor
     from citygen.city.parcels import subdivide
     from citygen.mesh.tile import building_mesh
     cfg = world.style["landmarks"]
-    n = len(plan.buildings)
-    civic = [n - 2, n - 1]
-    assert [plan.buildings[k].kind for k in civic] == ["cathedral", "theatre"]
+    civic = [k for k, b in enumerate(plan.buildings) if b.kind in ("cathedral", "theatre")]
+    n = len(plan.buildings) - sum(b.kind.startswith("station") for b in plan.buildings)   # the station comes after
+    assert civic == [n - 2, n - 1] and [plan.buildings[k].kind for k in civic] == ["cathedral", "theatre"]
     assert not {h.building for h in plan.households} & set(civic)
-    marks = {m.kind: m.name for m in plan.landmarks[-2:]}
+    marks = {m.kind: m.name for m in plan.landmarks if m.kind in ("cathedral", "theatre")}
     saint = marks["cathedral"].removeprefix("Cathedral of St ").split(" de ")[0]
     assert saint in cfg["cathedral"]["saints"] and plan.settlement.name in marks["theatre"]
     boulevards = [st for st in plan.streets if st.kind == "boulevard"]
@@ -2635,3 +2640,62 @@ def test_boulevard_landmarks_stand_on_merged_lots_drawn_light_and_kept_clear(wor
         cos = ends[0] @ ends[1] / np.linalg.norm(ends[0]) / np.linalg.norm(ends[1])
         assert math.degrees(math.acos(cos)) <= cam_cfg["spread"] + 1e-6
         assert not any(b.footprint.contains(shapely.Point(*cam[:2])) for b in plan.buildings)
+
+
+def test_station_stands_at_the_colonial_edge_and_its_tracks_leave_the_city_clear(world, plan, ground, built_mesh):
+    # prompt 33: a station across an avenue from the colonial quarter (never in the old town, a park or a
+    # cemetery), its three buildings and its landmark last, nobody living there; 2-4 tracks from the buffer
+    # stops out past the city limit through a corridor where no other building, lot, walk or tree stands;
+    # streets cross it steeply (level crossings, the rails at the street's surface); in the station's tile no
+    # car, person, tree or other piece stands on the precinct or the corridor
+    from citygen.build import camera_views
+    from citygen.city.station import KINDS, cut
+    from citygen.mesh.tile import build_tile
+    cfg = world.style["station"]
+    st = plan.station
+    n = len(plan.buildings)
+    assert [b.kind for b in plan.buildings[-3:]] == ["station_forecourt", "station", "station_platforms"] == [
+        KINDS[2], KINDS[0], KINDS[1]]
+    assert not {h.building for h in plan.households} & {n - 3, n - 2, n - 1}
+    mark = plan.landmarks[-1]
+    assert mark.kind == "station" and mark.name.startswith("Gare") and plan.settlement.name in mark.name
+    assert cfg["tracks"][0] <= len(st.tracks) <= cfg["tracks"][1]
+    head = plan.buildings[-2]
+    avenue = plan.streets[head.facade["street"]]
+    colonial = [d.polygon for d in plan.districts if d.kind == "colonial"]
+    assert avenue.kind == "arterial" and min(avenue.line.distance(c.boundary) for c in colonial) < 2.0
+    assert all(c.intersection(st.precinct).area < 1.0 for c in colonial)
+    assert plan.districts[st.district].kind not in cfg["no_station_on"]
+    surfaces = [s.line.buffer(s.width / 2, cap_style="flat") for s in plan.streets]
+    for b in plan.buildings[-3:]:
+        assert b.footprint.is_valid and b.footprint.area > 100.0
+        assert all(b.footprint.intersection(q).area < 0.5 for q in surfaces), b.kind
+    zone = cut(st)
+    for t in st.tracks:                                       # out past the city limit, off the old town
+        end = shapely.Point(t.coords[-1])
+        assert not plan.boundary.contains(end) and plan.boundary.exterior.distance(end) > cfg["beyond"] / 4
+        assert not t.intersects(plan.medina)
+    assert all(b.footprint.intersection(zone).area < 0.01 for b in plan.buildings[:-3])
+    assert all(q.polygon.intersection(zone).area < 0.01 for q in plan.parcels)
+    assert all(w.polygon.intersection(zone).area < 0.01 for w in plan.walks)
+    assert not shapely.contains_xy(zone, [t.x for t in plan.trees], [t.y for t in plan.trees]).any()
+    crossings = 0
+    for s in plan.streets:                                    # every street on the tracks crosses them steeply
+        for piece in (g for g in getattr(s.line.intersection(st.corridor), "geoms", [s.line.intersection(st.corridor)])
+                      if g.geom_type == "LineString" and g.length > 0.5):
+            assert not st.corridor.buffer(-0.5).contains(shapely.Point(s.line.coords[0]))
+            assert not st.corridor.buffer(-0.5).contains(shapely.Point(s.line.coords[-1]))
+            crossings += 1
+    assert crossings >= 1
+    assert "station" in camera_views(plan, ground, style=world.style)
+    tc = built_mesh[0]
+    i, j = int(head.footprint.centroid.x // tc.size), int(head.footprint.centroid.y // tc.size)
+    mb, placements = build_tile(tc, i, j)
+    assert {"dial_white", "rail_steel", "ballast", "canopy_iron", "stone_dressed"} <= set(mb._parts)
+    assert sum(tc.kit.pieces[p.piece].category == "vehicle" for p in placements) > 5
+    assert all(_plan_box(tc.kit, p).intersection(zone).area < 1e-6 for p in placements)
+    pos = np.concatenate(mb._parts["rail_steel"][0]) + mb.origin   # rail heads at a crossing: on the street
+    top = pos[ground.lift(pos[:, 0], pos[:, 1]) > 0.0]
+    if len(top):
+        gap = top[:, 2] - ground.surface(top[:, 0], top[:, 1])
+        assert gap.max() < cfg["crossing_lift"] + 0.03 and np.percentile(gap, 75) > 0.0

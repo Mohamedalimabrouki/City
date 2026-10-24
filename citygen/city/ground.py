@@ -156,6 +156,25 @@ class _City:
         self.bounds = plan.boundary.bounds
         self.edge_line = plan.boundary.boundary
         self._overlap = None
+        st = getattr(plan, "station", None)             # the station stands on level ground (prompt 33)
+        self.level = self.level_zone = None
+        if st is not None and st.core is not None:
+            band = float(ground.level_band)
+            zone = st.core.buffer(band)
+            shapely.prepare(st.core)
+            shapely.prepare(zone)
+            self.level = (st.core, zone.bounds, float(st.facade["level"]), band)
+            self.level_zone = zone
+
+    def leveled(self, x: np.ndarray, y: np.ndarray, pts, out: np.ndarray) -> np.ndarray:
+        """`out` graded toward the station's level: all the way on its core, blending out over the band."""
+        core, (x0, y0, x1, y1), level, band = self.level
+        sel = np.nonzero((x >= x0) & (x <= x1) & (y >= y0) & (y <= y1))[0]
+        if len(sel):
+            t = np.clip(shapely.distance(core, pts[sel]) / band, 0.0, 1.0)
+            w = 1.0 - t * t * t * (t * (6.0 * t - 15.0) + 10.0)    # smootherstep: no kink in the slope at either end
+            out[sel] = out[sel] * (1.0 - w) + level * w
+        return out
 
     def _overlapping(self) -> bool:
         """True when two terraced blocks share interior points (then a point's block depends on
@@ -233,6 +252,8 @@ class Ground:
         self.terrace_max_area = float(cfg["terrace_max_area"])
         self.edge_band = float(cfg["edge_band"])
         self.step = float(world.cfg["tiles"]["terrain_step"])   # the terrain mesh's grid (mesh/tile.py)
+        self.level_band = float(world.style.get("station", {}).get("level_band", 100.0))
+        self.level_walk_step = float(world.style.get("station", {}).get("walk_step", 10.0))
         self.cities = [_City(p, self) for p in plans]
         self.area = unary_union([p.boundary for p in plans]) if plans else None
         if self.area is not None:
@@ -254,6 +275,14 @@ class Ground:
         self.apron_reach = float(streets_cfg.get("apron_reach", 6.0))
         self.apron_cell = float(streets_cfg.get("apron_cell", 2.0))
         self._apron_tris = None                                  # their drawn triangles (lazy, _apron_drawn)
+
+    def walk_step(self, poly, step: float) -> float:
+        """Meters between a walk's outline points: `step`, or the finer `[station] walk_step` where the
+        ground bends round the station's level ground, so the drawn walk keeps its curb over the ribbon."""
+        for city in self.cities:
+            if city.level_zone is not None and city.level_zone.intersects(poly):
+                return min(step, self.level_walk_step)
+        return step
 
     def _select(self, x: np.ndarray, y: np.ndarray) -> list:
         """(city, indices) for the points inside each city; cities never overlap."""
@@ -295,6 +324,8 @@ class Ground:
             terrace = city.terraces(idx[hit])
             w = smoothstep(0.0, self.edge, dist[hit])
             out[hit] = blur[hit] + w * np.clip(terrace - blur[hit], -self.terrace_max, self.terrace_max)
+        if city.level is not None:
+            out = city.leveled(x, y, pts, out)
         edge = shapely.distance(pts, city.edge_line)
         b = smoothstep(0.0, self.edge_band, edge)
         near = b < 1.0
@@ -312,6 +343,12 @@ class Ground:
             terrace = float(city.terraces(np.array([k]))[0])
             w = _smoothstep(0.0, self.edge, dist)
             out = blur + w * min(max(terrace - blur, -self.terrace_max), self.terrace_max)
+        if city.level is not None:
+            core, (x0, y0, x1, y1), level, band = city.level
+            if x0 <= x <= x1 and y0 <= y <= y1:
+                t = min(max(float(shapely.distance(core, pt)) / band, 0.0), 1.0)
+                w = 1.0 - t * t * t * (t * (6.0 * t - 15.0) + 10.0)
+                out = out * (1.0 - w) + level * w
         b = _smoothstep(0.0, self.edge_band, float(shapely.distance(pt, city.edge_line)))
         if b < 1.0:
             natural = float(self.terrain.height(np.array([x]), np.array([y]))[0])

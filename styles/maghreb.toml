@@ -51,6 +51,7 @@ mosque = ["Jamaa {n}", "Jamaa {a} {n}"]
 kasbah = ["Kasbah of {s}", "Kasbah of {s}", "Kasbah {a} {n}", "Dar {a} {n}", "Bordj {a} {n}"]   # {s}: the city
 cathedral = ["Cathedral of St {g} de {n}"]   # {g}: a saint from [landmarks.cathedral] saints; {n} an invented place
 theatre = ["Theatre Municipal de {s}", "Theatre Municipal de {s}", "Grand Theatre de {s}"]
+station = ["Gare de {s}", "Gare de {s}", "Gare Centrale de {s}", "Gare de {s}-Ville"]   # the railway station (prompt 33)
 
 [lore]
 # Fictional history: settlements are said to date from one of these eras.
@@ -87,6 +88,12 @@ verdigris = { color = "#6E9A86", roughness = 0.75 }   # matte green patina of th
 roof_white = { color = "#E4DFD4", texture = "roof_flat", texture_size = [2.5, 2.5] }
 roof_tile = { color = "#B5593B", roughness = 0.8, texture = "roof_tile", texture_size = [2.0, 1.6] }
 dome_white = { color = "#F5F3EE", texture = "plaster", texture_size = [2.0, 2.0] }
+# the railway station and its tracks (prompt 33): the sleeper bed's texture is one track wide (4 m across,
+# u along the track), four sleepers per repeat; rails are bright worn steel; the canopies painted iron
+ballast = { color = "#9A9086", roughness = 0.95, texture = "ballast", texture_size = [2.6, 4.0] }
+rail_steel = { color = "#8E8A86", roughness = 0.35, metallic = 0.6 }
+canopy_iron = { color = "#55635B", roughness = 0.6 }
+dial_white = { color = "#F6F3EA", roughness = 0.4 }
 dome_green = { color = "#3E7A57", roughness = 0.4 }
 plinth_blue = { color = "#70899A", roughness = 0.9, texture = "plaster", texture_size = [2.0, 2.0] }
 plinth_stone = { color = "#B3A48B", roughness = 0.92, texture = "stone", texture_size = [2.4, 1.8] }
@@ -260,6 +267,7 @@ sand = { pixels = 512, grain = 0.4, mottle = 0.35, stain = 0.3, tint = "beach" }
 grass = { pixels = 512, grain = 0.6, mottle = 0.3, stain = 0.25, tint = "grass" }
 rock = { pixels = 512, grain = 0.5, mottle = 0.5, stain = 0.4, tint = "rock" }
 scrub = { pixels = 512, grain = 0.55, mottle = 0.25, stain = 0.2, tint = "steppe" }
+ballast = { pixels = 256, grain = 0.6, mottle = 0.3, stain = 0.3, tint = "ballast" }
 
 # Large-scale terrain tint (prompt 20), written as COLOR_0 on terrain parts only: a soft
 # brightness drift and a slight warm/cool shift from world-position noise, so texture repeats
@@ -474,6 +482,49 @@ roof = "roof_white"
 trim = "marble"
 dome = "verdigris"
 
+[station]                  # the railway station and its tracks (prompt 33, city/station.py, mesh/station.py)
+tracks = [2, 4]            # tracks, chosen on the station's own stream
+spacing = 4.0              # meters between track centers on the line; each track's sleeper bed is this wide
+gauge = 1.435              # standard gauge, between the rails' inner faces
+rail = [0.072, 0.16]       # rail head width, height over the sleeper bed
+bed_lift = 0.1             # the sleeper bed over the ground
+crossing_lift = 0.04       # rails over a street's surface at a level crossing (paint lies at 0.03)
+edge = 1.65                # track center to platform edge
+platform = [4.0, 6.0, 0.55]   # side and island platform widths, height over the rail top
+platform_length = 150.0
+stop = 4.0                 # meters from the head building's back wall to the buffer stops
+throat = 70.0              # meters over which the tracks close in to the line spacing
+margin = 2.0               # corridor: meters kept clear beside the outer sleeper beds (tracks plus 4 m)
+beyond = 40.0              # the tracks run on this far past the city limit
+forecourt = 26.0           # paved forecourt between the avenue and the facade
+forecourt_lift = 0.45      # its paving over the ground (a curb over the avenue's ribbon)
+hall = [64.0, 16.0, 10.0, 28.0]   # head building: least length, depth, wall height, roof pitch (degrees)
+hall_margin = 6.0          # it reaches this far past the platforms on each side
+floor = 0.5                # its floor over the highest ground under it
+pavilion = [18.0, 1.6, 5.0]   # entrance pavilion: width, how far it stands out, how much higher it rises
+pediment = 20.0            # degrees, the pavilion's gables
+entrance = [6.4, 8.6, 0.8]    # the great arch: width, height, stone frame
+doors = [2.4, 4.0]         # arched doors in the hall's front: width, height
+window = [2.0, 3.6, 1.2, 4.4] # hall windows: width, height, sill, bay
+tower = [6.0, 28.0]        # square clock tower: side, height to the top of its cornice
+tower_out = 1.0            # how far it stands out of the facade
+clock = [1.45, 2.4]        # dial radius, its center under the tower's top
+cap = 5.0                  # the tower's tiled pyramid
+canopy = [4.2, 0.5, 9.0, 0.9, 30.0]   # over the platforms: height, ridge rise, post spacing, reach past the platform edge, meters short of the platform end
+wall = "pale_yellow"
+trim = "stone_dressed"
+roof = "roof_tile"
+paving = "paving"
+canopy_material = "canopy_iron"
+no_station_on = ["medina", "village", "park", "cemetery", "colonial"]   # districts the precinct may not take
+cross_angle = 35.0         # degrees: main streets must cross the tracks this steeply; shallower local streets are cut
+step = 10.0                # meters between the sites tried along the colonial quarter's avenues
+max_drop = 6.0             # meters of fall the ground may have under the head building and the platforms; it is
+level_band = 100.0         # graded level there (cut and fill), blending back to the city ground over this many meters
+walk_step = 10.0           # sidewalks within that blend are drawn with outline points this close (the ground bends)
+cost = { length = 1.0, crossing = 0.25, align = 1.5, drop = 0.1, jitter = 0.1 }   # per km of corridor, per main street crossed, per (1 - cos) off the target, per meter of fall
+targets = { national = 1.0, regional = 1.3, port = 1.15 }   # weights: national and regional road entries, ports
+
 [district.colonial]        # the "ville nouvelle": boulevards and apartment buildings from the protectorate era
 grid = [96.0, 72.0]        # block length and width
 street_width = 12.0
@@ -670,6 +721,7 @@ colonial_share = 0.14      # share of neighborhoods in the colonial style
 walls = true
 kasbah = true              # a walled citadel on the old town's high edge (prompt 30)
 boulevard_landmarks = ["cathedral", "theatre"]   # on merged colonial lots facing the boulevard (prompt 32)
+station = true             # a railway station at the colonial quarter's edge (prompt 33)
 port = true                # only if the city is on the coast
 parks = 2
 cemetery = true
@@ -696,6 +748,7 @@ colonial_share = 0.1
 walls = true
 kasbah = true
 boulevard_landmarks = ["cathedral", "theatre"]   # when the boulevard has room
+station = true
 port = true
 parks = 1
 cemetery = true

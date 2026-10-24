@@ -773,7 +773,8 @@ class Crowd:
         inp, hit = self.walk_tree.query(shapely.points(xy), predicate="intersects")
         for m, w in zip(inp.tolist(), hit.tolist()):
             if w not in self._walk_mesh:
-                tri = triangulate(shapely.segmentize(orient(self.walks[w].polygon, sign=1.0), self.walk_step))
+                poly = self.walks[w].polygon
+                tri = triangulate(shapely.segmentize(orient(poly, sign=1.0), self.d.ground.walk_step(poly, self.walk_step)))
                 zs = np.asarray(self.d.ground.walk_top(tri[..., 0].ravel(), tri[..., 1].ravel())).reshape(-1, 3)
                 self._walk_mesh[w] = (tri, zs, STRtree(shapely.polygons(tri)))
             tri, zs, tree = self._walk_mesh[w]

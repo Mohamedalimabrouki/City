@@ -44,7 +44,7 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
 - [x] 30 A5a The kasbah
 - [x] 31 A5b Covered souks
 - [x] 32 A5c Cathedral and theatre
-- [ ] 33 A5d Station and clock tower
+- [x] 33 A5d Station and clock tower
 - [ ] 34 A6a Quays, breakwater, lighthouse
 - [ ] 35 A6b Boats and cranes
 - [ ] 36 A6c Corniche promenade and beach
@@ -208,11 +208,12 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
   buildings sit flush: terrain blurred over about 60 m, gently flattened under blocks (full
   terraces would make cliffs on these slopes). Done when: no road below the drawn ground, no
   floating wall foot, door or prop.
-- [ ] **A5 Landmarks pack** (M) - Kasbah (walled citadel with towers) on the old town's highest
-  edge; a colonial cathedral and a theatre on the boulevard; covered souk roofs (vaults) over
-  the main souks; a train station; a lighthouse at the port. Each is a function returning
-  `Building`s plus a `Landmark` with a generated name. Done when: all appear in the capital map,
-  gazetteer and snapshot.
+- [x] **A5 Landmarks pack** (M) - Kasbah (walled citadel with towers) on the old town's highest
+  edge (prompt 30); a colonial cathedral and a theatre on the boulevard (32); covered souk roofs
+  (vaults) over the main souks (31); a railway station with its clock tower, platforms and tracks
+  out to the city limit (33). Each returns `Building`s plus a `Landmark` with a generated name,
+  appended last. Done: all appear in the capital map, gazetteer and snapshot. The lighthouse
+  moved to A6 (prompt 34).
 - [ ] **A6 Port and seafront** (M) - Concrete quays along port districts, a breakwater into the
   sea, simple cranes, fishing boats as props (new `CityPlan.props` list), a beach promenade on
   the corniche. Done when: visible in the aerial snapshot of a coastal capital.

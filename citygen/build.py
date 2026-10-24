@@ -17,6 +17,7 @@ from .buildkey import build_key
 from .city import plan_city
 from .city.ground import Ground
 from .city.landmarks import landmark_views
+from .city.station import view as station_view
 from .city.streets import view_spot
 from .export.lore import gazetteer, plan_json, slug, write_json
 from .export.maps import city_map, country_map
@@ -57,7 +58,8 @@ def select_area(world, area: str) -> tuple:
 
 def camera_views(plan, ground, reach: float = 600.0, style: dict | None = None) -> dict:
     """Eye-level camera spots near the city center (generator coords): the boulevard, a souk, and one on each
-    boulevard landmark the city has, "cathedral" and "theatre" (prompt 32, the style's `[landmarks] camera`)."""
+    boulevard landmark the city has, "cathedral" and "theatre" (prompt 32, the style's `[landmarks] camera`), and
+    "station" on the avenue before the railway station (prompt 33)."""
     center = Point(plan.settlement.x, plan.settlement.y)
     views = {}
     for name, kinds in (("street", ("boulevard", "arterial", "street")), ("souk", ("souk",))):
@@ -72,6 +74,9 @@ def camera_views(plan, ground, reach: float = 600.0, style: dict | None = None) 
     for name, ((cx, cy, ch), (lx, ly, lh)) in (landmark_views(plan, camera) if camera else {}).items():
         views[name] = {"cam": [round(cx, 1), round(cy, 1), round(float(ground.surface(cx, cy)) + ch, 1)],
                        "look": [round(lx, 1), round(ly, 1), round(float(ground.surface(lx, ly)) + lh, 1)]}
+    spot = station_view(plan, ground)
+    if spot is not None:
+        views["station"] = spot
     return views
 
 

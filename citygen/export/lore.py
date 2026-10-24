@@ -56,7 +56,17 @@ def plan_json(plan) -> dict:
         "households": [{"building": h.building, "family": h.family, "trade": h.trade, "wealth": h.wealth,
                         "door": h.door, "members": h.members} for h in plan.households],
         "souks": [{"street": k.street, "name": k.name, "trade": k.trade} for k in plan.souks],
+        **_station_json(plan),
     }
+
+
+def _station_json(plan) -> dict:
+    """The railway (prompt 33): each track's center line and the corridor kept clear, when the city has one."""
+    st = getattr(plan, "station", None)
+    if st is None:
+        return {}
+    return {"rail": {"tracks": [np.round(np.asarray(t.coords), 2).tolist() for t in st.tracks],
+                     "corridor": _geometry(st.corridor)}}
 
 
 def _massing_json(b) -> dict:
@@ -119,6 +129,10 @@ def gazetteer(world, plans) -> str:
         civic = [m.name for m in plan.landmarks if m.kind in ("cathedral", "theatre")]
         if civic:
             lines.append(f"- **on the boulevard**: {', '.join(civic)}")
+        stations = [m.name for m in plan.landmarks if m.kind == "station"]
+        if stations and getattr(plan, "station", None) is not None:
+            n = len(plan.station.tracks)
+            lines.append(f"- **railway station** ({n} tracks, at the edge of the colonial quarter): {', '.join(stations)}")
         if plan.souks:
             seen = {}
             for k in plan.souks:

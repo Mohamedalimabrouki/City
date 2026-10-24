@@ -5,6 +5,8 @@ Pipeline (each step is its own module):
   medina     great mosque, gates, souks and alleys, ramparts
   kasbah     the citadel on the old town's high edge (capital and cities; its buildings come last)
   streets    arterials, ring road, boulevard, road links, local street grids, street trees
+  station    the railway station across an avenue at the colonial quarter's edge, its tracks out to the
+             city limit (its precinct and corridor are cut with the old town's; its buildings come last)
   parcels    blocks between streets, split into building lots
   impasses   dead-end lanes to the lots without a street (old town and neighborhoods)
   landmarks  a cathedral and a theatre on merged colonial lots facing the boulevard (their buildings come last)
@@ -19,6 +21,7 @@ import math
 import time
 
 from shapely.geometry import LineString
+from shapely.ops import unary_union
 
 from ..names import NameMaker
 from ..rng import stream
@@ -35,6 +38,7 @@ from .parcels import make_blocks, make_parcels
 from .paint import make_paint, street_surfaces
 from .streets import local_streets, major_streets, road_links, street_trees
 from .walks import make_walks
+from . import station as railway
 
 
 class CityContext:
@@ -80,9 +84,13 @@ def plan_city(world, settlement) -> CityPlan:
     streets += major_streets(ctx, districts, medina, axis, land)
     streets += road_links(ctx, roads, streets)
     streets += local_streets(ctx, districts)
+    station = railway.place(ctx, districts, streets, medina, cut, land)
+    if station is not None:   # local streets cut back from the precinct and from along the tracks
+        streets = railway.clip_streets(ctx.style["station"], streets, station, 0)
+        cut = railway.cut(station) if cut is None else unary_union([cut, railway.cut(station)])
     street_surfaces(districts, streets, world.style)
     blocks = make_blocks(ctx, districts, streets, cut)
-    walks = make_walks(ctx, districts, streets, blocks)
+    walks = railway.clip_walks(make_walks(ctx, districts, streets, blocks), station)
     parcels = make_parcels(ctx, blocks, districts)
     mosques, mosque_marks, used = neighborhood_mosques(ctx, districts, parcels)
     parcels, used, lanes = cut_impasses(ctx, blocks, districts, parcels, streets, used)
@@ -99,15 +107,20 @@ def plan_city(world, settlement) -> CityPlan:
     civic, civic_marks = boulevard.buildings(ctx, sites)   # after the kasbah, for the same reason
     buildings += civic
     marks += civic_marks
+    rail_buildings, rail_marks = railway.buildings(ctx, station)   # after the boulevard's, for the same reason
+    buildings += rail_buildings
+    marks += rail_marks
     tree_clear = float(ctx.style.get("landmarks", {}).get("tree_clear", 0.0))
-    trees += green_trees + boulevard.clear_fronts(street_trees(ctx, streets), sites, tree_clear)
+    trees += green_trees + railway.clear(boulevard.clear_fronts(street_trees(ctx, streets), sites, tree_clear),
+                                         station)
     plan = CityPlan(s, boundary, land, medina, districts, streets, blocks, parcels, buildings,
                     trees, marks, walks)
+    plan.station = station
     plan.households = households(ctx, buildings, districts)
     plan.souks = souks(ctx, streets)
     apply_massing(ctx, plan)
     plan.paint = make_paint(world.style, streets, walks, districts)
-    green = greenery(ctx, plan)
+    green = railway.clear(greenery(ctx, plan), station)
     trees += green   # appended last: every older tree keeps its index, so its kit variant and turn
     plan.stats = {"districts": len(districts), "streets": len(streets), "impasses": len(lanes),
                   "blocks": len(blocks),

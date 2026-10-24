@@ -32,7 +32,7 @@ PIXELS = (256, 512)   # allowed image sides (see the [textures] table)
 # Wall, roof and ground surfaces, in the order the texture sheet shows them.
 NAMES = ("plaster", "render", "render_cream", "stone", "concrete",
          "roof_tile", "roof_flat", "paving", "asphalt", "earth", "sand", "grass",
-         "rock", "scrub")
+         "rock", "scrub", "ballast")
 
 # Fallbacks when the style does not name a value; the style table wins.
 DEFAULTS = {"pixels": 512, "grain": 0.45, "mottle": 0.4, "stain": 0.35, "band": 0.6}
@@ -501,12 +501,38 @@ def _scrub(rng, n: int, s: dict) -> np.ndarray:
     return v
 
 
+def _ballast(rng, n: int, s: dict) -> np.ndarray:
+    """A railway sleeper bed seen from above (prompt 33): x runs along the track, y across it, one track per
+    repeat with its middle on the first row. Four timber sleepers (2.6 m of the 4 m across, 0.25 m wide,
+    grain and worn ends) lie on coarse grey ballast, darker where it is oiled between the rails."""
+    k = n / 256.0
+    v = 0.80 + 0.08 * s["mottle"] * (_noise(rng, n, 4, 3) - 0.5) * 2.0
+    v += 0.10 * s["grain"] * (_noise(rng, n, 32, 2) - 0.5) * 2.0
+    v += 0.05 * rng.normal(0.0, 1.0, (n, n))
+    light, dark = _pebbles(rng, n, count=int(900 * k * k), rmin=0.9 * k, rmax=2.2 * k)
+    v += 0.12 * light - 0.12 * dark
+    y, x = np.mgrid[0:n, 0:n]
+    across = np.abs(((y + n / 2) % n) - n / 2) / n          # 0 on the track's middle, 0.5 at the bed's edges
+    v -= 0.10 * smoothstep(0.24, 0.12, across)               # oil and dust between the rails
+    v -= 0.06 * smoothstep(0.40, 0.5, across)                # the bed's shoulders sink into the ground
+    wood = 0.52 + 0.06 * (_line_noise(rng, n, 16, 3) - 0.5) * 2.0 + 0.03 * rng.normal(0.0, 1.0, (n, n))
+    half = 0.25 / 2.6 * n / 2
+    for i in range(4):
+        cx = (i + 0.5) * n / 4 + rng.uniform(-0.6, 0.6) * k
+        end = 1.3 / 4.0 + rng.uniform(-0.006, 0.006)
+        mask = (np.abs(x - cx) <= half) & (across <= end)
+        edge = (np.abs(np.abs(x - cx) - half) < 1.0) | (np.abs(across - end) < 1.0 / n)
+        v = np.where(mask, wood - 0.08 * edge, v)
+        v = np.where((np.abs(x - cx - half - 1.0) < 1.0) & (across <= end), v - 0.10, v)   # its shadow
+    return v
+
+
 _MAKERS = {
     "plaster": _plaster, "render": _render, "render_cream": _render_cream,
     "stone": _stone, "concrete": _concrete,
     "roof_tile": _roof_tile, "roof_flat": _roof_flat,
     "paving": _paving, "asphalt": _asphalt, "earth": _earth, "sand": _sand,
-    "grass": _grass, "rock": _rock, "scrub": _scrub,
+    "grass": _grass, "rock": _rock, "scrub": _scrub, "ballast": _ballast,
 }
 
 

@@ -53,6 +53,9 @@ config.load_config()          defaults.toml + worlds/*.toml + CLI overrides
                               placed before the alleys, its buildings appended last
       streets                 arterials (neighborhood borders), ring road, boulevard,
                               corniche, links to country roads, local grids, street trees
+      station                 the railway station across an avenue from the colonial quarter and
+                              its tracks out past the city limit; precinct and corridor cut with
+                              the old town's cut, local streets cut back; its buildings come last
       parcels                 blocks = district minus street surfaces; recursive lot split
       impasses                dead-end lanes along lot lines to lots without a street door
                               (old town, village, residential, suburb); appended to the streets
@@ -65,7 +68,8 @@ config.load_config()          defaults.toml + worlds/*.toml + CLI overrides
                               L's, roof machinery and roof rooms (never adds or moves a building)
       greenery                street trees on arterials, courtyard trees, villa fruit trees
                               (last, after the road paint; only appends to `trees`)
-  city.ground.Ground()        graded ground inside cities: smoothed, terraced under blocks,
+  city.ground.Ground()        graded ground inside cities: smoothed, terraced under blocks, level under
+                              the station (blending back over [station] level_band),
                               blended into natural terrain at the city limit; `height` is the
                               ground, `surface` the top of the ground, street ribbon or walk
   mesh.tile.export_tile()     one 512 m square -> .glb (terrain, water, roads, city)
@@ -90,6 +94,7 @@ build.build()                 orchestrates the above into output/<country>-<seed
 | `citygen/mesh/tile.py` | what goes into one tile |
 | `citygen/mesh/vaults.py` | covered souks (prompt 31): barrel vaults, impost bands, transverse arches, light openings, lantern rods |
 | `citygen/mesh/landmarks.py` | the cathedral and the theatre (prompt 32): portals, rose window, towers, gables, crossing dome, apse; rounded corners, parapet, pavilion, crown, canopy, stage tower |
+| `citygen/mesh/station.py` | the railway station (prompt 33): head building with entrance pavilion and clock tower (dials and hands), platforms with canopies on posts, buffer stops; the tracks tile by tile (sleeper bed, rails, level crossings); `keep_off` |
 | `citygen/mesh/plants.py` | shared plant shapes: clumps (icosahedron, octahedron, 4-face bract) and tapered tubes |
 | `citygen/mesh/props.py` | the generator's own kit pieces (doors, shops by trade, awnings, goods, lamps, trees...) |
 | `citygen/mesh/people.py` | people (prompt 28): low-poly figures, one piece per outfit, pose and color scheme from `[dressing.people]` |
@@ -110,6 +115,7 @@ build.build()                 orchestrates the above into output/<country>-<seed
 | `citygen/city/greenery.py` | more greenery (prompt 24): arterial tree pits, courtyard trees, villa fruit trees, appended after every older tree |
 | `citygen/city/kasbah.py` | the kasbah (prompt 30): placement on the old town's high edge, walls, towers, gate tower, palace, mosque, parade ground |
 | `citygen/city/landmarks.py` | the boulevard's cathedral and theatre (prompt 32): sites on merged colonial lots, the local frame and plan shapes shared with the mesh, names, their camera views |
+| `citygen/city/station.py` | the railway station (prompt 33): site at the colonial edge, track layout and corridor, street and walk clipping, buildings and name, its camera view |
 | `citygen/city/massing.py` | building massing (prompt 23): the planning step, `masses(b)` (the volumes drawn and dressed), `floors_at`/`wall_height` (floors and wall height at a point of the outer wall), `outline`, `inner_walls`, `terrace_walls` |
 | `citygen/kitsheet.py` | `python -m citygen kit-sheet`: every piece in one viewable grid |
 | `citygen/export/maps.py` | country and city PNG maps |
@@ -140,7 +146,8 @@ block on `rng("impasse", block)`: lot line jitter, widths, covered share and len
   kinds: `capital`, `city`, `town`, `village`. Ids are stable for a given seed and settings.
 - `Road(id, kind, width, coords, ends)`; kinds `national`, `regional`, `local`.
 - `CityPlan`: `boundary`, `land`, `medina`, `districts`, `streets`, `blocks`, `parcels`,
-  `buildings`, `trees`, `landmarks`, `walks`, `households`, `souks`, `paint`, `stats`.
+  `buildings`, `trees`, `landmarks`, `walks`, `households`, `souks`, `paint`, `stats`, `station`
+  (a `city.station.Station` or None: `facade`, `tracks`, `precinct`, `corridor`, `district`, `core`).
 - `Walk(kind, polygon, width, street, side, district, block)`: a raised sidewalk (`sidewalk`)
   or the boulevard's central promenade (`promenade`). `width` is the actual width after a tight
   street narrows it; `street` and `side` (`+1` left, `-1` right) let later street features find
@@ -272,6 +279,49 @@ block on `rng("impasse", block)`: lot line jitter, widths, covered share and len
   faces share their corner vertices to save bytes). The index gets a
   "cathedral" and a "theatre" camera view (`landmark_views`: from the boulevard, near `distance` m, the whole
   facade within `spread` degrees).
+- **Railway station** (prompt 33, `city/station.py`, `mesh/station.py`, `[station]`, settlements with
+  `station = true`: capital and cities): a terminus like the colonial stations of Tunis, Sousse or Sfax. After
+  the local streets, before the blocks, `place` tries a site every `step` m along each arterial on a colonial
+  district's border: the station stands across the avenue (outside the colonial district, never on
+  `no_station_on` districts), its frame (the landmarks' `Frame`: s along the avenue's edge, d away from it) at
+  the avenue's far edge. Plan in d: the paved forecourt (`forecourt` m), the head building (`hall` depth),
+  the platforms (`platform_length`), the throat (`throat`), then the line. Across (s): side platforms at both
+  ends and an island between each pair of tracks (`layout`; 2-4 `tracks` on `rng("station")`), tracks
+  `spacing` apart on the line, `edge` m from a platform's edge. A site fails when its precinct leaves the city
+  (5 m in), touches the old town's cut or ring road (5 m), a main street (0.5 m in), or when the ground falls
+  more than `max_drop` m under it; its line runs straight on from the throat to the first exit through the
+  city limit plus `beyond` m, must stay on land and cross main streets at `cross_angle` degrees or more,
+  never the boulevard or the ring road. Cheapest wins: corridor km, main streets crossed, (1 - cos) of the
+  angle off the nearest target (where a country road enters the city, weighted national 1.0, regional 1.3,
+  the port districts 1.15), meters of fall, a little jitter. The precinct (forecourt, head building,
+  platforms) and the corridor (each track buffered by `spacing / 2 + margin`: the tracks plus 4 m) join the
+  old town's cut before `make_blocks`, so no block, lot or building lies on them; `clip_streets` cuts local
+  streets back from the precinct (1 m) and from the corridor where they run along the tracks (under
+  `cross_angle`) or end on them, steeper ones keep a level crossing (pieces under 20 m go); `clip_walks`
+  cuts sidewalks out of both; street and greenery trees there are left out (`clear`). Buildings, appended
+  after the boulevard's: `station_forecourt` (paving draped on the terrain `forecourt_lift` m up, a curb
+  skirt), `station` (the head building) and `station_platforms`, all with the same `facade` record (frame,
+  layout, `level`, `tower_side`, the avenue's index), and `Landmark("station")` named from `[names.districts]
+  station` on `rng("station", "name")`. Nobody lives there; nothing dresses them. The ground under the hull
+  of the head building and the platforms (`core`) is graded level at `facade["level"]` (half way between the
+  highest and lowest terrain there) and blends back over `level_band` m (smootherstep, convex hull so no
+  kink); walks within that blend are drawn with `[station] walk_step` outline points (`Ground.walk_step`,
+  used by the mesher, the crowd and the test). Mesh (`mesh/station.py`): the hall (`hall` wall height,
+  tiled gable roof at `pitch`, cornice, plinth course, round-arched windows and doors, `window`/`doors`),
+  the entrance pavilion (`pavilion`: taller, through the hall, a pediment each end, the great recessed arch
+  `entrance` with a glazed fanlight and doors, a name panel, side windows, steps from the forecourt), the
+  square clock tower at one end (`tower`, `tower_out`, `rng("station", "tower")`): string courses, narrow
+  windows, four clocks (`clock`: white `dial_white` dial in a stone ring, twelve marks, hour and minute hands
+  as bars, one time on `stream(seed, "station", "clock", x, y)`), a cornice and a tiled pyramid (`cap`) with
+  a finial; platforms following the station's level (`platform`[2] over the rail top) with white edge lines,
+  a concourse, ridged `canopy_iron` canopies (`canopy`) on posts with a ridge beam and an iron valance,
+  buffer stops. Tracks (`rail_meshes`, each cut at tile edges, drawn even past the city limit): a `ballast`
+  sleeper bed `spacing` wide, `bed_lift` over the terrain mesh (its texture shows four sleepers per 2.6 m),
+  two `rail_steel` rails (`rail`, `gauge`); on a street the rails run at its surface plus `crossing_lift`
+  (a level crossing). Points every meter are thinned to what the track's and the ground's bends (2 cm) and
+  the street edges need. `keep_off` drops every placement whose kit box touches the precinct or the
+  corridor (cars, people, lamps, trees). The map draws beds, rails and buildings; the gazetteer lists the
+  station; plan.json has `rail` (tracks, corridor); the index gets a "station" camera on the avenue.
 
 Invariants (tested): buildings are valid polygons inside the city and stay off street surfaces
 (impasses included); every old-town dwelling's main door opens on a street, alley or impasse; an
@@ -295,19 +345,22 @@ gate or great mosque, no rampart runs along it, a souk reaches its gate, its mer
 without a parapet and its paving lies on the terrain mesh; the cathedral and the theatre stand on one merged
 lot of 3-6 colonial lots facing the boulevard, house nobody, stay under 6,000 triangles with meter UVs, carry
 no arcade, car, furniture, person or trunk, have no car or planned tree before their steps, and their camera
-views see the whole facade; everything is deterministic.
+views see the whole facade; the station stands across an avenue from the colonial quarter, off every street,
+its buildings last and housing nobody; its 2-4 tracks end past the city limit; no other building, lot,
+walk or tree lies on its precinct or corridor; every street on the corridor crosses it; in its tile no
+piece touches them; everything is deterministic.
 
 ## 6. Output files (`output/<country>-<seed>/`)
 
 | File | Content |
 |---|---|
 | `world.json` | `citygen-world/1`: seed, name, size, settlements, roads (coords in meters) |
-| `cities/<name>/plan.json` | `citygen-city/1`: districts, streets, buildings, trees, landmarks, households, souks; GeoJSON-style geometry in world meters |
+| `cities/<name>/plan.json` | `citygen-city/1`: districts, streets, buildings, trees, landmarks, households, souks, and `rail` (track center lines, corridor) when the city has a station; GeoJSON-style geometry in world meters |
 | `gazetteer.md` | readable guide for stories |
 | `maps/country.png`, `maps/<city>.png` | 2D maps, north up |
 | `tiles/tile_<i>_<j>.glb` | 3D tile covering x `i*512..(i+1)*512`, y `j*512..(j+1)*512` |
 | `tiles/textures/*.png` | base-color images shared by the tiles (`[tiles] textures = "shared"`, the default) |
-| `tiles/index.json` | `citygen-tiles/1`: tile list (bytes, unique and drawn triangles, dressing pieces), `"parapets": true` when the tiles carry their own roof parapets, `focus` point, camera `views` (street, souk, and cathedral and theatre when the city has them), `cities` (name, plan file, bounds) |
+| `tiles/index.json` | `citygen-tiles/1`: tile list (bytes, unique and drawn triangles, dressing pieces), `"parapets": true` when the tiles carry their own roof parapets, `focus` point, camera `views` (street, souk, and cathedral, theatre and station when the city has them), `cities` (name, plan file, bounds) |
 | `summary.json` | counts and timings (read this instead of big files) |
 
 **.glb conventions:** one root node per tile with `translation = [x0, 0, -y0]`; vertices are

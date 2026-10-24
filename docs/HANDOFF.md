@@ -529,6 +529,23 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
   335 KB. Parking "fronts" with clearance 0.0 never block a car (`distance < 0` is never true): the landmark
   steps use 0.05; the shop and cafe fronts of prompt 25 still use 0.0 (a latent bug, left for review).
   Metallic dome materials band with the viewer's sky reflection: keep patina matte.
+- **Railway station** (prompt 33, `city/station.py`, `mesh/station.py`, `[station]`): cutting ground before
+  `make_blocks` shifts the whole plan, not only the lots it takes: the impasse step advances every block
+  together, so changing the port's blocks changed old-town lanes and lots too (first changed parcel: an
+  old-town one), then every later household and door color. A light colonial tile grew +31.6% from re-rolled
+  door, shutter and cafe variants alone (22 piece kinds it did not show before), none of it station geometry.
+  The quick capital lies on an 8% coastal slope: no site had less than 3.8 m of fall under a 64 m head
+  building, so the station's ground is graded level (`Ground`, `core` = convex hull of head building and
+  platforms, level half way between highest and lowest). A plain smoothstep over 24-40 m bent the ground
+  enough to sink 15 m sidewalk triangles under the ribbon; the second derivative of `graded + w (L - graded)`
+  carries `2 w' graded'`, so on a slope a wider band does not cure it alone. What works: the hull (a T-shaped
+  core put a kink in the distance field at its inner corners), smootherstep over 100 m, and walks in that band
+  drawn with 10 m outline points (`Ground.walk_step`, shared by mesher, crowd and test: margin 0.109 m for
+  0.075 needed). The station tile must stay under +10%: 1 m track samples thinned to what bends need (2 cm)
+  halved the rails; posts without ends, shared-vertex strips for canopies, valances, slab sides and dial rings.
+  `keep_off` filters placements last in `build_tile` by their kit box, so no rule upstream needs to know about
+  the tracks. The people test counted a string lantern hanging 4 m up as a piece under a walker's feet: it
+  now skips pieces more than 2 m above the person.
 - **Old-town tiles** reach about 5 MB on the quick build and 8 MB on the full capital
   (`tile_65_106`, mostly roofs since prompt 15); task Q5 (prompt 39) brings them down.
 
