@@ -15,6 +15,42 @@ Entry format:
 - Doubts and questions for Ali: <none, or the question>
 ```
 
+## 2026-10-24 - Prompt 25 H3a Parked cars and taxis
+- Commit: (see git log) | Model: Opus 5.5, medium (playbook: Sonnet, medium)
+- Changed: `citygen/mesh/vehicles.py` (new: hatchback, sedan, van, louage, taxi; 152-184 triangles,
+  4 colors each sharing their arrays), `citygen/city/parking.py` (new: `parked_sides` rule, per-side
+  sidewalk widths, `Parking` rows and taxi rank), `citygen/city/dressing.py` (`street_props` adds the
+  cars; `lamp_spot`, `front_of`, `door_spots`, `fronts`; `Placement.tilt`; `CAFES`),
+  `citygen/city/paint.py` (edge line on the lane side of a parking row, sidewalks measured per side,
+  carriageway cuts every sidewalk on the street, crossings tagged), `citygen/city/model.py`
+  (`Paint.kind`, `Walk` comment), `citygen/city/__init__.py`, `citygen/kit.py`, `citygen/mesh/tile.py`
+  (instance rotation with tilt), `styles/maghreb.toml` (car palette, `[dressing.vehicles]`,
+  `[dressing.parking]`), tests (3 new), `docs/SPEC.md`, `docs/HANDOFF.md`, `docs/ROADMAP.md`
+- Checks: tests 79 passed (29.5 s; the 3 new ones 0.5 s); `build --quick` 11.2 s (HEAD 10.6 s);
+  fingerprint 29 changed, all allowed: `tiles/*` and the 20 new `kit/car_*`; worst quick tile bytes
+  +8.8% (`tile_12_22`, budget 10%), drawn triangles +7.1% worst (`tile_13_22`, budget 20%); full capital
+  47.4 -> 51.8 s back to back (CPU 204 -> 228 s), worst full tile +8.5% (both before the lead's
+  boulevard fix). Quick capital: 1,525 cars (652 hatchbacks, 533 sedans, 193 vans, 125 taxis, 22
+  louages), 221 streets + 9 arterials with one row, 3 arterials + the boulevard with two, a rank of 5
+  taxis. Full capital (before the boulevard fix): 13,664 cars (907 taxis, 201 louages).
+- Lead review (boulevard): the quick boulevard is 76 m between the ring road and the corniche with a
+  cross street in the middle; its outer curbs (2 x 76 m, about 30 car slots) lost, by rule in turn,
+  59 / 50.5 m to junctions, 7.5 / 6 m to zebras, 13 / 12 m to palms, 0 / 2.5 m to a lamp, nothing to
+  cafe fronts, doors or paths: 3 cars. Too strict: grid street 162 runs along inside the boulevard but
+  pokes out past its end, so it counted as a junction (now `lying_on` also skips a street running
+  8 m or more inside it within 15 degrees); a sample of margin either side of every obstacle (now each
+  car is checked exactly against the zones); empty stretches now by kind (boulevard 6%). Trunks are
+  kept 1 m from the bark (`tree_clear` 1.0 + `tree_trunk` 0.3). Now 17 m free per side, 6 cars, two
+  between the palms in the street view. The rank needs about 20 m between two palms, so it stays in
+  the side street by the boulevard's busiest junction.
+- Look: `output/checks/25.png` (street view: the boulevard's edge line moved out to the parking row,
+  two cars parked between the palms by the arcade, one more past the crossing), `output/checks/25-cars.png` (a colonial street parked on one side with
+  gaps, the taxi rank by the boulevard junction); Blender: `output/bodjantouna-42/goumosbane.blend`
+- Doubts and questions for Ali: the quick capital's boulevard is only 76 m long and mostly junction,
+  so the rank (and on the full capital too) stands in a colonial side street next to the boulevard's
+  busiest junction, as many Tunis ranks do. The paint fix (sidewalks measured per side) moves edge
+  lines on many arterials and on the boulevard, where they used to lie hidden under the sidewalks.
+
 ## 2026-10-24 - Prompt 24 A7 More greenery
 - Commit: (see git log) | Model: Opus 5.5, medium (playbook: Sonnet, medium)
 - Changed: `citygen/city/greenery.py` (new: arterial tree pits, courtyard trees, villa fruit trees,

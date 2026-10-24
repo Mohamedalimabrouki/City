@@ -3,7 +3,8 @@
 A marking is a flat polygon a few centimetres above its street ribbon, clipped to the
 carriageway: the street surface left between the raised sidewalks and, on a boulevard, the
 central promenade. Markings are built once per plan, after the sidewalks exist, so a tile only
-clips the polygons it touches. There is no randomness here: the paint follows the plan.
+clips the polygons it touches. There is no randomness here: the paint follows the plan. Where a
+side has a parking row (`parking.parked_sides`, prompt 25) its edge line stands on the row's lane side.
 """
 from __future__ import annotations
 
@@ -15,6 +16,7 @@ from shapely.strtree import STRtree
 
 from .geo import lines, polygons
 from .model import Paint
+from .parking import parked_sides, walk_widths
 
 MARKED = ("boulevard", "arterial", "connector")   # streets that get lines
 CROSSED = ("boulevard", "arterial")               # streets whose junctions get zebra crossings
@@ -31,21 +33,21 @@ def street_surfaces(districts, streets, style) -> None:
         st.surface = surface
 
 
-def _by_street(walks) -> dict:
-    """Walks grouped by their street index, in plan order."""
-    out: dict = {}
-    for w in walks:
-        out.setdefault(w.street, []).append(w)
-    return out
+def _near(walks, tree, st, k: int) -> list:
+    """The sidewalks touching street k's surface (whichever street each was filed under: a sidewalk
+    wraps its whole block) and street k's promenade, in plan order."""
+    area = st.line.buffer(st.width / 2.0, cap_style="flat")
+    hit = sorted(int(i) for i in tree.query(area, predicate="intersects")) if tree is not None else []
+    return [walks[i] for i in hit if walks[i].kind == "sidewalk" or walks[i].street == k]
 
 
 def _carriageway(st, k: int, walks, promenade_width: float):
-    """Street surface minus its raised sidewalks and, on a boulevard, the promenade strip.
+    """Street surface minus the raised sidewalks on it and, on a boulevard, the promenade strip.
 
-    `walks` are the walks of street k (see `_by_street`).
+    `walks` are the walks near street k (see `_near`).
     """
     area = st.line.buffer(st.width / 2.0, cap_style="flat")
-    cuts = [w.polygon for w in walks if w.street == k and w.kind == "sidewalk"]
+    cuts = [w.polygon for w in walks if w.kind == "sidewalk"]
     if any(w.street == k and w.kind == "promenade" for w in walks):
         cuts.append(st.line.buffer(promenade_width / 2.0, cap_style="flat"))
     if cuts:
@@ -55,7 +57,8 @@ def _carriageway(st, k: int, walks, promenade_width: float):
 
 def carriageway(plan, k: int, promenade_width: float = 8.0):
     """The drivable surface of street k, for tests and later traffic features."""
-    return _carriageway(plan.streets[k], k, _by_street(plan.walks).get(k, []), promenade_width)
+    tree = STRtree([w.polygon for w in plan.walks]) if plan.walks else None
+    return _carriageway(plan.streets[k], k, _near(plan.walks, tree, plan.streets[k], k), promenade_width)
 
 
 def _offset(line, distance: float) -> list:
@@ -124,7 +127,7 @@ def _crossing(plan_street, area, station: float, length: float, stripe: float, g
         bar = LineString([a0, b0]).buffer(stripe / 2.0, cap_style="flat")
         for poly in polygons(bar.intersection(area)):
             if poly.area > 0.01:
-                out.append(Paint(poly, k))
+                out.append(Paint(poly, k, "crossing"))
         offset += step
     return out
 
@@ -153,7 +156,7 @@ def _crossings(bands, band_tree, k: int, st, area, length: float, stripe: float,
     return out
 
 
-def make_paint(style, streets, walks) -> list:
+def make_paint(style, streets, walks, districts=()) -> list:
     """All road markings of a city: edge and lane lines first, then zebra crossings."""
     cfg = style.get("streets", {})
     min_width = float(cfg.get("marking_min_width", 8.0))
@@ -166,41 +169,41 @@ def make_paint(style, streets, walks) -> list:
     cross_gap = float(cfg.get("crossing_gap", 0.55))
     junction_gap = float(cfg.get("crossing_junction_gap", 1.0))
 
-    widths: dict = {}
-    promoted = set()
-    for w in walks:
-        if w.kind == "sidewalk" and w.street >= 0:
-            key = (w.street, w.side)
-            widths[key] = max(widths.get(key, 0.0), w.width)
-        elif w.kind == "promenade" and w.street >= 0:
-            promoted.add(w.street)
+    widths, promoted = walk_widths(style, districts, streets, walks, MARKED)
+    parking = style.get("dressing", {}).get("parking", {})
+    row = float(parking.get("row", 0.0))
 
-    by_street = _by_street(walks)
+    walk_tree = STRtree([w.polygon for w in walks]) if walks else None
     out: list = []
     for k, st in enumerate(streets):
         if st.width <= min_width or st.kind not in MARKED:
             continue
-        area = _carriageway(st, k, by_street.get(k, []), promenade)
+        area = _carriageway(st, k, _near(walks, walk_tree, st, k), promenade)
         if area.is_empty:
             continue
         out_l = st.width / 2.0 - widths.get((k, 1), 0.0)
         out_r = st.width / 2.0 - widths.get((k, -1), 0.0)
+        parked = parked_sides(st, k, widths, promoted, parking, promenade)   # an edge line moves out to
+        edge_l = out_l - (row if 1 in parked else inset)                    # the lane side of a parking row
+        edge_r = out_r - (row if -1 in parked else inset)
         if st.kind == "boulevard":
             inner = promenade / 2.0 if k in promoted else 0.0
-            for sign, outer in ((1.0, out_l), (-1.0, out_r)):
-                lane = (inner + outer) / 2.0
+            for sign, edge in ((1.0, edge_l), (-1.0, edge_r)):
+                lane = (inner + inset + edge) / 2.0
                 if lane - inner > 1.1:
                     for part in _offset(st.line, sign * lane):
                         for seg in _dashes(part, pattern):
                             out += _strips(seg, paint_width, area, k)
-                if inner + inset < outer - inset:
-                    for off in (inner + inset, outer - inset):
+                if inner + inset < edge:
+                    for off in (inner + inset, edge):
                         for part in _offset(st.line, sign * off):
                             out += _strips(part, paint_width, area, k)
         else:
-            for seg in _dashes(st.line, pattern):
-                out += _strips(seg, paint_width, area, k)
-            for off in (out_l - inset, -(out_r - inset)):
+            shift = (edge_l - out_l + inset) - (edge_r - out_r + inset)     # 0 unless one side parks
+            for part in _offset(st.line, shift / 2.0):
+                for seg in _dashes(part, pattern):
+                    out += _strips(seg, paint_width, area, k)
+            for off in (edge_l, -edge_r):
                 for part in _offset(st.line, off):
                     out += _strips(part, paint_width, area, k)
 
@@ -209,7 +212,7 @@ def make_paint(style, streets, walks) -> list:
     for k, st in enumerate(streets):
         if st.width <= min_width or st.kind not in CROSSED:
             continue
-        area = _carriageway(st, k, by_street.get(k, []), promenade)
+        area = _carriageway(st, k, _near(walks, walk_tree, st, k), promenade)
         if area.is_empty:
             continue
         out += _crossings(bands, band_tree, k, st, area, cross_length, stripe, cross_gap, junction_gap)

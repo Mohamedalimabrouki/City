@@ -18,6 +18,7 @@ import numpy as np
 from .config import ROOT
 from .mesh.gltf import read_parts
 from .mesh.props import catalog, lit_pane
+from .mesh.vehicles import vehicle_pieces
 from .rng import stream
 
 DARK, LIT = "glass_dark", "glass_lit"          # window glass by day; the twin the viewer lights at night
@@ -65,12 +66,14 @@ class Piece:
 class Kit:
     def __init__(self, seed: int, kits=(), palette: dict | None = None, trees: dict | None = None,
                  climber: dict | None = None, lit: dict | None = None, arcade: dict | None = None,
-                 iron: dict | None = None, hedge: dict | None = None):
+                 iron: dict | None = None, hedge: dict | None = None, vehicles: dict | None = None):
         self.pieces: dict[str, Piece] = {}
         self.materials: dict = dict(palette or {})
         table = catalog(stream(seed, "props"), seed, trees, climber, arcade, iron, hedge)
         for name, (mb, category, anchor) in table.items():
             self.pieces[name] = Piece(name, category, anchor, mb.gltf_parts(), "procedural")
+        for name, parts in vehicle_pieces(seed, vehicles).items():   # parked cars (prompt 25): no lit twins
+            self.pieces[name] = Piece(name, "vehicle", "ground", parts, "procedural")
         self.panes: dict = {}   # kit piece -> (x0, x1, y0, y1, z) of its glass, glTF axes (manifest "glass")
         for kit in kits:
             folder = Path(kit) if Path(kit).is_dir() else ROOT / "kits" / kit
@@ -118,4 +121,4 @@ def make_kit(seed: int, cfg: dict, style: dict) -> Kit:
     dressing = style.get("dressing", {})
     iron = {**dressing.get("balcony_iron", {}), "sill": dressing.get("window_sill", 0.95)}
     return Kit(seed, cfg["build"].get("kits", []), style["palette"], dressing.get("trees"), dressing.get("climber"),
-               dressing.get("lit"), dressing.get("arcade"), iron, dressing.get("hedge"))
+               dressing.get("lit"), dressing.get("arcade"), iron, dressing.get("hedge"), dressing.get("vehicles"))

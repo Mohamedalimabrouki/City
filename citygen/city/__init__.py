@@ -93,7 +93,7 @@ def plan_city(world, settlement) -> CityPlan:
     plan.households = households(ctx, buildings, districts)
     plan.souks = souks(ctx, streets)
     apply_massing(ctx, plan)
-    plan.paint = make_paint(world.style, streets, walks)
+    plan.paint = make_paint(world.style, streets, walks, districts)
     green = greenery(ctx, plan)
     trees += green   # appended last: every older tree keeps its index, so its kit variant and turn
     plan.stats = {"districts": len(districts), "streets": len(streets), "impasses": len(lanes),

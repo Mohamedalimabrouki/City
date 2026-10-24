@@ -84,6 +84,7 @@ build.build()                 orchestrates the above into output/<country>-<seed
 | `citygen/mesh/tile.py` | what goes into one tile |
 | `citygen/mesh/plants.py` | shared plant shapes: clumps (icosahedron, octahedron, 4-face bract) and tapered tubes |
 | `citygen/mesh/props.py` | the generator's own kit pieces (doors, shops by trade, awnings, goods, lamps, trees...) |
+| `citygen/mesh/vehicles.py` | parked cars (prompt 25): hatchback, sedan, van, louage, yellow taxi; one piece per body color, sharing their part arrays |
 | `citygen/mesh/trees.py` | broadleaf, olive and citrus crowns (jittered clumps, 3 variants each; citrus with oranges) from `[dressing.trees]` |
 | `citygen/mesh/climbers.py` | bougainvillea curtains (2 variants, 250 triangles each) from `[dressing.climber]` |
 | `citygen/kit.py` | `Kit`: procedural pieces plus kits from `kits/<name>/` |
@@ -92,6 +93,7 @@ build.build()                 orchestrates the above into output/<country>-<seed
 | `citygen/city/dressing.py` | `Dresser`: which piece goes where, tile by tile |
 | `citygen/city/walks.py` | raised sidewalks along blocks, narrowed to keep a carriageway, and the boulevard promenade |
 | `citygen/city/paint.py` | street surfaces per kind, painted edge and lane lines, zebra crossings |
+| `citygen/city/parking.py` | which sides of a street park (`parked_sides`, shared by paint and dresser), sidewalk widths measured per side, `Parking`: parked cars and the taxi rank |
 | `citygen/city/impasses.py` | impasses: lanes cut along lot lines to landlocked lots, one round per lane for every block at once |
 | `citygen/city/roofs.py` | roof layout: parapet band and coping, stair room and its door, menzah, one random stream per building; `roof_layouts` for every roof of a massed building |
 | `citygen/city/greenery.py` | more greenery (prompt 24): arterial tree pits, courtyard trees, villa fruit trees, appended after every older tree |
@@ -151,9 +153,14 @@ block on `rng("impasse", block)`: lot line jitter, widths, covered share and len
   pillars: the trunk needs 2.97 m from the wall, the 3.2 m sidewalk ends at 3.2). Quick capital: 69
   arterial trees (all modern), 58 courtyard trees (45 citrus); full capital: 149 arterial, 273
   courtyard (213 citrus), 2,025 villa fruit trees (1,640 citrus).
-- `Paint(polygon, street)`: one painted marking, a flat polygon over the carriageway of a street.
-  `make_paint` builds edge and lane lines, dashes and zebra crossings once per plan; a tile only
-  clips the polygons it touches.
+- `Paint(polygon, street, kind)`: one painted marking (`line` or `crossing`, a zebra bar), a flat
+  polygon over the carriageway of a street. `make_paint` builds edge and lane lines, dashes and zebra
+  crossings once per plan; a tile only clips the polygons it touches. The carriageway is the street
+  surface minus every sidewalk on it (whichever street a sidewalk is filed under) and the promenade;
+  edge lines stand `paint_edge_inset` inside the widest sidewalk of each side, measured on that side
+  (`parking.walk_widths`), and `[dressing.parking] row` inside it where that side has a parking row
+  (prompt 25: cars never straddle the line); with one row the center line moves half a row toward the
+  free side.
 - `Household(building, family, trade, wealth 0..1, door, members)`: one per house, domed house,
   apartment block and villa. `Souk(street, name, trade, ground, wall, shop)`: one per souk street.
 - `District.kind`: `medina`, `village`, `colonial`, `modern`, `residential`, `suburb`,
@@ -436,6 +443,36 @@ shaders (which ignore the image and the tint) and takes their palette color from
   (`trunk_clear`); each run is filled by pieces of at most `piece_max` m, stretched along x
   (`Placement.stretch`). Full capital: 2,900 gardens (98 ha), 31,100 hedge pieces, 192 km of hedge.
   The map paints villa lots `GARDEN_RGB` and citrus trees orange.
+- **Parked cars and taxis** (prompt 25, `mesh/vehicles.py`, `city/parking.py`, `[dressing.vehicles]`,
+  `[dressing.parking]`): pieces `car_<type>_<i>` (category `vehicle`, so no lit twins) for `hatch`,
+  `sedan`, `van`, `louage` (white minibus with a red, blue or yellow stripe; a roof rack with luggage on
+  some, `stream(seed, "piece", name)`) and `taxi` (the sedan body in yellow with a white roof sign), four
+  body colors each from the style. Each is a side profile drawn across the width (bumpers, bonnet,
+  arches, boot or hatch) under a narrower cabin with flush `glass_dark`, octagonal tyres, lamps, grille,
+  mirrors and a sill strip: 152-164 triangles (184 with a rack), no UVs; the color pieces of a type share every part
+  array, so a tile writes each type's geometry once. Rows: a street of `kinds` parks on both sides
+  when its carriageway (width minus the widest sidewalk of each side) holds 2 rows + 2 lanes (`row`
+  2.4, `lane` 3.0), on the wider sidewalk's side when it holds 1 + 1, else not; a boulevard along the
+  outer curb of each carriageway; only along sidewalks of `districts` (colonial, modern, residential).
+  A row is cut into runs `junction_clear` from every street that meets it (not the grid streets lying
+  on a boulevard: wholly inside, or running 8 m or more inside it within 15 degrees, `lying_on`); each
+  run is laid out whole on 0.5 m samples, slot by slot on `rng("park", street, side, run, slot)` (an
+  empty stretch with chance `empty` by street kind, or a car of the `mix` and its gap), so a
+  car is the same in every tile and belongs to the tile holding its center. A car stands `curb_gap` off
+  the local curb (the sidewalk measured at that spot), faces its lane's traffic (driving on the
+  right), sits on the drawn surface under its axles and is pitched along the street (`Placement.tilt`,
+  written into the instance rotation). Gaps: `crossing_clear` from zebra bars, `tree_clear` from the bark of
+  trunks as drawn (after `tree_spots`; radius `tree_trunk`), `lamp_clear` from lamps (`Dresser.lamp_spot`, kit bounds), `front_clear`
+  either side of a cafe or shop front (`Dresser.front_of` replays `_front` alone), `door_clear` from the
+  free zone of doors near narrow sidewalks and from stair paths carried `path_cross` m on
+  (`Dresser.door_spots`). Every car is then checked exactly with its kit bounds: on its own street,
+  off sidewalks, painted lines and other cars. Taxi rank (`rng("taxi-rank", "row")`): `rank` taxis at
+  the end nearest the boulevard's junction with the most streets of the nearest parking run within
+  `rank_reach` that holds them (the boulevard first). Quick capital: 1,525 cars (652 hatchbacks, 533
+  sedans, 193 vans, 125 taxis, 22 louages), 221 streets and 9 arterials with one row, 3 arterials and
+  the boulevard with two, a rank of 5 taxis in a colonial street by the boulevard; full capital about 13,700
+  cars (907 taxis, 201 louages), 4,298 streets and 19 arterials with one row, 49 arterials and the
+  boulevard with two.
 - **Massed buildings** (prompt 23, `city/massing.py`): the street windows, open-wall windows and slab
   windows of each column go up to the floors of the wall there (`floors_at` under the window's whole
   width, `[dressing] window_half` m each side), so none floats above a lower step or on a set-back
@@ -462,6 +499,8 @@ lists and the root sounds and word patterns for made-up nisba names, wealth and 
 district; `[[souk]]` souk trades and their goods; `[dressing]` chances and heights;
 `[dressing.roles]` which piece plays each part; `[dressing.trees.<kind>]` the natural tree
 variants (citrus with `fruit` oranges), `[dressing.hedge]` the villa hedges and garden lift,
+`[dressing.vehicles]` the car body colors and `[dressing.parking]` the parking rule, gaps, car mix and
+taxi rank,
 `[greenery]` the street, courtyard and villa trees of prompt 24 and `[dressing.climber]` the bougainvillea curtains (clump count and size, drop,
 stems, colors). Adding a style = a new file; code must not assume
 Maghreb-specific values.

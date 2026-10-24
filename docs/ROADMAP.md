@@ -36,7 +36,7 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
 - [x] 22 AR1 Arcades and iron balconies
 - [x] 23 AR2 Building massing
 - [x] 24 A7 More greenery
-- [ ] 25 H3a Parked cars and taxis
+- [x] 25 H3a Parked cars and taxis
 - [ ] 26 H3b Benches, kiosks, fountains
 - [ ] 27 CP3 Checkpoint: facades and street life
 - [ ] 28 P1 People figures

@@ -657,8 +657,9 @@ def instance_groups(tc: TileContext, placements: list, x0: float, y0: float) -> 
     for name, ps in sorted(groups.items()):
         t = np.array([(p.x - x0, p.z, -(p.y - y0)) for p in ps])
         half = np.array([p.yaw for p in ps]) / 2.0
-        zero = np.zeros(len(ps))
-        r = np.stack([zero, np.sin(half), zero, np.cos(half)], axis=1)
+        pitch = np.array([p.tilt for p in ps]) / 2.0          # yaw about up, after a tilt about the piece's z (glTF)
+        sz, cz = np.sin(pitch), np.cos(pitch)
+        r = np.stack([np.sin(half) * sz + 0.0, np.sin(half) * cz, np.cos(half) * sz + 0.0, np.cos(half) * cz], axis=1)
         sc = np.array([(p.scale * p.stretch, p.scale, p.scale) for p in ps])   # stretch: along the wall only
         out.append({"name": name, "parts": tc.kit.pieces[name].parts, "t": t, "r": r, "s": sc})
     return out

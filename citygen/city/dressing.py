@@ -27,6 +27,7 @@ from .geo import frame
 from .massing import corner_faces, floors_at, main_mass, massed, probes, terrace_walls, wall_height
 from .openings import (DoorSpot, Walls, fits, joined, open_walls, path_to_street, piece_boxes, villa_lots,
                        wall_arrays)
+from .parking import Parking
 from .roofs import roof_layout, roof_stream
 
 DRESSED = {"house", "domed", "apartments", "villa"}
@@ -35,6 +36,7 @@ FRONT_PREF = {"souk": 3.0, "alley": 2.5, "street": 2.0, "boulevard": 1.5, "ring"
 LANES = ("alley", "impasse")   # narrow lanes: dressed alike (laundry, cables, arches)
 DOOR_WALL = 2.3                # shortest street wall that takes a door; the main facade is one if any is
 TRADITIONAL = {"medina", "village"}
+CAFES = {"colonial"}             # districts whose ground floors may be cafes (souk shops face souks only)
 NO_BOXES = (np.array([], dtype=object), np.zeros(0), np.zeros(0))   # piece_boxes of nothing
 
 
@@ -48,6 +50,7 @@ class Placement:
     on_ground: bool = True
     scale: float = 1.0
     stretch: float = 1.0   # extra scale along the wall (x) only: arcade bays and long balconies fit their wall
+    tilt: float = 0.0      # radians, the piece's +x end raised (a parked car on a sloping street)
 
 
 @dataclass
@@ -113,6 +116,10 @@ class Dresser:
         self._sidewalks = None                   # STRtree of the sidewalk polygons (lazy)
         self._lots = self._lot_of = self._parcel_tree = None   # villa lots (prompt 24, lazy)
         self._tree_index = None                  # STRtree of the planned trees (lazy)
+        self._fronts: dict = {}                  # building -> its main front and doors (fronts)
+        self._front_of: dict = {}                # building -> its main front alone (front_of)
+        self._stair_spots: dict = {}             # apartment block -> its stair doors (door_spots)
+        self._parking = None                     # parked cars (prompt 25, city/parking.py, lazy)
         self._stairs = {n for r in ("stair_window", "stair_door") for n in (self.roles[r][0] if r in self.roles else [r])}
         targets = self.surfaces + [w.polygon for w in getattr(plan, "walks", ())]
         self.target_tree = STRtree(targets) if targets else None   # where a garden path may end
@@ -194,6 +201,7 @@ class Dresser:
         slots: list = []
         walls = self.walls(b, k if self.every_home else None)
         front = self._street_side(b, k, self.facades(b, walls), high, rng, out, slots)
+        self._front_of[k] = front[:4]
         street, arcade, iron, shadow = self._colonial(b, k, walls, high, out, slots)
         out[:] = street
         self._roof(b, k, high, rng, out)
@@ -203,6 +211,7 @@ class Dresser:
         if self.every_home:
             boxes = self._boxes(walls, front, street + iron, shadow)
             spots = self._entrances(k, b, walls, front, boxes)
+            self._fronts[k] = (front[:3], spots)
             self._homes(k, b, walls, spots, high, out, boxes)
             if paths is not None:
                 paths += [s.path for s in spots if s.path is not None]
@@ -221,7 +230,18 @@ class Dresser:
         high = float(building_highs(self.ground, [b])[0])
         front = self._street_side(b, k, self.facades(b, walls), high, self.rng("b", k), out, slots)   # same draws
         street, _, iron, shadow = self._colonial(b, k, walls, high, out, slots)
-        return self._entrances(k, b, walls, front, self._boxes(walls, front, street + iron, shadow))
+        spots = self._entrances(k, b, walls, front, self._boxes(walls, front, street + iron, shadow))
+        self._fronts[k] = (front[:3], spots)
+        return spots
+
+    def fronts(self, k: int) -> tuple:
+        """((main facade, door or shop center, "front" | "shop" | "cafe" | None), entrances) of dwelling k,
+        as `building` dresses it (kept once computed: parked cars keep clear of them, prompt 25)."""
+        if k not in self._fronts:
+            if self.plan.buildings[k].kind not in DRESSED:
+                return (None, None, None), []
+            self.entrances(k)
+        return self._fronts[k]
 
     def door_spot(self, k: int) -> DoorSpot | None:
         """The main door of dwelling k, exactly where `building` puts it; None for other buildings.
@@ -239,16 +259,45 @@ class Dresser:
         """
         if not fac:
             return None, None, None, None, None
-        home = self.homes.get(k)
-        color = home.door if home else "door_blue"
-        wealth = home.wealth if home else 0.4
-        district = self.kinds[b.district]
+        main, district, color, wealth, height = self._main(b, k, fac)
         floors = max(1, int(b.floors))
-        main = max(fac, key=lambda f: (f.length >= DOOR_WALL, FRONT_PREF.get(f.kind, 0.0), f.length))
-        height = float(wall_height(b, [main.a, main.at(0.5), main.b]).min())   # a set-back floor or a low wing
         door_at, kind, piece, z = self._front(main, district, color, wealth, height, rng, out)
         self._windows(k, fac, district, color, wealth, floors, b.height / floors, high, door_at, rng, out, slots)
         return main, door_at, kind, piece, z
+
+    def _main(self, b, k: int, fac: list) -> tuple:
+        """(main facade, district kind, door color, wealth, wall height there) of building k."""
+        home = self.homes.get(k)
+        color = home.door if home else "door_blue"
+        wealth = home.wealth if home else 0.4
+        main = max(fac, key=lambda f: (f.length >= DOOR_WALL, FRONT_PREF.get(f.kind, 0.0), f.length))
+        height = float(wall_height(b, [main.a, main.at(0.5), main.b]).min())   # a set-back floor or a low wing
+        return main, self.kinds[b.district], color, wealth, height
+
+    def door_spots(self, k: int) -> list:
+        """The doors of dwelling k as `entrances` gives them; an apartment block with no street wall (its
+        stair doors, prompt 20.1) skips the street side and arcade replay, which cannot change them."""
+        b = self.plan.buildings[k]
+        if k in self._fronts or not (self._is_slab(b) and self.front_of(k)[2] is None):
+            return self.fronts(k)[1]
+        if k not in self._stair_spots:
+            self._stair_spots[k] = self._stair_doors(k, b, self.walls(b, k), self._nearest_street(b))
+        return self._stair_spots[k]
+
+    def front_of(self, k: int) -> tuple:
+        """(main facade, door or shop center, "front" | "shop" | "cafe" | None, door piece) of building k,
+        as `building` decides them: `_front` takes the first draws of `rng("b", k)`, so it is replayed
+        alone (kept once computed; parked cars keep clear of doors and cafe fronts, prompt 25)."""
+        if k not in self._front_of:
+            b = self.plan.buildings[k]
+            fac = self.facades(b) if b.kind in DRESSED else []
+            if not fac:
+                self._front_of[k] = (None, None, None, None)
+            else:
+                main, district, color, wealth, height = self._main(b, k, fac)
+                at, kind, piece, _ = self._front(main, district, color, wealth, height, self.rng("b", k), [])
+                self._front_of[k] = (main, at, kind, piece)
+        return self._front_of[k]
 
     def drawn(self, x, y) -> np.ndarray:
         """`Ground.drawn` (the terrain mesh's height), with the mesh corners' heights cached: the doors
@@ -283,7 +332,7 @@ class Dresser:
         if souk is not None and f.length >= 3.0 and rng.random() < cfg.get("shop_on_souk", 0.85):
             c, z = self._shop(f, souk, rng, out)
             return c, "shop", None, z
-        if district == "colonial" and f.length >= 3.2 and rng.random() < cfg.get("cafe", 0.3):
+        if district in CAFES and f.length >= 3.2 and rng.random() < cfg.get("cafe", 0.3):
             c, z = self._cafe(f, rng, out)
             return c, "cafe", None, z
         if f.length < DOOR_WALL:
@@ -1534,7 +1583,8 @@ class Dresser:
 
     def street_props(self, k: int, tile) -> list:
         """Things that belong to a street rather than a house: arches over alley mouths, decorated
-        gates at the ends of souks, handcarts in the souks."""
+        gates at the ends of souks, handcarts in the souks, street lamps, and parked cars and the taxi
+        rank (prompt 25), each car in the tile holding its center."""
         st = self.plan.streets[k]
         out: list = []
         role = {"alley": "alley_arch", "souk": "souk_gate"}.get(st.kind)
@@ -1560,31 +1610,42 @@ class Dresser:
                     q = np.array([p.x, p.y]) + np.array([t[1], -t[0]]) * rng.uniform(-0.6, 0.6)
                     flip = math.pi if rng.random() < 0.5 else 0.0   # parked along the souk, either way
                     self.put(out, "souk_cart", rng, q, 0.0, yaw_of(t) + flip)
+        if "parking" in self.cfg:
+            if self._parking is None:
+                self._parking = Parking(self)
+            out += self._parking.cars(k, tile)
         return out
 
     def _lamps(self, k: int, spacing: float, tile, out: list) -> None:
-        """Street lamps along both edges, staggered, leaning over the street. Along a colonial arcade
-        (prompt 22) a lamp moves `lamp_shift` m out toward the curb, beyond the pillars, or is left out
-        when that is not on a sidewalk clear of them."""
+        """Street lamps along both edges, staggered, leaning over the street (see `lamp_spot`)."""
+        for i in range(int(self.plan.streets[k].line.length // spacing)):
+            spot = self.lamp_spot(k, i, spacing)
+            if spot is not None and tile.covers(shapely.Point(spot[0])):
+                self.put(out, "street_lamp", self.rng("lamp", k, i), spot[0], 0.0, yaw_of(-spot[1]))
+
+    def lamp_spot(self, k: int, i: int, spacing: float) -> tuple | None:
+        """(point, normal toward its edge) of street k's lamp i, or None where it is left out. Along a
+        colonial arcade (prompt 22) a lamp moves `lamp_shift` m out toward the curb, beyond the pillars,
+        or is left out when that is not on a sidewalk clear of them. Parked cars (prompt 25) read it too."""
         st = self.plan.streets[k]
         line, half = st.line, st.width / 2 - 0.6
-        for i in range(int(line.length // spacing)):
-            d = (i + 0.5) * spacing
-            a, b = line.interpolate(max(d - 0.5, 0.0)), line.interpolate(min(d + 0.5, line.length))
-            t = np.array([b.x - a.x, b.y - a.y])
-            if np.hypot(*t) < 1e-6:
-                continue
-            t /= np.hypot(*t)
-            side = 1.0 if i % 2 else -1.0
-            n = np.array([-t[1], t[0]]) * side            # from the center line toward this edge
-            p = line.interpolate(d)
-            q = np.array([p.x, p.y]) + n * half
-            if self.arcade_cfg and self._arcade_band(q[None, :])[0]:   # along an arcade: out to the curb
-                q = q - n * float(self.arcade_cfg["lamp_shift"])
-                if self._arcade_band(q[None, :])[0] or not self._on_sidewalk(q[None, :])[0]:
-                    continue
-            if tile.covers(shapely.Point(q)) and self.streets_at(q[None, :])[0] >= 0:
-                self.put(out, "street_lamp", self.rng("lamp", k, i), q, 0.0, yaw_of(-n))
+        d = (i + 0.5) * spacing
+        a, b = line.interpolate(max(d - 0.5, 0.0)), line.interpolate(min(d + 0.5, line.length))
+        t = np.array([b.x - a.x, b.y - a.y])
+        if np.hypot(*t) < 1e-6:
+            return None
+        t /= np.hypot(*t)
+        side = 1.0 if i % 2 else -1.0
+        n = np.array([-t[1], t[0]]) * side            # from the center line toward this edge
+        p = line.interpolate(d)
+        q = np.array([p.x, p.y]) + n * half
+        if self.arcade_cfg and self._arcade_band(q[None, :])[0]:   # along an arcade: out to the curb
+            q = q - n * float(self.arcade_cfg["lamp_shift"])
+            if self._arcade_band(q[None, :])[0] or not self._on_sidewalk(q[None, :])[0]:
+                return None
+        if self.streets_at(q[None, :])[0] < 0:
+            return None
+        return q, n
 
     def _gate(self, k: int, end: int, d: float, role: str, out: list, chance: float | None = None) -> None:
         """An arch over an alley mouth, sized from wall to wall, or a souk gate standing free in the souk."""

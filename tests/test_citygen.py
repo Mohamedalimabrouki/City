@@ -1927,3 +1927,112 @@ def test_villa_gardens_hedges_and_fruit_trees(world, villas):
     pos = part["pos"][part["idx"].reshape(-1, 3)]                 # glTF axes: x, up, -y
     c = pos.mean(axis=1)
     assert np.abs(c[:, 1] - ground.drawn(c[:, 0], -c[:, 2]) - cfg["garden_lift"]).max() < 1e-6
+
+
+# --- parked cars and taxis (prompt 25) -------------------------------------------------------------
+
+def test_vehicle_pieces_are_low_poly_colored_and_never_lit(world, built_tile):
+    tc = built_tile[0]
+    cfg = world.style["dressing"]["vehicles"]
+    for kind in ("hatch", "sedan", "van", "louage", "taxi"):
+        names = [f"car_{kind}_{i}" for i in range(len(cfg[kind]))]
+        assert len(names) == 4
+        bodies = set()
+        for name in names:
+            pc = tc.kit.pieces[name]
+            assert pc.category == "vehicle" and 150 <= pc.triangles <= 350, (name, pc.triangles)
+            assert "glass_dark" in pc.parts and name + "_lit" not in tc.kit.pieces
+            assert pc.bounds[0][1] >= 0.0 and pc.bounds[0][1] < 0.05      # wheels on the ground
+            bodies |= set(pc.parts) & set(cfg[kind])
+            shared = {m: id(p) for m, p in tc.kit.pieces[names[0]].parts.items()}
+            assert {id(p) for p in pc.parts.values()} >= {i for m, i in shared.items() if m == "glass_dark"}
+        assert len(bodies) >= (1 if kind == "louage" else 4)        # four body colors (a louage: four stripes)
+    assert "taxi_sign" in tc.kit.pieces["car_taxi_0"].parts
+    assert any(m.startswith("stripe_") for m in tc.kit.pieces["car_louage_0"].parts)
+
+
+def test_parked_cars_keep_clear_of_trees_crossings_junctions_walks_lamps_doors_and_paint(world, plan, ground, built_mesh):
+    tc, i, j, _, placements = built_mesh
+    kit = tc.kit
+    x0, y0 = i * tc.size, j * tc.size
+    cars = [p for p in placements if kit.pieces[p.piece].category == "vehicle"]
+    assert len(cars) > 40 and len({p.piece.rsplit("_", 1)[0] for p in cars}) >= 4
+    assert all(x0 <= p.x < x0 + tc.size and y0 <= p.y < y0 + tc.size for p in cars)   # its center's tile
+    feet = [_plan_box(kit, p) for p in cars]
+    a, b = STRtree(feet).query(feet, predicate="intersects")
+    assert all(feet[int(m)].intersection(feet[int(n)]).area < 1e-6 for m, n in zip(a, b) if m < n)   # no overlap
+    surfaces = [st.line.buffer(st.width / 2, cap_style="flat") for st in plan.streets]
+    walks = STRtree([w.polygon for w in plan.walks])
+    paint = STRtree([m.polygon for m in plan.paint])
+    crossings = [m.polygon for m in plan.paint if m.kind == "crossing"]
+    inner = shapely.box(x0 + 3.0, y0 + 3.0, x0 + tc.size - 3.0, y0 + tc.size - 3.0)
+    trunks = [shapely.Point(p.x, p.y) for p in placements if kit.pieces[p.piece].category == "tree"]
+    lamps = [_plan_box(kit, p) for p in placements if p.piece == "street_lamp"]
+    depth = world.style["dressing"]["open_walls"]["door_clear"]
+    doors = [_plan_box(kit, p, 0.0, depth) for p in placements if kit.pieces[p.piece].category == "door"]
+    assert trunks and lamps and doors and crossings
+    checked = 0
+    for p, foot in zip(cars, feet):
+        own = [int(k) for k in np.nonzero([s.contains(foot) for s in surfaces])[0]]
+        assert own, "a car off the streets"
+        k = own[0]
+        for m in STRtree(surfaces).query(foot, predicate="dwithin", distance=1.0).tolist():
+            if m == k:
+                continue                                                 # a grid street lying on k is no junction
+            part = shapely.get_coordinates(plan.streets[m].line.intersection(surfaces[k]))
+            assert len(part) >= 2 and np.hypot(*(part[-1] - part[0])) >= 8.0, "a car in a junction"
+            v = (part[-1] - part[0]) / np.hypot(*(part[-1] - part[0]))
+            ends = shapely.get_coordinates(shapely.line_interpolate_point(plan.streets[k].line, plan.streets[k].line.project(
+                shapely.Point(*(part[0] + part[-1]) / 2)) + np.array([-0.5, 0.5])))
+            u = (ends[1] - ends[0]) / np.hypot(*(ends[1] - ends[0]))
+            assert abs(v @ u) > 0.96, "a car in a junction"
+        assert not len(walks.query(foot, predicate="intersects")), "a car on a sidewalk"
+        assert not len(paint.query(foot, predicate="intersects")), "a car on a painted line"
+        assert min(foot.distance(c) for c in crossings) >= 1.0
+        curb = min(foot.distance(walks.geometries[int(w)]) for w in walks.query(foot, predicate="dwithin", distance=1.0))
+        assert curb <= 0.25, curb                                          # against the curb
+        t = shapely.get_coordinates(shapely.line_interpolate_point(
+            plan.streets[k].line, plan.streets[k].line.project(shapely.Point(p.x, p.y)) + np.array([-0.5, 0.5])))
+        along = (t[1] - t[0]) / np.hypot(*(t[1] - t[0]))
+        assert abs(along[0] * math.sin(p.yaw) - along[1] * math.cos(p.yaw)) < 0.06   # parallel to the curb
+        lo, hi = kit.pieces[p.piece].bounds
+        a = 0.3 * (hi[0] - lo[0])                                        # the axles, about
+        ends = np.array([(p.x + s * a * math.cos(p.yaw), p.y + s * a * math.sin(p.yaw)) for s in (1, -1)])
+        wheels = p.z + np.array([a, -a]) * math.tan(p.tilt)              # pitched along a sloping street
+        assert np.abs(wheels - ground.surface(ends[:, 0], ends[:, 1])).max() < 0.01 and abs(p.tilt) < 0.15
+        if inner.contains(foot):                                         # the tile holds what stands around it
+            bark = world.style["dressing"]["parking"]["tree_trunk"]
+            assert min(foot.distance(t) for t in trunks) >= 1.0 + bark - 1e-6, "a car within 1 m of a trunk"
+            assert not any(foot.intersects(q) for q in lamps), "a car in a lamp"
+            assert not any(foot.intersects(q) for q in doors), "a car in front of a door"
+            checked += 1
+    assert checked > 30
+
+
+def test_parking_rows_follow_the_carriageway_width_and_a_taxi_rank_waits(world, plan, built_mesh):
+    from citygen.city.parking import parked_sides, walk_widths
+    tc = built_mesh[0]
+    dresser = tc.cities[0][4]
+    cfg = world.style["dressing"]["parking"]
+    widths, promoted = walk_widths(world.style, plan.districts, plan.streets, plan.walks)
+    promenade = world.style["streets"]["promenade_width"]
+    seen = {1: 0, 2: 0}
+    for k, st in enumerate(plan.streets):
+        sides = parked_sides(st, k, widths, promoted, cfg, promenade)
+        carriage = st.width - sum(widths.get((k, s), 0.0) for s in (1, -1))
+        if sides and k not in promoted:
+            seen[len(sides)] += 1
+            need = (cfg["row"] + cfg["lane"]) * len(sides)
+            assert carriage >= need - 1e-6 and st.kind in cfg["kinds"]
+    assert seen[1] > 20 and seen[2] > 0               # 12 m streets park on one side, arterials on both
+    tile = shapely.box(-1e9, -1e9, 1e9, 1e9)
+    k, side, run, _ = dresser._parking.rank()
+    row = dresser._parking.row(k, side, run)
+    assert sum(c.piece.startswith("car_taxi") for c in row) >= cfg["rank"][0]
+    boulevard = next(st for st in plan.streets if st.kind == "boulevard")
+    assert min(boulevard.line.distance(shapely.Point(c.x, c.y)) for c in row) < cfg["rank_reach"]
+    whole = [(p.piece, p.x, p.y) for p in dresser.street_props(k, tile) if p.piece.startswith("car_")]
+    c = plan.streets[k].line.centroid
+    halves = [shapely.box(-1e9, -1e9, c.x, 1e9), shapely.box(c.x, -1e9, 1e9, 1e9)]
+    split = [(p.piece, p.x, p.y) for h in halves for p in dresser.street_props(k, h) if p.piece.startswith("car_")]
+    assert sorted(whole) == sorted(split) and whole                    # each car in exactly one tile

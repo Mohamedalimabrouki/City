@@ -77,8 +77,10 @@ class Walk:
     """A raised sidewalk or the boulevard's central promenade, in world meters."""
     kind: str          # sidewalk | promenade
     polygon: object    # shapely Polygon of the raised top
-    width: float       # actual width in meters (after narrowing at tight streets)
-    street: int = -1   # nearest street; the boulevard for a promenade
+    width: float       # actual width in meters (after narrowing at tight streets) along `street`
+    street: int = -1   # nearest street; the boulevard for a promenade. A sidewalk wraps its whole
+                       # block, so `street`, `side` and `width` hold for one side only: measure the
+                       # other streets with `parking.walk_extents` (prompt 25)
     side: int = 0      # +1 left of the street line, -1 right, 0 the middle (promenade)
     district: int = -1 # district of the block behind a sidewalk
     block: int = -1    # index in CityPlan.blocks
@@ -89,6 +91,7 @@ class Paint:
     """One painted road marking: a flat polygon over the carriageway."""
     polygon: object   # shapely Polygon in world meters
     street: int       # index in CityPlan.streets
+    kind: str = "line"   # line (edge, lane and center lines) | crossing (a zebra bar)
 
 
 @dataclass

@@ -172,6 +172,29 @@ cloth_3 = { color = "#C0392B", double_sided = true }
 cloth_4 = { color = "#E3B23C", double_sided = true }
 cloth_5 = { color = "#5A8F4E", double_sided = true }
 cloth_6 = { color = "#8E5AA8", double_sided = true }
+# parked cars (prompt 25): muted, sun-faded body colors, as on a Tunis street
+car_white = { color = "#E6E4DE", roughness = 0.35 }
+car_cream = { color = "#E4DCC8", roughness = 0.4 }
+car_silver = { color = "#A7AAAC", roughness = 0.3, metallic = 0.4 }
+car_grey = { color = "#6C6F72", roughness = 0.35, metallic = 0.3 }
+car_red = { color = "#8A3029", roughness = 0.4 }
+car_blue = { color = "#4A5D76", roughness = 0.4 }
+car_navy = { color = "#2E3848", roughness = 0.35 }
+car_beige = { color = "#B9AE96", roughness = 0.45 }
+car_sand = { color = "#C6B48C", roughness = 0.5 }
+car_blue_pale = { color = "#7D90A0", roughness = 0.45 }
+taxi_yellow = { color = "#E2B22C", roughness = 0.4 }
+taxi_yellow_faded = { color = "#DDBA5A", roughness = 0.5 }
+taxi_yellow_deep = { color = "#D9A21E", roughness = 0.4 }
+taxi_yellow_warm = { color = "#E0AA3E", roughness = 0.45 }
+stripe_red = { color = "#B02E28", roughness = 0.45 }   # louage stripes: red between governorates,
+stripe_blue = { color = "#2C5A96", roughness = 0.45 }  # blue within one, yellow for rural lines
+stripe_yellow = { color = "#D8A42E", roughness = 0.45 }
+car_trim = { color = "#222222", roughness = 0.8 }      # tyres, bumpers, grille, arches
+car_light = { color = "#E8E6DC", roughness = 0.2 }
+car_tail = { color = "#8E1E1A", roughness = 0.3 }
+car_tarp = { color = "#5F6152", roughness = 0.9 }      # the tarpaulin over a louage's roof luggage
+taxi_sign = { color = "#F2F0E8", roughness = 0.5 }
 
 # --- generated textures (prompt 18) ----------------------------------------------
 # One code-made image per surface: near-neutral grey detail around white, seamless. The palette
@@ -941,6 +964,47 @@ piece_max = 8.0
 gate = 0.6
 trunk_clear = 0.5
 garden_lift = 0.02         # the garden ground stands this far above the terrain mesh (paths: 0.04)
+
+# Parked cars (prompt 25, mesh/vehicles.py): four body colors per type, each its own kit piece
+# car_<type>_<i> (instancing cannot recolor). A louage is white with a colored stripe along its sides.
+[dressing.vehicles]
+hatch = ["car_white", "car_silver", "car_red", "car_blue"]
+sedan = ["car_white", "car_grey", "car_beige", "car_navy"]
+van = ["car_white", "car_silver", "car_blue_pale", "car_sand"]
+louage = ["car_white", "car_white", "car_white", "car_cream"]
+louage_stripe = ["stripe_red", "stripe_blue", "stripe_yellow", "stripe_red"]
+louage_rack = 0.5          # chance a louage piece carries a roof rack with luggage (its own stream)
+taxi = ["taxi_yellow", "taxi_yellow_faded", "taxi_yellow_deep", "taxi_yellow_warm"]
+
+# Where cars park (Dresser.street_props, city/parking.py): parallel, `curb_gap` m off the curb, on
+# streets of `kinds` along the sidewalks of `districts`. A carriageway takes a parking row on both
+# sides when it is at least 2 rows + 2 lanes wide, on one side (the wider sidewalk's) when it fits
+# 1 row + 1 lane, and none below that; a boulevard parks along the outer curb of each carriageway.
+# A painted edge line moves out to the lane side of a parking row. Gaps (meters of free space):
+# junctions, crossings, cafe and shop fronts (deliveries), door zones and stair paths, trees, lamps.
+[dressing.parking]
+kinds = ["street", "arterial", "boulevard"]
+districts = ["colonial", "modern", "residential"]
+row = 2.4                  # width of a parking row from the curb (the edge line goes here)
+lane = 3.0                 # width of a driving lane
+curb_gap = 0.2             # car side to the curb face
+junction_clear = 5.0       # from any other street's surface
+crossing_clear = 1.5       # from a zebra crossing
+front_clear = 2.6          # half the gap in front of a cafe or shop front, along the curb
+door_clear = 0.3           # from a door's free zone ([dressing.open_walls] door_clear in front of it)
+door_reach = 8.0           # buildings this close to the row may have a door zone reaching it
+path_clear = 0.6           # from a stair door's paved path, carried on `path_cross` m over the sidewalk
+path_cross = 4.0
+tree_clear = 1.0           # from a tree trunk's bark (as drawn, after tree_spots) ...
+tree_trunk = 0.3           # ... a trunk this thick in radius
+lamp_clear = 0.3           # from a street lamp (its kit bounds)
+gap = [0.5, 1.6]           # meters between two parked cars
+empty = { street = 0.18, arterial = 0.12, boulevard = 0.06 }   # chance a slot stays empty ...
+empty_length = [2.0, 9.0]  # ... over this many meters
+mix = [["hatch", 0.43], ["sedan", 0.35], ["van", 0.13], ["taxi", 0.07], ["louage", 0.02]]   # louages wait at their stations
+rank = [4, 6]              # yellow taxis waiting at the rank by the boulevard's busiest junction
+rank_gap = [0.5, 0.9]
+rank_reach = 150.0         # meters from that junction the rank may stand, in the nearest run where it fits
 
 # Which pieces play each part, by weight: [piece, weight] or [piece, weight, extra height].
 # "tounes/..." pieces come from the Tounes Rush kit (kits/tounes); the others are made by the

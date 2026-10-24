@@ -396,6 +396,29 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
   keep the Q1 budget (60-200 triangles) plus 14 oranges (8-face clumps, 112 triangles) on their own
   stream `("props", "tree", "citrus", variant, "fruit")`. Cost: full capital 51.4 -> 49.0 s back to
   back (noise; planner +1 s), quick build unchanged.
+- **Parked cars** (prompt 25, `mesh/vehicles.py`, `city/parking.py`): `Walk.street`, `side` and `width`
+  hold for ONE side of a block only (a sidewalk polygon wraps its whole block and is filed under the
+  street nearest its representative point): the boulevard had no sidewalk filed at all, so its edge
+  lines lay under the raised walks and its carriageway included them. Measure per side instead
+  (`walk_extents`: the sidewalk at the street's edge, min(district `sidewalk_width`, (width -
+  min_carriageway) / 2)); `_carriageway` now cuts every sidewalk on the street. Measuring the band
+  with a segment intersection was exact too but 3 times slower. The planner left grid streets lying
+  on the boulevard's surface (parallel, 8.9 m off its center), one poking out past its end: "a street
+  that meets this one" must skip streets lying on it, wholly or running along inside it (`lying_on`),
+  or a whole side reads as a junction (lead review: the boulevard had 3 cars, now 6, all it holds).
+  Check each car exactly against the obstacles instead of adding a sample of margin to each.
+  Instancing cannot recolor, so the 4 color pieces of a type share every part dict: `write_glb`
+  writes the geometry once and a color costs about 1.1 KB of JSON. No UVs on car parts (-25% bytes);
+  hidden tread faces and a mirror's back face left out; first version +10.7% on a quick tile, now
+  +8.8% worst (budget 10%): tile bytes are the tight budget here, not triangles (+7.1% drawn). Do not
+  drop the normals to save more: three's GTAO normal pass reads them. A run is laid out whole on
+  0.5 m samples (obstacles as point distances, then an exact kit-bounds check per car), so tiles
+  agree; replaying a whole `entrances` for every building along a run cost +16% tile work: `front_of`
+  replays `_front` alone (its draws come first on `rng("b", k)`), door zones only where a sidewalk is
+  narrow enough for them to reach the row, stair paths only from blocks facing the street. Cars sit on
+  the surface under their axles with `Placement.tilt` (the instance rotation is yaw after a tilt about
+  the piece's glTF z); sitting on the lowest point sank the other end 12 cm on a 7% street. Cost: full
+  capital 47.4 -> 51.8 s back to back (CPU +12%, all tile work), `build --quick` 10.6 -> 11.1 s.
 - **Old-town tiles** reach about 5 MB on the quick build and 8 MB on the full capital
   (`tile_65_106`, mostly roofs since prompt 15); task Q5 (prompt 39) brings them down.
 
