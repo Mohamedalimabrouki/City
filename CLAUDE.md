@@ -8,7 +8,8 @@ The code builds the world; agents only improve the code. Keep every session smal
   keep reports under 10 lines. Background and past decisions: `docs/HANDOFF.md` (read only
   when the task needs it).
 - One task per session. Efficient, but never lower the quality bar below.
-- Visual checks: at most two snapshots per task, then ask Ali to look (`python -m citygen view`).
+- Visual checks: at most two snapshots per task, then ask Ali to look (`python -m citygen gallery`:
+  every build with an Open in 3D button; `view` opens one).
 - On Ali's Mac use `.venv/bin/python` instead of `python`.
 
 ## Before you code

@@ -55,6 +55,19 @@ number. A different seed gives a different country. So:
    to the address to force High, or `perf=1` to print the average frame time in the browser
    console. The images are in `output/<country>-<seed>/maps/`.
 
+**Every city in one page.** Double-click **`Open City Gallery.command`** in this folder (or run
+`python -m citygen gallery`). Your browser shows every city built in `output/`, newest first,
+each with its map and an **Open in 3D** button, plus buttons for its camera spots (Street, Souk,
+Port, Corniche, Night...) and the newest check pictures. The page reads the `output` folder
+itself and looks again every 30 seconds, so cities you build later appear on their own. Close the
+Terminal window to stop it. To build another city: `python -m citygen list` shows the names, then
+`python -m citygen build --area city:NAME --out output/FOLDER`.
+
+**Move with the keyboard** in the 3D view: arrow keys or `W A S D` move, `Q` and `E` go down and
+up, `Shift` goes four times faster (flying speed grows with height). `G` switches walking on or
+off: your eyes stay 1.7 m above the street and you follow the ground; drag the mouse to look
+around.
+
 To save 3D pictures without opening a browser (handy for checks): `pip install playwright`,
 then `python -m citygen snapshot --view aerial` (or `street`, `souk`, `top`).
 

@@ -166,7 +166,8 @@ const SKY = 0x93c6f2;
 document.body.classList.toggle('noui', q.get('ui') === '0');
 $('help').textContent = coarse
   ? 'drag rotate \u00b7 pinch zoom \u00b7 two-finger pan \u00b7 tap a house \u00b7 double-tap focus'
-  : 'drag rotate \u00b7 right-drag pan \u00b7 wheel zoom \u00b7 click a house \u00b7 double-click focus \u00b7 N night \u00b7 L shadows';
+  : 'drag rotate \u00b7 right-drag pan \u00b7 wheel zoom \u00b7 arrows or WASD move \u00b7 Q/E down/up \u00b7 Shift faster '
+    + '\u00b7 G walk \u00b7 click a house \u00b7 double-click focus \u00b7 N night \u00b7 L shadows';
 
 let THREE, GLTFLoader, OrbitControls;
 try {
@@ -993,6 +994,7 @@ function frame(now) {
     if (k >= 1) focusAnim = null;
     dirty = true;
   }
+  if (navigate(now)) dirty = true;
   const moved = controls.update();
   if (loadDone && Number.isFinite(lowest) && camera.position.y < lowest + 1) camera.position.y = lowest + 1;
   if (slots.length && lodMoved()) updateLod();   // swaps to tiles in memory happen before this frame draws
@@ -1430,6 +1432,112 @@ canvas.addEventListener('pointerup', (e) => {
     lastTap = { x: e.clientX, y: e.clientY, t: now };
   }
 });
+
+// ---------------------------------------------------------------- keyboard: fly or walk
+// Arrows or W A S D move the camera and its target together along the ground, Q and E down and
+// up, Shift four times faster; flying speed grows with the height above the ground. G walks: the
+// eyes stay WALK.eye above the drawn surface under them (streets, walks, terrain; props such as
+// cars and people are ignored), and dragging looks around from where you stand.
+const NAV_KEYS = { arrowup: 'f', w: 'f', arrowdown: 'b', s: 'b', arrowleft: 'l', a: 'l', arrowright: 'r', d: 'r',
+                   q: 'down', e: 'up' };
+const WALK = { eye: 1.7, speed: 4.5, look: 1.0, step: 1.0 };   // meters, m/s, target ahead, highest step up
+const TAP = 150;                    // ms a quick key tap keeps moving, so a tap is a small step
+const held = new Map();             // nav key -> when it may stop (Infinity while held down)
+const navRay = new THREE.Raycaster();
+let walking = false;
+let navTime = 0;
+
+function surfaceBelow(p, from) {   // height of the drawn ground under p, from `from` meters above it; null off the tiles
+  navRay.set(new THREE.Vector3(p.x, p.y + from, p.z), new THREE.Vector3(0, -1, 0));
+  navRay.far = from + 5000;
+  const near = tiles.children.filter((t) => {
+    const b = t.userData.box;
+    return b && p.x >= b.min.x - 1 && p.x <= b.max.x + 1 && p.z >= b.min.z - 1 && p.z <= b.max.z + 1;
+  });
+  const hit = navRay.intersectObjects(near, true)
+    .find((h) => !h.object.isInstancedMesh && !(h.object.material && h.object.material.userData.water));
+  return hit ? hit.point.y : null;
+}
+
+function setWalking(on) {
+  walking = on;
+  controls.enableZoom = controls.enablePan = !on;
+  const ahead = new THREE.Vector3();
+  camera.getWorldDirection(ahead);
+  ahead.y = 0;
+  if (ahead.lengthSq() < 1e-6) ahead.set(0, 0, -1);
+  ahead.normalize();
+  if (on) {
+    const ground = surfaceBelow(camera.position, 2000);
+    if (ground !== null) camera.position.y = ground + WALK.eye;
+    controls.target.copy(camera.position).addScaledVector(ahead, WALK.look);
+  } else {
+    controls.target.copy(camera.position).addScaledVector(ahead, 40);
+    controls.target.y -= 8;
+  }
+  shadowDirty = dirty = true;
+}
+
+function navigate(now) {
+  const dt = Math.min((now - navTime) / 1000, 0.1);
+  navTime = now;
+  for (const [key, until] of held) if (until <= now) held.delete(key);
+  if (!held.size || !(dt > 0)) return false;
+  const forward = new THREE.Vector3();
+  camera.getWorldDirection(forward);
+  forward.y = 0;
+  if (forward.lengthSq() < 1e-6) forward.set(0, 0, -1);   // looking straight down: north
+  forward.normalize();
+  const right = new THREE.Vector3(-forward.z, 0, forward.x);
+  const move = new THREE.Vector3();
+  if (held.has('f')) move.add(forward);
+  if (held.has('b')) move.sub(forward);
+  if (held.has('r')) move.add(right);
+  if (held.has('l')) move.sub(right);
+  if (!walking && held.has('up')) move.y += 1;
+  if (!walking && held.has('down')) move.y -= 1;
+  if (move.lengthSq() === 0) return false;
+  let speed = WALK.speed;
+  if (!walking) {
+    const ground = surfaceBelow(camera.position, 1);
+    speed = Math.min(Math.max(1.2 * (camera.position.y - (ground ?? lowest)), 8), 1500);
+  }
+  if (held.has('shift')) speed *= 4;
+  move.normalize().multiplyScalar(speed * dt);
+  camera.position.add(move);
+  controls.target.add(move);
+  if (walking) {
+    const ground = surfaceBelow(camera.position, WALK.step);   // from just above the eyes: under arcades and vaults
+    if (ground !== null) {
+      const lift = ground + WALK.eye - camera.position.y;
+      camera.position.y += lift;
+      controls.target.y += lift;
+    }
+  }
+  return true;
+}
+
+const typing = (e) => e.target && e.target.closest && e.target.closest('select, input, textarea');
+window.addEventListener('keydown', (e) => {
+  if (e.ctrlKey || e.metaKey || e.altKey || typing(e)) return;
+  const nav = NAV_KEYS[e.key.toLowerCase()];
+  if (nav) {
+    if (held.get(nav) !== Infinity) held.set(`${nav}:down`, performance.now());
+    held.set(nav, Infinity);
+    e.preventDefault();
+  }
+  if (e.key === 'Shift') held.set('shift', Infinity);
+  if (e.key.toLowerCase() === 'g' && !e.repeat) setWalking(!walking);
+});
+window.addEventListener('keyup', (e) => {
+  const nav = NAV_KEYS[e.key.toLowerCase()];
+  if (nav) {
+    held.set(nav, Math.max(performance.now(), (held.get(`${nav}:down`) || 0) + TAP));
+    held.delete(`${nav}:down`);
+  }
+  if (e.key === 'Shift') held.delete('shift');
+});
+window.addEventListener('blur', () => held.clear());
 
 window.addEventListener('keydown', (e) => {
   if (e.ctrlKey || e.metaKey || e.altKey) return;

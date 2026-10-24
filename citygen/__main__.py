@@ -59,6 +59,10 @@ def main(argv=None) -> None:
     v.add_argument("folder", nargs="?", help="a built world folder (default: the latest build)")
     v.add_argument("--port", type=int, default=8765)
 
+    g = sub.add_parser("gallery", help="open a page listing every built city (newest first) with a 3D button each")
+    g.add_argument("--root", default="output", help="the folder holding the builds (default: output)")
+    g.add_argument("--port", type=int, default=8765)
+
     sn = sub.add_parser("snapshot", help="save a PNG of the 3D view (needs: pip install playwright)")
     sn.add_argument("folder", nargs="?", help="a built world folder (default: the latest build)")
     sn.add_argument("--png", default=None, help="output image (default: <folder>/maps/snapshot-<view>.png)")
@@ -95,6 +99,9 @@ def main(argv=None) -> None:
     elif args.cmd == "view":
         from .view import serve
         serve(_latest(args.folder), port=args.port)
+    elif args.cmd == "gallery":
+        from .view import serve_gallery
+        serve_gallery(args.root, port=args.port)
     elif args.cmd == "snapshot":
         sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
         from snapshot import snapshot

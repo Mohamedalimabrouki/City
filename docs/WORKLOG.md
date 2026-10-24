@@ -49,6 +49,25 @@ Entry format:
   `output/city1/bodjantouna-42` (Sazouches el Gharbi). `python -m citygen list` names every settlement;
   `python -m citygen build --area city:NAME --out output/FOLDER` builds one, then `citygen view` it.
 - Doubts and questions for Ali: none.
+- Added after the pause note, at Ali's request: the city gallery and keyboard navigation (entry below).
+
+## 2026-10-24 - City gallery and keyboard navigation (Ali's request, between prompts)
+- Commit: (see git log) | Model: Opus 5.5 (lead, no helper)
+- Changed: `citygen/view.py` (`build_folders`, `build_info`, `builds`, `pictures`, `_GalleryHandler`,
+  `serve_gallery`), `citygen/__main__.py` (`gallery`), `tools/viewer/gallery.html` (new),
+  `tools/viewer/index.html` (keyboard: arrows/WASD move, Q/E down/up, Shift x4, G walks at 1.7 m on the
+  drawn ground with a ray that skips instanced props and water; a tap moves for 150 ms), `Open City
+  Gallery.command` (new, double-click), tests (1 new), `README.md`, `CLAUDE.md`, `docs/HANDOFF.md`,
+  `docs/ROADMAP.md`
+- What: one page lists every build under `output/` (summary or tile index; `output/checks` test folders
+  left out), newest first, read from the folder at each request and polled every 30 s, with its map,
+  Open in 3D, a button per camera view, Night, its Blender file, and the 24 newest check pictures. Each
+  viewer runs at `/b/<folder, "/" as "~">/` with its data at `.../data/` (the viewer loads data
+  relative to its page), so one server shows every city; unknown keys and `..` give 404.
+- Checks: tests pass (the new one about 0.1 s); the viewer works through the gallery (street view,
+  walking and flying tried in the browser pane, no console errors); the phone page builder still runs.
+  The build itself is unchanged (the viewer is not part of it).
+- Doubts and questions for Ali: none.
 
 ## 2026-10-24 - Prompt 41 C2b Viewer level of detail
 - Commit: (see git log) | Model: Opus 5.5, high (playbook: Sonnet, high)

@@ -110,7 +110,7 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
 - [ ] 96 F1a Steampunk style pack
 - [ ] 97 F1b Steampunk machines
 - [ ] 98 F3 Two-level city: the design
-- [ ] 99 G1 Gallery, guide and phone page
+- [ ] 99 G1 Gallery, guide and phone page (a first city gallery exists: extend it)
 - [ ] 100 CP9 Final review
 
 ## Done (v0.1)
@@ -119,7 +119,8 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
 - [x] City planner: old town (walls, gates, souks, alleys, great mosque), colonial quarter with
       boulevard, port, modern estates, dense housing, villas, industry, parks, cemetery
 - [x] Exports: PNG maps, world.json, plan.json, gazetteer.md, 3D tiles (.glb) with index
-- [x] Tools: browser viewer, snapshot to PNG, Blender import script, tests
+- [x] Tools: browser viewer, snapshot to PNG, Blender import script, tests, city gallery
+  (`citygen gallery` / `Open City Gallery.command`, 2026-10-24) and keyboard flying and walking
 
 ## Q. Polish (weak spots seen while doing A0)
 

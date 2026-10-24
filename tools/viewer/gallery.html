@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>City gallery</title>
+<style>
+  :root { --bg: #f6f1e7; --card: #fffdf8; --ink: #2b2620; --soft: #7a6f61; --line: #e4d9c6;
+          --accent: #b5593b; --accent-ink: #fff; --chip: #efe6d6; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #1d1a16; --card: #27231e; --ink: #f1ebe0; --soft: #b3a796; --line: #3a342c;
+            --accent: #d07a57; --accent-ink: #1d1a16; --chip: #332e27; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  header { padding: 28px 20px 8px; max-width: 1200px; margin: 0 auto; }
+  h1 { margin: 0 0 4px; font-size: 26px; }
+  h2 { max-width: 1200px; margin: 28px auto 10px; padding: 0 20px; font-size: 19px; }
+  .lead { margin: 0; color: var(--soft); }
+  .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+          max-width: 1200px; margin: 0 auto; padding: 0 20px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden;
+          display: flex; flex-direction: column; }
+  .card .map { display: block; aspect-ratio: 4 / 3; background: var(--chip); object-fit: cover; width: 100%; }
+  .card .body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+  .card h3 { margin: 0; font-size: 18px; }
+  .meta { color: var(--soft); font-size: 13px; }
+  .new { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 99px; font-size: 11px;
+         background: var(--accent); color: var(--accent-ink); vertical-align: middle; }
+  .row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+  a.btn { text-decoration: none; padding: 6px 11px; border-radius: 8px; font-size: 13px;
+          background: var(--chip); color: var(--ink); border: 1px solid var(--line); }
+  a.btn.main { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+  a.btn:hover { filter: brightness(0.95); }
+  .path { font: 12px ui-monospace, Menlo, monospace; color: var(--soft); word-break: break-all; }
+  .pics { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+          max-width: 1200px; margin: 0 auto 40px; padding: 0 20px; }
+  .pic { background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow: hidden;
+         text-decoration: none; color: var(--ink); }
+  .pic img { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; background: var(--chip); }
+  .pic span { display: block; padding: 6px 9px; font-size: 12px; color: var(--soft); }
+  .empty { max-width: 1200px; margin: 0 auto; padding: 0 20px; color: var(--soft); }
+  footer { max-width: 1200px; margin: 0 auto; padding: 0 20px 30px; color: var(--soft); font-size: 13px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>City gallery</h1>
+  <p class="lead">Every city built on this computer, newest first. This page reads the <code>output</code> folder
+  itself and looks again every 30 seconds, so new builds and new pictures appear on their own.</p>
+</header>
+
+<h2>Cities</h2>
+<div id="builds" class="grid"></div>
+<p id="no-builds" class="empty" hidden>No build yet. Run <code>.venv/bin/python -m citygen build --quick</code>.</p>
+
+<h2>Latest pictures</h2>
+<div id="pictures" class="pics"></div>
+
+<footer>In a city: arrow keys or W A S D to move, Q and E down and up, Shift faster, G to walk at eye height,
+N for night, L for shadows; drag to look around, scroll to zoom.</footer>
+
+<script>
+const AREAS = {
+  'capital-center': 'Capital, center only (quick check)',
+  'capital': 'Whole capital',
+  'city': 'Whole city',
+  'city-center': 'City center',
+  'all': 'Whole country',
+  'box': 'Custom area',
+  'none': 'Plan only, no 3D',
+};
+const VIEW_NAMES = { aerial: 'Aerial', sheet: 'All pieces' };
+
+function el(tag, attrs = {}, ...children) {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
+  for (const c of children) node.append(c);
+  return node;
+}
+
+function when(seconds) {
+  const d = new Date(seconds * 1000);
+  const today = new Date();
+  const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  if (d.toDateString() === today.toDateString()) return `today ${time}`;
+  return `${d.toLocaleDateString([], { day: 'numeric', month: 'short' })} ${time}`;
+}
+
+function title(b) {
+  if (b.cities.length) return b.cities.join(', ');
+  return b.path.endsWith('kit-sheet') ? 'Kit sheet' : b.world;
+}
+
+function subtitle(b) {
+  const [kind] = (b.area || '').split(':');
+  const parts = [];
+  if (b.size_km) parts.push(`${b.world}, ${b.size_km < 30 ? `small test country (${b.size_km} km)` : `${b.size_km} km country`}`);
+  if (AREAS[kind]) parts.push(AREAS[kind]);
+  else if (b.path.endsWith('kit-sheet')) parts.push('every 3D piece of the kit');
+  return parts.join(' - ');
+}
+
+function card(b, newest) {
+  const open = `/b/${encodeURIComponent(b.key)}/`;
+  const map = b.maps[0];
+  const img = map ? el('a', { href: map.url, target: '_blank' }, el('img', { class: 'map', src: map.url, alt: map.name, loading: 'lazy' }))
+                  : el('div', { class: 'map' });
+  const name = el('h3', {}, title(b));
+  if (newest) name.append(el('span', { class: 'new' }, 'newest'));
+  const facts = [`built ${when(b.built)}`];
+  if (b.tiles) facts.push(`${b.tiles} tiles`);
+  if (b.megabytes) facts.push(`${Math.round(b.megabytes)} MB`);
+  const row = el('div', { class: 'row' });
+  if (b.has3d) {
+    row.append(el('a', { class: 'btn main', href: open }, 'Open in 3D'));
+    const views = b.path.endsWith('kit-sheet') ? b.views : ['aerial', ...b.views];
+    for (const v of views) row.append(el('a', { class: 'btn', href: `${open}?view=${encodeURIComponent(v)}` },
+                                         VIEW_NAMES[v] || v[0].toUpperCase() + v.slice(1)));
+    if (!b.path.endsWith('kit-sheet')) row.append(el('a', { class: 'btn', href: `${open}?light=night` }, 'Night'));
+  }
+  const maps = el('div', { class: 'row' });
+  for (const m of b.maps) maps.append(el('a', { class: 'btn', href: m.url, target: '_blank' },
+                                         m.name === 'country' ? 'Country map' : `Map of ${m.name.replace(/-/g, ' ')}`));
+  const body = el('div', { class: 'body' }, name, el('div', { class: 'meta' }, subtitle(b)),
+                  el('div', { class: 'meta' }, facts.join(' - ')), row, maps,
+                  el('div', { class: 'path' }, b.path));
+  for (const blend of b.blend) body.append(el('div', { class: 'path' }, `Blender file: ${blend}`));
+  return el('div', { class: 'card' }, img, body);
+}
+
+let last = '';
+async function refresh() {
+  try {
+    const [builds, pics] = await Promise.all([fetch('/api/builds').then((r) => r.json()),
+                                              fetch('/api/pictures').then((r) => r.json())]);
+    const now = JSON.stringify([builds, pics]);
+    if (now === last) return;
+    last = now;
+    const grid = document.getElementById('builds');
+    grid.replaceChildren(...builds.map((b, i) => card(b, i === 0)));
+    document.getElementById('no-builds').hidden = builds.length > 0;
+    document.getElementById('pictures').replaceChildren(...pics.map((p) =>
+      el('a', { class: 'pic', href: p.url, target: '_blank' },
+         el('img', { src: `${p.url}?t=${p.time}`, alt: p.name, loading: 'lazy' }),
+         el('span', {}, `${p.name} - ${when(p.time)}`))));
+  } catch (err) {
+    console.warn('gallery refresh failed', err);
+  }
+}
+refresh();
+setInterval(refresh, 30000);
+</script>
+</body>
+</html>

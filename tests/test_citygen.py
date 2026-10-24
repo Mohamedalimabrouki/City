@@ -3392,3 +3392,47 @@ def test_phone_page_patches_the_viewer_and_stores_lod1_tiles(tmp_path):
     html = (art / "index.html").read_text()
     assert "atob((await res.json()).glb)" in html and "res.arrayBuffer()" not in html
     assert "fetch(url, { signal })" in html          # cancellable loads survive the patch
+
+
+def test_gallery_lists_every_build_and_serves_each_viewer(tmp_path):
+    """The city gallery reads output/ at each request: builds newest first, each viewer at /b/<key>/."""
+    import json as _json
+    import os
+    import threading
+    import urllib.request
+    from urllib.error import HTTPError
+    from citygen.view import _GalleryHandler, _Server
+    for rel, name in (("old/world", "Oldtown"), ("new/world", "Newtown")):
+        folder = tmp_path / rel
+        (folder / "tiles").mkdir(parents=True)
+        (folder / "maps").mkdir()
+        (folder / "maps" / f"{name.lower()}.png").write_bytes(b"png")
+        (folder / "summary.json").write_text(_json.dumps({"world": "Land", "size_km": 64, "area": f"city:{name}",
+                                                           "plans": [{"name": name}], "tiles": {"count": 2}}))
+        (folder / "tiles" / "index.json").write_text(_json.dumps({"tiles": [], "views": {"street": {}, "rows2": {}}}))
+    old = tmp_path / "old/world/summary.json"
+    os.utime(old, (old.stat().st_atime, old.stat().st_mtime - 100))
+    os.utime(tmp_path / "old/world/tiles/index.json", (0, old.stat().st_mtime))
+    (tmp_path / "checks" / "probe" / "tiles").mkdir(parents=True)          # test folders are not cities
+    (tmp_path / "checks" / "probe" / "tiles" / "index.json").write_text("{}")
+    (tmp_path / "checks" / "1.png").write_bytes(b"png")
+    server = _Server(("127.0.0.1", 0), lambda *a, **kw: _GalleryHandler(*a, root=str(tmp_path), **kw))
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{server.server_port}"
+    get = lambda path: urllib.request.urlopen(base + path, timeout=5).read()   # noqa: E731
+    try:
+        found = _json.loads(get("/api/builds"))
+        assert [b["cities"] for b in found] == [["Newtown"], ["Oldtown"]]       # newest first, checks left out
+        assert found[0]["key"] == "new~world" and found[0]["views"] == ["street"]
+        assert found[0]["maps"][0]["url"] == "/out/new/world/maps/newtown.png"
+        assert b"City gallery" in get("/")
+        assert b"<html" in get("/b/new~world/").lower()                        # the viewer page
+        assert _json.loads(get("/b/new~world/data/tiles/index.json"))["views"]  # its own data
+        assert get(found[0]["maps"][0]["url"]) == b"png"
+        assert _json.loads(get("/api/pictures"))[0]["name"] == "1.png"
+        for bad in ("/b/..~..~etc/data/passwd", "/b/nothing/data/x"):
+            with pytest.raises(HTTPError):
+                get(bad)
+    finally:
+        server.shutdown()
+        server.server_close()
