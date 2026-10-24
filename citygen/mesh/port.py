@@ -25,7 +25,9 @@ from shapely.geometry import LineString, Point
 from ..city.dressing import Placement
 from ..city.geo import lines, polygons
 from ..rng import stream
+from .boats import boat_pieces
 from .builder import MeshBuilder, add_quads, triangulate
+from .cranes import crane_pieces
 from .furniture import _lathe
 
 UP = np.array([0.0, 0.0, 1.0])
@@ -82,13 +84,16 @@ def armour_rock(seed: int, name: str, size) -> MeshBuilder:
 
 
 def port_pieces(seed: int, cfg: dict | None) -> dict:
-    """{name: (MeshBuilder, category, anchor)} of the harbor's kit pieces: bollard, fender and the breakwater's
-    armour stones (each on its own stream)."""
+    """{name: (MeshBuilder, category, anchor)} of the harbor's kit pieces: bollard, fender, the breakwater's
+    armour stones (each on its own stream), the boats, cranes, rails and cargo of `[port.props]`."""
     out = {"bollard": (bollard(), "bollard", "ground"), "fender": (fender(), "fender", "wall")}
     size = (cfg or {}).get("armour", {}).get("size", [3.4, 2.7, 1.9])
     for k in range((cfg or {}).get("armour", {}).get("variants", 3)):
         name = f"armour_rock_{k}"
         out[name] = (armour_rock(seed, name, size), "rock", "ground")
+    props = (cfg or {}).get("props")
+    out.update(boat_pieces(seed, props))                  # boats, cranes and cargo (prompt 35)
+    out.update(crane_pieces(seed, props))
     return out
 
 

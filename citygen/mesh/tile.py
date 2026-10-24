@@ -25,6 +25,7 @@ from ..city.dressing import Dresser, Placement, building_highs, ground_heights
 from ..city.geo import frame, lines, polygons
 from ..city.ground import STREET_LIFT, Ground, apron_cells, terrain_cells
 from ..city.massing import inner_walls, massed, outline
+from ..city.moorings import land_zone
 from ..city.landmarks import KINDS as LANDMARKS
 from ..city.roofs import RoofLayout, roof_layouts, roof_stream
 from ..kit import make_kit
@@ -82,6 +83,7 @@ class TileContext:
         self.port_cfg = world.style.get("port", {})       # quays, breakwater, lighthouse (prompt 34)
         self.ports = [p.port for p in plans if getattr(p, "port", None) is not None]
         self.port_keep = [keep_zone(p.port) if getattr(p, "port", None) is not None else None for p in plans]
+        self.prop_zones = [land_zone(p, self.port_cfg.get("props")) for p in plans]   # cranes, cargo, boats ashore
         for p in plans:
             fps = [b.footprint for b in p.buildings]
             centers = shapely.get_coordinates(shapely.centroid(fps)) if fps else np.zeros((0, 2))
@@ -653,6 +655,8 @@ def build_tile(tc: TileContext, i: int, j: int) -> tuple:
         if not plan.boundary.intersects(tile):
             if harbor:
                 placements += quay_placements(tc, port, tile) + armour_placements(tc, port, plan, tile)
+            if dresser is not None:
+                placements += dresser.props(tile)             # boats at anchor past the city limit (prompt 35)
             continue
         street_meshes(mb, tc, plan, street_tree, tile)
         covered_meshes(mb, tc.covers[ci], tile, dresser is not None)
@@ -737,6 +741,11 @@ def build_tile(tc: TileContext, i: int, j: int) -> tuple:
         if harbor:                                          # nothing in the sea or on the quay edge (prompt 34)
             placements[:] = keep_off(placements, tc.port_keep[ci], tc.kit)
             placements += quay_placements(tc, port, tile) + armour_placements(tc, port, plan, tile)
+        if dresser is not None and getattr(plan, "props", None):   # boats, cranes and cargo (prompt 35): nothing
+            ashore = tc.prop_zones[ci]                      # else stands where they stand on land
+            if ashore is not None and ashore.intersects(tile):
+                placements[:] = keep_off(placements, ashore, tc.kit)
+            placements += dresser.props(tile)
     ground_heights(tc.ground, placements)
     for span in spans:
         if span.kind == "sabat":

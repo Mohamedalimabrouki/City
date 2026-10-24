@@ -70,6 +70,7 @@ config.load_config()          defaults.toml + worlds/*.toml + CLI overrides
                               (last, after the road paint; only appends to `trees`)
       port                    quays along the port districts' coast, a breakwater and its lighthouse
                               (after everything: adds `port`, the aprons to `land`, the lighthouse landmark)
+      moorings                boats, cranes and cargo of the harbor (the very last step: only sets `props`)
   city.ground.Ground()        graded ground inside cities: smoothed, terraced under blocks, level under
                               the station (blending back over [station] level_band), level on the quays
                               and stepping down at their walls to a dredged basin,
@@ -98,6 +99,8 @@ build.build()                 orchestrates the above into output/<country>-<seed
 | `citygen/mesh/vaults.py` | covered souks (prompt 31): barrel vaults, impost bands, transverse arches, light openings, lantern rods |
 | `citygen/mesh/landmarks.py` | the cathedral and the theatre (prompt 32): portals, rose window, towers, gables, crossing dome, apse; rounded corners, parapet, pavilion, crown, canopy, stage tower |
 | `citygen/mesh/port.py` | the harbor (prompt 34): quay paving and the terrain cells a wall crosses drawn in two parts, quay walls with the wet band and kerb, the rubble breakwater (loft, crest road, crown wall, round head), the lighthouse; kit pieces `bollard`, `fender`, `armour_rock_0..2` and their placements |
+| `citygen/mesh/boats.py` | boats (prompt 35): a lofted hull with painted bands; fishing boats `boat_lateen`, `boat_cabin`, `boat_rowing` sharing one hull, the `boat_trawler`; shared helpers `surface`, `prisms`, `flat`, `boxes`, `heap`, `light` |
+| `citygen/mesh/cranes.py` | the commercial quay (prompt 35): lattice-boom portal cranes `crane_0`, `crane_1`, `crane_rails`, `cargo_crates`, `cargo_containers_0..1` |
 | `citygen/mesh/station.py` | the railway station (prompt 33): head building with entrance pavilion and clock tower (dials and hands), platforms with canopies on posts, buffer stops; the tracks tile by tile (sleeper bed, rails, level crossings); `keep_off` |
 | `citygen/mesh/plants.py` | shared plant shapes: clumps (icosahedron, octahedron, 4-face bract) and tapered tubes |
 | `citygen/mesh/props.py` | the generator's own kit pieces (doors, shops by trade, awnings, goods, lamps, trees...) |
@@ -120,6 +123,7 @@ build.build()                 orchestrates the above into output/<country>-<seed
 | `citygen/city/kasbah.py` | the kasbah (prompt 30): placement on the old town's high edge, walls, towers, gate tower, palace, mosque, parade ground |
 | `citygen/city/landmarks.py` | the boulevard's cathedral and theatre (prompt 32): sites on merged colonial lots, the local frame and plan shapes shared with the mesh, names, their camera views |
 | `citygen/city/port.py` | the harbor (prompt 34): quay lines from the port districts' coast, aprons and level cores, the breakwater, basin and lighthouse (name, color scheme), the ground zones (shore, raised side, walls, dredge), the "port" camera |
+| `citygen/city/moorings.py` | boats, cranes and cargo (prompt 35): `plan_props` fills `CityPlan.props`; `box` (a prop's plan envelope), `land_zone` (where props stand on land) |
 | `citygen/city/station.py` | the railway station (prompt 33): site at the colonial edge, track layout and corridor, street and walk clipping, buildings and name, its camera view |
 | `citygen/city/massing.py` | building massing (prompt 23): the planning step, `masses(b)` (the volumes drawn and dressed), `floors_at`/`wall_height` (floors and wall height at a point of the outer wall), `outline`, `inner_walls`, `terrace_walls` |
 | `citygen/kitsheet.py` | `python -m citygen kit-sheet`: every piece in one viewable grid |
@@ -155,7 +159,10 @@ block on `rng("impasse", block)`: lot line jitter, widths, covered share and len
   (a `city.station.Station` or None: `facade`, `tracks`, `precinct`, `corridor`, `district`, `core`), `port`
   (a `city.port.Port` or None: `level`, `quays` [`Quay`: `district`, `line` (the quay edge, the sea on its
   right), `coast`, `apron`, `core`], `breakwaters` [`Breakwater`: `line`, `quay`, `basin`, `sea_side`, `light`
-  (x, y, yaw, scheme)], and the ground zones `core`, `apron`, `shore`, `raised`, `walls`, `dredge`, `zone`).
+  (x, y, yaw, scheme)], and the ground zones `core`, `apron`, `shore`, `raised`, `walls`, `dredge`, `zone`),
+  `props` (prompt 35: [`Prop(kind, x, y, yaw, scale, on)`]: a kit piece the planner places itself; `yaw` turns
+  the piece's +x, a boat's bow, to (cos yaw, sin yaw); `on` is `sea` (floats, waterline at z = 0), `quay` (on
+  the quay top) or `beach` (drawn up on the sand)).
 - `Walk(kind, polygon, width, street, side, district, block)`: a raised sidewalk (`sidewalk`)
   or the boulevard's central promenade (`promenade`). `width` is the actual width after a tight
   street narrows it; `street` and `side` (`+1` left, `-1` right) let later street features find
@@ -367,6 +374,31 @@ block on `rng("impasse", block)`: lot line jitter, widths, covered share and len
   `port`; `stats` has `quay_m` and `breakwater_m`; the index gets a "port" camera (`[port] camera`: up over the
   water off the harbor mouth, looking back across the basin). Quick capital: quays 523 + 841 m, a 732 m
   breakwater; full capital: quays 935 + 612 m, a 788 m breakwater; both "Phare de Sidi Sazma".
+- **Boats, cranes and cargo** (prompt 35, `city/moorings.py`, `mesh/boats.py`, `mesh/cranes.py`, `[port.props]`):
+  the very last planning step, on the port's own streams (`rng("port", "props", ...)`), so nothing else moves;
+  it fills `CityPlan.props`. On the main quay (the one the breakwater shelters, else the longest) the
+  `commercial` share by the harbor mouth is the commercial quay: rails (`crane_rails`, `size` lengths) with
+  the sea-side rail `crane_inset` m behind the edge, 2-3 portal cranes of one model per harbor (`crane_0` or
+  `crane_1`, `crane_space` m apart) on them, a yard of containers and crates in slots (`yard_step`, filled at
+  `yard_fill`) from `yard_inset` m behind the edge, and a trawler or two alongside. The rest, and every other
+  quay, is the fishing port: walking each straight stretch (`end_clear` m from ends and corners), groups of
+  `row` fishing boats moored bow- or stern-to side by side (`side_gap`), or a trawler alongside (`trawler`
+  odds), `group_gap` m apart, with stretches left `empty` (more on a quay no breakwater shelters,
+  `open_quay`), and now and then fish crates on the quay behind a row (`fish_crates`). A few boats lie at
+  anchor in the basin (`anchored`), `anchor_clear` m off the quays, `swing` m apart, all heading into one
+  breeze. Near the port (`beach_reach` m from a quay's end, off the port's ground zone) fishing boats are
+  drawn up on the natural beach, bow inland, stern where the sand stands `stern_sand` m high. A boat fits
+  where its envelope (`[port.props] size` x its scale from `[port.props.scale]`) stays off the land, the raised
+  quays, the shore and `breakwater_clear` m of the breakwater, `gap` m off the quay wall, over water at least
+  its `draft` x scale plus `keel_clear` deep (the dredged depth in `port.dredge`, else the natural seabed);
+  cranes and cargo stand inside the apron `street_clear` m off streets, walks and buildings and `tree_clear` m
+  from trees; drawn-up boats keep `beach_clear`. The tile holding a prop's center draws it (`Dresser.props`):
+  boats at z = 0 (the hull dips `draft` below), quay props at the quay level, a drawn-up boat with its keel
+  `beach_sink` m into the drawn sand and tilted along its length to the ground under its ends; before that,
+  `keep_off` drops every other piece whose kit box touches the props standing on land (`land_zone`). Quick
+  capital: 98 fishing boats (7 drawn up on the beach) and 13 trawlers (4 boats at anchor), 3 cranes on 28 rail
+  lengths, 30 crate stacks and 26 container stacks; full capital: 108 and 13 (4 at anchor, no beach near the
+  port), 3 cranes, 31 rails, 41 crates, 24 containers.
 
 Invariants (tested): buildings are valid polygons inside the city and stay off street surfaces
 (impasses included); every old-town dwelling's main door opens on a street, alley or impasse; an
@@ -397,7 +429,10 @@ piece touches them; quays stand `reach` m off the old coast in port districts, c
 aprons in `land`, the ground on them exactly `level` m and the drawn terrain equal to the ground off the
 walls; the water off a quay is dredged to `depth`; the breakwater starts at a quay and stays in the sea with
 the lighthouse (the last landmark) on its head; no building, tree or other piece stands in the sea or on the
-quay edge but bollards, fenders and armour stones; everything is deterministic.
+quay edge but bollards, fenders, armour stones and the harbor's props; boats float with the waterline at 0 over
+water deeper than their keel, off the quays, the breakwater, the shore and each other, cranes, rails and cargo
+stand on the apron at quay level clear of the bollards, drawn-up boats rest on the sand above the water, and
+nothing else stands where props stand on land; everything is deterministic.
 
 ## 6. Output files (`output/<country>-<seed>/`)
 
@@ -405,7 +440,7 @@ quay edge but bollards, fenders and armour stones; everything is deterministic.
 |---|---|
 | `world.json` | `citygen-world/1`: seed, name, size, settlements, roads (coords in meters) |
 | `cities/<name>/plan.json` | `citygen-city/1`: districts, streets, buildings, trees, landmarks, households, souks, and `rail` (track center lines, corridor) when the city has a station, `port` (quay edges and aprons,
-breakwater lines, basins, lighthouses) when it has a harbor; GeoJSON-style geometry in world meters |
+breakwater lines, basins, lighthouses) when it has a harbor, `props` (`kind`, `x`, `y`, `yaw`, `scale`, `on`: boats, cranes, rails, cargo; empty without a harbor); GeoJSON-style geometry in world meters |
 | `gazetteer.md` | readable guide for stories |
 | `maps/country.png`, `maps/<city>.png` | 2D maps, north up |
 | `tiles/tile_<i>_<j>.glb` | 3D tile covering x `i*512..(i+1)*512`, y `j*512..(j+1)*512` |
@@ -782,6 +817,27 @@ shaders (which ignore the image and the tint) and takes their palette color from
   Props stand on the main roof (`main_mass`), off the stair room, menzah, machinery and a corner dome
   (`RoofLayout.rooms`); tank stands are the `tank_stand` piece (110 triangles) where massing put them.
   A door's climber and a span's height read the wall height there (`wall_height`).
+
+- **Boats, cranes and cargo** (prompt 35, `mesh/boats.py`, `mesh/cranes.py`, `[port.props]`): category `boat`,
+  `crane`, `rail` or `cargo`, plain palette colors without UVs (a tile pays for every vertex), each inside its
+  envelope `[port.props] size`; random details on `stream(seed, "piece", name)`. A hull is a loft of 9 cross
+  sections (keel, waterline, flared topsides to a sheer rising fore and aft), one shared-vertex smooth surface per
+  painted band: `hull_antifoul` under the water, `hull_dark` (trawler) over it, `hull_white` topsides, a strake in
+  `trims` color under the gunwale; the bulwark's inside and the gunwale cap close the thin shell. The three
+  fishing boats (224-266 triangles) share one double-ended 7.2 m hull with a raked stem, its part dicts the same
+  objects in every piece (the strake color only renamed), so a tile writes it once; each fit-out uses other
+  materials: `boat_lateen` (scale 0.94-1.06: mast, lateen yard with the sail furled along it, thwarts, a painted
+  eye each side of the bow), `boat_cabin` (1.04-1.16: cabin aft with dark windows and a mast light, a net heap),
+  `boat_rowing` (0.72-0.84: thwarts, two oars, a net heap). `boat_trawler` (449 triangles, 16 m, scale 0.92-1.08:
+  transom stern, wheelhouse with a window band, a mast with its lights, trawl winch, stern gantry, a foremast with
+  topped booms, a net heap). Mast lights are `lantern_glow` (they glow at night). Origin on the waterline under
+  the middle of the boat, the bow toward +x. `crane_0`, `crane_1` (484 triangles): portal of four plate legs on
+  bogie beams straddling the rails, girders, slewing ring, machinery house with cab and counterweight, A-frame, a
+  26 m tapering box lattice boom (8 bays) with luffing and hoist ropes and a hook block; `crane_1` slewed 24
+  degrees and luffed to 62 instead of 50; origin on the quay at the portal's middle, the boom toward +y (the sea).
+  `crane_rails` (12): two rails, one 12 m length. `cargo_crates` (70): two pallets of crates stacked 1-3 high.
+  `cargo_containers_0..1` (234): three 20-foot containers with ribbed sides and door bars, two side by side and
+  one on top, three colors each on its stream, sharing every part dict.
 
 ## 7. Style pack (`styles/<name>.toml`)
 

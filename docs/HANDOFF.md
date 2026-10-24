@@ -562,6 +562,22 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
   322 KB sea tile, +166 KB: rubble loft, 815 armour stones at 40 B, crown wall); every other tile stays within
   +7.6%. A throwaway numpy z-buffer render of `build_tile` parts (no water) caught the composition and the
   stones' scale before the two real pictures.
+- **Boats, cranes and cargo** (prompt 35, `city/moorings.py`, `mesh/boats.py`, `mesh/cranes.py`, `[port.props]`): a
+  new piece kind in a light tile costs its whole mesh, and in glTF each part (material) also costs about 0.8 KB of
+  JSON: a 280-vertex boat in 9 materials wrote 15 KB, 7 of them JSON. Cut materials before vertices (a fit-out's
+  deck joins its woodwork; the eye is one black almond). Pieces of one family can share part dicts (like the
+  cars): the three fishing boats share one hull (renamed strake color only) and the two container stacks share
+  all geometry, so a tile writes them once; a fit-out must not use the hull's materials or the merged part is
+  no longer shared. One crane model per harbor. Even so, a light harbor tile showing the commercial quay and the
+  fishing port together (crane, containers, crates, rails, four boats) grows +19% on the full capital (62_107,
+  488 -> 581 KB) and 63_107 +15%: an open question for the lead. The planner's footprint is a `[port.props]
+  size` envelope that every piece is built to fit (the test checks the kit vertices; a crane only below 1.5 m,
+  its boom reaches over the water), and the draft comes from the same table, so planner and pieces cannot drift
+  apart. The headless SwiftShader snapshot hides everything below about 1 m above the sea at a grazing view
+  (fishing hulls, decks, a trawler's dark band) while the GPU viewer shows them: judge low harbor things in
+  the real viewer (`python -m citygen view`), not only in `before_after` close-ups (unshared hulls gave the
+  same picture, so it is not the shared parts). Commercial quay by the mouth, fishing port in the sheltered end:
+  realistic and it reads in the "port" view (cranes in front, the fleet behind).
 - **Old-town tiles** reach about 5 MB on the quick build and 8 MB on the full capital
   (`tile_65_106`, mostly roofs since prompt 15); task Q5 (prompt 39) brings them down.
 

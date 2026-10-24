@@ -41,6 +41,7 @@ from .paint import make_paint, street_surfaces
 from .streets import local_streets, major_streets, road_links, street_trees
 from .walks import make_walks
 from . import station as railway
+from .moorings import plan_props
 from .port import lengths as port_lengths, plan_port
 
 
@@ -127,6 +128,7 @@ def plan_city(world, settlement) -> CityPlan:
     trees += green   # appended last: every older tree keeps its index, so its kit variant and turn
     plan.port, lights, plan.land = plan_port(ctx, districts, land)   # reads districts and land only
     marks += lights   # appended last: every earlier landmark keeps its index
+    plan.props = plan_props(ctx, plan)   # boats, cranes and cargo (prompt 35): planned last, moves nothing
     plan.stats = {"districts": len(districts), "streets": len(streets), "impasses": len(lanes),
                   "blocks": len(blocks),
                   "parcels": len(parcels), "buildings": len(buildings), "trees": len(trees),

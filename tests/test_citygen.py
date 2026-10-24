@@ -2770,6 +2770,7 @@ def test_quays_breakwater_and_lighthouse(world, plan, ground, built_mesh):
     zone = tc.port_keep[0]
     harbor = {"bollard", "fender"} | {f"armour_rock_{k}" for k in range(cfg["armour"]["variants"])}
     assert {p.piece for p in placements} >= harbor
+    harbor |= {p.kind for p in plan.props}       # boats float there, a crane's boom reaches over it (prompt 35)
     for p in placements:
         if p.piece not in harbor:
             assert not zone.intersects(_plan_box(tc.kit, p)), p.piece
@@ -2780,3 +2781,81 @@ def test_quays_breakwater_and_lighthouse(world, plan, ground, built_mesh):
     assert plan.stats["quay_m"] == lengths(port)["quays"] > 500.0
     view = camera_views(plan, ground, style=world.style)["port"]
     assert view["cam"][2] > 30.0 and bw.basin.buffer(150.0).contains(shapely.Point(view["look"][:2]))
+
+
+def test_boats_cranes_and_cargo_of_the_harbor(world, plan, ground, built_mesh):
+    # prompt 35: plan.props from the port's own streams; every piece fits the envelope the planner uses (a crane
+    # above 1.5 m may reach out); boats float with the waterline at z = 0 over water deeper than their keel, off
+    # the quays, the breakwater, the shore and each other; cranes, rails and cargo stand on the quay apron at
+    # quay level clear of the bollards; drawn-up boats rest on the sand above the water; the tile holding a
+    # prop's center draws it, and no other piece stands where props stand on land
+    from collections import Counter
+    from citygen.city import CityContext
+    from citygen.city.moorings import _sized, box, plan_props
+    from citygen.mesh.port import quay_placements
+    from citygen.mesh.tile import build_tile
+    cfg = world.style["port"]["props"]
+    port, props, tc = plan.port, plan.props, built_mesh[0]
+    kinds = Counter(p.kind for p in props)
+    assert plan_props(CityContext(world, world.capital()), plan) == props
+    assert sum(kinds[k] for k in ("boat_lateen", "boat_cabin", "boat_rowing")) >= 40 and kinds["boat_trawler"] >= 2
+    cranes = [k for k in kinds if k in ("crane_0", "crane_1")]
+    assert len(cranes) == 1 and 2 <= kinds[cranes[0]] <= 3 and kinds["crane_rails"] >= 10
+    assert kinds["cargo_crates"] and kinds["cargo_containers_0"] + kinds["cargo_containers_1"]
+    for kind in kinds:                                   # pieces fit the planner's envelopes
+        pos = np.concatenate([part["pos"] for part in tc.kit.pieces[kind].parts.values()])
+        if kind.startswith("crane_") and kind != "crane_rails":
+            pos = pos[pos[:, 1] < 1.5]
+        length, width = cfg["size"][_sized(kind)]
+        assert np.abs(pos[:, 0]).max() <= length / 2 + 1e-6 and np.abs(pos[:, 2]).max() <= width / 2 + 1e-6, kind
+    boats = [p for p in props if p.on == "sea"]
+    polys = [box(p, cfg["size"][_sized(p.kind)]) for p in boats]
+    blocked = shapely.union_all([plan.land, port.raised, port.shore] + [bw.line.buffer(cfg["breakwater_clear"])
+                                                                        for bw in port.breakwaters])
+    tree = STRtree(polys)
+    for k, (p, poly) in enumerate(zip(boats, polys)):
+        assert not blocked.intersects(poly), p
+        assert all(int(o) == k or polys[int(o)].distance(poly) >= cfg["side_gap"] - 1e-6
+                   for o in tree.query(poly.buffer(cfg["side_gap"])))
+        pts = np.vstack([np.asarray(poly.exterior.coords), np.asarray(poly.centroid.coords)])
+        draft = cfg["draft"][_sized(p.kind)] * p.scale
+        assert np.all(ground.height(pts[:, 0], pts[:, 1]) <= -draft - cfg["keel_clear"] + 1e-6), p
+    assert sum(1 for p in boats if port.breakwaters[0].basin.contains(shapely.Point(p.x, p.y))
+               and min(q.line.distance(shapely.Point(p.x, p.y)) for q in port.quays) >= cfg["anchor_clear"]) >= 3
+    apron = port.apron.buffer(1e-6)
+    for p in props:
+        if p.on == "quay":
+            assert apron.contains(box(p, cfg["size"][_sized(p.kind)])), p
+    # the tile with most props: drawn exactly there, at the right height, nothing else on their ground
+    i, j = Counter((int(p.x // tc.size), int(p.y // tc.size)) for p in props).most_common(1)[0][0]
+    mb, placements = build_tile(tc, i, j)
+    tile = shapely.box(i * tc.size, j * tc.size, (i + 1) * tc.size, (j + 1) * tc.size)
+    mine = [p for p in props if tile.covers(shapely.Point(p.x, p.y)) and p.x < (i + 1) * tc.size and p.y < (j + 1) * tc.size]
+    drawn = [q for q in placements if q.piece in kinds]
+    assert sorted((q.piece, q.x, q.y) for q in drawn) == sorted((p.kind, p.x, p.y) for p in mine) and len(drawn) > 50
+    for q in drawn:
+        piece = tc.kit.pieces[q.piece]
+        if piece.category == "boat":
+            assert q.z == 0.0 and piece.bottom < -0.2 and q.tilt == 0.0     # the waterline at 0, the hull below it
+        else:
+            assert q.z == port.level
+    bollards = [b for b in quay_placements(tc, port, tile) if b.piece == "bollard"]
+    zone = tc.prop_zones[0]
+    assert all(zone.distance(shapely.Point(b.x, b.y)) > 0.5 for b in bollards)
+    for q in placements:
+        if q.piece not in kinds and q.piece not in ("bollard", "fender") and q.piece in tc.kit.pieces:
+            assert not zone.intersects(_plan_box(tc.kit, q)), q.piece
+    # drawn-up boats: keel on the drawn sand, both ends above the water, off streets, walks and buildings
+    ashore = [p for p in props if p.on == "beach"]
+    assert ashore
+    dresser = tc.cities[0][4]
+    for p in ashore:
+        (q,) = [q for q in dresser.props(shapely.box(p.x - 0.01, p.y - 0.01, p.x + 0.01, p.y + 0.01))]
+        half = cfg["size"]["boat_fishing"][0] * p.scale / 2
+        c, s = math.cos(p.yaw), math.sin(p.yaw)
+        ends = np.array([(p.x - c * half, p.y - s * half), (p.x + c * half, p.y + s * half)])
+        assert np.all(ground.surface(ends[:, 0], ends[:, 1]) > 0.0) and abs(q.tilt) < 0.2
+        keel = q.z + tc.kit.pieces[p.kind].bottom * p.scale
+        assert abs(keel - (float(ground.surface(p.x, p.y)) - cfg["beach_sink"])) < 0.12
+        poly = box(p, cfg["size"]["boat_fishing"])
+        assert not any(s.line.buffer(s.width / 2).intersects(poly) for s in plan.streets)

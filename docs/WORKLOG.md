@@ -15,6 +15,36 @@ Entry format:
 - Doubts and questions for Ali: <none, or the question>
 ```
 
+## 2026-10-24 - Prompt 35 A6b Boats and cranes
+- Commit: (see git log) | Model: Opus 5.5, medium (playbook: Sonnet, medium)
+- Changed: `citygen/city/moorings.py` (new: `plan_props`, `box`, `land_zone`), `citygen/mesh/boats.py` (new: hull loft,
+  fishing boats sharing one hull, trawler, helpers), `citygen/mesh/cranes.py` (new: portal cranes, rails, crates,
+  containers), `citygen/city/model.py` (`Prop`, `CityPlan.props`), `citygen/city/__init__.py` (last step),
+  `citygen/city/dressing.py` (`Dresser.props`), `citygen/mesh/tile.py` (props drawn by the tile of their center,
+  `keep_off` round props on land), `citygen/mesh/port.py` and `citygen/kit.py` (the new pieces, no UVs),
+  `citygen/export/lore.py` (plan.json `props`), `styles/maghreb.toml` (`[port.props]`, palette), tests, docs.
+- Design: commercial quay (42% of the main quay, by the harbor mouth): two rails, 2-3 portal cranes of one model,
+  a yard of container and crate stacks, a trawler or two alongside; fishing port (the rest, other quays): rows of
+  4-9 fishing boats bow- or stern-to, trawlers alongside, empty stretches, fish crates behind some rows; 3-6 boats
+  at anchor heading into one breeze; boats drawn up on the beach near the port when there is room. Every boat
+  1.2 m off the wall, 0.7 m from its neighbours, 16 m off the breakwater's center line, over water draft + 0.6 m
+  deep. Pieces: `boat_lateen` 224, `boat_cabin` 262, `boat_rowing` 266 triangles (one shared hull), `boat_trawler`
+  449, `crane_0`/`crane_1` 484, `crane_rails` 12, `cargo_crates` 70, `cargo_containers_0..1` 234 (shared geometry).
+- Counts: quick capital 98 fishing boats (7 on the beach), 13 trawlers (4 boats at anchor), 3 cranes, 28 rails, 30
+  crate and 26 container stacks; full capital 108 and 13 (4 at anchor, no beach near the port), 3 cranes, 31 rails,
+  41 crates, 24 containers.
+- Checks: tests 93 passed (26 s; the new test 0.3 s); `build --quick` 8.1 s; fingerprint: plan/goumosbane/props
+  (new), tiles/index, 3 quick tiles (12_22 +6.3%, 13_24 +1.7%, 14_24 +1.4%), the 10 new kit parts. Full capital:
+  61_106 +1.0%, 62_106 +1.6%, 64_107 +2.9%, but 62_107 +19.0% (488 -> 581 KB) and 63_107 +15.1% (618 -> 712 KB):
+  light tiles that show the commercial quay and the fishing port together. Full capital 56.8 s before, 53.8 s after.
+- Look: `output/checks/35.png` (port view: cranes and the container yard by the mouth, the fishing fleet in rows
+  further in, boats at anchor), `output/checks/35-boats.png` (moored boats: the headless renderer hides the low
+  hulls there; the GPU viewer shows them whole). Blender: `output/bodjantouna-42/goumosbane.blend`.
+- Doubts and questions for Ali: the two light harbor tiles over the +10% byte budget (see Checks), as with the
+  breakwater's sea tiles in prompt 34.
+- Lead decision: the two light harbor tiles of the full capital over +10% (`tile_62_107` +19%, `tile_63_107` +15%, about +0.1 MB each) are accepted, as prompt 34's sea tiles: new geometry on nearly empty tiles. The headless close-up hides hulls; `output/checks/35-viewer.jpg` (GPU viewer, port view) shows the boats afloat, the moored rows and the cranes.
+
+
 ## 2026-10-24 - Prompt 34 A6a Quays, breakwater and lighthouse
 - Commit: (see git log) | Model: Opus 5.5, high (playbook: Sonnet, high)
 - Changed: `citygen/city/port.py` (new: quay lines, aprons, cores, breakwater, basin, lighthouse, ground zones,

@@ -58,6 +58,8 @@ def plan_json(plan) -> dict:
         "souks": [{"street": k.street, "name": k.name, "trade": k.trade} for k in plan.souks],
         **_station_json(plan),
         **_port_json(plan),
+        "props": [{"kind": p.kind, "x": round(p.x, 2), "y": round(p.y, 2), "yaw": round(p.yaw, 4),
+                   "scale": round(p.scale, 3), "on": p.on} for p in getattr(plan, "props", ())],
     }
 
 

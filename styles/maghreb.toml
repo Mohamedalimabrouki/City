@@ -102,6 +102,24 @@ quay_wet = { color = "#5E5A52", roughness = 0.5, texture = "stone", texture_size
 rubble = { color = "#A39C90", roughness = 0.95, texture = "rock", texture_size = [3.0, 3.0] }
 bollard_iron = { color = "#2B2E31", roughness = 0.55, metallic = 0.3 }
 fender_rubber = { color = "#1C1C1C", roughness = 0.9 }
+hull_white = { color = "#ECEAE3", roughness = 0.6 }     # boats (prompt 35): white topsides
+hull_blue = { color = "#1D5DB0", roughness = 0.55 }     # the blue strake and gunwale of a Tunisian fishing boat
+hull_green = { color = "#2C7A5A", roughness = 0.55 }
+hull_red = { color = "#A8352B", roughness = 0.55 }
+hull_dark = { color = "#23303D", roughness = 0.6 }      # a trawler's band over the waterline
+hull_antifoul = { color = "#6E2B22", roughness = 0.8 }  # under the water
+deck_wood = { color = "#A4825A", roughness = 0.85 }     # decks, thwarts, oars, masts
+paint_black = { color = "#141414", roughness = 0.6 }    # the pupil of a boat's painted eye
+net_green = { color = "#3E6B57", roughness = 0.95 }
+net_orange = { color = "#C2612C", roughness = 0.95 }
+crane_paint = { color = "#C9992E", roughness = 0.6 }    # harbor cranes and a trawler's gantry
+steel_rust = { color = "#6B4430", roughness = 0.85, metallic = 0.2 }
+crate_wood = { color = "#B08A57", roughness = 0.9 }
+cabin_white = { color = "#F1EEE6", roughness = 0.6 }    # a fishing boat's cabin and the white of its painted eye
+container_red = { color = "#8F3A2B", roughness = 0.7 }
+container_blue = { color = "#2D4F70", roughness = 0.7 }
+container_green = { color = "#3F6A4B", roughness = 0.7 }
+container_grey = { color = "#8A8D8C", roughness = 0.7 }
 lighthouse_white = { color = "#F3F1EB", roughness = 0.85, texture = "render", texture_size = [3.0, 3.0] }
 lighthouse_red = { color = "#B3362C", roughness = 0.7 }
 dome_green = { color = "#3E7A57", roughness = 0.4 }
@@ -696,6 +714,64 @@ roof = [1.35, 1.1]         # its cap: radius, height
 segments = 14
 schemes = ["white", "red_top", "bands"]   # white with a red cap, a red top storey, or two red bands
 band = 1.8                 # height of a red band
+
+[port.props]                # boats, cranes and cargo (prompt 35, city/moorings.py, mesh/boats.py, mesh/cranes.py)
+fishing = [["boat_lateen", 0.4], ["boat_cabin", 0.32], ["boat_rowing", 0.28]]   # the fishing boats' mix
+trims = [["hull_blue", 0.7], ["hull_green", 0.15], ["hull_red", 0.15]]   # strake color of each boat piece (its stream)
+gap = 1.2                  # a moored boat's end or side keeps this far off the quay edge (fenders are 0.28 m deep)
+side_gap = 0.7             # between two boats of a row
+row = [4, 9]               # fishing boats in a row moored bow- or stern-to
+group_gap = [2.0, 7.0]     # meters of quay between two groups
+empty = [0.12, 10.0, 30.0] # odds that a stretch of quay is left empty, and its length
+fish_crates = 0.5          # odds of a stack of fish crates on the quay behind a row of boats...
+fish_crates_inset = 3.0    # ...this far behind the quay edge (bollards stand 0.75 m behind it)
+trawler = 0.22             # odds that the next group along a fishing quay is a trawler moored alongside
+open_quay = 0.45           # on a quay no breakwater shelters, odds that a group's place is left empty
+end_clear = 8.0            # boats keep this far from a quay's ends and corners
+breakwater_clear = 16.0    # boats keep this far off the breakwater's center line (rubble and armour stones)
+keel_clear = 0.6           # water under the keel: the seabed lies at least draft + this deep under a boat
+commercial = 0.42          # share of the main quay (from the harbor mouth) that is the commercial quay
+cranes = [2, 3]            # portal cranes on it, on two rails, one model per harbor
+crane_inset = 2.6          # the sea-side rail this far behind the quay edge (bollards stand 0.75 m behind it)
+crane_space = 28.0         # meters at least between two cranes
+yard_inset = 13.0          # cargo stacks start this far behind the quay edge (behind the land-side rail)
+yard_step = [9.0, 7.5]     # cargo slots: meters along the quay, meters across
+yard_fill = 0.62           # odds a slot holds cargo
+cargo = [["cargo_containers_0", 0.3], ["cargo_containers_1", 0.25], ["cargo_crates", 0.45]]
+street_clear = 5.0         # cargo and cranes keep this far off streets, walks and buildings
+tree_clear = 4.5           # and this far from trees
+anchored = [3, 6]          # boats at anchor in the basin
+anchor_clear = 30.0        # they keep this far off every quay edge...
+swing = 18.0               # ...and this far apart (room to swing round the anchor)
+beach_reach = 320.0        # boats are drawn up on the natural beach within this distance of a quay's end
+beach_boats = [4, 9]
+beach_step = [3.6, 8.0]    # meters along the coast between two drawn-up boats
+beach = [["boat_rowing", 0.6], ["boat_lateen", 0.4]]
+beach_clear = 1.2          # drawn-up boats keep this far off streets, walks, buildings and trees
+stern_sand = 0.15          # a drawn-up boat's stern rests where the sand stands this high above the sea
+beach_sink = 0.05          # and its keel sinks this far into the sand
+
+[port.props.size]          # plan envelope at scale 1: length (along x) and width; every piece fits inside
+boat_fishing = [7.2, 2.5]  # the hull the three fishing boats share (each has its own scale range)
+boat_trawler = [16.0, 5.3]
+crane = [8.0, 7.0]         # the portal on the quay: wheelbase along the rails, gauge across (plus bogies)
+crane_rails = [12.0, 6.2]  # one length of the two rails (their gauge is the portal's, less its bogies)
+cargo_crates = [2.8, 1.5]
+cargo_containers = [6.4, 5.1]
+
+[port.props.draft]         # meters the keel reaches under the waterline (times the boat's scale)
+boat_fishing = 0.45
+boat_trawler = 2.2
+
+[port.props.scale]         # each boat's scale range: the lateen boat 6.8-7.6 m, the cabin boat 7.5-8.4 m,
+boat_lateen = [0.94, 1.06] # the rowing boat 5.2-6.0 m, the trawler 14.7-17.3 m
+boat_cabin = [1.04, 1.16]
+boat_rowing = [0.72, 0.84]
+boat_trawler = [0.92, 1.08]
+
+[port.props.crane]
+portal = 7.5               # height of the portal girders
+boom = 26.0                # length of the lattice boom
 
 [district.park]
 tree_spacing = 13.0

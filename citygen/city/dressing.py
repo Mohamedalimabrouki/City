@@ -1002,6 +1002,29 @@ class Dresser:
             self._squares = Squares(self)
         return self._squares
 
+    def props(self, tile) -> list:
+        """The harbor's planned props (prompt 35, city/moorings.py) whose center lies in the tile: boats float
+        with their waterline at z = 0, cranes and cargo stand on the quay top, a drawn-up boat rests its keel
+        on the drawn sand, tilted along its length to the ground under its bow and stern."""
+        x0, y0, x1, y1 = tile.bounds
+        out = []
+        for p in getattr(self.plan, "props", ()):
+            if not (x0 <= p.x < x1 and y0 <= p.y < y1) or p.kind not in self.kit.pieces:
+                continue
+            z, tilt = 0.0, 0.0
+            if p.on == "quay":
+                z = self.plan.port.level
+            elif p.on == "beach":
+                piece = self.kit.pieces[p.kind]
+                half = (piece.bounds[1][0] - piece.bounds[0][0]) * p.scale / 2 - 0.3
+                c, s = math.cos(p.yaw), math.sin(p.yaw)
+                zs = self.ground.surface(np.array([p.x - c * half, p.x, p.x + c * half]),
+                                         np.array([p.y - s * half, p.y, p.y + s * half]))
+                tilt = math.atan2(float(zs[2] - zs[0]), 2 * half)
+                z = float(max(zs[1], (zs[0] + zs[2]) / 2)) - piece.bottom * p.scale - float(self.world.style["port"]["props"]["beach_sink"])
+            out.append(Placement(p.kind, p.x, p.y, z, p.yaw, on_ground=False, scale=p.scale, tilt=tilt))
+        return out
+
     def covers(self) -> Covers:
         """The covered souk stretches (prompt 31): the same rule the tile mesher draws the roofs from."""
         if self._covers is None:

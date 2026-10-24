@@ -26,6 +26,7 @@ from .rng import stream
 
 DARK, LIT = "glass_dark", "glass_lit"          # window glass by day; the twin the viewer lights at night
 LIT_CATEGORIES = {"window", "balcony", "door", "kiosk"}   # pieces whose glass may be lit (not shop goods)
+PLAIN = {"boat", "crane", "rail", "cargo"}     # harbor pieces drawn in plain palette colors: no UVs to pay for
 
 
 @dataclass
@@ -83,7 +84,10 @@ class Kit:
         for name, parts in people_pieces(seed, people).items():          # prompt 28: no lit twins
             self.pieces[name] = Piece(name, "person", "ground", parts, "procedural")
         for name, (mb, category, anchor) in port_pieces(seed, port).items():       # bollards and fenders (prompt 34)
-            self.pieces[name] = Piece(name, category, anchor, mb.gltf_parts(), "procedural")
+            parts = mb if isinstance(mb, dict) else mb.gltf_parts()   # boats come as parts sharing their hull
+            if category in PLAIN and not isinstance(mb, dict):                         # boats, cranes, cargo (prompt 35): plain colors, no UVs
+                parts = {m: {**part, "uv": None} for m, part in parts.items()}
+            self.pieces[name] = Piece(name, category, anchor, parts, "procedural")
         self.panes: dict = {}   # kit piece -> (x0, x1, y0, y1, z) of its glass, glTF axes (manifest "glass")
         for kit in kits:
             folder = Path(kit) if Path(kit).is_dir() else ROOT / "kits" / kit

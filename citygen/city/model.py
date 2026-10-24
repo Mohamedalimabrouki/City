@@ -85,6 +85,18 @@ class Landmark:
 
 
 @dataclass
+class Prop:
+    """A piece the planner places itself (prompt 35, city/moorings.py): boats, cranes, rails, cargo."""
+    kind: str      # a kit piece: boat_lateen | boat_cabin | boat_rowing | boat_trawler | crane_0 | crane_1 |
+                   # crane_rails | cargo_crates | cargo_containers_0 | cargo_containers_1
+    x: float
+    y: float
+    yaw: float     # radians: the piece's +x (a boat's bow) turns to (cos yaw, sin yaw)
+    scale: float = 1.0
+    on: str = "sea"    # sea: floats, waterline at z = 0 | quay: on the quay top | beach: drawn up on the sand
+
+
+@dataclass
 class Walk:
     """A raised sidewalk or the boulevard's central promenade, in world meters."""
     kind: str          # sidewalk | promenade
@@ -126,3 +138,4 @@ class CityPlan:
     paint: list = field(default_factory=list)       # city/paint.py: road markings
     station: object = None    # city/station.py: the railway station's tracks, precinct and corridor (prompt 33)
     port: object = None       # city/port.py: quays, breakwater, lighthouse and the ground zones they change (prompt 34)
+    props: list = field(default_factory=list)   # city/moorings.py: boats, cranes and cargo of the harbor (prompt 35)
