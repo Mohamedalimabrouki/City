@@ -63,10 +63,11 @@ itself and looks again every 30 seconds, so cities you build later appear on the
 Terminal window to stop it. To build another city: `python -m citygen list` shows the names, then
 `python -m citygen build --area city:NAME --out output/FOLDER`.
 
-**Move with the keyboard** in the 3D view: arrow keys or `W A S D` move, `Q` and `E` go down and
-up, `Shift` goes four times faster (flying speed grows with height). `G` switches walking on or
-off: your eyes stay 1.7 m above the street and you follow the ground; drag the mouse to look
-around.
+**Move with the keyboard** in the 3D view, like driving: the up and down arrows (or `W` and `S`)
+go forward and back, the left and right arrows turn, `A` and `D` step sideways, `R` and `F` look
+up and down, `Q` and `E` go down and up, `Shift` is faster (flying speed also grows with height).
+`G` switches walking on or off: your eyes stay 1.7 m above the street and you follow the ground.
+Dragging with the mouse still looks around.
 
 To save 3D pictures without opening a browser (handy for checks): `pip install playwright`,
 then `python -m citygen snapshot --view aerial` (or `street`, `souk`, `top`).

@@ -166,8 +166,8 @@ const SKY = 0x93c6f2;
 document.body.classList.toggle('noui', q.get('ui') === '0');
 $('help').textContent = coarse
   ? 'drag rotate \u00b7 pinch zoom \u00b7 two-finger pan \u00b7 tap a house \u00b7 double-tap focus'
-  : 'drag rotate \u00b7 right-drag pan \u00b7 wheel zoom \u00b7 arrows or WASD move \u00b7 Q/E down/up \u00b7 Shift faster '
-    + '\u00b7 G walk \u00b7 click a house \u00b7 double-click focus \u00b7 N night \u00b7 L shadows';
+  : 'drag rotate \u00b7 right-drag pan \u00b7 wheel zoom \u00b7 \u2191\u2193 or W/S move \u00b7 \u2190\u2192 turn \u00b7 A/D step '
+    + '\u00b7 R/F look up/down \u00b7 Q/E down/up \u00b7 Shift faster \u00b7 G walk \u00b7 click a house \u00b7 N night \u00b7 L shadows';
 
 let THREE, GLTFLoader, OrbitControls;
 try {
@@ -1434,12 +1434,14 @@ canvas.addEventListener('pointerup', (e) => {
 });
 
 // ---------------------------------------------------------------- keyboard: fly or walk
-// Arrows or W A S D move the camera and its target together along the ground, Q and E down and
-// up, Shift four times faster; flying speed grows with the height above the ground. G walks: the
-// eyes stay WALK.eye above the drawn surface under them (streets, walks, terrain; props such as
-// cars and people are ignored), and dragging looks around from where you stand.
-const NAV_KEYS = { arrowup: 'f', w: 'f', arrowdown: 'b', s: 'b', arrowleft: 'l', a: 'l', arrowright: 'r', d: 'r',
-                   q: 'down', e: 'up' };
+// Like driving: the up and down arrows (or W and S) move forward and back, the left and right
+// arrows turn, A and D step sideways, R and F look up and down, Q and E go down and up, Shift is
+// four times faster; flying speed grows with the height above the ground. G walks: the eyes stay
+// WALK.eye above the drawn surface under them (streets, walks, terrain; props such as cars and
+// people are ignored). Turning swings the target round the camera, so it works walking or flying.
+const NAV_KEYS = { arrowup: 'fwd', w: 'fwd', arrowdown: 'back', s: 'back', a: 'left', d: 'right',
+                   arrowleft: 'turnLeft', arrowright: 'turnRight', r: 'lookUp', f: 'lookDown', q: 'down', e: 'up' };
+const TURN = { yaw: 1.2, pitch: 0.9, limit: 1.45 };   // radians per second; the highest look up or down
 const WALK = { eye: 1.7, speed: 4.5, look: 1.0, step: 1.0 };   // meters, m/s, target ahead, highest step up
 const TAP = 150;                    // ms a quick key tap keeps moving, so a tap is a small step
 const held = new Map();             // nav key -> when it may stop (Infinity while held down)
@@ -1483,6 +1485,7 @@ function navigate(now) {
   navTime = now;
   for (const [key, until] of held) if (until <= now) held.delete(key);
   if (!held.size || !(dt > 0)) return false;
+  const turned = turnView(dt);
   const forward = new THREE.Vector3();
   camera.getWorldDirection(forward);
   forward.y = 0;
@@ -1490,13 +1493,13 @@ function navigate(now) {
   forward.normalize();
   const right = new THREE.Vector3(-forward.z, 0, forward.x);
   const move = new THREE.Vector3();
-  if (held.has('f')) move.add(forward);
-  if (held.has('b')) move.sub(forward);
-  if (held.has('r')) move.add(right);
-  if (held.has('l')) move.sub(right);
+  if (held.has('fwd')) move.add(forward);
+  if (held.has('back')) move.sub(forward);
+  if (held.has('right')) move.add(right);
+  if (held.has('left')) move.sub(right);
   if (!walking && held.has('up')) move.y += 1;
   if (!walking && held.has('down')) move.y -= 1;
-  if (move.lengthSq() === 0) return false;
+  if (move.lengthSq() === 0) return turned;
   let speed = WALK.speed;
   if (!walking) {
     const ground = surfaceBelow(camera.position, 1);
@@ -1514,6 +1517,25 @@ function navigate(now) {
       controls.target.y += lift;
     }
   }
+  return true;
+}
+
+const UP = new THREE.Vector3(0, 1, 0);
+function turnView(dt) {   // the arrow keys turn left and right, R and F look up and down, round the camera
+  const turn = (held.has('turnRight') ? 1 : 0) - (held.has('turnLeft') ? 1 : 0);
+  const look = (held.has('lookUp') ? 1 : 0) - (held.has('lookDown') ? 1 : 0);
+  if (!turn && !look) return false;
+  const speed = held.has('shift') ? 2 : 1;
+  const offset = controls.target.clone().sub(camera.position);
+  if (turn) offset.applyAxisAngle(UP, -turn * TURN.yaw * speed * dt);
+  if (look) {
+    const side = new THREE.Vector3().crossVectors(offset, UP);
+    if (side.lengthSq() > 1e-9) {
+      const tilted = offset.clone().applyAxisAngle(side.normalize(), look * TURN.pitch * speed * dt);
+      if (Math.abs(Math.asin(tilted.y / tilted.length())) <= TURN.limit) offset.copy(tilted);
+    }
+  }
+  controls.target.copy(camera.position).add(offset);
   return true;
 }
 

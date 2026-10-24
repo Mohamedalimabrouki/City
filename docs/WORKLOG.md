@@ -55,8 +55,9 @@ Entry format:
 - Commit: (see git log) | Model: Opus 5.5 (lead, no helper)
 - Changed: `citygen/view.py` (`build_folders`, `build_info`, `builds`, `pictures`, `_GalleryHandler`,
   `serve_gallery`), `citygen/__main__.py` (`gallery`), `tools/viewer/gallery.html` (new),
-  `tools/viewer/index.html` (keyboard: arrows/WASD move, Q/E down/up, Shift x4, G walks at 1.7 m on the
-  drawn ground with a ray that skips instanced props and water; a tap moves for 150 ms), `Open City
+  `tools/viewer/index.html` (keyboard like driving: up/down arrows or W/S move, left/right arrows turn,
+  A/D step, R/F look up/down, Q/E down/up, Shift faster, G walks at 1.7 m on the drawn ground with a
+  ray that skips instanced props and water; a tap moves for 150 ms), `Open City
   Gallery.command` (new, double-click), tests (1 new), `README.md`, `CLAUDE.md`, `docs/HANDOFF.md`,
   `docs/ROADMAP.md`
 - What: one page lists every build under `output/` (summary or tile index; `output/checks` test folders

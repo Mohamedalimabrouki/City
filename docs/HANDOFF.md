@@ -715,8 +715,9 @@ cut their instance data to 20 bytes per window (16-bit rotation, no SCALE).
 - Best: Ali looks himself. Double-click `Open City Gallery.command` (`python -m citygen gallery`):
   every build under `output/` newest first, read live from the folder (new builds appear by
   themselves), each viewer at `/b/<folder with ~ for />/`; `citygen/view.py` `_GalleryHandler`,
-  page `tools/viewer/gallery.html`. In the viewer: arrows/WASD move, Q/E down/up, Shift faster, G
-  walks at eye height on the drawn ground (props ignored). `python -m citygen view` opens one build
+  page `tools/viewer/gallery.html`. In the viewer: up/down arrows or W/S move, left/right arrows
+  turn (yaw round the camera), A/D step, R/F look up/down (pitch, limited to 83 degrees), Q/E
+  down/up, Shift faster, G walks at eye height on the drawn ground (props ignored). `python -m citygen view` opens one build
   (camera spots in the top menu, Night button, click a house). Or open the tiles in Blender:
   `/Applications/Blender.app/Contents/MacOS/Blender --python tools/blender_import.py -- output/bodjantouna-42/tiles`
 - One command for a visual change: `python tools/before_after.py --view street` (last commit above
