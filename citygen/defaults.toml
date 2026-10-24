@@ -41,6 +41,12 @@ dressing = true           # doors, windows, shops, goods and street life (see [d
 textures = "shared"       # base-color textures named by [palette]: "shared" writes each image once to
                           # tiles/textures/ and tiles link it; "embedded" puts the bytes inside every .glb
                           # (single-file exports such as hero scenes); "off" keeps flat colors
+quantize = true           # KHR_mesh_quantization: 16-bit positions (about 8 mm steps over a tile), 8-bit
+                          # normals, 16-bit instance rotations, welded vertices; false writes plain floats
+fine_edge = 0.05          # meters: triangles with a shorter edge (ropes, cables, rods) keep float positions
+float_materials = ["water"]   # kept float: the viewer finds the sea from the water's own height
+flat_angle = 1.0          # degrees: flat faces whose written corners give back their normal within this
+                          # angle are written without NORMAL (readers compute flat normals)
 
 [ground]
 # Inside a city the ground is graded: smoothed and gently flattened under blocks, then

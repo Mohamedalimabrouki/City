@@ -32,6 +32,8 @@ class MeshBuilder:
     def __init__(self, origin=(0.0, 0.0)):
         self.origin = np.array([origin[0], origin[1], 0.0])
         self._parts: dict[str, list] = {}
+        self._fine: dict[str, list] = {}   # material -> indices of chunks added while `fine` was on
+        self.fine = False   # on: these triangles keep float positions in a quantized tile (add_sheet)
 
     def add(self, material: str, pos, nrm, uv, tris, col=None) -> None:
         """Append triangles; `col` (N, 3) linear vertex colors is optional (the terrain tint)."""
@@ -45,6 +47,8 @@ class MeshBuilder:
         part[3].append(np.asarray(tris, dtype=np.int64).reshape(-1, 3) + part[4])
         part[5].append(None if col is None else np.asarray(col, dtype=np.float64).reshape(-1, 3))
         part[4] += len(pos)
+        if self.fine:
+            self._fine.setdefault(material, []).append(len(part[3]) - 1)
 
     @property
     def triangles(self) -> int:
@@ -55,7 +59,9 @@ class MeshBuilder:
         return [(part[4], sum(len(t) for t in part[3]), any(c is not None for c in part[5]))
                 for part in self._parts.values()]
 
-    def gltf_parts(self) -> dict:
+    def gltf_parts(self, fine: bool = False) -> dict:
+        """{material: {"pos", "nrm", "uv", "idx", "col"?}} in glTF axes; `fine` adds a per-triangle
+        "fine" mask where some triangles were added with `self.fine` on (they stay float in a quantized tile)."""
         out = {}
         for mat, (pos, nrm, uv, tris, _count, col) in self._parts.items():
             out[mat] = {"pos": _to_gltf(np.concatenate(pos)), "nrm": _to_gltf(np.concatenate(nrm)),
@@ -64,6 +70,10 @@ class MeshBuilder:
                 # a piece without colors in a tinted part stays untinted: white, never black
                 out[mat]["col"] = np.concatenate([np.ones((len(p), 3)) if c is None else c
                                                   for p, c in zip(pos, col)])
+            if fine and mat in self._fine:
+                chunk = np.zeros(len(tris), dtype=bool)
+                chunk[self._fine[mat]] = True
+                out[mat]["fine"] = np.repeat(chunk, [len(t) for t in tris])
         return out
 
 
@@ -338,8 +348,10 @@ def add_sheet(mb: MeshBuilder, tris, material: str, thickness: float = 0.01) -> 
     tris = np.asarray(tris, dtype=np.float64).reshape(-1, 3, 3)
     n = np.cross(tris[:, 1] - tris[:, 0], tris[:, 2] - tris[:, 0])
     n /= np.maximum(np.linalg.norm(n, axis=1), 1e-12)[:, None]
+    was, mb.fine = mb.fine, True      # the two faces lie millimeters apart: never quantize them
     add_triangles(mb, tris, material)
     add_triangles(mb, tris[:, ::-1] - n[:, None, :] * thickness, material)
+    mb.fine = was
 
 
 def add_quads(mb: MeshBuilder, mat: str, quads: np.ndarray, toward: np.ndarray) -> None:

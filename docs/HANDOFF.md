@@ -619,21 +619,52 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
   building (`town_tile`), the drinks kiosk has nine plain materials without UVs (29 -> 21 KB) and the parasol
   shares its canvas corners (12 -> 8 KB). Waiters are often left out by `_cast` (no standing figure kept in a
   seafront tile): "if cheap", as asked.
-- **Old-town tiles** reach about 5 MB on the quick build and 8 MB on the full capital
-  (`tile_65_106`, mostly roofs since prompt 15); task Q5 (prompt 39) brings them down.
+- **Lighter tiles** (prompt 39, `mesh/gltf.py`, `[tiles] quantize`): measure first (`stats --tiles`); on the
+  densest tiles the tile mesh (walls, roofs) and the piece meshes are almost 90% of the bytes, JSON 6%, instance
+  data 5%. What paid, on the densest quick tile (8.67 MB): 16-bit positions and 8-bit normals (12 of 32
+  bytes per vertex), the weld of equal written vertices (roof caps wrote 3 vertices per triangle: roof_white
+  1.19 -> 0.59 MB), one bufferView per kind (167 KB of JSON), 16-bit rotations and no SCALE for unit pieces
+  (instances 397 -> 250 KB): 5.33 MB; then no NORMAL on flat faces (4 bytes per flat vertex, vertices kept
+  split by normal so readers recompute the same flat normals): 4.67 MB. Test flatness on the written,
+  dequantized corners, not the float ones (a 6 cm triangle tilts by degrees at 8 mm steps), and keep the
+  tinted terrain's smooth normals by name of the case (`smooth`), not by COLOR_0 (kit pieces carry colors
+  too). In three.js, GLTFLoader gives meshes without normals a `flatShading` material clone: compute the
+  normals and clear the flag before `shared()`, or the first clone seen shades smooth pieces faceted.
+  Welding by position alone (dropping the split) would save about 1 MB more but needs every reader to
+  shade flat on its own. What did not: sharing coping vertices (flat shading: 96% of coping
+  corners turn more than 20 degrees, only 4% could share; smoothing them would shade every parapet face
+  wrong), 16-bit UVs (one texture transform per material across tile mesh, caps and pieces, and Blender's
+  importer leaves normalized values in the UV map that `blender_beauty.py` reads as meters; doing it cleanly
+  needs per-island UV shifts by whole texture repeats, one fixed range per material for Blender's name-based
+  material sharing, and rewriting the importer's Mapping nodes, none checkable here without looking inside
+  Blender; worth about -0.45 MB on the densest quick tile, not enough for 3.5 MB anyway). Quantize with a
+  **uniform** node scale: a non-uniform one exaggerates slopes in the mesh's own space, where three.js
+  raycasts report `face.normal` (the street camera looks for `normal.y > 0.7`). Keep float what is thinner
+  than a few steps (8.4 mm): `add_sheet` faces (`MeshBuilder.fine`), edges under `fine_edge` (ropes 3.2 cm,
+  cables and rods 2.4 cm), and `water` (the viewer's sea test reads the geometry's own box). Gaps that stay
+  safe at 8.4 mm: road paint 3 cm, garden ground 2 cm, roof-room doors 2 cm, station paint 1 cm on flat
+  platforms. A piece's quantization scale rides on every instance, so a small piece with many copies stays
+  float (12 bytes of SCALE per copy would cost more). Twins must follow their dark piece's choice, or they
+  stop sharing accessors. With `quantize = false` the build is byte for byte the old one (fingerprint 0
+  changed): the way to prove a refactor of the writer. People: the figure budget stays `bytes_share` of the
+  tile's float-size estimate but figures cost their quantized size (`piece_bytes(quantized=True)`), so light
+  tiles show more figures and still end 25-48% smaller. The souk and street pictures differ by 0.54 and
+  0.30 (edges move by under one quantization step), not 0.00; souk on High (GTAO) 1.01 (noise), night 0.20.
+- **Old-town tiles** reach about 4.7 MB on the quick build and 5.8 MB on the full capital after prompt 39
+  (`tile_65_106`; 8.7 and 11.1 MB before).
 
 ## Known weak spots
 
-Task Q5 in the roadmap: heavy old-town tiles (CP3: the densest quick tile is 7.4 MB, 5.8 MB at
-CP2; quick drawn triangles 4.05 M, 2.45 M at CP2; three suburb tiles of the full capital just over
-3 MB with their garden ground). The viewer still renders the street view in about 4.6 ms per
+Task Q5 in the roadmap: heavy old-town tiles. Prompt 39 quantized them and dropped flat normals (densest
+quick tile 8.7 -> 4.7 MB, full capital 11.1 -> 5.8 MB, all 168 full tiles 310 -> 171 MB), still over the
+3.5 MB goal (WORKLOG, prompt 39). The viewer still renders the street view in about 4.6 ms per
 frame on High (M1, golden hour), so prompts 39-41 (lighter tiles, level of detail) have room to
 work before it matters. Since prompt 20.2 every dwelling in old towns,
 villages, residential and suburb districts opens on a street, alley or impasse (full capital: 6,641
 impasses, 160 km; none enclosed). The planner is 4.9 s slower for it (15.5 s on the full capital);
 cutting several far-apart lanes per block per round would shorten the old town's 300 rounds.
-Modern-estate tiles grew +20% to +37% in bytes with their windows (instances plus piece meshes),
-over the +20% budget (prompt 39, Q5, can shrink instance data).
+Modern-estate tiles grew +20% to +37% in bytes with their windows (instances plus piece meshes); prompt 39
+cut their instance data to 20 bytes per window (16-bit rotation, no SCALE).
 
 ## Checking the look without wasting tokens
 

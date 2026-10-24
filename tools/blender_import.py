@@ -138,6 +138,7 @@ def import_tile(path: Path, city: bpy.types.Collection, materials: dict) -> None
                 if mat.users == 0:
                     bpy.data.materials.remove(mat)
     expand_instances(fresh, path)   # after the move, so the copies land in `city` too
+    bake_dequantization(fresh)
     hide_night_panes([o for o in bpy.data.objects if o.name not in before])
 
 
@@ -151,11 +152,30 @@ def hide_night_panes(objects) -> None:
             obj.hide_render = obj.hide_viewport = True
 
 
+_DTYPES = {5126: np.float32, 5122: np.int16, 5120: np.int8, 5123: np.uint16, 5121: np.uint8}
+_NORM = {5122: 32767.0, 5120: 127.0, 5123: 65535.0, 5121: 255.0}
+
+
+def _accessor(gltf: dict, binary: bytes, index: int, width: int) -> np.ndarray:
+    """(count, width) floats of one accessor: byteOffset and byteStride honored, normalized integers
+    decoded (quantized tiles write 16-bit rotations, prompt 39)."""
+    acc = gltf["accessors"][index]
+    view = gltf["bufferViews"][acc["bufferView"]]
+    dtype = np.dtype(_DTYPES[acc["componentType"]])
+    start = view.get("byteOffset", 0) + acc.get("byteOffset", 0)
+    stride = view.get("byteStride", 0) or dtype.itemsize * width
+    out = np.ndarray((acc["count"], width), dtype, buffer=binary, offset=start, strides=(stride, dtype.itemsize))
+    if acc.get("normalized") and acc["componentType"] in _NORM:
+        return np.maximum(out / _NORM[acc["componentType"]], -1.0)
+    return out.astype(np.float64)
+
+
 def instance_transforms(path: Path) -> dict:
     """{node name: (K, 10) translation, rotation xyzw, scale} for every EXT_mesh_gpu_instancing node.
 
     Street dressing (doors, lamps, goods...) is written as one model drawn many times. Blender's
-    glTF importer may not know that extension, so import_tile places the copies itself.
+    glTF importer may not know that extension, so import_tile places the copies itself. A piece
+    whose instances all have scale 1 has no SCALE accessor: its scale column is 1.
     """
     data = path.read_bytes()
     size = struct.unpack_from("<I", data, 12)[0]
@@ -166,14 +186,27 @@ def instance_transforms(path: Path) -> dict:
         ext = node.get("extensions", {}).get("EXT_mesh_gpu_instancing")
         if not ext:
             continue
-        cols = []
-        for key, width in (("TRANSLATION", 3), ("ROTATION", 4), ("SCALE", 3)):
-            acc = gltf["accessors"][ext["attributes"][key]]
-            view = gltf["bufferViews"][acc["bufferView"]]
-            start = view.get("byteOffset", 0) + acc.get("byteOffset", 0)
-            cols.append(np.frombuffer(binary, np.float32, acc["count"] * width, start).reshape(-1, width))
+        attrs = ext["attributes"]
+        count = gltf["accessors"][attrs["TRANSLATION"]]["count"]
+        defaults = {"TRANSLATION": (0.0, 0.0, 0.0), "ROTATION": (0.0, 0.0, 0.0, 1.0), "SCALE": (1.0, 1.0, 1.0)}
+        cols = [_accessor(gltf, binary, attrs[key], len(d)) if key in attrs else np.tile(d, (count, 1))
+                for key, d in defaults.items()]
         out[node["name"]] = np.concatenate(cols, axis=1)
     return out
+
+
+def bake_dequantization(objects) -> None:
+    """Quantized tiles (prompt 39) keep their 16-bit positions in a child node "<tile>_q" whose
+    translation and uniform scale turn them into meters; Blender imports that as the object's
+    transform over a mesh in [-1, 1]. Apply it to the mesh, so mesh coordinates are tile meters
+    again (as before, and as blender_beauty.py measures roofs and walls)."""
+    for obj in objects:
+        if obj.type != "MESH" or obj.data.users != 1:
+            continue
+        if not (obj.get("quantized") or _COPY_SUFFIX.sub("", obj.name).endswith("_q")):
+            continue
+        obj.data.transform(obj.matrix_basis)
+        obj.matrix_basis = Matrix.Identity(4)
 
 
 def place_instances(obj: bpy.types.Object, rows: np.ndarray) -> None:

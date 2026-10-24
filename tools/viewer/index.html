@@ -456,7 +456,7 @@ function shared(material) {
   // vertexColors in the key: the terrain's "grass" carries a COLOR_0 tint and a kit's "grass" may
   // not; sharing one material between them reads a missing color attribute and renders black.
   const key = [material.name, material.color.getHex(), material.roughness, material.metalness,
-               material.side, material.vertexColors, texture].join('|');
+               material.side, material.vertexColors, material.flatShading, texture].join('|');
   let m = sharedMaterials.get(key);
   if (!m) {
     m = material;
@@ -477,6 +477,14 @@ function addTile(gltf) {
   root.position.set(-focus.x, 0, focus.y);   // rebase: the node translations are x0, 0, -y0
   root.traverse((o) => {
     if (!o.isMesh) return;
+    // Quantized tiles (prompt 39) write flat faces without NORMAL, their vertices split by normal: the
+    // vertex normals computed here are the flat ones. GLTFLoader marks such materials flatShading
+    // (screen-space normals): undo it, so they render, shadow and feed ambient occlusion as before.
+    if (!o.geometry.attributes.normal) o.geometry.computeVertexNormals();
+    if (o.material.flatShading) {
+      o.material.flatShading = false;
+      o.material.needsUpdate = true;
+    }
     o.material = shared(o.material);
     o.castShadow = !o.material.userData.water;
     o.receiveShadow = true;

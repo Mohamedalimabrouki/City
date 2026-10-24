@@ -73,17 +73,19 @@ PEOPLE = {   # `[people]` in the style overrides these
 
 
 INSTANCE = 40                                   # bytes of one instance in a tile (translation, rotation, scale)
+INSTANCE_Q = 20                                 # ... quantized (prompt 39): float translation, 16-bit rotation
 PIECE_JSON, PART_JSON = 1000, 800               # about: a piece's node and instance accessors; a part's accessors,
                                                 # primitive and material (measured on written tiles)
 
 
-def piece_bytes(piece, part_json: int = PART_JSON, piece_json: int = PIECE_JSON) -> int:
-    """About what a kit piece's mesh adds to a tile that shows it: float positions and normals, UVs and
-    8-bit colors when it has them, 16-bit indices, some JSON per part and per piece."""
+def piece_bytes(piece, part_json: int = PART_JSON, piece_json: int = PIECE_JSON, quantized: bool = False) -> int:
+    """About what a kit piece's mesh adds to a tile that shows it: float positions and normals (16-bit
+    positions and 8-bit normals in a quantized tile), UVs and 8-bit colors when it has them, 16-bit
+    indices, some JSON per part and per piece."""
     total = piece_json
     for part in piece.parts.values():
         n = len(part["pos"])
-        total += n * 24 + len(part["idx"]) * (2 if n < 65536 else 4) + part_json
+        total += n * (12 if quantized else 24) + len(part["idx"]) * (2 if n < 65536 else 4) + part_json
         total += n * 8 if part.get("uv") is not None else 0
         total += n * 4 if part.get("col") is not None else 0
     return total
@@ -127,6 +129,7 @@ class Crowd:
         self.cfg = {**PEOPLE, **style.get("people", {})}
         self.density = float(self.cfg["density"])
         self.figure_seat = float(style.get("dressing", {}).get("people", {}).get("seat", 0.45))
+        self.quantized = bool(dresser.world.cfg["tiles"].get("quantize", False))   # figures cost less (prompt 39)
         self.path_lift = float(dresser.cfg.get("paths", {}).get("lift", 0.04))
         self.path_width = float(dresser.cfg.get("paths", {}).get("width", 1.4))
         self.by: dict = {}                       # (outfit, pose) -> piece names
@@ -732,20 +735,21 @@ class Crowd:
         return alive
 
     def _cast(self, cands: list, budget: float | None) -> list:
-        """Each figure a tile shows costs its mesh (about 14 KB) in the tile, each person 40 bytes: the most
-        frequent figures are kept while they fit in `budget` bytes; a person with another one takes a kept
-        figure of the same pose, of the same outfit if one is kept, else of the same body (men, women,
-        children), else is left out."""
+        """Each figure a tile shows costs its mesh (about 14 KB, 8 KB quantized) in the tile, each person 40
+        bytes (20 quantized): the most frequent figures are kept while they fit in `budget` bytes; a person
+        with another one takes a kept figure of the same pose, of the same outfit if one is kept, else of the
+        same body (men, women, children), else is left out. The budget stays a share of the tile's float
+        size (`tile_bytes`), so quantized tiles show more figures and still end up smaller than before."""
         if budget is None or not cands:
             return cands
         count: dict = {}
         for cd in cands:
             count[cd.piece] = count.get(cd.piece, 0) + 1
         order = sorted(count, key=lambda n: (-count[n], n))
-        used = INSTANCE * len(cands)
+        used = (INSTANCE_Q if self.quantized else INSTANCE) * len(cands)
         kept = []
         for n in order:
-            used += piece_bytes(self.kit.pieces[n])
+            used += piece_bytes(self.kit.pieces[n], quantized=self.quantized)
             if used > budget:
                 break
             kept.append(n)

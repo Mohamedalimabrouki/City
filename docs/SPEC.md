@@ -528,6 +528,49 @@ terrain parts carry it as a soft tint (see "Ground textures"),
 and lamps an `emissiveFactor`. Importers without the extension (Blender 3.6) show one copy per
 piece; `tools/blender_import.py` and `tools/blender_beauty.py` place all copies themselves.
 
+**Quantized tiles (prompt 39, `[tiles] quantize = true`, `write_glb(quantize=True)`):** the tile
+lists `KHR_mesh_quantization` in `extensionsUsed` and `extensionsRequired`. The root node's own mesh
+holds only the triangles that must stay float: `add_sheet` faces (cloth, flags, landmark glass and
+iron, marked with `MeshBuilder.fine`), triangles with an edge under `[tiles] fine_edge` (0.05 m:
+ropes, cables, vault rods, thin bars, dome tips) and `[tiles] float_materials` (`water`: the viewer
+finds the sea from the water's own height). Everything else goes to the child node `tile_i_j_q`
+(extras `{"quantized": true}`): positions as normalized SHORT, padded to 8 bytes, dequantized by that
+node's `translation` and one **uniform** `scale` (the half size of the mesh's box, so a step of about
+8.4 mm on a 550 m tile; uniform keeps normals and raycast face normals right in the mesh's own
+space). The root's translation is never used for dequantization: it would also move the instance
+nodes. Normals are normalized BYTE (padded to 4 bytes); **flat faces have no NORMAL**: triangles whose
+stored normals all lie within `[tiles] flat_angle` (1 degree) of the face normal of their written,
+dequantized corners go into primitives without NORMAL (walls, roofs, flat pieces; the tinted terrain,
+trees, domes, people and other smooth surfaces keep theirs). Their vertices stay split exactly where
+the normals differed (the weld key still holds the normal), so area-weighted vertex normals are the
+flat normals again: the viewer calls `computeVertexNormals()` on every mesh without normals right
+after a tile loads and clears GLTFLoader's `flatShading` (the `shared()` key holds `flatShading`
+too); Blender's importer shades such faces flat; `read_parts` computes the same normals
+(`vertex_normals`). UVs stay float (meters: walls
+and the tile mesh share each material and its one `KHR_texture_transform` with world-meter caps,
+the terrain and the pieces; Blender's importer would leave normalized values in the UV map that
+`blender_beauty.py` reads as meters), colors stay 8-bit. Vertices whose written bytes are equal are
+welded (shared cap corners, stair rooms, landmark faces), in order of first use, and a primitive
+over 65,535 vertices is split, so every index is 16-bit. Instances: TRANSLATION float, ROTATION
+normalized SHORT (worst angle error under 1e-4 rad, tested), no SCALE accessor when every instance
+of a float piece has scale 1. A piece gets 16-bit positions in its own frame (center c, half size h)
+when its vertices outweigh 12 bytes per instance or it needs SCALE anyway; its instances are then
+written at `T + R (S * c)` with scale `S * h`. Accessors of one kind share one bufferView (with
+`byteStride`). `read_parts` and `accessor_array` (`mesh/gltf.py`) decode strides, int8/int16 and
+normalization and apply the child node's dequantization; `instance_transforms` in
+`tools/blender_import.py` reads 16-bit rotations and a missing SCALE as 1, and `bake_dequantization`
+applies the `_q` object's transform to its mesh after Blender imports it. `quantize = false` writes
+the float tiles byte for byte as before. `python -m citygen stats --tiles [FOLDER] [--tile NAME]`
+lists every tile's bytes by category (JSON, terrain, tile mesh, piece meshes, instance transforms,
+textures) and details the heaviest one by material and by piece.
+
+**Other engines (note for prompt 72, Godot 4):** not verified here. Godot 4's glTF importer is
+believed to read `KHR_mesh_quantization` and to generate normals when NORMAL is absent (to verify in
+prompt 72: they must come out flat on the split vertices); `EXT_mesh_gpu_instancing` support is not confirmed (it
+may need a `GLTFDocumentExtension` that turns each instance node into a `MultiMeshInstance3D`, or
+expanding the copies on import). Test one quick tile in Godot first; `[tiles] quantize = false`
+removes the quantization requirement if needed.
+
 **Textures:** a palette entry may carry `texture = "<name>"` and `texture_size = [w, h]` (meters
 one repeat covers). The writer emits `images`, `textures`, one REPEAT sampler with mipmaps
 (`wrapS`/`wrapT` 10497, `minFilter` 9987) and a `baseColorTexture` with
@@ -961,13 +1004,13 @@ Maghreb-specific values.
 | `build --quick` | under 90 s (Ali's Mac today: about 8 s) |
 | country (64 km) | under 10 s |
 | capital plan (about 60k buildings) | under 60 s |
-| one tile | under 5 s, under 3 MB (under 5 MB for a dressed old-town tile) |
+| one tile | under 5 s, under 3 MB (target 3.5 MB for a dressed old-town tile; prompt 39: quick 4.7 MB, full capital 5.8 MB) |
 | `build --area capital` (168 tiles) | Ali's Mac (M1, 4 fast + 4 slow cores) today: 73 s with `--workers 1`, 30 s with `--workers 8` (CP2) |
 | the same build run again (nothing changed) | under 10% of the first run (today 1.5 s, plans, tiles, maps and data reused) |
 
 ## 9. Checking results cheaply
 
-- `python -m citygen stats` prints `summary.json`.
+- `python -m citygen stats` prints `summary.json`; `stats --tiles` shows where each tile's bytes go.
 - Maps: `output/*/maps/*.png` (look at the image, not the data files).
 - 3D: `python -m citygen snapshot --view aerial|street|top` renders the viewer to a PNG.
 - The viewer starts in **Fast** on phones and in the software snapshot browser, and in **High** on a

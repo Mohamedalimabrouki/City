@@ -76,6 +76,11 @@ class TileContext:
         self.materials = self.kit.materials if self.kit else self.palette
         self.texture_mode = str(world.cfg["tiles"].get("textures", "shared"))
         self.texture_images = images_for(world.style, world.seed, self.texture_mode)
+        tiles = world.cfg["tiles"]
+        self.quantize = {"quantize": bool(tiles.get("quantize", False)),       # KHR_mesh_quantization (prompt 39)
+                         "fine_edge": float(tiles.get("fine_edge", 0.0)),
+                         "float_materials": tuple(tiles.get("float_materials", ())),
+                         "flat_angle": float(tiles.get("flat_angle", 0.0))}
         self.tint = GroundTint(world.seed, world.style.get("ground_tint", {}))
         self.cities = []
         self.paint_trees = []
@@ -801,12 +806,12 @@ def write_tile(tc: TileContext, i: int, j: int, mb: MeshBuilder, placements: lis
     """Write a built tile (`build_tile`) as tile_i_j.glb in `folder`; returns its index entry."""
     x0, y0, _, _ = tile_bounds(tc, i, j)
     instances = instance_groups(tc, placements, x0, y0)
-    parts = mb.gltf_parts()
+    parts = mb.gltf_parts(fine=True)
     path = Path(folder) / f"tile_{i}_{j}.glb"
     part = path.with_name(path.name + ".part")   # renamed at the end: a half-written tile never counts as done
     size = write_glb(part, parts, tc.materials, translation=(x0, 0.0, -y0),
                      name=f"tile_{i}_{j}", extras={"i": i, "j": j, "x0": x0, "y0": y0}, instances=instances,
-                     images=tc.texture_images)
+                     images=tc.texture_images, **tc.quantize)
     os.replace(part, path)
     unique = mb.triangles + sum(tc.kit.pieces[g["name"]].triangles for g in instances)
     drawn = mb.triangles + sum(len(g["t"]) * tc.kit.pieces[g["name"]].triangles for g in instances)

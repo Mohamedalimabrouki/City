@@ -12,7 +12,7 @@ from citygen.__main__ import main
 from citygen.city import plan_city
 from citygen.config import load_config
 from citygen.mesh.builder import MeshBuilder, add_hip_roof, extrude, rectangle
-from citygen.mesh.gltf import read_glb, read_parts, triangle_count, write_glb
+from citygen.mesh.gltf import accessor_array, read_glb, read_parts, triangle_count, write_glb
 from citygen.mesh.textures import (NAMES, PIXELS, encoded, images_for, spec_for, texture,
                                     texture_names, write_shared_textures)
 from citygen.mesh.tile import TileContext, texture_files
@@ -288,14 +288,16 @@ def test_tile_is_valid_glb(rebuilt_tile):
     gltf, binary = read_glb(path)
     assert triangle_count(gltf) == info["triangles"] > 1000
     assert {"lime_white", "plinth_blue", "asphalt", "paving", "road_paint", "sidewalk", "curb"} <= {m["name"] for m in gltf["materials"]}
-    for prim in gltf["meshes"][0]["primitives"]:
+    assert gltf["extensionsRequired"] == ["KHR_mesh_quantization"]      # [tiles] quantize (prompt 39)
+    own = [n["mesh"] for n in gltf["nodes"] if "mesh" in n and "extensions" not in n]
+    assert len(own) == 2 and gltf["nodes"][gltf["nodes"][0]["children"][0]]["extras"] == {"quantized": True}
+    for view in gltf["bufferViews"]:
+        assert view["byteOffset"] + view["byteLength"] <= len(binary)
+    for prim in (p for k in own for p in gltf["meshes"][k]["primitives"]):
         count = gltf["accessors"][prim["attributes"]["POSITION"]]["count"]
         acc = gltf["accessors"][prim["indices"]]
-        view = gltf["bufferViews"][acc["bufferView"]]
-        assert view["byteOffset"] + view["byteLength"] <= len(binary)
-        dtype = np.uint16 if acc["componentType"] == 5123 else np.uint32
-        idx = np.frombuffer(binary, dtype, acc["count"], view["byteOffset"])
-        assert idx.max() < count
+        assert acc["componentType"] == 5123 and count < 65536      # 16-bit indices everywhere
+        assert accessor_array(gltf, binary, prim["indices"]).max() < count
 
 
 def test_cli_list(capsys):
@@ -474,10 +476,163 @@ def test_tile_instances_are_valid(rebuilt_tile):
     for n in nodes:
         attrs = n["extensions"]["EXT_mesh_gpu_instancing"]["attributes"]
         acc = gltf["accessors"][attrs["ROTATION"]]
-        view = gltf["bufferViews"][acc["bufferView"]]
-        q = np.frombuffer(binary, np.float32, acc["count"] * 4, view.get("byteOffset", 0)).reshape(-1, 4)
-        assert np.allclose(np.linalg.norm(q, axis=1), 1.0, atol=1e-5)
+        q = accessor_array(gltf, binary, attrs["ROTATION"])
+        assert acc["componentType"] == 5122 and acc["normalized"]     # normalized SHORT (prompt 39)
+        assert np.allclose(np.linalg.norm(q, axis=1), 1.0, atol=1e-4)
         assert acc["count"] == gltf["accessors"][attrs["TRANSLATION"]]["count"]
+
+
+def _check_glb(gltf: dict, binary: bytes) -> None:
+    """The glTF rules a quantized tile could break: views inside the buffer, accessors inside their views,
+    vertex elements on 4-byte boundaries, required extensions also listed as used."""
+    assert set(gltf.get("extensionsRequired", [])) <= set(gltf.get("extensionsUsed", []))
+    size = {5126: 4, 5125: 4, 5123: 2, 5122: 2, 5121: 1, 5120: 1}
+    width = {"SCALAR": 1, "VEC2": 2, "VEC3": 3, "VEC4": 4}
+    for view in gltf["bufferViews"]:
+        assert view["byteOffset"] + view["byteLength"] <= len(binary) and view["byteOffset"] % 4 == 0
+        assert view.get("byteStride", 4) % 4 == 0
+    for acc in gltf["accessors"]:
+        view = gltf["bufferViews"][acc["bufferView"]]
+        element = size[acc["componentType"]] * width[acc["type"]]
+        stride = view.get("byteStride", element)
+        offset = acc.get("byteOffset", 0)
+        assert offset % size[acc["componentType"]] == 0 and stride >= element
+        assert offset + stride * (acc["count"] - 1) + element <= view["byteLength"]
+        if view.get("target") == 34962:
+            assert offset % 4 == 0
+
+
+def _sorted_triangles(parts: dict, order: dict) -> dict:
+    """{material: (T, 3, k) vertex rows of every triangle}, triangles taken in `order[material]`."""
+    out = {}
+    for mat, part in parts.items():
+        cols = [part["pos"]] + [part[k] for k in ("nrm", "uv", "col") if part.get(k) is not None]
+        rows = np.concatenate([np.asarray(c, dtype=np.float64).reshape(len(part["pos"]), -1) for c in cols], axis=1)
+        tris = rows[np.asarray(part["idx"]).reshape(-1, 3)]
+        out[mat] = tris[order[mat]] if mat in order else tris
+    return out
+
+
+def test_quantized_tile_matches_the_float_tile(built_mesh, tmp_path):
+    """Prompt 39: the KHR_mesh_quantization write of a tile draws the float tile within half a position
+    step, int8 or recomputed flat normals, the same UVs and colors, and the same instance placements."""
+    from citygen.mesh.gltf import _split_fine
+    from citygen.mesh.tile import instance_groups, tile_bounds
+    tc, i, j, mb, placements = built_mesh
+    x0, y0, _, _ = tile_bounds(tc, i, j)
+    instances = instance_groups(tc, placements, x0, y0)
+    parts = mb.gltf_parts(fine=True)
+    q = dict(tc.quantize, quantize=True)
+    full = {mode: write_glb(tmp_path / f"full{mode}.glb", parts, tc.materials, name="t", instances=instances,
+                            **dict(q, quantize=mode)) for mode in (False, True)}
+    assert full[True] < 0.7 * full[False]
+    write_glb(tmp_path / "True.glb", parts, tc.materials, name="t", **q)
+    gltf, binary = read_glb(tmp_path / "fullTrue.glb")
+    _check_glb(gltf, binary)
+    assert gltf["extensionsRequired"] == ["KHR_mesh_quantization"]
+    assert {"KHR_mesh_quantization", "EXT_mesh_gpu_instancing"} <= set(gltf["extensionsUsed"])
+    child = gltf["nodes"][gltf["nodes"][0]["children"][0]]
+    half = child["scale"][0]
+    assert child["scale"] == [half] * 3 and "rotation" not in child          # a uniform dequantization only
+    fine, coarse = _split_fine(parts, set(q["float_materials"]), q["fine_edge"])
+    assert "road_paint" in coarse and "cloth_1" not in coarse and "water" not in coarse   # sheets stay float
+    # the tile's own mesh, triangle by triangle: sort both by their corners on the quantization grid
+    center = np.asarray(child["translation"])
+    got = read_parts(tmp_path / "True.glb")
+    step = half / 32767.0
+    for mat, part in parts.items():
+        want = _sorted_triangles({mat: part}, {})[mat]
+        have = _sorted_triangles({mat: got[mat]}, {})[mat]
+        assert want.shape[:2] == have.shape[:2], mat
+        keep = {tuple(t) for t in np.asarray(fine[mat]["idx"]).reshape(-1, 3)} if mat in fine else set()
+        floats = np.array([tuple(t) in keep for t in np.asarray(part["idx"]).reshape(-1, 3)], dtype=bool)
+        corners = want[..., :3].copy()
+        corners[floats] = corners[floats].astype(np.float32)     # float triangles are written as float32
+        wk, hk = (np.concatenate([np.round((x - center) / step).reshape(len(x), -1),            # grid first,
+                                  np.round(x * 1e4).reshape(len(x), -1)], axis=1).astype(np.int64)   # then float
+                  for x in (corners, have[..., :3]))
+        want, have = want[np.lexsort(wk.T[::-1])], have[np.lexsort(hk.T[::-1])]
+        assert np.abs(have[..., :3] - want[..., :3]).max() <= step / 2 + 1e-4, mat
+        n0, n1 = want[..., 3:6], have[..., 3:6]
+        cos = (n0 * n1).sum(axis=2) / np.linalg.norm(n0, axis=2) / np.linalg.norm(n1, axis=2)
+        assert cos.min() > np.cos(np.radians(1.5)), mat       # int8 normals, or recomputed flat ones within 1 degree
+        uv = part.get("uv") is not None
+        if uv:
+            assert np.array_equal(have[..., 6:8], want[..., 6:8].astype(np.float32)), mat     # float UVs kept
+        if part.get("col") is not None:
+            c = 8 if uv else 6
+            assert np.abs(have[..., c:c + 3] - want[..., c:c + 3]).max() <= 0.5 / 255 + 1e-6, mat
+    prims = [p for k in (0, 1) for p in gltf["meshes"][k]["primitives"]]
+    flat = [p for p in prims if "NORMAL" not in p["attributes"]]
+    assert flat and len(flat) < len(prims)             # walls and roofs lose NORMAL, the terrain keeps it
+    assert all("NORMAL" in p["attributes"] for p in prims if "COLOR_0" in p["attributes"])
+    # instances: each copy of each piece covers the same box as in the float tile
+    nodes = [n for n in gltf["nodes"] if "EXT_mesh_gpu_instancing" in n.get("extensions", {})]
+    assert [n["name"] for n in nodes] == [g["name"] for g in instances]
+    worst, folded = 0.0, 0
+    for n, inst in zip(nodes, instances):
+        attrs = n["extensions"]["EXT_mesh_gpu_instancing"]["attributes"]
+        prim = gltf["meshes"][n["mesh"]]["primitives"][0]
+        local = np.concatenate([accessor_array(gltf, binary, p["attributes"]["POSITION"])   # flat and smooth
+                                for p in gltf["meshes"][n["mesh"]]["primitives"] if p["material"] == prim["material"]])
+        rq = accessor_array(gltf, binary, attrs["ROTATION"])
+        dot = np.abs((rq / np.linalg.norm(rq, axis=1)[:, None] * inst["r"]).sum(axis=1))
+        worst = max(worst, float(2 * np.arccos(np.minimum(dot, 1.0)).max()))
+        t = accessor_array(gltf, binary, attrs["TRANSLATION"])
+        if "SCALE" in attrs:
+            s = accessor_array(gltf, binary, attrs["SCALE"])
+        else:                                       # a float piece whose instances all have scale 1
+            assert np.all(inst["s"] == 1.0) and gltf["accessors"][prim["attributes"]["POSITION"]]["componentType"] == 5126
+            s = np.ones_like(t)
+        folded += gltf["accessors"][prim["attributes"]["POSITION"]]["componentType"] == 5122
+        src = inst["parts"][gltf["materials"][prim["material"]]["name"]]
+        src = np.asarray(src["pos"], dtype=np.float64)[np.unique(np.asarray(src["idx"]))]
+        for k in range(0, len(t), max(1, len(t) // 7)):
+            got = _rot(np.repeat(rq[k:k + 1], len(local), 0), local * s[k]) + t[k]
+            want = _rot(np.repeat(inst["r"][k:k + 1], len(src), 0), src * inst["s"][k]) + inst["t"][k]
+            assert np.abs(got.min(0) - want.min(0)).max() < 2e-3 and np.abs(got.max(0) - want.max(0)).max() < 2e-3
+    assert worst < 1e-4                             # 16-bit rotations: under 0.006 degrees off
+    assert folded > 0
+
+
+def _rot(q: np.ndarray, v: np.ndarray) -> np.ndarray:
+    """Rotate vectors (K, 3) by quaternions (K, 4) xyzw."""
+    xyz, w = q[:, :3], q[:, 3:4]
+    t = 2.0 * np.cross(xyz, v)
+    return v + w * t + np.cross(xyz, t)
+
+
+def test_quantized_parts_split_to_keep_16_bit_indices(tmp_path):
+    """A part with more than 65535 distinct vertices becomes several primitives, all with 16-bit indices."""
+    rng = np.random.default_rng(3)
+    n = 70002
+    pos = rng.uniform(-200.0, 200.0, (n, 3))
+    nrm = np.tile([0.0, 1.0, 0.0], (n, 1))
+    parts = {"a": {"pos": pos, "nrm": nrm, "uv": pos[:, :2], "idx": np.arange(n)}}
+    write_glb(tmp_path / "t.glb", parts, {"a": {}}, quantize=True)
+    gltf, binary = read_glb(tmp_path / "t.glb")
+    _check_glb(gltf, binary)
+    prims = [p for m in gltf["meshes"] for p in m["primitives"]]
+    assert len(prims) == 2 and all(gltf["accessors"][p["indices"]]["componentType"] == 5123 for p in prims)
+    back = read_parts(tmp_path / "t.glb")["a"]
+    assert np.abs(back["pos"][back["idx"]] - pos).max() < 400.0 / 65534 + 1e-6
+    assert np.array_equal(back["uv"][back["idx"]], pos[:, :2].astype(np.float32))
+
+
+def test_stats_tiles_splits_the_bytes(rebuilt_tile, tmp_path, capsys):
+    from citygen.tilestats import tile_bytes
+    _, path, info = rebuilt_tile
+    s = tile_bytes(path)
+    parts = s["json"] + s["terrain"] + sum(s["mesh"].values()) + sum(s["pieces"].values()) + \
+        sum(s["instances"].values()) + s["textures"]
+    assert s["total"] == info["bytes"] and 0.97 * s["total"] < parts <= s["total"]   # the rest is padding
+    assert s["terrain"] > 0 and "roof_white" in s["mesh"] and sum(s["counts"].values()) == info["pieces"]
+    (tmp_path / "tiles").mkdir()
+    (tmp_path / "tiles" / path.name).write_bytes(path.read_bytes())
+    (tmp_path / "tiles" / "index.json").write_text(json.dumps({"tiles": [info]}))
+    main(["stats", "--tiles", str(tmp_path)])
+    out = capsys.readouterr().out
+    assert out.startswith("tile ") and "tile_13_23" in out and "piece meshes" in out
 
 
 @pytest.fixture(scope="module")

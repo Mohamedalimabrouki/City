@@ -77,6 +77,8 @@ def main(argv=None) -> None:
 
     st = sub.add_parser("stats", help="short summary of a built world (cheap for agents to read)")
     st.add_argument("folder", nargs="?", help="a built world folder (default: the latest build)")
+    st.add_argument("--tiles", action="store_true", help="bytes of every 3D tile by category, heaviest first")
+    st.add_argument("--tile", help="with --tiles: detail this tile (e.g. tile_13_23) instead of the heaviest")
 
     args = ap.parse_args(argv)
     if args.cmd == "build":
@@ -110,6 +112,10 @@ def main(argv=None) -> None:
         print(texture_sheet(args.out, style, seed))
     elif args.cmd == "stats":
         folder = _latest(args.folder)
+        if args.tiles or args.tile:
+            from .tilestats import tiles_report
+            print(tiles_report(folder, tile=args.tile))
+            return
         summary = json.loads((folder / "summary.json").read_text(encoding="utf-8"))
         print(json.dumps(summary, indent=1))
 

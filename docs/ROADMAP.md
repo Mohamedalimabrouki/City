@@ -50,7 +50,7 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
 - [x] 36 A6c Corniche promenade and beach
 - [x] 37 H3c Seaside cafes
 - [x] 38 A8 Blender kit export
-- [ ] 39 Q5 Lighter tiles
+- [x] 39 Q5 Lighter tiles (-45% bytes, densest 8.67 -> 4.67 MB; 3.5 MB target relaxed by the lead, see WORKLOG)
 - [ ] 40 C2a Level-of-detail tiles
 - [ ] 41 C2b Viewer level of detail
 - [ ] 42 R1 Refresh the phone 3D page
@@ -153,10 +153,18 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
   default is already Lift/Gamma/Gain, so the method is not hard-coded. A 5.2 souk render shows the
   warm grade and the aerial view shows the depth haze (the souk lane is only about 20 m deep); the
   HEAD script renders both without either.
-- [ ] **Q5 Lighter old-town tiles** (M, can be done with C2) - A dressed old-town tile is about
+- [x] **Q5 Lighter old-town tiles** (M, can be done with C2) - A dressed old-town tile is about
   4.7 MB because each tile stores its own copy of every kit piece it uses. Options: leave tiny
   pieces out of far tiles, quantize positions and normals (`KHR_mesh_quantization`), or merge
   rarely used big pieces. Done when: under 3.5 MB with no visible loss up close.
+  Prompt 39 (partly): `KHR_mesh_quantization`, 8-bit normals, no NORMAL on flat faces (split vertices,
+  readers recompute them), welded vertices, 16-bit indices and rotations, no SCALE for unit pieces,
+  pooled bufferViews, `stats --tiles`. Densest quick tile 8.67 -> 4.67 MB, full capital 11.11 -> 5.81 MB
+  (all 168 tiles 25-48% smaller, 310 -> 171 MB), no visible change. Still over 3.5 MB; 16-bit UVs were
+  skipped (see HANDOFF) and meshopt is ruled out (Blender cannot import it). Lead decision: done;
+  the target was set before prompts 20-38 made the old town 50% heavier, and the last 1.2 MB would
+  cost reader compatibility (welding flat vertices breaks the ambient occlusion normal pass and
+  Godot/Blender smoothing; 16-bit UVs need rewritten Blender mapping). Far tiles get lod1 (prompt 40).
 
 ## A. Street level (the capital looks real up close)
 

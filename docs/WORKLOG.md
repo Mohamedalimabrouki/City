@@ -15,6 +15,39 @@ Entry format:
 - Doubts and questions for Ali: <none, or the question>
 ```
 
+## 2026-10-24 - Prompt 39 Q5 Lighter tiles (partly done: 3.5 MB not reached)
+- Commit: (see git log) | Model: Opus 5.5, high (playbook: Sonnet, high)
+- Changed: `citygen/mesh/gltf.py` (quantized writer, flat faces without NORMAL, pooled bufferViews, weld,
+  16-bit split, `accessor_array`, `vertex_normals`, `read_parts` dequantization), `citygen/mesh/builder.py`
+  (`MeshBuilder.fine`, `gltf_parts(fine=)`, `add_sheet`), `citygen/mesh/tile.py`, `citygen/defaults.toml`
+  (`[tiles] quantize`, `fine_edge`, `float_materials`, `flat_angle`), `citygen/city/crowd.py` (figures cost their
+  quantized size), `citygen/tilestats.py` (new) and `citygen/__main__.py` (`stats --tiles`),
+  `tools/viewer/index.html` (normals computed for meshes without them, `flatShading` cleared and in the
+  material key), `tools/blender_import.py` (`instance_transforms` reads 16-bit rotations and a missing SCALE,
+  `bake_dequantization`), `tools/blender_beauty.py`, tests, SPEC 6 and 8, HANDOFF, ROADMAP.
+- Sizes before -> after (MB). Quick: 13_23 8.67->4.67; 14_24 3.13->1.70; 14_23 3.03->1.68; 13_24 2.59->1.47;
+  13_22 1.18->0.70; 12_23 1.07->0.63; 12_22 0.95->0.58; 14_22 0.80->0.51; 12_24 0.20->0.15; total 21.6->12.1.
+  Full capital: 65_106 11.11->5.81; 65_105 9.07->4.77; 64_105 8.34->4.42; 64_106 6.85->3.65; 63_105 6.44->3.37;
+  62_103 6.33->3.26; all 168 tiles smaller (-25% to -48%), total 310.4->171.3.
+- Densest tiles by category (KB, before -> after). Quick 13_23: tile mesh 4,465 -> 2,350 (roof_white 1,186 ->
+  493, lime_white 1,047 -> 585), pieces 3,061 -> 1,524, instances 397 -> 250, JSON 543 -> 395, terrain 205 -> 153.
+  Full 65_106: tile mesh 7,031 -> 3,542, pieces 2,823 -> 1,433, instances 540 -> 317, JSON 519 -> 372, terrain
+  201 -> 151. The lead's step 1 (no NORMAL on flat faces, split kept) saved 0.66 MB quick, 0.85 MB full.
+- Kept float: UVs (16-bit UVs skipped: per-island shifts, a fixed range per material for Blender's name-based
+  material sharing and rewritten Mapping nodes, not checkable here; about -0.45 MB, not enough anyway),
+  `add_sheet` faces, edges under 5 cm, `water`. Rotations: worst error 0.0034 degrees.
+- Readers: viewer (pictures in Fast, High with GTAO and night), phone page (temp folder, 9/9 tiles, no console
+  error; night and "click a house" checked in the first round), `make_blend.py` saved
+  `output/bodjantouna-42/goumosbane.blend` without error (not inspected inside Blender), `read_parts`.
+- Checks: tests 99 passed (28.8 s); `build --quick` 12.6 s; fingerprint `tiles/*` only (10 changed); with
+  `quantize = false` 0 parts changed; full capital 58.0 -> 59.4 s.
+- Look: `output/checks/39.png` (souk 0.54) and `output/checks/39-street.png` (street 0.30): no visible change.
+  Extra: `39-high.png` (High, GTAO) 1.01, noise-like only; `39-night.png` 0.20.
+- Doubts: still over 3.5 MB (4.67 quick, 5.81 full). What is left: weld flat vertices by position (readers then
+  shade flat on their own, about -1 MB), or level of detail/meshopt (Blender cannot import meshopt).
+- Lead decision: 39 and Q5 ticked with the target relaxed. The densest tile went 8.67 -> 4.67 MB (quick) and 11.11 -> 5.81 MB (full), every tile 25-48% smaller, with no visible change (checked by the lead in the GPU viewer on High with ambient occlusion). The 3.5 MB goal predates prompts 20-38, which made the old town about 50% heavier; welding flat vertices (about -1 MB) would break the GTAO normal pass and smoothing in Blender and Godot, 16-bit UVs need rewritten Blender mapping, meshopt cannot be imported by Blender. Prompt 40's lod1 tiles cover far views. CP4 may revisit welding with a flat-shading path.
+
+
 ## 2026-10-24 - Prompt 38 A8 Blender kit export
 - Commit: (see git log) | Model: Opus 5.5, medium (playbook: Sonnet, medium)
 - Changed: `tools/blender_kit_export.py` (new), `citygen/__main__.py` (`kit-sheet --kits`),
