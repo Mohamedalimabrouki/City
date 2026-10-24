@@ -825,6 +825,42 @@ bunting = 0.2
 street_lamps = { boulevard = 26.0, corniche = 24.0, arterial = 32.0, ring = 34.0, street = 30.0 }   # meters between lamps
 every_home = true          # every dwelling gets a main door, open walls get windows (false: street walls only, as before 20.1)
 
+# Covered souks (prompt 31, city/covered.py, mesh/vaults.py): whitewashed barrel vaults over the main
+# market streets, resting on the houses, with light openings in the crown and transverse arches on
+# corbels painted red and green, as in the souks of Tunis. One rule decides every covered stretch for
+# the mesher and the dresser: no strings, bunting or laundry under a roof, lanterns hang from its
+# arches, and nothing placed pierces it.
+[covered_souk]
+trades = ["Attarine", "Chaouachia", "Kmach"]   # souks of these trades are covered (perfumers, chechia makers, cloth)
+longest = 1                # and the city's N longest souk streets
+end_gap = 4.0              # meters left open at each end of a souk line (crossings, gates, the mosque)
+probe = 1.5                # meters between two wall probes along the souk
+reach = 1.4                # a wall farther than this beyond the street edge does not carry the roof
+bridge = 4.5               # longest opening on one side (an alley mouth) bridged by a lintel
+max_turn = 50.0            # degrees: the roof stops short of a sharper bend
+min_run = 12.0             # shortest covered stretch
+spring = 4.0               # meters from the street to the springing of the vault, at most ...
+spring_min = 3.6           # ... and at least (a lower house gets its wall filled up to it)
+rise = 1.8                 # crown above the springing (at most 2 m)
+thickness = 0.25           # of the vault shell (a thin shaft lets the sun through the openings)
+inset = 0.05               # the impost band's face stands this far beyond the street edge (houses: 0.15 m)
+band = 0.45                # height of the impost band the vault springs from
+band_depth = 0.5           # depth of the impost band and of the fills, outward
+lintel = 0.7               # depth of the lintel over a side opening
+fill_min = 2.9             # a fill never comes lower than this above the street
+ring = [0.0, 0.25, 0.425, 0.575, 0.75, 1.0]   # ring fractions across the vault; the crown band (1 m wide) holds the openings
+step = 3.0                 # meters between two rings, at most
+bay = 7.0                  # meters between two transverse arches
+hole = 1.0                 # side of a square light opening, one in the middle of every bay
+curb = [0.15, 0.1]         # height and thickness of the curb round an opening, on the roof
+arch_width = 0.45
+arch_proud = 0.12          # how far an arch stands below the vault
+corbel = [0.35, 0.25]      # painted corbel under each arch foot: red band, green band (meters)
+lantern = 0.8              # chance of a lantern hanging from each inner arch
+chain = 0.4
+lower = { lamp = 2.2, souk_awning = 1.8 }   # roles lowered under a roof instead of dropped, while their
+                           # bottom stays this many meters above the street (others that would pierce it go)
+
 # Walls facing open ground (no building within `clear` m in front of them) get windows too, by district.
 [dressing.open_walls]
 clear = 3.0                # meters of free ground in front of a wall
@@ -1294,6 +1330,7 @@ balcony_blue = [["tounes/balcony_lattice_blue", 1]]
 balcony_green = [["tounes/balcony_lattice_green", 1]]
 balcony = [["tounes/balcony_lattice_blue", 1], ["tounes/balcony_lattice_green", 1]]
 lamp = [["tounes/lantern_brass_sbs", 2], ["tounes/lamp_wall_bracket", 2], ["tounes/lantern_hanging_medina", 1], ["lantern", 1]]
+vault_lantern = [["tounes/lantern_hanging_medina", 2], ["tounes/lamp_glass_hanging", 1]]   # hung from a souk roof's arches
 hanging_lantern = [["tounes/lantern_hanging_medina", 2], ["tounes/lamp_glass_hanging", 2], ["string_lantern", 1]]
 door_hood = [["tounes/hood_canopy", 1]]
 vine = [["tounes/climber_bougainvillea", 1]]

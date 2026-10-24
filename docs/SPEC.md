@@ -67,6 +67,8 @@ config.load_config()          defaults.toml + worlds/*.toml + CLI overrides
                               blended into natural terrain at the city limit; `height` is the
                               ground, `surface` the top of the ground, street ribbon or walk
   mesh.tile.export_tile()     one 512 m square -> .glb (terrain, water, roads, city)
+    city.covered              which souk stretches are roofed (one rule for mesher and dresser)
+    mesh.vaults               the souk vaults, impost bands, arches and light openings
     city.dressing             doors, windows, shops, goods, lamps, plants, spans, sabats, trees,
                               placed from kit pieces (kit.Kit) and drawn as instances
   export.maps / export.lore   PNG maps, world.json, plan.json, gazetteer.md
@@ -84,6 +86,7 @@ build.build()                 orchestrates the above into output/<country>-<seed
 | `citygen/mesh/builder.py` | mesh primitives: extrude, walls, caps, domes, hip roofs, ribbons, trees |
 | `citygen/mesh/gltf.py` | dependency-free .glb writer and reader |
 | `citygen/mesh/tile.py` | what goes into one tile |
+| `citygen/mesh/vaults.py` | covered souks (prompt 31): barrel vaults, impost bands, transverse arches, light openings, lantern rods |
 | `citygen/mesh/plants.py` | shared plant shapes: clumps (icosahedron, octahedron, 4-face bract) and tapered tubes |
 | `citygen/mesh/props.py` | the generator's own kit pieces (doors, shops by trade, awnings, goods, lamps, trees...) |
 | `citygen/mesh/people.py` | people (prompt 28): low-poly figures, one piece per outfit, pose and color scheme from `[dressing.people]` |
@@ -93,6 +96,7 @@ build.build()                 orchestrates the above into output/<country>-<seed
 | `citygen/mesh/climbers.py` | bougainvillea curtains (2 variants, 250 triangles each) from `[dressing.climber]` |
 | `citygen/kit.py` | `Kit`: procedural pieces plus kits from `kits/<name>/` |
 | `citygen/city/life.py` | households and souk trades (story data that also drives the dressing) |
+| `citygen/city/covered.py` | covered souks (prompt 31): which stretches are roofed, springing, stations, nothing piercing a roof |
 | `citygen/city/ground.py` | `Ground`: graded city ground (blurred, terraced, blended into the terrain), and `surface` for the top of ground, street ribbons and raised walks |
 | `citygen/city/dressing.py` | `Dresser`: which piece goes where, tile by tile |
 | `citygen/city/walks.py` | raised sidewalks along blocks, narrowed to keep a carriageway, and the boulevard promenade |
@@ -381,7 +385,8 @@ shaders (which ignore the image and the tint) and takes their palette color from
   moped; other walls get windows by floor (grilles, shutters, birdcage bays, one mashrabiya
   balcony for rich households; in the colonial district a window with an iron balcony instead); flat roofs get tanks, dishes, laundry racks and pots inside the
   parapet and off the stair room. Per street:
-  laundry, cables, lantern strings, bunting and sabats across alleys and souks, arches over alley
+  laundry, cables, lantern strings, bunting and sabats across alleys and souks (none under a souk roof),
+  arches over alley
   mouths, gates and handcarts in souks, lamps along main streets (`Dresser.lamp_spot`: none off the
   street or inside the surface of a wider street, such as a grid street lying under the boulevard). Impasses are dressed like alleys
   (laundry and cables; `FRONT_PREF` lowest, so a house with a street wall keeps its door there); a
@@ -607,6 +612,33 @@ shaders (which ignore the image and the tint) and takes their palette color from
   instead of half inside it. Quick capital: 1,857 people (523 souk walkers, 128 browsers, 157 seated, 855
   on sidewalks, 11 on the promenade, 42 at the mosque and gates, 128 in lanes); the old-town tile shows all
   26 figures, light tiles 3-6. Costs: worst tile +8.3% bytes and +23% drawn triangles.
+- **Covered souks** (prompt 31, `city/covered.py`, `mesh/vaults.py`, `[covered_souk]`): souks of the listed
+  `trades` (Attarine, Chaouachia, Kmach) and the city's `longest` souk street are roofed. `Covers` (one
+  per city, built by `TileContext` and handed to the dresser; a dresser alone builds the same one) works the stretches out from the plan and the ground, nothing is
+  stored: the line is probed every `probe` m on both sides for a house wall (`CARRIERS`) within `reach` m
+  beyond the street edge; a one-sided opening up to `bridge` m (an alley mouth) is bridged by a lintel; the
+  roof stops where both sides open, at a longer opening, within half the width + 1 m of a bend sharper than
+  `max_turn`, `end_gap` m before the line's ends (crossings, gates, the mosque), and a stretch starts and
+  ends between two walls (at least `min_run` m). It springs at min(the taller wall top, `spring`) above the
+  street, at least `spring_min`, constant along a stretch (it follows the street's slope); the crown is
+  `rise` higher (at most 2 m). A segmental barrel vault (`ring` fractions across, `thickness`) springs from
+  impost bands (`band` high, `band_depth` deep, their face `inset` m beyond the street edge): a house lower
+  than the springing gets its wall filled up to it (never lower than `fill_min`), a side opening a `lintel`.
+  Stations: the bends (rings mitred on the bisector; other stations keep `(w + band_depth) tan(turn / 2)`
+  away so nothing folds), transverse arches every about `bay` m of each straight run (portal arches at both
+  ends; none within reach of a bend), the edges of a square light opening (`hole`, with a low `curb` on the
+  roof) in the middle of each bay, and every `step` m. Arches stand `arch_proud` below the vault on corbels
+  painted red and green (`door_red`, `door_green`); a lantern (`vault_lantern` role, chance `lantern`, own
+  stream `covered/lantern`) hangs on an iron rod `chain` m under each inner arch. Each segment belongs to the
+  tile holding its midpoint, an arch or a rod to the tile holding its center; tiles share the rings exactly.
+  The dresser hangs no strings, bunting or laundry within 1 m of a stretch, places the lanterns, and
+  `Dresser.under_roofs` (in `build_tile`, after all placements got absolute heights, before the people)
+  drops every piece whose kit box reaches into the roof (above the intrados inside the vault, above the fill
+  bottom over the bands, below the roof top), except the roles in `lower` (wall lamps, shop awnings), which
+  are lowered while their bottom stays that high. Quick capital: 351 m covered in 10 stretches (49 openings,
+  50 arches, 28 lanterns), 38 pieces dropped (upper windows behind the vault, a laundry line, a cascade, an
+  alley arch), 2 awnings lowered, 6 lantern strings left out; full capital 603 m (97 dropped, 1 lowered, 12
+  strings left out). Costs: worst tile +6.0% quick, +6.8% full (about 26 triangles per meter of souk).
 - **Massed buildings** (prompt 23, `city/massing.py`): the street windows, open-wall windows and slab
   windows of each column go up to the floors of the wall there (`floors_at` under the window's whole
   width, `[dressing] window_half` m each side), so none floats above a lower step or on a set-back
@@ -630,7 +662,8 @@ grid, sidewalk width, lot size, floors, materials and special rules,
 `[settlement.<kind>]` population, density, old town size, which district kinds exist and the
 `rings` mix by distance from the center. `[life]` door colors, family name patterns, real name
 lists and the root sounds and word patterns for made-up nisba names, wealth and trades by
-district; `[[souk]]` souk trades and their goods; `[dressing]` chances and heights;
+district; `[[souk]]` souk trades and their goods; `[covered_souk]` which souks are roofed and the
+vault's measures; `[dressing]` chances and heights;
 `[dressing.roles]` which piece plays each part; `[dressing.trees.<kind>]` the natural tree
 variants (citrus with `fruit` oranges), `[dressing.hedge]` the villa hedges and garden lift,
 `[dressing.vehicles]` the car body colors and `[dressing.parking]` the parking rule, gaps, car mix and

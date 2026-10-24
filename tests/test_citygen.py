@@ -2443,3 +2443,99 @@ def test_kasbah_is_drawn_with_merlons_arches_and_paving(world, plan, built_mesh,
                       and math.hypot(s.x - b.arches[0][0], s.y - b.arches[0][1]) < 12.0]
             assert sabils                                                  # a sabil by the gate, never before it
             assert all(math.hypot(s.x - a[0], s.y - a[1]) > a[3] / 2 + a[6] for s in sabils for a in b.arches)
+
+
+def _roof_quads(s):
+    """Plan quad, lowest springing and highest top of every roof segment of a covered stretch."""
+    reach = s.shape.w + s.shape.bd
+    return [(shapely.Polygon([s.p[i] - s.m[i] * reach, s.p[i + 1] - s.m[i + 1] * reach,
+                              s.p[i + 1] + s.m[i + 1] * reach, s.p[i] + s.m[i] * reach]),
+             min(s.z[i], s.z[i + 1]), max(s.top[i], s.top[i + 1])) for i in range(len(s.d) - 1)]
+
+
+def test_covered_souks_one_rule_for_roof_and_dressing(world, plan, ground, built_mesh):
+    from citygen.city.covered import owns
+    from citygen.city.dressing import Dresser
+    from citygen.mesh.tile import tile_bounds
+    tc, i, j, _, placements = built_mesh
+    covers, cfg = tc.covers[0], world.style["covered_souk"]
+    stretches = covers.all()
+    assert len(stretches) >= 4 and sum(s.d[-1] - s.d[0] for s in stretches) > 200.0
+    alone = Dresser(world, plan, tc.kit, ground).covers()            # the dresser alone finds the same roofs
+    key = lambda ss: [(s.street, s.d.tobytes(), s.z.tobytes(), s.low.tobytes(), s.lanterns) for s in ss]  # noqa: E731
+    assert key(alone.all()) == key(stretches)
+    for s in stretches:
+        assert plan.streets[s.street].kind == "souk" and s.shape.f <= 2.0
+        assert cfg["spring_min"] - 1e-9 <= s.spring <= cfg["spring"] + 1e-9
+        assert s.holes.sum() >= (s.d[-1] - s.d[0]) // (2 * cfg["bay"])            # light openings every bay
+        base = s.z[:, None] - s.spring
+        assert np.all(s.low >= base + cfg["fill_min"] - 1e-9) and np.all(s.low <= s.z[:, None] - s.shape.band + 1e-9)
+    tile = shapely.box(*tile_bounds(tc, i, j))
+    dresser = tc.cities[0][4]
+    for k in covers.streets:                     # no strings, bunting or sabats under a roof
+        line = plan.streets[k].line
+        for span in dresser.spans(k, tile):
+            d = line.project(shapely.Point((np.add(span.a[:2], span.b[:2]) / 2.0).tolist()))
+            assert not any(s.d[0] <= d <= s.d[-1] for s in covers.of(k))
+    hooks = {(round(q[0], 6), round(q[1], 6), round(z, 6)) for s in stretches for x, z in s.lanterns
+             for q in [s.frame(x)[0]] if owns(tile, q[0], q[1])}
+    lanterns = [p for p in placements if (round(p.x, 6), round(p.y, 6), round(p.z, 6)) in hooks]
+    assert hooks and len(lanterns) == len(hooks)                       # one lantern on every rod
+    quads = [q for s in stretches for q in _roof_quads(s)]
+    tree = STRtree([q[0] for q in quads])
+    under = {"person": 0, "awning": 0}
+    for p in placements:
+        box, z0, z1 = _footprint_box(tc.kit, p, p.z)
+        for q in tree.query(box, predicate="intersects"):
+            _, spring, top = quads[int(q)]
+            if p in lanterns:
+                assert z1 <= top - tc.kit.pieces[p.piece].top                     # under the vault
+            elif z0 < top:
+                assert z1 <= spring + 1e-6, (p.piece, z1 - spring)            # nothing pierces a roof
+                cat = tc.kit.pieces[p.piece].category
+                under[cat] = under.get(cat, 0) + 1
+    assert under["person"] > 20 and under["awning"] > 5                  # shops and people stay under it
+
+
+def test_covered_roof_runs_on_across_a_tile_edge(plan, built_mesh):
+    from types import SimpleNamespace
+    from citygen.mesh.vaults import covered_meshes
+    covers = built_mesh[0].covers[0]
+    s = max(covers.all(), key=lambda s: s.d[-1] - s.d[0])
+    j = max(range(2, len(s.d) - 2), key=lambda j: abs(s.t[j][0]) - abs(j - len(s.d) / 2) * 1e-3)
+    x = float(s.p[j][0])
+    one = SimpleNamespace(all=lambda: [s], cfg=covers.cfg)
+
+    def drawn(tile):
+        mb = MeshBuilder()
+        covered_meshes(mb, one, tile)
+        tris = [np.concatenate(part[0])[np.concatenate(part[3])] for part in mb._parts.values()]
+        return np.concatenate(tris)
+
+    whole = drawn(shapely.box(-1e7, -1e7, 1e7, 1e7))
+    left, right = drawn(shapely.box(-1e7, -1e7, x, 1e7)), drawn(shapely.box(x, -1e7, 1e7, 1e7))
+    area = lambda t: np.linalg.norm(np.cross(t[:, 1] - t[:, 0], t[:, 2] - t[:, 0]), axis=1).sum() / 2  # noqa: E731
+    assert len(left) and len(right) and len(left) + len(right) == len(whole)       # nothing twice, nothing lost
+    assert abs(area(left) + area(right) - area(whole)) < 1e-6 * area(whole)
+    across, up, _ = s.shape.ring(s.shape.r)
+    ring = np.concatenate([s.p[j] + s.m[j] * across[:, None], (s.z[j] + up)[:, None]], axis=1)
+    for side in (left, right):                                           # both tiles draw the shared ring
+        pts = side.reshape(-1, 3)
+        assert all(np.min(np.linalg.norm(pts - r, axis=1)) < 1e-9 for r in ring)
+    # low-poly, inside the souk's walls, and UVs in meters along the vault (no smearing)
+    length = s.d[-1] - s.d[0]
+    assert len(whole) / length < 40.0
+    mb = MeshBuilder()
+    covered_meshes(mb, one, shapely.box(-1e7, -1e7, 1e7, 1e7))
+    part = mb._parts["lime_white"]
+    pos, uv, idx = np.concatenate(part[0]), np.concatenate(part[2]), np.concatenate(part[3])
+    t3, t2 = pos[idx], uv[idx]
+    a3 = np.linalg.norm(np.cross(t3[:, 1] - t3[:, 0], t3[:, 2] - t3[:, 0]), axis=1) / 2
+    e1, e2 = t2[:, 1] - t2[:, 0], t2[:, 2] - t2[:, 0]
+    ratio = np.abs(e1[:, 0] * e2[:, 1] - e1[:, 1] * e2[:, 0]) / 2 / np.maximum(a3, 1e-12)
+    assert 0.9 < np.median(ratio) < 1.1 and np.percentile(ratio, 95) < 1.6 and np.percentile(ratio, 5) > 0.6
+    z = pos[:, 2]
+    assert z.min() >= (s.z - s.spring).min() + covers.cfg["fill_min"] - 1e-6 and z.max() <= s.top.max() + 1e-6
+    reach = shapely.distance(plan.streets[s.street].line, shapely.points(pos[:, :2]))
+    mitre = math.cos(math.radians(covers.cfg["max_turn"] / 2))          # a bend's outer corner reaches farther
+    assert reach.max() <= (s.shape.w + s.shape.bd) / mitre + 1e-6        # within the impost bands' depth

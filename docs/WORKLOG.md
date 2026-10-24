@@ -15,6 +15,34 @@ Entry format:
 - Doubts and questions for Ali: <none, or the question>
 ```
 
+## 2026-10-24 - Prompt 31 A5b Covered souks
+- Commit: (see git log) | Model: Opus 5.5, high (playbook: Sonnet, high)
+- Changed: `citygen/city/covered.py` (new: which souks, the covered stretches, springing, stations, arches,
+  openings, lanterns, `clear` so nothing pierces a roof), `citygen/mesh/vaults.py` (new: vaults, impost bands
+  and fills, light openings with curbs, transverse arches on red and green corbels, lantern rods),
+  `citygen/mesh/tile.py` (one `Covers` per city shared with the dresser; roofs drawn per tile;
+  `under_roofs` before the people), `citygen/city/dressing.py` (`covers()`, `under_roofs`, no spans under a
+  roof, vault lanterns in `street_props`), `styles/maghreb.toml` (`[covered_souk]`, `vault_lantern` role),
+  tests (2 new), docs.
+- Design: souks of the perfumers, chechia makers and cloth merchants plus the city's longest souk; segmental
+  barrel vaults springing at min(taller wall top, 4 m), at least 3.6 m, crown 1.8 m higher; fills down to lower
+  houses and lintels over alley mouths; a 1 m square opening with a curb in every bay (about 7 m); arches at
+  bay ends and portals at both ends; roof stops 4 m before line ends and at bends sharper than 50 degrees.
+  Quick capital 351 m covered (10 stretches), full capital 603 m. Dropped: 38 pieces quick, 97 full (upper
+  windows behind the vaults, a laundry line, cascades, climbers, 2 door hoods, an alley arch); 2 + 1 awnings
+  lowered; 6 + 12 lantern strings and bunting left out; 28 + 41 lanterns hung from the arches.
+- Checks: tests 89 passed (23.1 s; new ones 0.19 s); `build --quick` 10.7 s (HEAD 10.7 s); fingerprint: only
+  `tiles/tile_13_23` (+6.0%), `tiles/tile_14_23` (+0.7%), `tiles/index`. Full capital 50.0 -> 50.9 s (noise),
+  worst tile +6.8% (`tile_65_106`).
+- Look: `output/checks/31.png` (souk view at noon: the portal, whitewashed vault, arches with lanterns, the
+  painted corbels, stalls and people under it; the golden-hour default was checked too) and
+  `output/checks/31-roofs.png` (aerial at noon, about 70 m up: vault strips weaving between the roofs, curbed
+  openings, open ends at crossings). Blender: `output/bodjantouna-42/goumosbane.blend`.
+- Doubts and questions for Ali: none. For the lead: (1) the flat timber-and-reed roof (the prompt's
+  alternative) is not built, vaults only; (2) sun patches through the openings are faint in the headless noon
+  snapshot (40 degree sun, 0.34 m shadow texels): worth a look in a GPU browser; night glow not snapshotted
+  (the lanterns are the existing glowing kit pieces).
+
 ## 2026-10-24 - Prompt 30 A5a The kasbah
 - Commit: (see git log) | Model: Opus 5.5, high (playbook: Sonnet, high)
 - Changed: `citygen/city/kasbah.py` (new: placement, walls, towers, gate, palace, mosque, parade ground),

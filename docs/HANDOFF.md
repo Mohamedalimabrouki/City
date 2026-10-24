@@ -498,6 +498,23 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
   `arches` keeps clear of its doors (it first landed in the kasbah gate). Lit flats were keyed on
   `round(degrees(yaw))`: a wall at exactly x.5 degrees split one flat in two keys by float noise; the key
   now floors `degrees + 0.5 + 1e-7`.
+- **Covered souks** (prompt 31, `city/covered.py`, `mesh/vaults.py`, `[covered_souk]`): one rule, `Covers`,
+  built once per city by `TileContext` and handed to the dresser (`dresser._covers`); a dresser alone builds an
+  equal one (the test compares stations, heights and lanterns). Nothing is stored in the plan. Souk lines are
+  Voronoi zigzags that turn 40-100 degrees at every alley junction, so a vault cannot run straight on: rings at a
+  bend are mitred on the bisector (up to `max_turn` 50), sharper bends break the roof (an open crossing), and
+  every other station keeps `(w + band_depth) tan(turn / 2)` from a bend, or the inner side of the segment folds
+  back over itself. Arches keep clear of bends too, so a bay across a bend is 12-14 m (it reads as the vault
+  turning). A run of owned segments i0..i1 needs stations i0..i1 + 1: the first version passed one too few and
+  dropped the last segment of every run; the seam test (left tile + right tile == one big tile, same area) caught
+  it. Sun through the openings: the viewer's noon sun is 40 degrees high and a shadow texel 0.34 m, so a 0.8 m
+  hole through a 0.3 m shell with a 0.3 m curb (a 0.6 m deep shaft, 0.7 m of sideways shift) let almost no light
+  in; 1.0 m holes, a 0.25 m shell and a 0.15 m curb let about 0.45 m2 through each, still faint in the headless
+  snapshot. Nothing pierces a roof: a kit box is tested against the roof's underside (the intrados inside the
+  vault, the fill bottom over the impost bands); every wall piece reaches the band zone, so on a souk wall all
+  stays under the band; upper windows behind the vault go (hidden anyway), awnings and lamps are lowered
+  instead (`lower`). Cost: about 26 triangles per meter; worst tile +6.0% quick, +6.8% full; capital time
+  unchanged (50.0 -> 50.9 s, noise).
 - **Old-town tiles** reach about 5 MB on the quick build and 8 MB on the full capital
   (`tile_65_106`, mostly roofs since prompt 15); task Q5 (prompt 39) brings them down.
 

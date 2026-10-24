@@ -19,6 +19,7 @@ from shapely.geometry.polygon import orient
 from shapely.ops import unary_union
 from shapely.strtree import STRtree
 
+from ..city.covered import Covers
 from ..city.crowd import tile_bytes
 from ..city.dressing import Dresser, Placement, building_highs, ground_heights
 from ..city.geo import frame, lines, polygons
@@ -34,6 +35,7 @@ from .builder import (MeshBuilder, add_arch, add_battlement, add_cap, add_dome, 
 from .gltf import write_glb
 from .props import tree_mesh
 from .textures import images_for
+from .vaults import covered_meshes
 
 ROAD_LIFT = 0.34
 
@@ -68,12 +70,17 @@ class TileContext:
         self.tint = GroundTint(world.seed, world.style.get("ground_tint", {}))
         self.cities = []
         self.paint_trees = []
+        self.covers = []                         # covered souks (prompt 31): one rule for mesher and dresser
         for p in plans:
             fps = [b.footprint for b in p.buildings]
             centers = shapely.get_coordinates(shapely.centroid(fps)) if fps else np.zeros((0, 2))
             trees = np.array([(t.x, t.y) for t in p.trees]) if p.trees else np.zeros((0, 2))
             street_tree = STRtree([s.line for s in p.streets]) if p.streets else None
+            covers = Covers(world, p, self.ground)
             dresser = Dresser(world, p, self.kit, self.ground) if self.dress else None
+            if dresser is not None:
+                dresser._covers = covers
+            self.covers.append(covers)
             self.cities.append((p, centers, trees, street_tree, dresser))
             paint = [m.polygon for m in getattr(p, "paint", ())]
             self.paint_trees.append(STRtree(paint) if paint else None)
@@ -614,6 +621,7 @@ def build_tile(tc: TileContext, i: int, j: int) -> tuple:
         if not plan.boundary.intersects(tile):
             continue
         street_meshes(mb, tc, plan, street_tree, tile)
+        covered_meshes(mb, tc.covers[ci], tile, dresser is not None)
         paint_meshes(mb, tc, plan, tc.paint_trees[ci], tile)
         walk_meshes(mb, tc, plan, tile, street_tree)
         walk_width = np.zeros(len(plan.streets))
@@ -677,8 +685,10 @@ def build_tile(tc: TileContext, i: int, j: int) -> tuple:
                         placements.append(kit_tree)
                     else:
                         tree_mesh(mb, t, float(z))
-        if dresser is not None and dresser.world.style.get("people"):     # people in the streets (prompt 29)
+        if dresser is not None:
             ground_heights(tc.ground, placements)
+            placements[:] = dresser.under_roofs(placements)   # nothing pierces a souk roof (prompt 31)
+        if dresser is not None and dresser.world.style.get("people"):     # people in the streets (prompt 29)
             placements += dresser.crowd().people(tile, placements, centers, tile_bytes(tc.kit, mb, placements))
     ground_heights(tc.ground, placements)
     for span in spans:

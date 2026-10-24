@@ -23,6 +23,7 @@ from shapely.strtree import STRtree
 from ..mesh.props import ARCADE
 from ..rng import stream, weighted
 from .arcades import Run, band, free_spans, layout, level_steps, spans_of, turn
+from .covered import Covers, owns
 from .crowd import Crowd
 from .geo import frame
 from .massing import corner_faces, floors_at, main_mass, massed, probes, terrace_walls, wall_height
@@ -124,6 +125,7 @@ class Dresser:
         self._parking = None                     # parked cars (prompt 25, city/parking.py, lazy)
         self._squares = None                     # benches, kiosks and fountains (prompt 26, city/squares.py, lazy)
         self._crowd = None                       # people in the streets (prompt 29, city/crowd.py, lazy)
+        self._covers = None                      # covered souks (prompt 31, city/covered.py, lazy; the tiles share theirs)
         self._kept_roofs: dict = {}              # building -> main roof layout the tile mesher just made (keep_roof)
         self._stairs = {n for r in ("stair_window", "stair_door") for n in (self.roles[r][0] if r in self.roles else [r])}
         targets = self.surfaces + [w.polygon for w in getattr(plan, "walks", ())]
@@ -1000,6 +1002,21 @@ class Dresser:
             self._squares = Squares(self)
         return self._squares
 
+    def covers(self) -> Covers:
+        """The covered souk stretches (prompt 31): the same rule the tile mesher draws the roofs from."""
+        if self._covers is None:
+            self._covers = Covers(self.world, self.plan, self.ground)
+        return self._covers
+
+    def under_roofs(self, placements: list) -> list:
+        """Absolute placements without what would pierce a souk roof; wall lamps are lowered under it."""
+        covers = self.covers()
+        if not covers.streets:
+            return placements
+        lower = {n: float(z) for r, z in covers.cfg.get("lower", {}).items()
+                 for n in (self.roles[r][0] if r in self.roles else [r])}
+        return covers.clear(placements, self.kit, lower)
+
     def crowd(self) -> Crowd:
         """The city's people (prompt 29): their rules and caches, built once, lazily."""
         if self._crowd is None:
@@ -1533,10 +1550,13 @@ class Dresser:
         step = 12.0 if st.kind == "souk" else 9.0
         out = self._covered(k, tile) if st.covered > 0 else []
         line = st.line
+        roofs = self.covers()
         for i in range(int(line.length // step)):
             d = (i + 0.5) * step
             p = line.interpolate(d)
             if not tile.covers(p) or d < st.covered + 2.0 * bool(st.covered):   # nothing under the room
+                continue
+            if roofs.covered(k, d, 1.0):          # nor under a souk roof (prompt 31)
                 continue
             rng = self.rng("span", k, i)
             kind = self._span_kind(st.kind, rng.random())
@@ -1645,6 +1665,11 @@ class Dresser:
         spacing = self.cfg.get("street_lamps", {}).get(st.kind)
         if spacing and self.has("street_lamp"):
             self._lamps(k, float(spacing), tile, out)
+        for j, s in enumerate(self.covers().of(k)):          # lanterns hung from the souk roof's arches
+            for i, (x, hook) in enumerate(s.lanterns):
+                q, _, t, _ = s.frame(x)
+                if owns(tile, q[0], q[1]):
+                    self.put(out, "vault_lantern", self.rng("covered-lantern", k, j, i), q, hook, yaw_of(t), False)
         if st.kind == "souk" and self.has("souk_cart"):
             for i in range(int(st.line.length // 20.0)):
                 d = (i + 0.5) * 20.0
