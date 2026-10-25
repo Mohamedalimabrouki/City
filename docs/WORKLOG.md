@@ -15,10 +15,11 @@ Entry format:
 - Doubts and questions for Ali: <none, or the question>
 ```
 
-## 2026-10-24 - Resume here (paused after prompt 41)
-- State: prompts 1-41 are done, committed and pushed (branch `claude/procedural-city-generator-xop72h`,
-  last prompt commit 7213a25). Ali paused the work at 60% of his weekly limit; continue when he says
-  (for example "Do prompt 42." or "continue the playbook").
+## 2026-10-24 - Resume here (paused after prompt 42)
+- State: prompts 1-42 are done, committed and pushed (branch `claude/procedural-city-generator-xop72h`;
+  prompt 42, the phone page, on 25 October). Ali paused the work at 60% of his weekly limit, and on 25
+  October it was 65% used (it resets Tuesday evening): continue when he says (for example "Do prompt
+  43." or "continue the playbook").
 - How the work runs since prompt 20 (DeepSeek usage ended after 19): the lead session (Opus) briefs one
   Opus `city-builder` helper per prompt (effort from the playbook table). The helper reads CLAUDE.md, its
   prompt section and the HANDOFF lessons, implements, tests, fingerprints, takes the pictures and writes
@@ -27,13 +28,9 @@ Entry format:
   follow-ups, then commits one commit per prompt and pushes. Checkpoints add an independent Opus
   reviewer that reads only the committed history with git, so it can run beside a builder. The
   method in full, with Ali's preferences and the review techniques: `docs/LEAD.md` (read it first).
-- Next: 42 R1 phone page. Quick build; derive the page's camera spots from the index views (heights
-  from `Ground.surface` + 1.7 m); `tools/make_artifact.py output/bodjantouna-42 output/artifact --title
-  "Goumosbane in 3D"`; then with Claude's Artifact tool read
-  https://claude.ai/artifact/HMtdFZUV9sGmyPn4q8mKsq and publish the folder to that same link (keep its
-  icon; 16 MB per file, 64 MB per publish; check it loads). Then 43 CP4: the routine of prompt 6 for
-  prompts 28-42, compared with `fp-cp3`, plus the extra checks of its section (several seeds, landmark
-  and port placement, tile sizes, LOD switching, the phone page).
+- Next: 43 CP4: the routine of prompt 6 for prompts 28-42, compared with `fp-cp3`, plus the extra
+  checks of its section (several seeds, landmark and port placement, tile sizes, LOD switching, the
+  phone page). Ali decides when it starts (a checkpoint is heavy work: plan it for the start of a week).
 - For CP4, collected while reviewing 28-41: (1) speed: the full capital went from about 48 s after CP3
   to about 60 s, tests from 20 s to 29 s: profile and win time back with byte-identical output, as CP3
   did; (2) light tiles over their byte budgets, accepted one by one (estate windows in 20.1; harbor and
@@ -45,13 +42,44 @@ Entry format:
   station's level ground (33) and the port's level band (34) sit in `Ground`'s hot paths: check their
   cost; (7) `output/full` holds stale files from older builds (harmless; a clean rebuild removes the
   fingerprint noise); (8) two tests were loosened after plan shifts (pillars on paved corners > 1,
-  menzah count > 2): make them robust rather than count-based.
+  menzah count > 2): make them robust rather than count-based; (9) the phone page (prompt 42) was checked
+  on a local copy with the host's wrapper and a strict security policy, not on the live link (this
+  session's browser was not signed in to Claude): ask Ali whether it showed textured walls on his phone.
 - Other cities, built with today's code on 24 October: `output/megine/bodjantouna-42` (Megine) and
   `output/city1/bodjantouna-42` (Sazouches el Gharbi). `python -m citygen list` names every settlement;
   `python -m citygen build --area city:NAME --out output/FOLDER` builds one, then `citygen view` it.
 - Doubts and questions for Ali: none.
 - Added after the pause note, at Ali's request: the city gallery and keyboard navigation, the cemetery
   cypress that won a model duel, and the plan of two tracks after prompt 100 (entries below).
+
+## 2026-10-25 - Prompt 42 R1 Refresh the phone 3D page
+- Commit: (see git log) | Model: Opus 5.5, max (lead, no helper: publishing needs the Artifact tool)
+- Changed: `tools/make_artifact.py` (`SPOTS` taken again, `CLEAR` and `clear_spots`, textures as `<img>`),
+  `tools/viewer/index.html` (phone top bar), `tests/test_citygen.py` (1 new test, 1 new assert), docs.
+- Spots: the page shows the build's 7 views (street, souk, cathedral, theatre, station, port, corniche; the
+  build places them on `Ground.surface` at every build) and 3 spots of its own for places the build has no
+  view of, each camera 1.7 m over `Ground.surface` (computed, not guessed): `carpet_souk` (the start, moved
+  2.5 m onto the souk's middle: the old camera stood 0.2 m from a shop wall), `kasbah_gate` (new: the souk
+  lane to the gate's horseshoe arch) and `cemetery` (new: a white marabout among the new cypresses).
+  Dropped: `alley_arch` (0.01 m from a wall, no arch left) and `old_houses` (inside a 5-floor apartment
+  block since the kasbah re-plan). `clear_spots` leaves out, with a message, any spot a later plan puts
+  within 1 m of a building; it catches both dropped spots.
+- Textures (new on this page: the version of mid-October had none): each image becomes a blob: URL, and
+  three.js's glTF loader fetch()es such URLs, which a host policy `connect-src 'self'` blocks (tested in
+  the browser pane: 0 of 33 textured looks). The Artifact rules promise blob: images, not blob: fetches,
+  so the page now loads them as `<img>` (a loading-manager handler for `textures/`): 33 of 33 under that
+  strict policy, no console errors.
+- Phone: at 480 px and narrower the title card keeps its width (it was squeezed to "Bodjanto / una") and
+  the menus stack beside it. Desktop layout unchanged.
+- Published: https://claude.ai/artifact/HMtdFZUV9sGmyPn4q8mKsq version 4, 22 files, 18.2 MB (biggest 6.3 MB),
+  icon kept (version 3, an hour earlier, still had the blob fetch).
+- Checks: tests 107 passed (32 s; 60 s with the browser busy); quick build ok; fingerprint 282 parts, 0
+  changed. The live link shows a sign-in page in this session's browser, so the page was checked on a
+  local copy with the host's wrapper and the strict policy, at phone size (375 x 812): 9 tiles, golden
+  hour, Fast quality, textures, crowds, no console errors; the menu's Cemetery moves the camera there.
+- Look: `output/checks/42-phone.jpg` (phone size: the carpet souk at golden hour).
+- Doubts and questions for Ali: none. On his phone the walls should show plaster grain and the paving
+  its stones; flat, plain walls would mean the host refused the images.
 
 ## 2026-10-25 - Playbook: two tracks after prompt 100 (plan only, Ali's request)
 - Commit: (see git log) | Model: Opus 5.5 (lead, no helper)

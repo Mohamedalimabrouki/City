@@ -93,8 +93,8 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`, and how the le
   Blender kit export, lighter tiles (quantized, -45%), lod1 tiles and the viewer's level of
   detail (whole capital shown in 0.8 s from the air). Not yet reviewed by a checkpoint: CP4
   (prompt 43) does that. The work paused on 24 October 2026 (Ali at 60% of his weekly limit);
-  the "Resume here" entry at the top of `docs/WORKLOG.md` lists what is next and what CP4 must
-  check. Next: prompt 42 (phone page, needs Claude's Artifact tool), then 43.
+  prompt 42 refreshed the phone page on 25 October. The "Resume here" entry at the top of
+  `docs/WORKLOG.md` lists what is next and what CP4 must check. Next: prompt 43 (CP4).
 - Seed 42 makes the country **Bodjantouna** with the capital **Goumosbane**.
   `python -m citygen build --quick` writes it to `output/bodjantouna-42/` in about 10 seconds on
   Ali's Mac (20 seconds in the cloud).
@@ -103,8 +103,8 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`, and how the le
 - 3D page for the phone (made from the quick build):
   https://claude.ai/artifact/HMtdFZUV9sGmyPn4q8mKsq . Rebuild it with `tools/make_artifact.py`
   after a big visual step, then publish the folder to that same link from a Claude session.
-  It still shows the city of mid-October (before prompts 17-41); prompt 42 refreshes it. The
-  builder itself works with today's tiles, textures and lod1 files (checked in prompts 39 and 41).
+  It shows the city of 25 October (prompt 42): golden hour, textures, people, the kasbah and the
+  cemetery cypresses; it opens in the carpet souk, with the build's 7 views and 3 spots of its own.
 
 ## Decisions and lessons (do not relearn them)
 
@@ -149,7 +149,7 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`, and how the le
   top-level JSON keys in their old insertion position (`extensionsUsed` before `meshes`):
   appending one makes every tile "content differs" although the scene is identical. The viewer
   material cache keys on the texture URL and repeat; the phone page stores each image once as
-  base64 JSON and maps `textures/<name>` to a blob URL.
+  base64 JSON and maps `textures/<name>` to a blob URL, loaded as `<img>` (prompt 42).
 - **Plinths and wall UVs** (prompt 19, `mesh/builder.py`): `v = -(z - z_ref)` with `z_ref` the
   highest ground under the building, so a street sees one continuous course. Splitting a wall at
   `z_ref + height` doubles its vertices; on the dense medina tile that was +14% tile bytes. Apply
@@ -708,7 +708,17 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`, and how the le
   of the tile) grows with them, so a fingerprint can show walkers changing costume (tile_12_22: 3 hijab
   stand-ins became their own safsari): expected, not a stream bug. Judging looks: each helper's pictures use
   its own camera; for a fair comparison shoot every version with the same `--cam/--look` (`snapshot.py` on
-  each build), heights read from the tile's instance translations (the cemetery ground is about 15 m).
+  each build), heights read from the tile's instance translations or `Ground.surface` at the camera's own
+  spot (the quick cemetery climbs from about 1 m to 70 m, median 25 m).
+- **Phone page** (prompt 42, `tools/make_artifact.py`): the Artifact frame promises blob: images, not `fetch()`
+  of blob: URLs, and three.js's glTF loader fetches images (`ImageBitmapLoader`) wherever the browser has
+  `createImageBitmap`; a policy `connect-src 'self'` blocks that in Chrome (tested: no textures). So the page
+  registers a `TextureLoader` handler for `textures/` (`<img>`). This session's browser shows a sign-in page
+  for the live link: test a copy instead, the page wrapped in the host's skeleton (its `meta viewport` with
+  `viewport-fit=cover`; without it a phone lays the page out 980 px wide) and served with a strict CSP
+  header, at phone size in the browser pane. Hand-picked camera spots go stale when the plan changes (an
+  apartment block grew over one, a wall moved onto another): heights from `Ground.surface` + 1.7 m, and
+  `clear_spots` skips any spot within 1 m of a building.
 
 ## Known weak spots
 

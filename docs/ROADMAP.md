@@ -53,7 +53,7 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
 - [x] 39 Q5 Lighter tiles (-45% bytes, densest 8.67 -> 4.67 MB; 3.5 MB target relaxed by the lead, see WORKLOG)
 - [x] 40 C2a Level-of-detail tiles (lod1 next to every tile: 3.6% of a city tile, 12.9% at worst)
 - [x] 41 C2b Viewer level of detail (whole capital as lod1, full near the camera; aerial frame about 155 -> 90 ms, settled 5-7 -> 3 s)
-- [ ] 42 R1 Refresh the phone 3D page
+- [x] 42 R1 Refresh the phone 3D page (city of 25 October; textures as images, 3 spots of its own)
 - [ ] 43 CP4 Checkpoint: people, landmarks, port
 - [ ] 44 H1 Interiors: the design
 - [ ] 45 H1a Interior model and command

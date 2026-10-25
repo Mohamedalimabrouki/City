@@ -641,7 +641,9 @@ around white. `[tiles] textures` is `"shared"` (each image written once by the p
 `tiles/textures/`, tiles link it with a relative URI; a tile counts as finished only when the
 files in its entry exist), `"embedded"` (bytes inside every .glb, for single-file exports) or
 `"off"` (flat colors). The phone page (`tools/make_artifact.py`) stores each image once as
-base64 JSON and maps `textures/<name>` to blob URLs with `loader.manager.setURLModifier`.
+base64 JSON and maps `textures/<name>` to blob URLs with `loader.manager.setURLModifier`; a
+`TextureLoader` handler for `textures/` loads them as `<img>`, since the Artifact frame may refuse
+`fetch()` of blob URLs (prompt 42).
 
 **Generated surfaces (prompt 18):** `citygen/mesh/textures.py` makes the images with code:
 plaster, render, render_cream, stone, concrete, roof_tile, roof_flat, paving, asphalt, earth,

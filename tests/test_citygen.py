@@ -3416,6 +3416,19 @@ def test_phone_page_patches_the_viewer_and_stores_lod1_tiles(tmp_path):
     html = (art / "index.html").read_text()
     assert "atob((await res.json()).glb)" in html and "res.arrayBuffer()" not in html
     assert "fetch(url, { signal })" in html          # cancellable loads survive the patch
+    assert "addHandler(/^textures\\//, new THREE.TextureLoader" in html   # textures as <img> (prompt 42)
+
+
+def test_phone_page_skips_spots_a_plan_puts_against_a_wall():
+    """Prompt 42: a hand-picked camera spot inside a building or within 1 m of a wall is left out."""
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
+    import make_artifact
+    house = [[[0, 0], [30, 0], [30, 30], [0, 30]], [[10, 10], [20, 10], [20, 20], [10, 20]]]   # with a courtyard
+    spot = lambda x, y: {"cam": [x, y, 1.7], "look": [x + 5, y, 1.7]}
+    spots = {"inside": spot(5, 5), "against": spot(30.5, 5), "court": spot(15, 15), "street": spot(32, 5)}
+    assert list(make_artifact.clear_spots(spots, [{"buildings": [{"footprint": house}]}])) == ["court", "street"]
 
 
 def test_gallery_lists_every_build_and_serves_each_viewer(tmp_path):

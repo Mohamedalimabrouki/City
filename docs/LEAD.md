@@ -71,7 +71,7 @@ and care as the last one: keep this file up to date when you learn something tha
 - **Heights for cameras.** `?cam=x,y,z` takes absolute heights (meters). Take the ground from
   `Ground.surface`, or from the instance positions in a tile (decode the `TRANSLATION` accessor and
   apply the node transforms: glTF y is the height). Never guess: a camera under the ground draws
-  nothing. The cemetery ground is about 15 m.
+  nothing. Heights vary a lot: the quick cemetery climbs from about 1 m to 70 m.
 - **Fair looks.** Every version from the same cameras: `tools/snapshot.py <build folder> --png F --view
   aerial --width 960 --height 720 --query "cam=...&look=...&ui=0"` (sandbox off), then a side-by-side
   sheet with PIL. A helper's own pictures use its own camera, so two helpers' pictures cannot be
@@ -104,7 +104,8 @@ More in the auto-memory note on the Mac environment.
   Write or Edit content (it lands as the forbidden character); in scripts build it with `chr(0x2014)`,
   and check with `git grep -c "$(printf '\342\200\224')"` before every commit.
 - The phone page lives at https://claude.ai/artifact/HMtdFZUV9sGmyPn4q8mKsq: read it with the Artifact
-  tool before publishing to it; 16 MB per file, 64 MB per publish.
+  tool before publishing to it; 16 MB per file, 64 MB per publish. The built-in browser is not signed in
+  to Claude, so it cannot show the live page: check a host-like local copy (HANDOFF, "Phone page").
 - macOS `ls -l` shows extended attributes: do not parse its columns.
 
 ## 5. Where the decisions are
