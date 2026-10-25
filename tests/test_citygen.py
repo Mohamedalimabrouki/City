@@ -1904,11 +1904,6 @@ def test_massed_buildings_dress_only_walls_and_roofs_that_exist(world, plan, gro
                 inside = sum(r.buffer(0.05).contains(pt) for r in lay.rooms)   # a tank stand is a room itself
                 assert inside == (p.piece == "tank_stand"), (k, p.piece)
                 seen["tank_stand" if p.piece == "tank_stand" else "prop"] += 1
-        main = [lay for m, lay in roofs if m.main][0]
-        if main.menzah is not None:
-            seen["menzah"] += 1
-            assert main.inner.contains(main.menzah)
-            assert main.stair is None or main.stair.distance(main.menzah) >= world.style["roofs"]["menzah_gap"] - 1e-6
         if kind == "colonial" and b.corners:
             p0, q0, _, length = wall_arrays(b.footprint)
             bays = [p for p in out if p.piece == "arcade_bay"]
@@ -1935,7 +1930,18 @@ def test_massed_buildings_dress_only_walls_and_roofs_that_exist(world, plan, gro
                     assert any(math.hypot(p.x - v[0], p.y - v[1]) < 1e-6 for p in bends), (k, v)
                     seen["bend"] += 1
     assert seen["window"] > 1500 and seen["upper"] > 50 and seen["prop"] > 20 and seen["tank_stand"] > 10, seen
-    assert seen["menzah"] > 2 and seen["cut"] > 5 and seen["bend"] > 10, seen   # menzah 4 -> 3: prompt 33's plan shift
+    assert seen["cut"] > 5 and seen["bend"] > 10, seen
+    flagged = [k for k, b in enumerate(plan.buildings) if b.menzah]   # every menzah of the plan, not a sample's
+    for k in flagged:
+        b = plan.buildings[k]
+        roofs = roof_layouts(b, plan.districts[b.district].kind, roof_stream(world.seed, plan.settlement.id, k),
+                             world.style["roofs"])
+        main = [lay for m, lay in roofs if m.main][0]
+        if main.menzah is not None:
+            seen["menzah"] += 1
+            assert main.inner.contains(main.menzah), k
+            assert main.stair is None or main.stair.distance(main.menzah) >= world.style["roofs"]["menzah_gap"] - 1e-6, k
+    assert flagged and seen["menzah"] >= len(flagged) / 2, (len(flagged), seen)   # a roof too small keeps none
 
 
 def test_villa_l_is_a_hip_part_and_a_terrace_wing(world):
@@ -1998,7 +2004,7 @@ def test_cut_corners_are_paved_and_pillars_and_doors_stand_on_the_paving(world, 
     d, pd, sink = cfg["depth"], cfg["pillar"][1], cfg["sink"]
     walks = tc.ground.walk_tree
     street_tree = STRtree([st.line for st in plan.streets])
-    seen = {"apron": 0, "seam": 0, "pillar": 0, "door": 0, "face": 0}
+    seen = {"apron": 0, "seam": 0, "pillar": 0, "on_apron": 0, "door": 0, "face": 0}
     for k, (high, out) in colonial.items():
         b = plan.buildings[k]
         if b.apron is None:
@@ -2041,16 +2047,20 @@ def test_cut_corners_are_paved_and_pillars_and_doors_stand_on_the_paving(world, 
                 z = _drawn_z(tris, t)
                 assert z is not None and abs(dresser.front_surface(mid, n0[i]) - z) < 1e-4, k
                 seen["face"] += 1
+        near = b.apron.buffer(2.0)                              # the corner's pillars, on the paving or beside it
         for p, f in feet:
-            if not b.apron.buffer(-0.05).contains(shapely.Point(*f)):
+            if not near.contains(shapely.Point(*f)):
                 continue
-            z = _drawn_z(tris, f)
-            assert z is not None and abs(float(tc.ground.surface(f[0], f[1])) - z) < 1e-4, k  # surface = drawn
+            z = float(tc.ground.surface(f[0], f[1]))
+            if b.apron.buffer(-0.05).contains(shapely.Point(*f)):
+                drawn = _drawn_z(tris, f)
+                assert drawn is not None and abs(z - drawn) < 1e-4, k  # surface = drawn
+                seen["on_apron"] += 1
             # the pillar foot (reaching `sink` below the bay's level) is buried in the paving, never floating,
             # and the paving stays below the top of the pillar's base, never swallowing it
             assert p.z - sink < z - 0.05 and z - p.z < 0.3, (k, p.piece, p.z, z)
             seen["pillar"] += 1
-    assert seen["apron"] > 30 and seen["seam"] > 30 and seen["pillar"] > 1 and seen["face"] > 50, seen
+    assert seen["apron"] > 30 and seen["seam"] > 30 and seen["pillar"] > 10 and seen["face"] > 50, seen
 
 
 # --- more greenery (prompt 24) -------------------------------------------------------------------
@@ -2914,6 +2924,10 @@ def test_station_stands_at_the_colonial_edge_and_its_tracks_leave_the_city_clear
             assert not st.corridor.buffer(-0.5).contains(shapely.Point(s.line.coords[-1]))
             crossings += 1
     assert crossings >= 1
+    x0, y0, x1, y1 = st.core.bounds                         # CP4: no edge blend or port grading tilts its core
+    xs, ys = (a.ravel() for a in np.meshgrid(np.linspace(x0, x1, 30), np.linspace(y0, y1, 30)))
+    inside = shapely.contains_xy(st.core, xs, ys)
+    assert np.abs(ground.height(xs[inside], ys[inside]) - st.facade["level"]).max() < 1e-6
     assert "station" in camera_views(plan, ground, style=world.style)
     tc = built_mesh[0]
     i, j = int(head.footprint.centroid.x // tc.size), int(head.footprint.centroid.y // tc.size)

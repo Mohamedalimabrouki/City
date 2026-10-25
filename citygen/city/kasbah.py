@@ -78,9 +78,10 @@ def _candidate(ctx, cfg, medina, p: Point, side, depth, site, entrance, gate_pts
     o = np.array([p.x, p.y])
     rect = rectangle(*o, side, 2 * depth, theta)   # reaching `depth` beyond the edge too: the cut follows the wall
     k = largest(rect.intersection(medina))
-    if k is None or not (0.85 * side * depth <= k.area <= 1.25 * side * depth) or k.area > 0.3 * medina.area:
+    lo, hi = (float(v) for v in cfg["area"])
+    if k is None or not (lo * side * depth <= k.area <= hi * side * depth) or k.area > float(cfg["max_share"]) * medina.area:
         return None
-    if k.exterior.intersection(medina.exterior.buffer(0.5)).length < 0.6 * side:
+    if k.exterior.intersection(medina.exterior.buffer(0.5)).length < float(cfg["on_wall"]) * side:
         return None                                          # it must lean on the city wall
     k = orient(k.simplify(0.05), sign=1.0)
     tk, clear = float(cfg["wall_thickness"]), float(cfg["clearance"])

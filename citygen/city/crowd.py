@@ -50,28 +50,6 @@ ANY_FLOOR = (GROUND, WALK, LANE)
 RANK = {"seat": 0, "square": 1, "shop": 2, "landmark": 3, "stair": 4, "promenade": 5, "seafront": 6, "sidewalk": 7,
         "souk": 8, "lane": 9}                   # who gives way to whom: a later rank to an earlier one
 
-PEOPLE = {   # `[people]` in the style overrides these
-    "density": 1.0, "halo": 4.5, "clear": 0.5, "pair_gap": 0.15, "seated_gap": 0.2, "wall_gap": 0.05,
-    "piece_gap": 0.05, "foot_level": 0.06, "flip": 0.2, "jitter": 0.15, "bytes_share": 0.085,
-    "souk": {"step": 2.6, "chance": 0.75, "lane": 0.6, "spread": 0.25, "carry": 0.35, "pair": 0.12, "family": 0.06},
-    "shop": {"slots": [0.75, 0.35], "reach": [1.6, 1.95], "along": 1.1, "turn": 0.35, "family": 0.1},
-    "lane": {"step": 12.0, "chance": {"medina": 0.3, "village": 0.15}, "carry": 0.25, "pair": 0.1},
-    "sidewalk": {"step": 8.0, "chance": {"colonial": 0.55, "modern": 0.3, "residential": 0.3, "suburb": 0.1,
-                                         "industrial": 0.04, "port": 0.06}, "edge": 0.55, "carry": 0.15,
-                 "pair": 0.25, "family": 0.12},
-    "promenade": {"step": 5.0, "chance": 0.6, "offset": [1.5, 3.3], "carry": 0.1, "pair": 0.3, "family": 0.2},
-    "seafront": {"step": 5.0, "chance": 0.6, "carry": 0.1, "pair": 0.35, "family": 0.25},
-    "landmark": {"mosque": {"step": 3.5, "chance": 0.45, "reach": [1.5, 6.0]},
-                 "gate": {"count": 10, "chance": 0.5, "reach": [2.5, 10.0]},
-                 "stand": 0.5, "pair": 0.2},
-    "square": {"kiosk": [0.8, 0.4], "kiosk_reach": [0.35, 0.7], "fountain": 6, "fountain_chance": 0.5,
-               "fountain_reach": [0.45, 1.0]},
-    "stair": {"chance": 0.35, "chat": 0.4, "reach": [1.6, 3.5]},
-    "terrace": {"waiter": 0.0, "reach": 0.85},
-    "seats": {}, "outfits": {},
-}
-
-
 INSTANCE = 40                                   # bytes of one instance in a tile (translation, rotation, scale)
 INSTANCE_Q = 20                                 # ... quantized (prompt 39): float translation, 16-bit rotation
 PIECE_JSON, PART_JSON = 1000, 800               # about: a piece's node and instance accessors; a part's accessors,
@@ -126,7 +104,7 @@ class Crowd:
         self.DRESSED, self.Placement, self.ground_heights = DRESSED, Placement, ground_heights
         self.d, self.plan, self.kit = dresser, dresser.plan, dresser.kit
         style = dresser.world.style
-        self.cfg = {**PEOPLE, **style.get("people", {})}
+        self.cfg = style["people"]          # every number lives in the style
         self.density = float(self.cfg["density"])
         self.figure_seat = float(style.get("dressing", {}).get("people", {}).get("seat", 0.45))
         self.quantized = bool(dresser.world.cfg["tiles"].get("quantize", False))   # figures cost less (prompt 39)
@@ -185,7 +163,7 @@ class Crowd:
         cands = self._candidates(region, near)
         if not cands:
             return []
-        m = float(self.cfg["clear"]) + 1.5                       # who can reach a person of this tile
+        m = float(self.cfg["clear"]) + float(self.cfg["tile_reach"])   # who can reach a person of this tile
         cands = [cd for cd in cands if x0 - m <= cd.x < x1 + m and y0 - m <= cd.y < y1 + m]
         cands = list({(cd.rank, cd.key): cd for cd in sorted(cands, key=lambda cd: (cd.rank, cd.key))}.values())
         alive = self._thin(cands)
@@ -756,8 +734,7 @@ class Crowd:
         if len(kept) == len(order):
             return cands
         limit = len(kept)
-        body = {"jebba": "man", "shirt": "man", "safsari": "woman", "dress": "woman", "hijab": "woman",
-                "boy": "child", "girl": "child"}
+        body = self.cfg["outfits"]["bodies"]
         swap: dict = {}
         for n in order[limit:]:
             ps, o = self.pose[n]

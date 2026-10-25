@@ -8,7 +8,9 @@ the street camera inside its view (`streets.view_spot`), on another block than t
 as big as the style asks. `merge` replaces the site's lots by one merged parcel at the end of the parcel
 list, so no ordinary building stands there; `buildings` gives each site its `Building` (kind `cathedral`
 or `theatre`, drawn by `mesh/landmarks.py`), appended at the very end of the plan's buildings, and a
-`Landmark` with a name on its own stream ("landmarks", kind). Nobody lives in them (`life.HOUSING`), the
+`Landmark` with a name on its own stream ("landmarks", kind). A landmark no boulevard-facing site holds
+(a strip of blocks too shallow for its body) may face a cross street on a block fronting the boulevard,
+its flank on it (`[landmarks.fallback]`). Nobody lives in them (`life.HOUSING`), the
 dresser and the massing step leave them alone (not `DRESSED`, not `apartments`), and no parked car stops
 in front of their steps (`Building.facade`). Numbers live in the style's `[landmarks]` table.
 
@@ -22,9 +24,10 @@ from dataclasses import dataclass
 
 import numpy as np
 import shapely
-from shapely.geometry import Point, Polygon
+from shapely.geometry import LineString, Point, Polygon
 from shapely.geometry.polygon import orient
 from shapely.ops import unary_union
+from shapely.strtree import STRtree
 
 from ..names import NameMaker
 from .model import Building, Landmark, Parcel
@@ -131,7 +134,10 @@ class Site:
 
 
 def sites(ctx, parcels, districts, streets, used) -> list:
-    """The landmarks' sites, in the order of `boulevard_landmarks`, on lots that are not in `used`."""
+    """The landmarks' sites, in the order of `boulevard_landmarks`, on lots that are not in `used`.
+
+    A landmark no boulevard-facing site holds (blocks too shallow for its body) may face a cross street on a
+    block fronting the boulevard instead (`_fallback`, `[landmarks.fallback]`)."""
     cfg = ctx.style.get("landmarks")
     kinds = [k for k in ctx.kc.get("boulevard_landmarks", []) if cfg and k in cfg and k in KINDS]
     boulevards = [st for st in streets if st.kind == "boulevard"]
@@ -154,6 +160,8 @@ def sites(ctx, parcels, districts, streets, used) -> list:
                 key = _score(cfg, site, spot, out)
                 if best is None or key > best[0]:
                     best = (key, site)
+        if best is None and "fallback" in cfg:
+            best = _fallback(cfg, kind, seeds, parcels, lots, by_block, taken, streets, spot, out)
         if best is not None:
             out.append(best[1])
             taken |= set(best[1].lots)
@@ -183,15 +191,35 @@ def _seeds(cfg: dict, parcels, lots: list, boulevards: list) -> list:
     return out
 
 
-def _fits(cfg: dict, kind: str, seed: tuple, parcels, by_block: dict, taken: set):
+def _fallback(cfg: dict, kind: str, seeds: list, parcels, lots: list, by_block: dict, taken: set, streets,
+              spot, out: list):
+    """(score, site) of the best site of `kind` on a block fronting the boulevard but facing one of its cross
+    streets (`[landmarks.fallback] streets`), its flank along the boulevard, or None. For blocks too shallow
+    for any body: a narrow strip between the boulevard and the next street, as a grid parallel to it cuts."""
+    fb = cfg["fallback"]
+    fronting = {parcels[seed[0]].block for seed in seeds}
+    cross = [st for st in streets if st.kind in fb["streets"]]
+    near = _seeds(cfg, parcels, [k for k in lots if parcels[k].block in fronting], cross)
+    best = None
+    for seed in near:
+        if seed[0] in taken:
+            continue
+        for site in _fits(cfg, kind, seed, parcels, by_block, taken, fb["lots"]):
+            key = _score(cfg, site, spot, out)
+            if best is None or key > best[0]:
+                best = (key, site)
+    return best
+
+
+def _fits(cfg: dict, kind: str, seed: tuple, parcels, by_block: dict, taken: set, lots=None):
     """The sites of `kind` grown from one seed lot: the footprint at each shift of the largest scale the style
     lists that fits somewhere, the lots it touches merged when they are 3-6 free lots of the seed's block
-    that hold it."""
+    (or `lots`) that hold it."""
     k0, edge, n, side = seed
     spec = cfg[kind]
     width0, depth0 = (float(v) for v in spec["size"])
     steps, inset = float(spec["steps"]), float(cfg["inset"])     # the front stays `inset` off the street edge
-    lo, hi = (int(v) for v in cfg["lots"])
+    lo, hi = (int(v) for v in (cfg["lots"] if lots is None else lots))
     u = np.array([n[1], -n[0]])
     block = parcels[k0].block
     cands = by_block[block]
@@ -301,6 +329,64 @@ def clear_fronts(trees: list, chosen: list, reach: float) -> list:
 
 # --- the camera views that frame them (build.camera_views) -------------------------------------------
 
+
+class _Clear:
+    """How many of the sight lines from a camera spot to the facade's ends and middle (eye to look height) a
+    building but the landmark itself, a trunk or a tree crown blocks; None when the eye stands within
+    `wall_clear` m of a wall or within `tree_margin` m of a trunk or a crown (crowns as `tree_crowns` gives
+    them: radius and base as shares of the tree's height)."""
+
+    def __init__(self, plan, f: dict, ends: np.ndarray, middle: np.ndarray, cfg: dict):
+        self.fps = [b.footprint for b in plan.buildings if b.facade is not f]
+        self.tree = STRtree(self.fps)
+        self.targets = [ends[0], middle, ends[1]]
+        self.wall, self.margin = float(cfg["wall_clear"]), float(cfg["tree_margin"])
+        self.eye, self.look = float(cfg["height"]), float(cfg["look"])
+        crowns, trunk = cfg["tree_crowns"], float(cfg["trunk"])
+        known = [t for t in plan.trees if t.kind in crowns]
+        self.xy = np.array([(t.x, t.y) for t in known]).reshape(-1, 2)
+        self.top = np.array([t.height for t in known])
+        self.r = np.array([float(crowns[t.kind][0]) * t.height for t in known])
+        self.base = np.array([float(crowns[t.kind][1]) * t.height for t in known])
+        self.trunk = trunk
+        self.reach = float(self.r.max()) + self.margin if len(known) else 0.0
+        self.trees = STRtree(shapely.points(self.xy)) if len(known) else None
+
+    def _tree_hit(self, a: np.ndarray, b: np.ndarray, za: float, zb: float, pad: float) -> bool:
+        """Does the segment a (height za) to b (height zb) pass through a trunk or a crown, grown by `pad`?"""
+        if self.trees is None:
+            return False
+        seg = LineString([tuple(a), tuple(b)]) if np.any(a != b) else Point(*a)
+        idx = self.trees.query(seg, predicate="dwithin", distance=self.reach)
+        if not len(idx):
+            return False
+        v = b - a
+        ll = float(v @ v)
+        for i in idx:
+            t = 0.0 if ll == 0.0 else min(max(float((self.xy[i] - a) @ v) / ll, 0.0), 1.0)
+            d = float(np.hypot(*(a + v * t - self.xy[i])))
+            z = za + (zb - za) * t
+            if d < self.trunk + pad and z < self.top[i] + pad:
+                return True
+            if d < self.r[i] + pad and self.base[i] - pad < z < self.top[i] + pad:
+                return True
+        return False
+
+    def __call__(self, cam: np.ndarray):
+        p = Point(float(cam[0]), float(cam[1]))
+        if len(self.tree.query(p, predicate="dwithin", distance=self.wall)):
+            return None
+        if self._tree_hit(cam, cam, self.eye, self.eye, self.margin):
+            return None
+        blocked = 0
+        for q in self.targets:
+            q = np.asarray(q, dtype=np.float64)
+            line = LineString([p.coords[0], (float(q[0]), float(q[1]))])
+            blocked += bool(len(self.tree.query(line, predicate="intersects"))
+                            or self._tree_hit(cam, q, self.eye, self.look, 0.0))
+        return blocked
+
+
 def landmark_views(plan, cfg: dict) -> dict:
     """{kind: ((x, y, height), (x, y, height))}: for each landmark a camera on its boulevard (heights above the
     ground there) that sees its whole facade from the front or three-quarters, as near as possible to
@@ -315,12 +401,24 @@ def landmark_views(plan, cfg: dict) -> dict:
 
 
 def _frame_facade(plan, f: dict, cfg: dict):
+    """(eye, look) on the boulevard, or for a facade facing another street (a fallback site) on that street or
+    another within `distance` + `search` m, clear of walls and trees, seeing the whole front past buildings
+    and trees (else the fewest lines blocked)."""
     fr = Frame(f)
     ends = np.array([fr.xy(-f["width"] / 2, f["steps"]), fr.xy(f["width"] / 2, f["steps"])])
     middle = fr.xy(0.0, f["steps"])
     outward = -fr.n
+    o = Point(f["x"], f["y"])
+    faced = min(plan.streets, key=lambda s: abs(s.line.distance(o) - s.width / 2))
+    if faced.kind == "boulevard":
+        streets, clear = [s for s in plan.streets if s.kind == "boulevard"], None
+    else:
+        reach = float(cfg["distance"]) + float(cfg["search"])   # the faced street and the others around
+        mid = Point(float(middle[0]), float(middle[1]))
+        streets = [faced] + [s for s in plan.streets if s is not faced and s.line.distance(mid) < reach]
+        clear = _Clear(plan, f, ends, middle, cfg)
     best = None
-    for st in (s for s in plan.streets if s.kind == "boulevard"):
+    for st in streets:
         for off in (st.width / 4, -st.width / 4, 0.0):
             line = st.line.offset_curve(off) if off else st.line
             for t in np.arange(0.0, line.length + 1e-9, float(cfg["step"])):
@@ -334,7 +432,10 @@ def _frame_facade(plan, f: dict, cfg: dict):
                 ang = np.arctan2(v[:, 1], v[:, 0])
                 if math.degrees(abs((ang[1] - ang[0] + math.pi) % (2 * math.pi) - math.pi)) > float(cfg["spread"]):
                     continue
-                key = abs(dist - float(cfg["distance"]))
+                blocked = 0 if clear is None else clear(cam)
+                if blocked is None:
+                    continue
+                key = abs(dist - float(cfg["distance"])) if clear is None else (blocked, abs(dist - float(cfg["distance"])))
                 if best is None or key < best[0]:
                     best = (key, cam)
     if best is None:

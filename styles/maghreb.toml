@@ -429,6 +429,9 @@ side = [0.3, 60.0, 160.0]  # side along the city wall: share of the old town's w
 depth = 0.75               # how far it reaches into the old town, times the side
 step = 10.0                # meters between samples of the old town's outline (its highest stretch wins)
 tries = 80                 # outline samples tried, highest first
+area = [0.85, 1.25]        # the old town it takes, times side * depth, at least and at most (an odd outline cuts it)
+max_share = 0.3            # and at most this share of the old town
+on_wall = 0.6              # it leans on the city wall along at least this share of its side
 clearance = 8.0            # meters from the wall line kept free of lots and alleys (tower faces stand 4.9 m out)
 mosque_clear = 15.0        # from the great mosque's site
 gate_clear = 30.0          # from a city gate
@@ -465,7 +468,16 @@ view = [50.0, 300.0, 35.0] # best 50-300 m ahead of the street camera, within th
 tree_clear = 7.0           # no boulevard tree this close in front of the steps
 # the "cathedral" and "theatre" camera views: eye and look heights, best distance, nearest, widest angle the
 # facade may span, cosine of the most oblique view allowed, meters between the spots tried on the boulevard
-camera = { height = 4.0, look = 11.0, distance = 48.0, min_distance = 28.0, spread = 50.0, facing = 0.35, step = 2.0 }
+camera = { height = 4.0, look = 11.0, distance = 48.0, min_distance = 28.0, spread = 50.0, facing = 0.35, step = 2.0, search = 20.0, wall_clear = 6.0, tree_margin = 1.0, trunk = 0.3, tree_crowns = { palm = [0.43, 0.8], broadleaf = [0.47, 0.3], olive = [0.67, 0.2], citrus = [0.44, 0.26], cypress = [0.1, 0.05] } }
+# for a landmark facing a cross street (a fallback site) the camera stands on that street or another within
+# distance + search m; it keeps `wall_clear` m from every
+# wall and `tree_margin` m from every trunk (`trunk` m radius) and crown, and sees the facade's ends and middle past
+# buildings, trunks and crowns (else the spot with the fewest lines blocked); tree_crowns: crown radius and crown
+# base, as shares of the tree's height, as the meshes draw them (mesh/trees.py, mesh/props.py)
+
+[landmarks.fallback]       # when no boulevard-facing site holds a landmark (blocks too shallow for its body), it may
+streets = ["street", "arterial"]   # face one of these cross streets on a block fronting the boulevard, its flank on it,
+lots = [3, 6]              # merging this many lots
 
 [landmarks.cathedral]      # neo-Romanesque with a Byzantine dome, like St Vincent de Paul in Tunis
 size = [24.0, 48.0]        # meters: facade width (two towers and the nave), depth behind the steps
@@ -558,6 +570,10 @@ cross_angle = 35.0         # degrees: main streets must cross the tracks this st
 step = 10.0                # meters between the sites tried along the colonial quarter's avenues
 max_drop = 6.0             # meters of fall the ground may have under the head building and the platforms; it is
 level_band = 100.0         # graded level there (cut and fill), blending back to the city ground over this many meters
+inside = 5.0               # meters the precinct stays inside the city limit
+clear = 10.0               # meters the level core (head building, platforms) keeps past the city limit's edge blend
+                           # and the port's level band, which the ground applies after the station's leveling
+dry = 1.0                  # meters of natural ground over the sea the tracks need every 20 m to the limit
 walk_step = 10.0           # sidewalks within that blend are drawn with outline points this close (the ground bends)
 cost = { length = 1.0, crossing = 0.25, align = 1.5, drop = 0.1, jitter = 0.1 }   # per km of corridor, per main street crossed, per (1 - cos) off the target, per meter of fall
 targets = { national = 1.0, regional = 1.3, port = 1.15 }   # weights: national and regional road entries, ports
@@ -1601,6 +1617,7 @@ flip = 0.2                 # chance a souk walker walks on the left
 jitter = 0.15              # radians a walker turns off the street's direction, at most
 bytes_share = 0.085        # people may add this share to a tile's bytes: each figure shown costs its mesh
                            # (about 14 KB), so a light tile shows only its most frequent few (budget +10%)
+tile_reach = 1.5           # meters past `clear` beyond a tile's edges from which a person may still crowd one of its own
 
 [people.souk]              # walkers in two lanes down the middle, every `step` m per lane
 step = 2.6
@@ -1689,6 +1706,8 @@ modern = { shirt = 3.0, hijab = 2.5, dress = 2.0, jebba = 0.5, safsari = 0.3 }
 other = { shirt = 3.0, hijab = 2.0, dress = 1.5, jebba = 1.0, safsari = 0.5 }
 cafe = { shirt = 3.0, jebba = 2.0, dress = 0.6, hijab = 0.6 }
 children = { boy = 1.0, girl = 1.0 }
+bodies = { jebba = "man", shirt = "man", safsari = "woman", dress = "woman", hijab = "woman", boy = "child", girl = "child" }
+                           # each outfit's body: a figure dropped from a tile's budget takes a kept one of the same body
 
 # Which pieces play each part, by weight: [piece, weight] or [piece, weight, extra height].
 # "tounes/..." pieces come from the Tounes Rush kit (kits/tounes); the others are made by the

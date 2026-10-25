@@ -60,6 +60,10 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`, and how the le
   about 1.9x the cost and 2.6x the time; Sonnet high (7.5) cost half. Helpers stay on Opus at the
   playbook's effort, max only for hard or risky work. Details: the 25 October entry of `docs/WORKLOG.md`;
   the worktrees stay in `.claude/worktrees/` (Ali: keep them).
+- CP4 (prompt 43, 25 October) reviewed prompts 28-42: six fixes (seaside cafe awnings shared a decision
+  draw, the station's level core unguarded against the port and edge bands, no cathedral or theatre on
+  shallow boulevard blocks (seed 7), dead people defaults, numbers moved to the style, two loosened tests),
+  and a byte-identical speed round (full capital CPU about -20%). Reference: `fp-cp4`.
 - On 25 October Ali asked for two tracks after prompt 100, written as prompts 101-120 in
   `docs/prompts/10-life-and-polish.md` (prompts 95-97 stay): **K**, every asset polished one by one
   "at least like Léo" (his Blender character), Blender for organic things through prompt 38's export
@@ -108,6 +112,18 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`, and how the le
 
 ## Decisions and lessons (do not relearn them)
 
+- **A decision draw and the thing it decides need two streams** (CP4): the seaside cafe tested
+  `rng("terrace", "cafe", k).random() < 0.5`, then built the cafe from a fresh copy of that stream, so
+  its first pick (the awning) reused the known-small number: never a yellow or cream awning. Decide on
+  one path, build on a child path (`rng(..., k, "front")`).
+- **Later ground passes undo earlier leveling** (CP4): `Ground` applies the port grading and the city
+  limit's edge blend after the station's level core, so a site search must keep the core out of both
+  bands (`station._Env._level_inside`). Read the order in `Ground._graded`/`_height` before trusting a
+  "level" area.
+- **Probe a failing site search with a tracer, not guesses** (CP4): a `sys.settrace` hook counting which
+  `return None` line rejected each candidate showed seed 1234's station fails on slope (every site 7-9 m
+  of fall > `max_drop` 6) and seed 7's landmarks on block depth (27 m strips, not the lot count).
+
 - **Measure the full capital, not only the quick build** (CP2). Prompts 11-15 each stayed under
   their own budget on the quick build, yet together they doubled `build --area capital
   --workers 8` (27 s to 55 s) and the planner (9 s to 17.5 s). The causes were all "every item
@@ -123,6 +139,17 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`, and how the le
   same stream (`Dresser.keep_roof`), replaying `Generator.choice` exactly (`rng.weighted`). Each change
   was checked against the old path on 30,000 points before the fingerprints. Plan pickles differ run to
   run (`stats["seconds"]`): compare plans attribute by attribute, never by one pickle hash.
+- **Speed, round two** (CP4): the profile was flat (no function over 8% of tile time), so the wins were
+  whole-list work repeated per call and per-process set-up. Look for: a list rebuilt from every street
+  or walk inside a per-street method (`Parking.inside`, `Squares.islands`), a shape test run for
+  every placement without a cheap bounding-box reject first (`station.keep_off`), one ground query per
+  building instead of one per tile (`tile.ring_heights`), and work each tile worker repeats that the
+  parent already did (texture images, handed over in the world pickle). cProfile inflates
+  many-call functions (a 12 us `rng.stream` shows as 48 us): confirm with a timed run. Check bytes
+  on the 24-tile bench (export the heaviest full-capital tiles in one process and compare each .glb
+  with `output/full`) before the two fingerprints; the machine's load (other sessions) moved wall
+  times by 30%, so compare CPU (`/usr/bin/time` user) too. The quick build now uses 3 tile processes
+  (`[build] tiles_per_worker = 3`): its 9 tiles run beside the maps, wall time down, CPU a little up.
 - **Test the drawn triangles, not the function against itself** (CP2). The prompt 13 test
   compared `Ground.surface` with the same formula, so it passed while 14% of sidewalk corners
   missed their street (they lie exactly on its outline) and long sidewalk and paint triangles

@@ -15,11 +15,10 @@ Entry format:
 - Doubts and questions for Ali: <none, or the question>
 ```
 
-## 2026-10-24 - Resume here (paused after prompt 42)
-- State: prompts 1-42 are done, committed and pushed (branch `claude/procedural-city-generator-xop72h`;
-  prompt 42, the phone page, on 25 October). Ali paused the work at 60% of his weekly limit, and on 25
-  October it was 65% used (it resets Tuesday evening): continue when he says (for example "Do prompt
-  43." or "continue the playbook").
+## 2026-10-25 - Resume here (paused after prompt 43, CP4)
+- State: prompts 1-43 are done, committed and pushed (branch `claude/procedural-city-generator-xop72h`;
+  CP4, prompt 43, on 25 October). Continue when Ali says (for example "Do prompt 44." or "continue the
+  playbook"). Weekly limit at CP4's start: 66% used (resets Tuesday 27 October, about 21:00 UTC).
 - How the work runs since prompt 20 (DeepSeek usage ended after 19): the lead session (Opus) briefs one
   Opus `city-builder` helper per prompt (effort from the playbook table). The helper reads CLAUDE.md, its
   prompt section and the HANDOFF lessons, implements, tests, fingerprints, takes the pictures and writes
@@ -28,29 +27,61 @@ Entry format:
   follow-ups, then commits one commit per prompt and pushes. Checkpoints add an independent Opus
   reviewer that reads only the committed history with git, so it can run beside a builder. The
   method in full, with Ali's preferences and the review techniques: `docs/LEAD.md` (read it first).
-- Next: 43 CP4: the routine of prompt 6 for prompts 28-42, compared with `fp-cp3`, plus the extra
-  checks of its section (several seeds, landmark and port placement, tile sizes, LOD switching, the
-  phone page). Ali decides when it starts (a checkpoint is heavy work: plan it for the start of a week).
-- For CP4, collected while reviewing 28-41: (1) speed: the full capital went from about 48 s after CP3
-  to about 60 s, tests from 20 s to 29 s: profile and win time back with byte-identical output, as CP3
-  did; (2) light tiles over their byte budgets, accepted one by one (estate windows in 20.1; harbor and
-  sea tiles in 34-36; household re-rolls after the kasbah, the cathedral and the station in 30, 32, 33):
-  look at them together; (3) prompt 39's 3.5 MB target was relaxed (densest quick tile 4.67 MB): the
-  next gains are merging each full tile's meshes per material (draw calls, prompt 41) and welding flat
-  vertices with a flat-shading path; (4) kiosk cafes only in tiles that hold buildings (37, a byte
-  guard); (5) quick builds lose lod1 blocks whose centroid lies in an unexported tile (40); (6) the
-  station's level ground (33) and the port's level band (34) sit in `Ground`'s hot paths: check their
-  cost; (7) `output/full` holds stale files from older builds (harmless; a clean rebuild removes the
-  fingerprint noise); (8) two tests were loosened after plan shifts (pillars on paved corners > 1,
-  menzah count > 2): make them robust rather than count-based; (9) the phone page (prompt 42) was checked
-  on a local copy with the host's wrapper and a strict security policy, not on the live link (this
-  session's browser was not signed in to Claude): ask Ali whether it showed textured walls on his phone.
+- Next: 44 H1 Interiors: the design. Still open from the CP4 list (see the CP4 entry below): light tiles
+  over their byte budgets (accepted one by one, unchanged), the relaxed 3.5 MB tile target (densest
+  quick tile 4.69 MB, seed 7 4.86 MB; next gains: merge each full tile's meshes per material, weld flat
+  vertices), kiosk cafes only in tiles with buildings, quick builds losing lod1 blocks of unexported
+  tiles, and Ali's answer on whether the phone page showed textured walls on his phone.
 - Other cities, built with today's code on 24 October: `output/megine/bodjantouna-42` (Megine) and
   `output/city1/bodjantouna-42` (Sazouches el Gharbi). `python -m citygen list` names every settlement;
   `python -m citygen build --area city:NAME --out output/FOLDER` builds one, then `citygen view` it.
-- Doubts and questions for Ali: none.
+- Doubts and questions for Ali: in the CP4 entry below.
 - Added after the pause note, at Ali's request: the city gallery and keyboard navigation, the cemetery
   cypress that won a model duel, and the plan of two tracks after prompt 100 (entries below).
+
+## 2026-10-25 - Prompt 43 CP4 Checkpoint: people, landmarks, port, performance
+- Commit: (see git log) | Model: Opus 5.5 (lead), an independent Opus reviewer (read only the committed history
+  360b81c..3466c6c with git), an Opus speed helper, an Opus fix helper (three lead follow-ups)
+- Reviewed prompts 28-42 and the between-prompt work (gallery, keyboard turning, cypress): every "Done when"
+  met. No `random`, unseeded numpy or hash-order use; every new choice on its own stream path; em dash 0.
+- Found and fixed: (1) seaside cafes decided with `rng("terrace", "cafe", k).random() < 0.5`, then built from a
+  fresh copy of that stream, so the awning pick reused the small number: never yellow or cream; the front
+  now draws from `rng("terrace", "cafe", k, "front")` (2 cafes change awning on the quick city). (2) The
+  station's level core had no guard against the port grading and the city-limit edge blend, which `Ground`
+  applies after the leveling: `_Env._level_inside` keeps the core out of both bands plus `[station] clear`;
+  the station test now checks the ground over the core is level. (3) Seed 7's capital (Noghinba) had a
+  boulevard but no cathedral or theatre: its boulevard blocks are 27 m deep, the cathedral needs 51 m; a
+  fallback (`[landmarks.fallback]`, only when no boulevard site holds it, so seed 42 is unchanged) puts the
+  front on a cross street of a block fronting the boulevard, flank on the boulevard; its camera views search
+  the faced street and the streets around it, keep `wall_clear` 6 m from walls and clear of trunks and crowns
+  (first try stood inside a tree, caught in the GPU viewer). (4) A comment claimed a seaside cafe's windows
+  "draw as before" (moving the door shifts that building's `rng("b", k)` window draws): corrected, output
+  kept. (5) The dead `PEOPLE` table in `crowd.py` removed (the style overrode every key); outfit bodies,
+  `tile_reach`, the station's `inside` and `dry`, the kasbah's `area`, `max_share`, `on_wall` moved to the
+  style, output identical. (6) The two loosened tests check the real property: every flagged menzah (15 of
+  18 get one), every pillar within 2 m of a paved corner (30, threshold 10).
+- Speed (byte-identical, quick 0 of 282 and full capital 0 of 727 parts changed before the fixes): a flat
+  profile; wins from a bounding-box reject before shape tests (`station.keep_off`, 27 s), street lines and
+  promenades grouped once (`Parking.inside`, `Squares.islands`), one ground query per tile for all footprint
+  rings (`tile.ring_heights`), texture images made once and handed to the workers, leaner Perlin noise. Full
+  capital CPU 370/332 -> 275-295 s (wall 87-118 s: the machine ran at load 14-37 from other sessions, so
+  CPU is the fair measure); the quick build now uses 3 tile processes (`[build] tiles_per_worker = 3`), 35 ->
+  10-13 s wall. Tests 107 passed (39.6 s under load), 2 slow passed.
+- Seeds: seed 7 (Noghinba): kasbah, 4-track station 373 m inside the limit and level, harbor and lighthouse,
+  now the cathedral and theatre; seed 1234 (Rekgine): no boulevard (plausible: one small colonial district)
+  and no railway (every one of 56 sites has 7-9 m of fall against `max_drop` 6 m: a real rule). Gazetteers
+  name every landmark. Densest tiles: seed 42 4.69 MB, seed 7 4.86 MB, seed 1234 3.45 MB; lod1 0.4-0.6 MB.
+- Viewer level of detail on the full capital (GPU browser pane): 168 tiles, 33-44 full near the camera, the
+  rest lod1, 0 failed, settled in about 4 s after each view change. People in the 28-29 and souk pictures:
+  respectful, readable, no clipping. Phone page: 22 files live (version 4), unchanged by CP4.
+- Checks: stats 370,953 triangles, 4,928,513 drawn, 29,546 dressing pieces, 12.2 MB in 9 tiles (lod1 0.45 MB).
+  Fingerprint against `before`: 1 changed (`tile_13_23`: awning colors red +1, yellow +1, green -2, counted
+  in the GLB against a HEAD build); full capital 9 changed (8 seafront tiles and `tiles/index`; undoing fix 1
+  alone gives 0). Against `cp3`: 81 changed (prompts 28-42). Saved `fp-cp4`.
+- Look: `output/checks/cp4-souk.png` and `cp4-aerial.png` (difference 0.00: nothing in those views changed).
+  Blender: `output/bodjantouna-42/goumosbane.blend`.
+- Doubts and questions for Ali: seed 7's theatre view is close and oblique (64 degrees: its front faces a
+  12 m street); the souk camera has a walker 1-2 m in front of it. Did the phone page show textured walls?
 
 ## 2026-10-25 - Prompt 42 R1 Refresh the phone 3D page
 - Commit: (see git log) | Model: Opus 5.5, max (lead, no helper: publishing needs the Artifact tool)

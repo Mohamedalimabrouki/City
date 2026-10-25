@@ -76,6 +76,13 @@ and care as the last one: keep this file up to date when you learn something tha
   aerial --width 960 --height 720 --query "cam=...&look=...&ui=0"` (sandbox off), then a side-by-side
   sheet with PIL. A helper's own pictures use its own camera, so two helpers' pictures cannot be
   compared. Prompt 101 turns this into a tool.
+- **Other seeds while a helper edits** (CP4): build them from a clean copy of the commit
+  (`git worktree add --detach "$TMPDIR/head" HEAD`, then run the main `.venv/bin/python` there with
+  `--out` pointing back into `output/`), so half-made edits never mix in; the same copy builds a HEAD
+  quick city to count instances against. Look at new camera views in the GPU viewer: the seed 7
+  cathedral view first stood against a wall, then inside a tree crown, both invisible in the numbers.
+- **A helper cut off by an error** (a network drop): `git diff` to see where it stopped, then SendMessage
+  to the same helper; it resumes with its context.
 - **Blind, exact reruns.** To rerun a prompt, take its exact text from the transcript and compare its
   sha1; hide anything that would leak the answer (a memory note) while it runs, and restore it after.
 - **Scoring.** Declare criteria and weights before judging (the duel: result 30, solid work 25,

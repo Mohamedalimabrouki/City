@@ -54,7 +54,7 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
 - [x] 40 C2a Level-of-detail tiles (lod1 next to every tile: 3.6% of a city tile, 12.9% at worst)
 - [x] 41 C2b Viewer level of detail (whole capital as lod1, full near the camera; aerial frame about 155 -> 90 ms, settled 5-7 -> 3 s)
 - [x] 42 R1 Refresh the phone 3D page (city of 25 October; textures as images, 3 spots of its own)
-- [ ] 43 CP4 Checkpoint: people, landmarks, port
+- [x] 43 CP4 Checkpoint: people, landmarks, port (6 fixes, speed round byte-identical, cathedral fallback for shallow boulevard blocks)
 - [ ] 44 H1 Interiors: the design
 - [ ] 45 H1a Interior model and command
 - [ ] 46 H1b Courtyard houses

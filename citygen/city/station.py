@@ -164,8 +164,9 @@ class _Env:
     def __init__(self, ctx, cfg, districts, streets, medina, cut, land):
         self.ctx, self.cfg, self.districts, self.streets = ctx, cfg, districts, streets
         self.boundary = ctx.boundary
-        self.inside = ctx.boundary.buffer(-5.0)
+        self.inside = ctx.boundary.buffer(-float(cfg["inside"]))
         shapely.prepare(self.inside)
+        self.level_inside = self._level_inside(ctx, cfg, districts, land)
         keep_out = [cut] if cut is not None and not cut.is_empty else []
         if medina is not None:
             from .medina import ring_offset
@@ -182,6 +183,22 @@ class _Env:
         self.land = land
         self.targets = self._targets(streets, districts)
         self.min_sin = math.sin(math.radians(float(cfg["cross_angle"])))
+
+    @staticmethod
+    def _level_inside(ctx, cfg, districts, land):
+        """Where the station's level core may lie: past the city limit's edge blend (`[ground] edge_band`) and
+        past the port's level band (`[port] level_band`) around the coast of the port districts, where its
+        quays' level core may reach (`core_inland` m inland, city/port.py), each plus `[station] clear` m:
+        the ground applies both after the station's leveling (city/ground.py)."""
+        margin = float(cfg["clear"])
+        area = ctx.boundary.buffer(-(float(ctx.world.cfg["ground"]["edge_band"]) + margin))
+        ports = [d.polygon for d in districts if d.kind == "port"]
+        port = ctx.style.get("port")
+        if ports and port and land is not None and not land.is_empty:
+            shore = unary_union(ports).intersection(land.boundary.buffer(float(port["core_inland"]) + 1.0))
+            area = area.difference(shore.buffer(float(port["level_band"]) + margin))
+        shapely.prepare(area)
+        return area
 
     def _targets(self, streets, districts) -> list:
         """[(x, y, weight)]: where the country roads enter the city (connectors start on the limit), the ports."""
@@ -210,6 +227,10 @@ class _Env:
         if self.tree is not None and len(self.tree.query(precinct.buffer(-0.5), predicate="intersects")):
             return None
         head = fr.poly(rect(-p["hall"] / 2, p["hall"] / 2, p["front"], p["back"]))
+        core = unary_union([head, fr.poly(rect(-p["bundle"] / 2 - 1.0, p["bundle"] / 2 + 1.0, p["back"] - 1.0,
+                                                p["end"]))]).convex_hull   # convex: no kink in the blend
+        if not self.level_inside.contains(core):
+            return None                                   # the edge blend or the port's grading would tilt it
         drop, level = self._drop(fr, p)
         if drop > float(cfg["max_drop"]):
             return None                                   # more cut and fill than a station would take
@@ -227,7 +248,7 @@ class _Env:
         d_end = p["throat"] + reach + float(cfg["beyond"])
         ds = np.arange(p["back"], d_end + 1e-9, 20.0)
         probe = fr.xy(np.zeros(len(ds)), ds)
-        if np.any(self.terrain.height(probe[:, 0], probe[:, 1]) < 1.0):
+        if np.any(self.terrain.height(probe[:, 0], probe[:, 1]) < float(cfg["dry"])):
             return None                                   # the tracks would run into the sea
         tracks = [LineString(fr.xy(sd[:, 0], sd[:, 1])) for sd in (track_sd(cfg, p, i, d_end) for i in range(p["n"]))]
         half = float(cfg["spacing"]) / 2 + float(cfg["margin"])
@@ -246,8 +267,6 @@ class _Env:
                        "tracks": [round(t, 3) for t in p["tracks"]],
                        "platforms": [[round(a, 3), round(b, 3)] for a, b in p["platforms"]],
                        "stop": p["stop"], "end": p["end"], "street": street, "level": round(level, 3)})
-        core = unary_union([head, fr.poly(rect(-p["bundle"] / 2 - 1.0, p["bundle"] / 2 + 1.0, p["back"] - 1.0,
-                                                p["end"]))]).convex_hull   # convex: no kink in the blend
         return cost, Station(facade, tracks, precinct, corridor, int(district), core)
 
     def _drop(self, fr: Frame, p: dict) -> tuple:

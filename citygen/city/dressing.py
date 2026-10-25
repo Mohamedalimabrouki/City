@@ -364,8 +364,11 @@ class Dresser:
         """(center, "shop" | "cafe" | "front", door piece, threshold) of the main facade; Nones when too short.
 
         A main wall on the corniche's seafront stretch (`seaside`, prompt 37) may be a cafe by its own chance
-        (`[corniche.terrace] cafe`, stream `rng("terrace", "cafe", k)`), decided after the door's draws so the
-        windows draw as before; its tables, and those of a colonial cafe there, are the terrace's (city/terraces.py)."""
+        (`[corniche.terrace] cafe`, stream `rng("terrace", "cafe", k)`), decided after the door's draws; its front
+        draws from its own stream `rng("terrace", "cafe", k, "front")`. Its door spot moves to the wall middle, so
+        the ground-floor window slots skipped beside it, and with them the rest of that building's `rng("b", k)`
+        draws, differ from a plain front's. Its tables, and those of a colonial cafe there, are the terrace's
+        (city/terraces.py)."""
         cfg = self.cfg
         souk = self.souk_of.get(f.street) if f.kind == "souk" else None
         if souk is not None and f.length >= 3.0 and rng.random() < cfg.get("shop_on_souk", 0.85):
@@ -424,7 +427,7 @@ class Dresser:
                 self.put(out, "planter", rng, c + u * off + n * 0.45, 0.0, yaw)
         if f.length >= 3.2 and self._seaside_cafe(f, k):
             del out[first:]
-            c, z = self._cafe(f, self.rng("terrace", "cafe", k), out, tables=False)
+            c, z = self._cafe(f, self.rng("terrace", "cafe", k, "front"), out, tables=False)
             return c, "cafe", None, z
         return c, "front", piece, z
 
