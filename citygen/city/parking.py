@@ -207,7 +207,7 @@ class Parking:
         self._own: dict = {}                 # street -> its surface, prepared
         self._lamp_boxes: dict = {}          # street -> plan boxes of its lamps
         self._facing: dict = {}              # apartment block -> its nearest street
-        self._line_tree = None
+        self._line_tree = self._lines = None
 
     # --- public ---------------------------------------------------------------------------------
     def cars(self, k: int, tile) -> list:
@@ -272,9 +272,10 @@ class Parking:
     def inside(self, k: int) -> set:
         """`lying_on` for street k (kept)."""
         if k not in self._inside:
-            if self._line_tree is None:
-                self._line_tree = STRtree([st.line for st in self.d.plan.streets])
-            lines = [st.line for st in self.d.plan.streets]
+            if self._line_tree is None:                  # the street lines and their tree, made once
+                self._lines = [st.line for st in self.d.plan.streets]
+                self._line_tree = STRtree(self._lines)
+            lines = self._lines
             self._inside[k] = lying_on(k, lines[k], self.d.surfaces[k], self._line_tree, lines, self.cfg)
         return self._inside[k]
 

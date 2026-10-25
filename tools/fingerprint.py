@@ -14,6 +14,7 @@ import hashlib
 import json
 import re
 import sys
+from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
@@ -70,7 +71,13 @@ def _plan_parts(city: str, path: Path) -> dict:
 
 
 def _kit_parts(world: dict) -> dict:
-    kit = make_kit(world["seed"], load_config(), load_style(world["style"]))
+    """One part per kit piece; the kit is made once per process for a seed and style (tests call this often)."""
+    return {name: _part(p["h"], **p["d"]) for name, p in _kit_digests(world["seed"], world["style"]).items()}
+
+
+@lru_cache(maxsize=4)
+def _kit_digests(seed: int, style: str) -> dict:
+    kit = make_kit(seed, load_config(), load_style(style))
     out = {}
     for name in sorted(kit.pieces):
         piece = kit.pieces[name]

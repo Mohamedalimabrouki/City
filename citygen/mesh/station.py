@@ -444,17 +444,25 @@ def keep_off(placements: list, zone, kit) -> list:
     if zone is None or not placements:
         return placements
     out = []
+    bounds = zone.bounds
     for p in placements:
         piece = kit.pieces.get(p.piece) if kit is not None else None
         if piece is None:
-            if not zone.contains(Point(p.x, p.y)):
+            if _outside(bounds, (p.x, p.y)) or not zone.contains(Point(p.x, p.y)):
                 out.append(p)
             continue
         lo, hi = piece.bounds
         x0, x1 = lo[0] * p.stretch * p.scale, hi[0] * p.stretch * p.scale
         y0, y1 = -hi[2] * p.scale, -lo[2] * p.scale
         c, s = math.cos(p.yaw), math.sin(p.yaw)
-        box = Polygon([(p.x + x * c - y * s, p.y + x * s + y * c) for x, y in ((x0, y0), (x1, y0), (x1, y1), (x0, y1))])
-        if not zone.intersects(box):
+        corners = [(p.x + x * c - y * s, p.y + x * s + y * c) for x, y in ((x0, y0), (x1, y0), (x1, y1), (x0, y1))]
+        if _outside(bounds, *corners) or not zone.intersects(Polygon(corners)):
             out.append(p)
     return out
+
+
+def _outside(bounds, *points) -> bool:
+    """True when the points' bounding box lies wholly beside the zone's bounds: no shape test needed."""
+    xs, ys = [x for x, _ in points], [y for _, y in points]
+    zx0, zy0, zx1, zy1 = bounds
+    return max(xs) < zx0 or min(xs) > zx1 or max(ys) < zy0 or min(ys) > zy1

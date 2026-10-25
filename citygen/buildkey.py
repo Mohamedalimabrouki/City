@@ -15,7 +15,7 @@ from pathlib import Path
 from .config import ROOT, style_path
 
 CODE = Path(__file__).resolve().parent
-NOT_CONTENT = ("output", "workers", "area")   # [build] settings that never change what a tile holds
+NOT_CONTENT = ("output", "workers", "tiles_per_worker", "area")   # [build] settings that never change what a tile holds
 LIBRARIES = ("numpy", "scipy", "shapely", "contourpy", "pillow")   # a new version may change the numbers
 
 

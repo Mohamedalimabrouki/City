@@ -112,8 +112,12 @@ class Squares:
             lines = [st.line for st in self.plan.streets]
             line_tree = STRtree(lines) if lines else None
             clear = self.c("island_clear", 0.6)
+            by_street: dict = {}                         # street -> its promenades, in the order of the walks
+            for w in self.plan.walks:
+                if w.kind == "promenade":
+                    by_street.setdefault(w.street, []).append(w.polygon)
             for k, st in enumerate(self.plan.streets):
-                proms = [w.polygon for w in self.plan.walks if w.kind == "promenade" and w.street == k]
+                proms = by_street.get(k, [])
                 if not proms:
                     continue
                 prom = shapely.union_all(proms)

@@ -98,4 +98,5 @@ area = "capital-center"
 center_radius = 1200.0
 output = "output"
 workers = 0               # processes that build 3D tiles: 0 = all cores but one, 1 = one process
+tiles_per_worker = 3      # at least this many tiles to build per process, else fewer processes (the quick build: 3)
 kits = ["tounes"]         # extra 3D piece kits from the kits/ folder (pieces made in Tounes Rush)

@@ -122,9 +122,10 @@ class _Blur:
         fy = min(max(y / self.lattice - self.j0, 0.0), h - 1.0)
         i = min(max(math.floor(fx), 0), w - 2)
         j = min(max(math.floor(fy), 0), h - 2)
-        self._fill(i, i + 1, j, j + 1)
-        tx, ty = fx - i, fy - j
         v = self.values
+        if math.isnan(v[j, i] + v[j, i + 1] + v[j + 1, i] + v[j + 1, i + 1]):   # a corner is missing: fill
+            self._fill(i, i + 1, j, j + 1)
+        tx, ty = fx - i, fy - j
         top = v[j, i] * (1.0 - tx) + v[j, i + 1] * tx
         bottom = v[j + 1, i] * (1.0 - tx) + v[j + 1, i + 1] * tx
         return float(top * (1.0 - ty) + bottom * ty)

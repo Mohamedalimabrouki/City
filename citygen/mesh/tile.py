@@ -350,17 +350,18 @@ STATION_KINDS = frozenset({"station", "station_platforms"})   # drawn by mesh/st
 
 def building_mesh(mb: MeshBuilder, b, height_fn, roof: RoofLayout | None = None,
                   plinth: tuple[str, float] | None = None, frontage=None, roofs: list | None = None,
-                  landmarks: dict | None = None) -> None:
+                  landmarks: dict | None = None, ground_z: np.ndarray | None = None) -> None:
     """One building. `roofs` ([(Mass, RoofLayout)], roofs.roof_layouts) draws a massed building (prompt
     23); otherwise `roof` is its one flat roof's layout. `frontage` is one bool per segment of
     `massing.outline(b)` (the footprint ring for a plain building): the walls that get the plinth. A
-    cathedral or theatre (prompt 32) is drawn by `mesh/landmarks.py` with the style's `[landmarks]`."""
+    cathedral or theatre (prompt 32) is drawn by `mesh/landmarks.py` with the style's `[landmarks]`.
+    `ground_z`: the ground under its footprint ring, when the caller asked for many at once (`ring_heights`)."""
     if b.kind in LANDMARK_KINDS:
         landmark_mesh(mb, b, height_fn, landmarks or {})
         return
     fp = orient(b.footprint, sign=1.0)
     ring = np.asarray(fp.exterior.coords)
-    ground = height_fn(ring[:, 0], ring[:, 1])
+    ground = height_fn(ring[:, 0], ring[:, 1]) if ground_z is None else ground_z
     low, high = float(ground.min()), float(ground.max())
     z0, z1 = low - 0.6, high + b.height
     if roofs is not None and massed(b):
@@ -398,6 +399,18 @@ def building_mesh(mb: MeshBuilder, b, height_fn, roof: RoofLayout | None = None,
         add_battlement(mb, bt["chains"], z1, bt["breast"], bt["merlon"], bt["depth"], b.wall)
     if b.arches:
         arch_meshes(mb, b, height_fn, high)
+
+
+def ring_heights(ground, buildings: list) -> list:
+    """The ground under each building's footprint ring as `building_mesh` reads it, in one query for a
+    whole tile: the height is a pure function of position, so the values are the same, only numpy's
+    per-call overhead is saved."""
+    rings = [np.asarray(orient(b.footprint, sign=1.0).exterior.coords) for b in buildings]
+    if not rings:
+        return []
+    pts = np.concatenate(rings)
+    h = np.asarray(ground.height(pts[:, 0], pts[:, 1]), dtype=np.float64)
+    return np.split(h, np.cumsum([len(r) for r in rings])[:-1])
 
 
 def arch_meshes(mb: MeshBuilder, b, height_fn, high: float) -> None:
@@ -689,6 +702,8 @@ def build_tile(tc: TileContext, i: int, j: int) -> tuple:
                           default=0.0)
         inside = (centers[:, 0] >= x0) & (centers[:, 0] < x1) & (centers[:, 1] >= y0) & (centers[:, 1] < y1)
         owned = np.nonzero(inside)[0]
+        plain = [int(k) for k in owned if plan.buildings[int(k)].kind not in PAVED_KINDS | STATION_KINDS | LANDMARK_KINDS]
+        under = dict(zip(plain, ring_heights(tc.ground, [plan.buildings[k] for k in plain])))
         for k in owned:
             b = plan.buildings[int(k)]
             if b.kind in PAVED_KINDS:
@@ -709,7 +724,7 @@ def build_tile(tc: TileContext, i: int, j: int) -> tuple:
                 building_mesh(mb, b, tc.height, landmarks=tc.landmarks)
                 continue
             roofs = roof_layouts(b, kind, roof_stream(tc.world.seed, plan.settlement.id, int(k)), tc.roofs)
-            building_mesh(mb, b, tc.height, plinth=plinth, frontage=frontage, roofs=roofs)
+            building_mesh(mb, b, tc.height, plinth=plinth, frontage=frontage, roofs=roofs, ground_z=under[int(k)])
             if dresser is not None:
                 dresser.keep_roof(int(k), roofs)
             if b.apron is not None:

@@ -124,8 +124,9 @@ class _WrapCanvas:
             yield [(x + s + dx, y + s + dy) for x, y in xy]
 
     def line(self, xy, value: int, width: int = 1) -> None:
+        fill = int(np.clip(value, 0, 255))     # once, not for each of the nine copies
         for pts in self._copies(xy):
-            self.draw.line(pts, fill=int(np.clip(value, 0, 255)), width=width)
+            self.draw.line(pts, fill=fill, width=width)
 
     def ellipse(self, x: float, y: float, rx: float, ry: float, value: int) -> None:
         s = self.size
@@ -577,9 +578,25 @@ def _encoded(name: str, seed: int, spec_items: tuple) -> Encoded:
     return encode(texture(name, seed, dict(spec_items)))
 
 
+_HANDED: dict = {}   # images a parent process already made, handed to its tile workers (build.TilePool)
+
+
 def encoded(name: str, seed: int, spec: dict | None = None) -> Encoded:
     """File bytes, MIME type and extension for one texture; cached per process and settings."""
-    return _encoded(name, seed, tuple(sorted((spec or {}).items())))
+    key = (name, seed, tuple(sorted((spec or {}).items())))
+    return _HANDED.get(key) or _encoded(*key)
+
+
+def style_images(style: dict, seed: int) -> dict:
+    """Every image the style's tiles use, keyed as `encoded` looks them up: a parent makes them once
+    and hands them to its workers (`take_images`), which would otherwise each make them again."""
+    return {(name, seed, tuple(sorted(spec_for(style, name).items()))): encoded(name, seed, spec_for(style, name))
+            for name in image_names(style)}
+
+
+def take_images(images: dict) -> None:
+    """Use images made by the parent process (`style_images`): the same bytes, not made twice."""
+    _HANDED.update(images)
 
 
 def spec_for(style: dict, name: str) -> dict:

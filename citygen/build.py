@@ -24,7 +24,7 @@ from .city.streets import view_spot
 from .export.lore import gazetteer, plan_json, slug, write_json
 from .export.maps import city_map, country_map
 from .mesh.tile import TileContext, export_tile
-from .mesh.textures import write_shared_textures
+from .mesh.textures import style_images, take_images, write_shared_textures
 from .world import generate_world
 
 
@@ -115,7 +115,8 @@ def _init_worker(path: str) -> None:
     while not os.path.exists(path):  # the workers start while the parent is still planning
         time.sleep(0.05)
     with open(path, "rb") as f:
-        world, plans = pickle.load(f)
+        world, plans, images = pickle.load(f)
+    take_images(images)   # the parent's texture images: making them again costs each worker seconds
     _worker_tc = TileContext(world, plans)
 
 
@@ -179,9 +180,11 @@ class TilePool:
                 tiles.append(export_and_record(tc, i, j, folder, journal))
                 progress(n)
             return tiles
+        textured = str(world.cfg["tiles"].get("textures", "shared")) != "off"
+        images = style_images(world.style, world.seed) if textured else {}   # made once, here
         part = self.shared.with_suffix(".part")
         with open(part, "wb") as f:
-            pickle.dump((world, plans), f, protocol=pickle.HIGHEST_PROTOCOL)
+            pickle.dump((world, plans, images), f, protocol=pickle.HIGHEST_PROTOCOL)
         os.replace(part, self.shared)  # workers only see the finished file
         results = self.pool.imap_unordered(_export_in_worker, [(i, j, folder, journal) for i, j in keys])
         meanwhile()
@@ -302,9 +305,8 @@ def build(cfg: dict, area: str | None = None, log=print, force: bool = False) ->
         if not force:
             done = finished_tiles(folder, journal, key, keys)
     todo = [k for k in keys if k not in done]
-    workers = resolve_workers(cfg)
-    if len(todo) <= 2 * workers:  # too few tiles to repay starting the processes
-        workers = 1
+    per = max(1, int(cfg["build"].get("tiles_per_worker", 3)))   # fewer tiles would not repay a process's start
+    workers = max(1, min(resolve_workers(cfg), len(todo) // per))
     if done:
         log(f"tiles reused: {len(done)} of {len(keys)}")
     if workers > 1:

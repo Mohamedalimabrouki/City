@@ -34,9 +34,11 @@ class Perlin:
         yi = y0.astype(np.int64) & 255
         perm = self.perm
 
+        gx, gy = _GRAD[:, 0], _GRAD[:, 1]
+
         def corner(h, dx, dy):
-            g = _GRAD[h & 7]
-            return g[..., 0] * dx + g[..., 1] * dy
+            h = h & 7
+            return gx[h] * dx + gy[h] * dy
 
         n00 = corner(perm[perm[xi] + yi], fx, fy)
         n10 = corner(perm[perm[xi + 1] + yi], fx - 1.0, fy)
