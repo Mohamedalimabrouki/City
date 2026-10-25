@@ -100,6 +100,9 @@ More in the auto-memory note on the Mac environment.
   paths or a subshell `( cd ... && ... )`.
 - Helpers in their own worktree (`isolation: "worktree"`) start without `output/` and `.venv`: tell them
   to run `/Users/mohamedalimabrouki/Desktop/City/.venv/bin/python` from their own folder.
+- Tool inputs turn a backslash-u escape into the real character: never type the em dash's escape in
+  Write or Edit content (it lands as the forbidden character); in scripts build it with `chr(0x2014)`,
+  and check with `git grep -c "$(printf '\342\200\224')"` before every commit.
 - The phone page lives at https://claude.ai/artifact/HMtdFZUV9sGmyPn4q8mKsq: read it with the Artifact
   tool before publishing to it; 16 MB per file, 64 MB per publish.
 - macOS `ls -l` shows extended attributes: do not parse its columns.
