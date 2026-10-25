@@ -25,7 +25,8 @@ Entry format:
   the docs, but never commits. The lead reviews the diff, tests, fingerprint and pictures (the GPU
   browser pane for night glass and things near the sea, which headless snapshots draw wrong), sends
   follow-ups, then commits one commit per prompt and pushes. Checkpoints add an independent Opus
-  reviewer that reads only the committed history with git, so it can run beside a builder.
+  reviewer that reads only the committed history with git, so it can run beside a builder. The
+  method in full, with Ali's preferences and the review techniques: `docs/LEAD.md` (read it first).
 - Next: 42 R1 phone page. Quick build; derive the page's camera spots from the index views (heights
   from `Ground.surface` + 1.7 m); `tools/make_artifact.py output/bodjantouna-42 output/artifact --title
   "Goumosbane in 3D"`; then with Claude's Artifact tool read

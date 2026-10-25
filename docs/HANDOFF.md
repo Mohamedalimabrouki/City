@@ -2,7 +2,8 @@
 
 Read this once when you start on a new machine, or when a task needs background. Everyday
 rules are in `CLAUDE.md`, tasks in `docs/ROADMAP.md`, technical rules in `docs/SPEC.md`, cost
-advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
+advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`, and how the lead session works
+(method, review techniques, Ali's preferences) in `docs/LEAD.md`.
 
 ## The owner
 

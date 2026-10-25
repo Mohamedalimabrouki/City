@@ -15,6 +15,9 @@ The code builds the world; agents only improve the code. Keep every session smal
 ## Before you code
 - Where the work stands: the checklist in `docs/ROADMAP.md` and the newest entry at the top of
   `docs/WORKLOG.md` (a "Resume here" entry when the work paused: read it first).
+- Lead mode (the session Ali talks to runs each prompt with one helper and reviews it before it
+  commits, since prompt 20): read `docs/LEAD.md` first (Ali's preferences, the method, review
+  techniques, Mac gotchas).
 - Read only what the task needs: the task in `docs/ROADMAP.md`, the matching parts of
   `docs/SPEC.md`, and the files the task names.
 - Never open files in `output/` (huge generated data). Use `python -m citygen stats`,
