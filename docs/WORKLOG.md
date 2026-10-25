@@ -31,7 +31,8 @@ Entry format:
   over their byte budgets (accepted one by one, unchanged), the relaxed 3.5 MB tile target (densest
   quick tile 4.69 MB, seed 7 4.86 MB; next gains: merge each full tile's meshes per material, weld flat
   vertices), kiosk cafes only in tiles with buildings, quick builds losing lod1 blocks of unexported
-  tiles, and Ali's answer on whether the phone page showed textured walls on his phone.
+  tiles. The phone page is confirmed on Ali's phone (25 October, two screenshots): textured plaster
+  walls, stone paving, the kasbah's brick wall, crowds, golden hour.
 - Other cities, built with today's code on 24 October: `output/megine/bodjantouna-42` (Megine) and
   `output/city1/bodjantouna-42` (Sazouches el Gharbi). `python -m citygen list` names every settlement;
   `python -m citygen build --area city:NAME --out output/FOLDER` builds one, then `citygen view` it.
@@ -81,7 +82,8 @@ Entry format:
 - Look: `output/checks/cp4-souk.png` and `cp4-aerial.png` (difference 0.00: nothing in those views changed).
   Blender: `output/bodjantouna-42/goumosbane.blend`.
 - Doubts and questions for Ali: seed 7's theatre view is close and oblique (64 degrees: its front faces a
-  12 m street); the souk camera has a walker 1-2 m in front of it. Did the phone page show textured walls?
+  12 m street); the souk camera has a walker 1-2 m in front of it. Ali confirmed the phone page shows
+  textured walls on his phone.
 
 ## 2026-10-25 - Prompt 42 R1 Refresh the phone 3D page
 - Commit: (see git log) | Model: Opus 5.5, max (lead, no helper: publishing needs the Artifact tool)
