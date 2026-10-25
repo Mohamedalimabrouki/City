@@ -46,7 +46,7 @@ and care as the last one: keep this file up to date when you learn something tha
 4. Review it yourself: the report is a claim, not proof.
    - Read the whole diff: the style of nearby code, numbers in the style files, a stream of its own for
      every new choice, no new draws on an old stream, small functions.
-   - Run the tests and `build --quick`; `git diff | grep -c $'—'` must print 0.
+   - Run the tests and `build --quick`; `git diff | grep -c $'\u2014'` must print 0.
    - Fingerprint: explain every changed part down to its cause (section 3), not just "expected".
    - Look at the pictures yourself. For looks, compare versions from the same cameras. Night glass and
      things near the sea need the GPU browser pane: headless snapshots draw them wrong.
