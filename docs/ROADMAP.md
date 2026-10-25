@@ -112,6 +112,26 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
 - [ ] 98 F3 Two-level city: the design
 - [ ] 99 G1 Gallery, guide and phone page (a first city gallery exists: extend it)
 - [ ] 100 CP9 Final review
+- [ ] 101 K1 Asset review tool
+- [ ] 102 L1 City life: the design
+- [ ] 103 K2 Hero detail near the camera
+- [ ] 104 K3 Hero people
+- [ ] 105 L2 Daily schedules
+- [ ] 106 L3 Routes on the street graph
+- [ ] 107 L4 Animated walkers
+- [ ] 108 L5 The living viewer
+- [ ] 109 L6 City rhythms
+- [ ] 110 CP10 Checkpoint: hero people and city life
+- [ ] 111 K4 Hero trees and palms
+- [ ] 112 K5 Hero vehicles
+- [ ] 113 L7 Traffic
+- [ ] 114 K6 Facade pieces
+- [ ] 115 K7 Souk and café pieces
+- [ ] 116 L8 Follow a life
+- [ ] 117 K8 Street furniture and boats
+- [ ] 118 K9 Landmark close-ups
+- [ ] 119 L9 City life in Godot
+- [ ] 120 CP11 Checkpoint: hero assets and city life
 
 ## Done (v0.1)
 
@@ -344,3 +364,35 @@ plus a kit of 3D pieces. Do F4 first so styles can be mixed inside one country.
 - [ ] **F3 Two-level city** (L, Opus medium for the design) - An upper city on platforms and
   bridges between towers above a dark undercity of pipes and lanes (Arcane-like). Needs a new
   vertical planning module and stacked tiles.
+
+## K. Kit polish: hero-quality assets (after prompt 100)
+
+Ali, 25 October 2026: every asset polished one by one, "at least like Léo" (his Blender character).
+The method (reference board, the right tool, fixed cameras, two review rounds with Ali, budgets) and
+the prompts are in `docs/prompts/10-life-and-polish.md`. These are the first city assets to use the
+Blender route of prompt 38.
+
+- [ ] **K1 Asset review tool** (M) - fair before/after sheets of one piece from fixed cameras (prompt 101).
+- [ ] **K2 Hero detail near the camera** (M) - a rich `hero` level drawn within about 40 m (prompt 103).
+- [ ] **K3 Hero people** (L) - the seven figures remade in Blender, with a rig (prompt 104).
+- [ ] **K4 Hero trees and palms** (M) - prompt 111.
+- [ ] **K5 Hero vehicles** (M) - prompt 112.
+- [ ] **K6 Facade pieces** (M) - doors, shutters, grilles, balconies (prompt 114).
+- [ ] **K7 Souk and café pieces** (M) - prompt 115.
+- [ ] **K8 Street furniture and boats** (M) - prompt 117.
+- [ ] **K9 Landmark close-ups** (M) - prompt 118.
+
+## L. City life (after prompt 100)
+
+Ali, 25 October 2026: people who move in long loops, as if they had lives. One design
+(`docs/LIFE.md`, prompt 102) decides formats, budgets and the animation technique.
+
+- [ ] **L1 City life: the design** (design) - prompt 102.
+- [ ] **L2 Daily schedules** (M) - a week of plans for every resident (prompt 105).
+- [ ] **L3 Routes on the street graph** (M) - prompt 106.
+- [ ] **L4 Animated walkers** (L) - 2,000 instanced walkers at 60 fps (prompt 107).
+- [ ] **L5 The living viewer** (L) - a clock, moving people, light that follows the time (prompt 108).
+- [ ] **L6 City rhythms** (M) - prompt 109.
+- [ ] **L7 Traffic** (L) - prompt 113.
+- [ ] **L8 Follow a life** (M) - prompt 116.
+- [ ] **L9 City life in Godot** (M) - prompt 119.

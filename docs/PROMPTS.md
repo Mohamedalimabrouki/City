@@ -4,6 +4,11 @@ From here the project grows through 100 small tasks (plus 20.1 and 20.2, added a
 one per session, in this order. Each row below names the model and effort to use. The full text
 of every prompt is in `docs/prompts/`; Claude reads it there, so you only type the number.
 
+After prompt 100 come two tracks that Ali asked for on 25 October 2026 (prompts 101-120,
+`docs/prompts/10-life-and-polish.md`): **K**, every asset polished one by one to hero quality
+(Blender for people and trees), and **L**, a city with life (residents with weekly schedules who
+walk the streets, a clock in the viewer, traffic, following one person's day).
+
 ## How to run one prompt
 
 1. Start a new session in the City folder (or type `/clear` in the current one).
@@ -47,7 +52,8 @@ of every prompt is in `docs/prompts/`; Claude reads it there, so you only type t
   can be postponed; 70 and 71 cannot, because the stories need them. Prompts 99 and 100 adapt
   to what is done.
 - **The end.** After prompt 100, come back to your lead session and say so: it checks
-  everything using `docs/WORKLOG.md` and `docs/REVIEW.md`.
+  everything using `docs/WORKLOG.md` and `docs/REVIEW.md`. Then the two tracks (101-120) start:
+  each K prompt ends with your review of the asset in two rounds, so keep time to look.
 
 ## What the settings mean
 
@@ -165,3 +171,23 @@ of every prompt is in `docs/prompts/`; Claude reads it there, so you only type t
 | 98 | F3 Two-level city: the design | Opus | high | 94 | the summary |
 | 99 | G1 Gallery, guide and phone page | Sonnet | medium | 57, 42 | the gallery |
 | 100 | CP9 Final review | Opus | high | 1-91, 99 | the review |
+| 101 | K1 Asset review tool | Sonnet | high | 2, 38 | a review sheet |
+| 102 | L1 City life: the design | Opus | high | 80, 71, 41 | the summary |
+| 103 | K2 Hero detail near the camera | Opus | high | 101, 41, 38 | viewer (GPU) |
+| 104 | K3 Hero people | Opus | high | 102, 103 | review sheets |
+| 105 | L2 Daily schedules | Sonnet | high | 102, 80 | a sample |
+| 106 | L3 Routes on the street graph | Sonnet | high | 105, 71 | a map |
+| 107 | L4 Animated walkers | Opus | high | 104 | viewer |
+| 108 | L5 The living viewer | Opus | high | 106, 107 | viewer at four times |
+| 109 | L6 City rhythms | Sonnet | high | 108 | four times of day |
+| 110 | CP10 Checkpoint: hero people and city life | Opus | high | 101-109 | the report |
+| 111 | K4 Hero trees and palms | Opus | high | 103 | review sheets |
+| 112 | K5 Hero vehicles | Sonnet | high | 103 | review sheets |
+| 113 | L7 Traffic | Opus | high | 108, 112 | viewer |
+| 114 | K6 Facade pieces | Sonnet | high | 103 | review sheets |
+| 115 | K7 Souk and café pieces | Sonnet | high | 103 | review sheets |
+| 116 | L8 Follow a life | Sonnet | high | 108, 82 | viewer |
+| 117 | K8 Street furniture and boats | Sonnet | medium | 103 | review sheets |
+| 118 | K9 Landmark close-ups | Sonnet | high | 103 | review sheets |
+| 119 | L9 City life in Godot | Sonnet | high | 74, 108 | Godot |
+| 120 | CP11 Checkpoint: hero assets and city life | Opus | high | 101-119 | everything |

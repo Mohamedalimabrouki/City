@@ -49,8 +49,24 @@ Entry format:
   `output/city1/bodjantouna-42` (Sazouches el Gharbi). `python -m citygen list` names every settlement;
   `python -m citygen build --area city:NAME --out output/FOLDER` builds one, then `citygen view` it.
 - Doubts and questions for Ali: none.
-- Added after the pause note, at Ali's request: the city gallery and keyboard navigation, then the cemetery
-  cypress that won a model duel (entries below).
+- Added after the pause note, at Ali's request: the city gallery and keyboard navigation, the cemetery
+  cypress that won a model duel, and the plan of two tracks after prompt 100 (entries below).
+
+## 2026-10-25 - Playbook: two tracks after prompt 100 (plan only, Ali's request)
+- Commit: (see git log) | Model: Opus 5.5 (lead, no helper)
+- Changed: `docs/prompts/10-life-and-polish.md` (new: prompts 101-120), `docs/PROMPTS.md` (intro, the end,
+  table), `docs/ROADMAP.md` (checklist, sections K and L), `docs/HANDOFF.md`, this log.
+- Why: Ali wants every asset polished one by one "at least like Léo" (his Blender character) and a city
+  with life (people moving in long loops, as if they had lives). Two interleaved tracks: K (review tool,
+  hero detail near the camera, people, trees, vehicles, facades, souk and cafés, street furniture and
+  boats, landmarks) and L (design, weekly schedules, routes, animated walkers, the living viewer,
+  rhythms, traffic, following a life, Godot), with checkpoints 110 and 120. Prompts 95-97 stay (Ali).
+- Facts used: the kit has 185 code-made pieces and 58 from the Tounes kit, none from Blender yet (prompt
+  38 built and tested the route only); the quick plan has 1,300 households and 7,065 residents, 3 mosques,
+  the kasbah, cathedral, theatre, station and lighthouse, but no schools, cafés (besides kiosks) or
+  hammams: prompt 102 decides how to add them.
+- Checks: docs only, no code or build change.
+- Doubts and questions for Ali: none.
 
 ## 2026-10-25 - Cemetery cypress, winner of a model duel (Ali's request, between prompts)
 - Commit: (see git log) | Model: Opus 5.5 helper, effort high; lead review Opus 5.5

@@ -59,6 +59,12 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`.
   about 1.9x the cost and 2.6x the time; Sonnet high (7.5) cost half. Helpers stay on Opus at the
   playbook's effort, max only for hard or risky work. Details: the 25 October entry of `docs/WORKLOG.md`;
   the worktrees stay in `.claude/worktrees/` (Ali: keep them).
+- On 25 October Ali asked for two tracks after prompt 100, written as prompts 101-120 in
+  `docs/prompts/10-life-and-polish.md` (prompts 95-97 stay): **K**, every asset polished one by one
+  "at least like Léo" (his Blender character), Blender for organic things through prompt 38's export
+  (which has carried no city asset yet: the kit has 185 code-made pieces and 58 from the Tounes kit);
+  **L**, a city with life: residents with weekly schedules walking the street graph, a clock in the
+  viewer, rhythms, traffic, following one person's day, then Godot.
 - Prompts 1-5 (tools and fast builds) are done and checked by checkpoint 1 (CP1, 22 October
   2026): fingerprint, before/after pictures, parallel and resumable builds all work as
   documented. Reference for checkpoint 16: `output/checks/fp-cp1.json` (quick build) and the
