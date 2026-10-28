@@ -1034,6 +1034,323 @@ shaders (which ignore the image and the tint) and takes their palette color from
   `cargo_containers_0..1` (234): three 20-foot containers with ribbed sides and door bars, two side by side and
   one on top, three colors each on its stream, sharing every part dict.
 
+## 6c. Interiors (designed in prompt 44, built by prompts 45-50, `citygen/interior/`)
+
+The inside of a dwelling is made on demand from a build folder, never stored and never drawn by a
+normal build; the same build always gives the same bytes. Nothing outside `citygen/interior/`,
+`__main__.py`, `view.py` and the tools imports the package, and the normal build output never changes
+(the fingerprint check of prompts 45-50 is `--allow ""`). Each prompt below marks what it built.
+
+**Who gets one.** Dwellings only (`life.HOUSING` = the dresser's `DRESSED`: `house`, `domed`,
+`apartments`, `villa`). `layout_of(plan, b)` (prompt 45) picks the layout from kind, district and floor:
+
+| Layout | Buildings | Rooms |
+|---|---|---|
+| `dar` | `house` in a medina or village district with a courtyard (a footprint hole) | skifa, wast ed dar, bit (T room), maqsura, matbakh, bit el ma, bit el mouna, droj, ghorfa upstairs, stah |
+| `compact` | `house` in a medina or village district without a courtyard, storey area at least `[interiors.compact] min_area` | skifa, a covered wast ed dar under a skylight, rooms round it |
+| `small` | the same, smaller | entry, bit, matbakh |
+| `koubba` | `domed` | the koubba under the dome, an annex |
+| `colonial` | `apartments` in a colonial district | stair core, 1 or 2 flats per floor, a shop or cafe behind a shop or cafe front |
+| `slab` | `apartments` in a modern district | a stair core behind each stair door, 2 flats per core and floor |
+| `villa` | `villa` | hall, salon, salle a manger, cuisine, wc; chambres and salle de bain upstairs |
+| `maison` | `house` in any other district (residential) | hall, salon, cuisine, chambres |
+
+Nothing else gets an interior (walls, towers, minarets, mosque halls and courts, marabouts, sheds, the
+kasbah, cathedral, theatre, station): the command refuses them, naming the kind. A mosque hall or a
+marabout would get a bare prayer hall with the mihrab on the qibla wall and never household furniture,
+but the dresser gives them no door or window (they are not `DRESSED`), so an interior would have no way
+in; they wait for a door on the outside (a later prompt). Villas get no garage: the facade has no garage door.
+
+Terms (Latin letters, as used in Tunisia): **skifa** the bent entrance vestibule (stone benches along
+its walls; the bend hides the court from the street); **wast ed dar** the courtyard, open to the sky;
+**bit** a room; the **T room** is a long bit with a central door on the court, a **kbou** (alcove)
+opposite the door and a **maqsura** (small room) at each end; **bortal** a gallery of arches along the
+court; **majel** the cistern mouth in the court; **fesqiya** a fountain basin; **matbakh** kitchen;
+**bit el ma** washroom and WC; **bit el mouna** storeroom; **droj** stairs; **ghorfa** an upper room;
+**stah** the roof terrace; **menzah** the roof room of prompt 23; **hanout** a shop and **makhzen** its
+back room; **qahwa** a cafe. Modern homes use the French words Tunisians use: hall, salon, salle a
+manger, cuisine, chambre, salle de bain (`sdb`), wc, couloir, palier (landing); a flat is typed **S+n**
+(a salon and n chambres). Room types in data are these words in lower case with `_` for spaces.
+
+**Command** (prompt 45). `python -m citygen interior BUILDING [--folder BUILD] [--city NAME] [--out FOLDER]`.
+- BUILDING is the index k in `plan.buildings` of that city (the k of plan.json `buildings`, of a
+  household's `building`, and of the viewer card's "No. k" line, prompt 45), or `pick:<layout>[:<floors>]`:
+  the dwelling of that layout (and floor count) whose footprint centroid lies nearest the settlement
+  center, the lower index on a tie, so Looks and tests stay put while plans change; `pick:shop` (prompt
+  47) is the house with a shop front (`Dresser.front_of(k)[2] == "shop"`) nearest the center.
+- `--folder` the build folder (default: the latest, as `citygen view`). `--city` one of the build's
+  cities by name (any case) or slug, default the build's focus (`select_area(world, area)[1]`); a city
+  the build did not plan is an error listing the build's cities. A building number only means something
+  for one build and one city; a build holding several cities needs `--city` for all but its focus.
+- `--out` default `<BUILD>/interiors/<city slug>-<k>/`. `tools/fingerprint.py` skips the `interiors`
+  folder, so making an interior never shows as a build change.
+- It prints `interior <k> (<layout>, <floors> floors, <rooms> rooms) in <s> s -> <folder>` and exits
+  with code 2 and one plain line on an `InteriorError`.
+
+**The city from the build folder** (prompt 45, `interior/context.py`). `build.build` writes the merged
+settings into `summary.json` (`"settings"`). `load_build(folder)` reads them: `generate_world(settings)`,
+the planned settlements from `select_area(world, summary["area"])`, `build_key(settings, ids)`, and each
+plan through `load_or_plan(world, s, folder / "cache", key[:12], False, log)` (prompt 5's cache: 0.03 s
+for the quick capital, under 1 s for the 27 MB full capital pickle). `Ground(world, plans)` with every
+plan of the build and `make_kit(world.seed, world.cfg, world.style)`, as `TileContext` builds them; one
+`Dresser(world, plan, kit, ground)` per city. `BuildContext(world, plans, focus)` also takes plans
+directly (tests, tools). A summary without settings (a folder built before prompt 45) is refused: "This
+build was made before interiors existed (its summary.json has no settings). Build it again with the same
+command, for example python -m citygen build --quick, then run interior again." When today's key differs
+from `summary["build_key"]` (code, style or kits changed since), a warning says the interior follows
+today's code and the tiles may not match until the build runs again; the plan then comes from the cache
+under today's key (planned once if missing). The build key leaves out `citygen/interior/**` and the
+style's `[interiors]` table (`buildkey.NOT_BUILD_CODE`, `NOT_BUILD_STYLE`), so interior work never makes
+a build stale. Time: one interior of the quick capital under 5 s on Ali's Mac (imports about 1 s, world
+0.05 s, plan 0.03 s, kit 0.2 s, one building's layout and mesh well under 1 s), the full capital under
+10 s (world 0.6 s); the command prints its time.
+
+**The facade bridge** (prompt 45, `interior/outside.py`, `Outside(ctx, plan, k)`): building k exactly as
+its tile dresses it (tested against `build_tile`); it draws nothing new and only replays existing streams.
+1. `high = building_highs(ground, [b])[0]`, the highest ground under the footprint ring. Floor f stands
+   at `high + f * fh`, fh = `b.height / b.floors`, as `Dresser._windows` places windows.
+2. `roofs = roof_layouts(b, district kind, roof_stream(seed, city id, k), style["roofs"])`, then
+   `dresser.keep_roof(k, roofs)`, `placements = dresser.building(k, high)`, `ground_heights(ground,
+   placements)`, `dresser.under_roofs(placements)` (a souk vault drops upper windows) and `keep_off` with
+   the city's `rail_zone(plan)`, `keep_zone(plan.port)` and `land_zone(plan, style["port"]["props"])`
+   when they exist, in `build_tile`'s order.
+3. `doors = dresser.entrances(k)`: the `DoorSpot`s, main door first (one per stair door in a slab).
+4. Facade openings: every placement whose piece category is `door`, `window`, `shop` or `balcony` (a
+   balcony only when no window stands within 0.1 m of its anchor: an iron balcony stands in front of its
+   own window, a mashrabiya instead of one). Its rectangle in the piece frame (x along the wall, y up,
+   glTF axes) is the first of: the kit manifest's glass (`Kit.panes`); the bounds of its parts in the hole
+   materials `glass_dark`, `glass_lit`, `shop_dark` and `door_*` (the leaf); the piece bounds less
+   `[interiors.openings] frame` at both sides and the top. Scaled by `scale` (x also by `stretch`). Center
+   (x, y) + (cos yaw, sin yaw) (x0 + x1) / 2, sill z + y0, head z + y1. Its wall: the segment of the
+   footprint's exterior ring or of a mass outline (`masses(b)`) whose outward normal lies within 1 degree
+   of the piece front (-sin yaw, cos yaw) and which passes within 0.05 m; floor = (sill - high + 0.05) //
+   fh, clamped to the floors. A `*_lit` piece, or a `*_pane_lit` right after it, marks it lit. A piece
+   on no wall is a warning (tested: none).
+
+**Coordinates.** World meters (x east, y north, z up, absolute heights), as plan.json and the tiles. The
+.glb has one root node at translation (x0, 0, -y0), (x0, y0) the footprint's lower-left bound minus 2 m,
+floored to whole meters, and vertices local to it, like a tile: the viewer, the Blender tools and the
+hero scenes of prompt 56 place it exactly over the city. rooms.json rounds coordinates to 1 mm.
+
+**Data model** (prompt 45, `interior/model.py`).
+- `Storey(floor, z, height, polygon)`: the floor inside the exterior walls: the union of the masses
+  standing at that floor (base <= floor height < top; a set-back top floor is the set-back polygon),
+  shrunk by the exterior wall thickness with mitre joins, so courtyards grow by it.
+- `Room(id, floor, type, polygon, z, height, unit, open, alcove, lit)`: polygons run to the partition
+  center lines and to the inner faces of the exterior walls, so the rooms of a storey tile its polygon
+  (tested: areas within 0.5%, overlaps under 0.01 m2). `unit`: `home`, `flat <n>`, `shop`, `cafe` or
+  `common` (stair core, landings). `open`: no ceiling (wast ed dar, stah). `alcove`: the kbou, a part of
+  its bit's polygon. `lit`: one of its facade windows is lit in the tile.
+- `Opening(id, kind, x, y, yaw, width, z0, z1, floor, rooms, wall, s, piece, lit)`: facade kinds `door`,
+  `window`, `balcony`, `shop` (a shop or cafe front); interior kinds `inner` (a door between rooms),
+  `court_door`, `court_window`, `inner_window` (a high window onto a covered court), `arch` (bortal) and
+  `skylight`. `rooms` = (inside, other), other a room id or -1 (street, ground, roof outside). `wall` the
+  segment ((ax, ay), (bx, by)) of its exterior or court wall (None for inner openings), `s` meters from
+  the segment's start to the center.
+- `Stair(kind, polygon, floor, top, risers, riser, tread, width, door, rooms)`: kinds `newel`, `u`,
+  `steps` (at an entrance), `ladder`; `floor` to `top` (`top` = the floor count for the roof); `door`
+  (x, y, yaw) of a newel cell's door side; `rooms` its room on each floor it serves.
+- `Flat(id, floor, type, rooms, household, plan)`: `plan` true for the plan's household.
+- `Interior`: the above plus city, city id, building, kind, layout, district, high, fh, household,
+  `features` (dicts with a type and a position: `majel`, `tree` with its plan index, `fesqiya`,
+  `skylight`) and `warnings`; `to_json()` gives rooms.json.
+
+**Walls** (`[interiors.walls]`). Exterior thickness by district kind (medina and village 0.4, colonial
+0.45, modern, residential and suburb 0.3), court walls `court` 0.3, partitions `partition` 0.2 in
+traditional houses and `partition_modern` 0.15. The outer face of an exterior wall is the footprint ring
+(the tile's wall face); the inner face is the storey polygon's edge; partitions are centered on room
+boundaries. **Rule (tested):** a partition meets an exterior or court wall at least `[interiors.openings]
+clear` (0.3 m) from the edge of every opening of that floor on that wall, measured from the partition's
+face. Every cut goes through `free_cut`: the nearest position within `[interiors.walls] cut_shift`
+(1.2 m, in 0.05 m steps, nearer first, the lower one on a tie) that keeps the rule on every wall the cut
+line crosses; when none does, the cut is dropped and its two cells stay one room.
+
+**Layout engine** (prompt 46, `interior/cuts.py`, `rooms.py`). Rooms come from straight cuts of a storey
+along the axes of a frame (the courtyard's or the footprint's `frame`).
+- A cut may leave odd shapes on irregular lots: pieces under 0.5 m2 join the neighbour they share the
+  longest boundary with. A room under its type's minimum (`[interiors.rooms]`: area in m2 and width, the
+  width being twice the radius of its largest inscribed circle, `shapely.ops.polylabel`) joins that
+  neighbour too, which keeps its type; repeated until none is left (at most as many passes as rooms). A
+  storey too small for its program becomes one room. Nothing raises: odd input gives fewer, bigger rooms.
+- Doors: the program names the doors it wants (a bit's door on the court, a maqsura's from its bit). A
+  door stands in the middle of the longest straight piece of the shared boundary that holds `door` (0.9 m)
+  plus 2 x `clear`. Then a breadth-first pass from the entrance gives each unreached room a door to its
+  reached neighbour with the longest such piece, or merges it into that neighbour, so every room is
+  reachable (tested on a graph of rooms, openings, stairs and the street).
+- Types follow light: living rooms take cells with a facade window or a court wall, stores, washrooms,
+  corridors and stairs the blind ones.
+- Every check of the tests lives in `rooms.check(interior) -> [problems]`, so tools and tests share it.
+
+**Courtyard house** (`dar`, prompt 46). The court is the footprint's largest hole; its `frame` gives the
+axes (u along the long side). The two lines along the court's long sides, extended to the outer wall,
+cut the ring into two long bands (beyond the long sides, corners included) and two short bands (between
+them, beyond the short sides). In the quick capital most rings are 2.8 m wide (`courtyard_house` insets
+the court by max(2.8, 0.27 sqrt(area))), so a band is about 2.1 m deep inside: modest rooms.
+- Entry band: the one holding the main door's inner point. The skifa runs `skifa` [3.0, 4.5] m along it
+  from the door (toward the longer side), the door near one end, its `court_door` near the other end, at
+  least `bend` (1.2 m) beyond the door's edge, with a baffle partition from the court wall reaching
+  `baffle` (0.6) of the band's depth between them: no straight line from the door reaches the court
+  (tested). A door in a long band's end beyond the court gives an L-shaped skifa: that end and the next
+  stretch of band, opening on the court there.
+- Main band: the long band without the door (with neither holding it, the one on the court's north side,
+  so its bit faces south and the winter sun). It is maqsura | bit | maqsura, cut where the court's short
+  sides extend; the bit opens on the court by a central `court_door` (`[interiors.dar] court_door` 1.2 m
+  wide, a double leaf) and up to 2 `court_window`s. Where the band is at least `t_depth` (3.0 m) deep,
+  the bit gets its kbou: the middle `kbou` [1.8, 2.6] m of a back strip `kbou_depth` (1.0 m) deep,
+  opposite the door; the rest of that strip joins the maqsuras (L shapes). A shallower band keeps a plain
+  bit with maqsuras, as in modest real houses (most of the quick capital's). Maqsuras open into their bit.
+- The other long band: a bit (two above `bit_max` 6 m), its ends maqsuras, or matbakh and bit el mouna.
+- Short bands: matbakh (nearest the skifa), bit el ma, bit el mouna, or a bit when long; each opens on
+  the court.
+- Rich houses (wealth over `bortal_wealth`) with a band at least `bit` minimum width + `bortal` (1.8 m)
+  deep get a bortal along the court in front of their bit: arches on the court side (`arch` openings).
+- Court features (stream `court`): the majel 0.8 m from a court wall; the plan trees standing in the court
+  (from `courtyard_house` and prompt 24); else, for wealth over `fesqiya_wealth`, a fesqiya in the middle.
+- Upper floors: the same bands, rooms `ghorfa` (split above `bit_max`), opening into each other in a ring
+  (enfilade) and onto the court by `court_window`s; the stair arrives in its cell.
+- The roof: the stah (`RoofLayout.inner` less the stair room, menzah and machinery) is an open room on
+  floor = floors, reached through the stair room door; the menzah is a room there with its own door. A
+  roof without a stair room has no stah room (no way up); a menzah on such a roof is reached by a ladder
+  from the court.
+
+**House without a courtyard** (`compact`, prompt 46): the ring of the dar round a covered wast ed dar, a
+rectangle in the middle of the storey's frame (`central` [0.4, 0.45] of its length and width, at least
+2.6 m), rising through every floor as a light well under a `skylight` (a glass panel in the roof; only
+interiors and hero scenes show it, the tile keeps its plain roof). Skifa with its bend, T room where deep
+enough, matbakh, bit el ma, droj; upper rooms open into each other and look into the well by
+`inner_window`s (sill 1.6 m). `small`: under `min_area`, an entry (the skifa when 1.4 m fit), one bit and
+a matbakh corner, or one room.
+
+**Shops and cafes** (prompt 47, `interior/shop.py`): carved from floor 0 before the layout. A souk house's
+shop front (`shop` opening) gets a `hanout` (unit `shop`): along its wall, the opening width plus
+2 x (`clear` + half a partition), clipped so the house door keeps `clear`; `[interiors.shop] depth`
+[3.0, 4.0] m (stream `shop`) or the band in a dar, at most half the storey's depth; a `makhzen` behind it
+when 1.8 m more depth remains, else beside it away from the house door when 1.5 m of wall remain, else
+none. It opens only on the street; the house door beside it leads into the skifa. A colonial cafe front
+gives a `qahwa` (unit `cafe`) the street side of floor 0 (depth [5, 8] m, at most half the storey) with a
+wc and a makhzen behind.
+
+**Domed house** (`koubba`, prompt 47): the koubba is the square of side twice the dome's radius
+(`b.domes`) under the dome, clipped to the storey, its ceiling the dome; the rest is the annex: an entry
+when the door does not open into the koubba, a matbakh and a bit el mouna when they fit.
+
+**Villas and houses of the new districts** (`villa`, `maison`, prompt 47, `interior/spine.py`): a hall at
+the main door (`hall` [2.0, 3.0] m deep, [1.8, 2.6] m wide), continued by a couloir (1.1 m) along the
+storey's long axis, through the middle when the storey is at least 2 x the room depth + the couloir wide,
+else along one side; rooms on both sides cut across it in program order from the hall: salon (the
+largest windowed cell), salle a manger (villa, storey over `dining_area` 110 m2), cuisine (windowed,
+toward the back), wc; the U stair beside the hall when there are more floors. Upper floors: palier and
+couloir, chambres on the facades, a salle de bain. A single storey also holds the chambres.
+
+**Flats** (prompt 47, `interior/flats.py`). Every stair core is a U stair box (see Stairs) at a stair door,
+its floor landing (`palier`, unit `common`) against the door's wall, the flights going in.
+- `colonial`: one core centered on the main door, slid inward (0.25 m steps) until the box lies inside
+  every storey it serves (a set-back top floor stands 2 m back); the gap becomes floor 0's couloir. Per
+  floor one flat, or two when the storey less the core keeps `two_flats` (130 m2): a cut through the
+  core's middle, across the door wall (`free_cut`). Floor 0 holds the shop or cafe and the rest as a flat
+  when it keeps 40 m2, else the unit's makhzen.
+- `slab`: one core per stair door (they are in the window column nearest each section's middle,
+  `stair_columns`), sections as `Dresser._sections(b)` cuts them (count = round(length / mean
+  `stair_spacing`), each in two halves). Flats are split at the window-column boundary nearest each
+  section border and each section middle, so every window of a flat shares that flat's key in prompt 21;
+  each flat runs from the front wall to the back wall; the landing reaches along the door wall to a door
+  width past the split. Floor 0 has flats too (slabs have windows on every floor).
+- Each flat region is laid out by the spine engine, its hall at its landing door. Type by area
+  (`[interiors.flats] types`: S+1 under 55 m2, S+2 under 80, else S+3): hall, salon, the chambres,
+  cuisine, sdb, a wc from 70 m2; a slab balcony door makes its room the salon (else a chambre).
+- Flats are numbered by floor, then along the frame's u (section, half; left before right seen from the
+  door). Flat 0 holds the plan's household (`plan.households` is never touched). Flat n >= 1 gets derived
+  occupants on `stream(seed, "interior", city id, k, "flat", n)`, drawn as `life.households` draws (wealth,
+  door color, family pattern, trade, members, in that order, from the district's tables), the names on
+  `stream(seed, "interior", city id, k, "flat", n, "names")`.
+- Lit: a room is lit when one of its facade windows is (the bridge reads the tile's own twins), a flat
+  when one of its rooms is. In a slab a flat is exactly one (floor, section, half) of prompt 21: its front
+  rooms share one draw and its back rooms another (tested). In a colonial block the draws go per floor and
+  side, so two flats of one floor facing the same street are lit together (accepted: prompt 21 has no
+  flats there).
+
+**Stairs** (`[interiors.stairs]`, records prompts 46-47, geometry prompt 49). Rule (tested): every
+point of every tread on the walking line has at least `headroom` (2.0 m) clear above it. Risers: the
+smallest count with riser at most `riser_max` (traditional 0.21 m, modern 0.18 m).
+- `newel` (houses, and the roof access of every layout): a square cell round a central `pier` (0.3 m), as
+  the stairs of a minaret. Per floor a floor-level landing quarter in front of the cell's door, then three
+  quarters of a turn of steps up to the next landing, so whatever stands above a step (the next floor's
+  steps or landing) is a whole floor higher: the headroom is fh less the steps' thickness, over 2.7 m. The
+  walking line (0.45 m inside the cell's walls) gives treads of about 0.19 m in a 1.9 m cell and 0.28 m
+  in a 2.4 m one: steep, as old stairs are. The door is on the same side on every floor: the stair room door's side when
+  the roof has a stair room (that side faces the free roof, so it faces into the house), else the side
+  toward the room the cell opens into. The cell is the largest square inside the stair room's square
+  (`RoofLayout.stair`, 2.5 m) with a side of at least `newel_min` (1.9 m) that keeps the 0.3 m rule;
+  without a stair room, the first corner where a square of `newel` (2.4 m) down to `newel_min` fits (dar:
+  the long bands' ends, farthest from the skifa first). Houses (`dar`, `compact`, `small`, `koubba`) have
+  one newel cell from floor 0 to the top floor, and on to the roof deck inside the stair room when there
+  is one (the stair room's square is the well in the deck). Other layouts use a newel cell only from the
+  top floor to the roof, under the stair room, opening into the room it touches most (a core's landing
+  first). Over the top of the roof flight stands the stair room's ceiling, `[roofs] stair_height` (2.4 m)
+  above the deck: the clear height over the arrival landing is 2.4 m less that ceiling's thickness
+  (`[interiors.floors] roof_room_ceiling` 0.15 m, so 2.25 m), which must stay at least `headroom` (2.0 m);
+  the headroom test counts that ceiling as an overhead.
+- `u` (villas, maisons, flats, between floors): two flights of `width` (modern 1.0 m, cores 1.1 m) side by
+  side 0.1 m apart; n risers made even, n/2 per flight, (n/2 - 1) treads of `tread` (0.28 m); the floor
+  landing (depth = width) on the door or hall side, the half landing at the far end. Box: length 2 x width
+  + (n/2 - 1) x tread, width 2 x width + 0.1. The same rectangle on every floor it serves; each upper slab
+  is open over the box but its floor landing, so the headroom is fh - slab - waist (at least 2.5 m). A
+  slab's stair window sits half a floor above its landing: the landing above stops short of it (Floors).
+- `steps` at an entrance: when the door's threshold (`DoorSpot.z`) lies more than 0.15 m below floor 0
+  (up) or above it (down), risers of at most 0.18 m and treads of 0.3 m inside the entry room from the
+  door, as wide as the opening + 0.2 m; where the room is too short, risers up to 0.22 m and a warning.
+- `ladder` (0.6 x 1.2 m): the last fallback when no stair fits (a warning), and the way to a menzah on a
+  roof without a stair room. Before the ladder, a `u` box may narrow to 0.8 m with 0.24 m treads.
+- Terraces of set-back floors and villa wings are roofs, not rooms: their walls carry windows, no door.
+
+**Floors and ceilings** (prompt 49, `[interiors.floors]`): slab 0.25 m with its top at the floor's z;
+ceilings at the next floor's z - slab; traditional rooms (dar, compact, small, koubba) get painted wooden
+beams (stream `beams`), modern rooms a flat plaster ceiling; floor tiles in traditional houses, terrazzo
+in flats; the court paved `court_step` (0.15 m) under floor 0; inland water is `water_pool`, never
+`water` (the Blender scripts hide it for the sea). A slab or landing never crosses an opening: where it
+would, it stops `slot` (0.3 m) short of that wall over the opening's width + 0.2 m (a light slot).
+
+**Entering and light.** Every dwelling is entered by its `DoorSpot`s (prompts 20.1 and 20.2 give each
+one): the main door leads into the skifa, the hall, a core's palier or the koubba; a slab has one door per
+core. Light comes from the facade windows (the tile's own pieces, in their holes), the court (court doors
+and windows of every room on it), the skylight over a covered court with `inner_window`s onto it, and
+balcony doors. Rooms without daylight are the blind cells: stores, washrooms, couloirs, stairs.
+
+**Output** (prompt 45, `interior/export.py`), a folder like a build, every file written as `.part` and
+renamed:
+- `tiles/interior.glb`: float positions (no quantization), textures embedded (only the images its
+  materials use, `mesh/textures.encoded`), materials = palette + `[interiors.palette]` (interior-only
+  materials live there, so `[palette]` and the build key never change for them), the bridge's placements
+  as instances (`mesh.tile.instance_groups`, which reads only `.kit`), and from prompt 46 the court's
+  trees as instances (`Dresser.tree`; on the court paving from prompt 49).
+- `tiles/index.json`: `citygen-tiles/1` with `world_name` "<city> No. <k> (<layout>)", `seed`,
+  `tile_size` (the footprint's larger extent + 4 m, whole meters), `parapets: true`, `focus` (footprint
+  centroid, z = high, name "Dar <family>", "The <family> family" or "No. <k>"), `views`, `interior`
+  ({building, city, layout, floors: [z of each floor], roof: z of the main roof deck}), `cities: []` and
+  one tile {i 0, j 0, file "interior.glb", x0, y0, triangles, bytes}. Views: `interior` at eye height
+  (`[interiors] eye` 1.6 m) on the pole of inaccessibility of the layout's main room, looking at its focus
+  opening at `look` (1.4 m) above the floor (dar: across the court to the T room's door; compact: across
+  the covered court to the main bit; koubba: from the door; villa, maison: the salon toward its largest
+  window; flats: flat 0's salon toward its window; the placeholder of prompt 45: floor 0 toward the main
+  door), and `overview` from the south-west, 45 degrees up, at 1.5 x the footprint's larger side + the
+  building's height from its center.
+- `rooms.json`: `citygen-interior/1`, `Interior.to_json()`: seed, city, city_id, building, kind, layout,
+  district, household (as plan.json), high, floor_height, walls, storeys, rooms, openings, stairs, flats,
+  features, warnings.
+- The bytes are the same in two processes with different PYTHONHASHSEED (tested, `slow`).
+
+**Random streams.** Every choice draws from `stream(seed, "interior", city id, k, <purpose>, ...)`, one
+purpose per kind of choice: `layout` (band roles and lengths), `skifa`, `kbou`, `court` (court windows,
+majel, fesqiya), `doors` (positions within their span, which leaves stand open, prompt 48), `shop`,
+`flat` with its number (occupants; with `names` for the namer), `beams` (prompt 49). The bridge only
+replays existing streams, so no draw is added to any.
+
+**Viewer** (prompt 50): an interior folder (index `interior`) gets a Cut menu (none, roof, or a floor: a
+clipping plane `cut` 1.3 m above that floor) and the URL `cut=roof|<floor>`; a click in it names the room;
+`folder=interiors/<name>` makes the viewer read that sub folder; `citygen view` and the gallery answer
+`api/interior?city=NAME&building=K` by making it, and the house card gets "Open interior" (the phone page,
+which has no server, shows a note instead); the gallery lists interior folders.
+
 ## 7. Style pack (`styles/<name>.toml`)
 
 `[names]` sounds and templates, `[lore]` eras and products, `[palette]` materials (color and

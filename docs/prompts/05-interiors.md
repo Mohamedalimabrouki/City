@@ -1,8 +1,8 @@
 # Prompts 44-58: interiors and hero scenes
 
 Read only the section of your prompt. `CLAUDE.md` gives the routine every prompt follows.
-Prompts 45-50 and 52-55 are first drafts: prompts 44 and 51 (the designs) rewrite them with
-exact details. Always follow the latest text of your section.
+Prompt 44 (the design, SPEC 6c) rewrote prompts 45-50 with exact details; prompts 52-55 are first
+drafts that prompt 51 rewrites. Always follow the latest text of your section.
 
 Interiors are made on demand, never stored in a normal build, so the normal fingerprint check
 of these prompts is `--allow ""` (plus new furniture pieces in prompts 52-53). Interiors exist
@@ -77,90 +77,340 @@ and Ali gets a 10-line plain summary of the design.
 
 Model: Sonnet | Effort: high | Size: M | Needs: 44 | Look: no
 
-Draft (prompt 44 refines it). Follow SPEC "Interiors". A `citygen/interior/` package with the
-data model (Room, Opening, Interior), the `interior` command with its build-folder lookup, the
-facade bridge (the Kit and `high` exactly as in tiles) and the JSON output, written as a
-viewable folder (`tiles/interior.glb`, `tiles/index.json` with an `interior` view). The viewer
-card shows the building number. Tests: deterministic output for three dwelling kinds (also
-across two processes with different PYTHONHASHSEED); every facade door and window of the
-building appears as an opening.
+**Goal.** The `interior` command and what prompts 46-50 build on: the city rebuilt from a build folder,
+the facade bridge, the data model and a viewable folder, with one placeholder room per floor.
 
-**Check.** Fingerprint: `--allow ""`.
+**Read.** SPEC 6c "Interiors" once in full (this prompt builds Command, The city from the build folder,
+The facade bridge, Coordinates, Data model, Output and Random streams); `build.py` (`select_area`,
+`load_or_plan`, the summary), `buildkey.py`, `mesh/tile.py` (`TileContext.__init__`, `build_tile`,
+`building_mesh`, `instance_groups`, `write_tile`), `city/dressing.py` (`Dresser.building`, `entrances`,
+`keep_roof`, `under_roofs`, `building_highs`, `ground_heights`), `kit.py` (`Piece.bounds`, `Kit.panes`),
+`kitsheet.py` (a viewable folder written by hand), `__main__.py`, `tools/before_after.py`,
+`tools/fingerprint.py`, `describe` in `tools/viewer/index.html`.
 
-**Done when.** `python -m citygen interior <n>` writes a folder with one placeholder room per
-floor and all facade openings, and `citygen view` opens it.
+**Do.**
+1. `citygen/buildkey.py`: `NOT_BUILD_CODE = ("interior",)`: `_code_hash` skips `citygen/interior/**`;
+   `NOT_BUILD_STYLE = ("interiors",)`: `_style_hash(name)` hashes `json.dumps(..., sort_keys=True)` of the
+   parsed style (`load_style`) without those tables, and `build_key` uses it instead of the file's bytes.
+   Every key changes once (Ali's builds need one rebuild); after that, interior work never makes a build
+   stale.
+2. `citygen/build.py`: `summary["settings"] = cfg`, the merged settings (`summary.json` is no fingerprint
+   part).
+3. `tools/fingerprint.py`: skip the top folder `interiors`, as `maps`, `tiles` and `checks`.
+4. The package `citygen/interior/`:
+   - `__init__.py`: a docstring pointing at SPEC 6c, `InteriorError(Exception)`, `LAYOUTS`.
+   - `model.py`: `Storey`, `Room`, `Opening`, `Stair`, `Flat`, `Interior` with `to_json()` (polygons as
+     rings, coordinates rounded to 1 mm), fields as SPEC lists them.
+   - `context.py`: `BuildContext(world, plans, focus, folder=None)` (the kit, the ground and one `Dresser`
+     per city, made lazily as `TileContext` makes them), `load_build(folder, log=print)`, `city_plan(ctx,
+     name)`, `layout_of(plan, b)` (the SPEC table; `small` when the footprint area less its holes, shrunk
+     by the exterior wall, is under `[interiors.compact] min_area`), `resolve(ctx, plan, spec) -> k` (a
+     number or `pick:<layout>[:<floors>]`).
+   - `outside.py`: `Outside(ctx, plan, k)`, steps 1-4 of the bridge, with `b`, `k`, `plan`, `district`,
+     `high`, `fh`, `roofs`, `placements`, `doors`, `openings` (the facade `Opening`s), `kit`, `warnings`.
+   - `layout.py`: `plan_interior(outside, style) -> Interior`: the storeys, then per layout a function;
+     for now every layout gets one placeholder room per storey (type `room`, unit `home`) holding the
+     facade openings of its floor (`rooms` = (room, -1)). Prompts 46-47 replace these functions.
+   - `export.py`: `write_folder(interior, outside, out) -> Path`: the mesh (for now the tile's own shell,
+     `building_mesh(mb, b, ground.height, roofs=outside.roofs)` without the plinth, and a floor cap per
+     storey at its z in palette `paving`; prompts 48-49 replace both), the instances, `write_glb` with the
+     root translation and only the images its materials use, `tiles/index.json` with the views
+     `interior` and `overview`, `rooms.json`.
+   - `command.py`: `make_interior(folder, building, city=None, out=None, log=print) -> Path`, printing the
+     line SPEC "Command" gives.
+5. `__main__.py`: the `interior` subcommand (`building`, `--folder`, `--city`, `--out`); an
+   `InteriorError` exits with code 2 and its message.
+6. `styles/maghreb.toml`: `[interiors]` (`eye` 1.6, `look` 1.4, `margin` 2.0), `[interiors.walls]`,
+   `[interiors.openings]` (`frame` 0.12, `clear` 0.3, `door` 0.9), `[interiors.compact] min_area` (35 m2),
+   each number with a short comment.
+7. The viewer card (`describe` in `tools/viewer/index.html`): a last line "No. <k>" for every building,
+   so Ali can name one.
+8. `tools/before_after.py --interior SPEC [--city NAME]`: after each side's quick build, run
+   `python -m citygen interior SPEC --folder <that build>` in that tree, take the folder from its
+   `-> FOLDER` line and snapshot it with `--view` (`interior` or `overview`). A tree without the command
+   (exit code not 0) gets a grey half labelled "Before: no interior yet". Update its docstring and SPEC 9.
+9. SPEC: mark in 6c what this prompt built; a row for `citygen/interior/` in the module table; the
+   `interiors/<city>-<k>/` folder and the `settings` of `summary.json` in the output table. HANDOFF: lessons.
+
+**Tests** (`tests/test_citygen.py`, about 1.5 s in all). A module fixture `interior_build` writes a build
+folder in a tmp dir from the `world` and `plan` fixtures, planning nothing again: `summary.json` with
+`settings` = `world.cfg`, `area` = `world.cfg["build"]["area"]`, `build_key` = `build_key(world.cfg,
+[world.capital().id])`, and `plan` pickled to `cache/<slug>-<key12>.pkl`. Later prompts reuse it.
+- `test_interior_folders_for_three_layouts`: `pick:dar`, `pick:compact` and `pick:slab` each write the
+  three files; `read_glb` reads the .glb back, its images are embedded, its root translation is (x0, 0, -y0)
+  of the index tile; the index has the views `interior` and `overview`; one room per storey; storeys at
+  `high + f * fh`.
+- `test_interior_openings_match_the_facade`: for those three and `pick:colonial`, every door, window, shop
+  and balcony placement of `Outside` (by the SPEC rule) is exactly one opening, its center within 0.02 m of
+  its wall's line, with a room on its floor; no warnings.
+- `test_outside_replays_the_tile`: for `pick:dar`, `pick:slab` and `pick:colonial`, run `build_tile` on
+  the tile owning building k (`TileContext(world, [plan])`, the tile holding k's footprint centroid) with a
+  spy on that city's `Dresser.building` that records the list it returns for k. Keep the recorded
+  placements still in the tile's final list, by identity: `under_roofs` (`Covers.clear`) and `keep_off`
+  return lists of the same objects (checked in prompt 44; `Covers.clear` lowers an awning or wall lamp in
+  place, `p.z -= dz`, so both sides see it), and `ground_heights` sets z in place. They must equal
+  `Outside.placements`: the same pieces in the same order, x, y and z within 1 mm, the same yaw. One tile
+  build costs more than 1 s, so mark it `slow` (the three picks lie nearest the center, usually in one
+  tile: build each owning tile once).
+- `test_interior_bytes_repeat`: two calls on fresh `BuildContext`s give the same bytes for the three files.
+- `test_interior_refuses_what_it_cannot_do`: a summary without `settings` (the message says "Build it
+  again"), a minaret (the message names `minaret`), an unknown city (the message lists the build's cities).
+- `test_build_key_ignores_interiors`: `_code_hash` covers no file under `citygen/interior/`; a copy of the
+  style with an extra `[interiors]` table keys like the original (two tmp files).
+- `test_fingerprint_tool`: also, a file under `interiors/` is no part.
+- `@pytest.mark.slow` `test_interior_two_processes`: `python -m citygen interior pick:dar --folder <the
+  fixture's folder>` with `--out` a and b, in two processes with `PYTHONHASHSEED` 1 and 2: the three files
+  are byte-identical.
+
+**Check.** Fingerprint: `--allow ""` (build keys are ignored). Also `.venv/bin/python -m pytest -q -m slow
+-k "interior or outside"`, and `.venv/bin/python -m citygen interior pick:dar` on the quick build: it prints its time,
+under 5 s. One snapshot proves the folder opens (not a Look): `.venv/bin/python -m citygen snapshot
+<that folder> --view interior`.
+
+**Done when.** `python -m citygen interior <n>` writes the folder with one placeholder room per floor and
+every facade opening in rooms.json, `citygen view <folder>` opens it, and `before_after.py --interior`
+pictures it.
 
 ## 46. H1b - Courtyard houses and compact houses
 
 Model: Sonnet | Effort: high | Size: M | Needs: 45 | Look: plan image
 
-Draft. The courtyard-house layout from SPEC (bent skifa, courtyard, T-shaped rooms around it,
-kitchen, storage, bathroom, stairs to the roof at the stair room of prompt 15 when there is one)
-and the house without a courtyard (hall, covered central room, rooms around). Tests: rooms cover
-the floor without overlap, every room is reachable from the street door (graph), no straight
-line of sight from the street door into the courtyard, minimum room sizes, partitions clear of
-openings. One image: top-down plans of three houses drawn with Pillow (Latin labels only).
+**Goal.** Real plans for the old town's houses: the dar round its courtyard and the house without one,
+with their newel stairs, entry steps, roof terrace and menzah.
 
-**Check.** Fingerprint: `--allow ""`.
+**Read.** SPEC 6c (Walls, Layout engine, Courtyard house, House without a courtyard, Stairs: `newel`,
+`steps`, `ladder`, Entering and light), `citygen/interior/` (prompt 45), `city/buildings.py`
+(`courtyard_house`), `city/roofs.py` (`roof_layout`, `_stair_candidate`, `_stair_door`, `_menzah`),
+`city/geo.py` (`frame`).
+
+**Do.**
+1. `interior/cuts.py`: `free_cut(...)` (the SPEC rule), `cut(poly, frame, axis, at)` (both sides of a line
+   in a frame), `absorb(rooms, minimums)` (small pieces and undersized rooms join their longest-boundary
+   neighbour, which keeps its type), `width(poly)` (twice the polylabel radius).
+2. `interior/rooms.py`: `doors(interior, wanted)` (the program's doors, then the breadth-first pass that
+   connects or merges), `assign(interior)` (facade openings to rooms), and `check(interior) -> list[str]`:
+   coverage, overlaps, reachability (rooms, openings, stairs and the street), minimum sizes, partitions
+   clear of openings, every facade opening in a room.
+3. `interior/stairs.py`: the newel cell (under the stair room, else a corner), entry `steps`, `ladder`, as
+   `Stair` records with risers, riser, tread and door side (their geometry comes in prompt 49).
+4. `interior/dar.py`: the bands, the skifa with its bend and baffle, the T room with kbou and maqsuras,
+   the other bands, the bortal, court doors and windows (stream `court`), the court features, upper floors
+   in enfilade. `interior/compact.py`: `compact` round its covered well (skylight feature,
+   `inner_window`s) and `small`. The stah and the menzah on the roof level. `layout.plan_interior` sends
+   `dar`, `compact` and `small` there; souk houses keep their shop opening in an ordinary room until 47.
+5. Style: `[interiors.walls] cut_shift`, `[interiors.rooms]` (area m2 and width m per type, for example
+   bit 7 and 2.0, maqsura 2.5 and 1.2, matbakh 3.5 and 1.4, bit el ma 1.8 and 0.9, bit el mouna 1.5 and
+   0.9, skifa 3.5 and 1.2, ghorfa 6 and 1.8), `[interiors.dar]`, `[interiors.compact]`, `[interiors.stairs]` (`newel`, `newel_min`,
+   `pier`, `riser_max`, `headroom`, the entry step numbers).
+6. `tools/interior_plans.py SPEC[@CITY] ... [--folder BUILD] [--out PNG]`: one PNG (Pillow) with the plans
+   of each interior, storeys side by side at one scale (at most 1800 px wide), rooms filled by type (a
+   fixed color table in the tool), exterior and court walls black, partitions grey, facade doors red,
+   windows blue, inner doors as gaps, stairs hatched with an arrow up, labels in Latin letters (room type,
+   flat), a title per interior (No. k, layout, floors, family). `@CITY` may name a settlement the build did
+   not plan: the tool then plans it (under a second for a town), so prompt 47 can draw a villa from a
+   quick build.
+7. SPEC 6c: mark what is built and any rule the code had to settle; HANDOFF: lessons.
+
+**Tests** (about 1.5 s; one module fixture plans, once, the 20 dars, 20 compact and 10 small houses
+nearest the center of the 45 fixture's city).
+- `test_old_town_plans_are_valid`: `rooms.check()` finds nothing in any of them.
+- `test_skifa_hides_the_courtyard`: for the 20 dars, no segment from 3 points across the main door's inner
+  face to the court's 1 m grid points stays inside the union of the rooms (each shrunk by half a partition)
+  and the door gaps.
+- `test_old_town_stairs`: a house with 2-3 floors has its newel cell at the same place on every floor and
+  reaches every floor; a house with a stair room has its cell inside the stair room's square, the cell
+  door on the stair room door's side and a reachable stah; a door threshold more than 0.15 m off floor 0
+  gives `steps`; no ladder but for a menzah.
+- `test_interior_plans_tool`: the tool writes a PNG for two specs (no browser needed).
+
+**Check.** Fingerprint: `--allow ""`. Look: `.venv/bin/python tools/interior_plans.py pick:dar:1
+pick:dar:2 pick:compact:2 --out output/checks/46.png`. Look at it yourself before you report: the skifa
+bends, the main bit faces the court across from the skifa, kitchen and stores sit sensibly, the stairs
+stand in a corner or under the stair room.
 
 **Done when.** 20 sampled houses of each kind pass every check and the three plans look right.
 
 ## 47. H1c - Apartments, villas, domed houses and shops
 
-Model: Sonnet | Effort: high | Size: M | Needs: 46 | Look: plan image
+Model: Sonnet | Effort: high | Size: L | Needs: 46 | Look: plan image
 
-Draft. Layouts from SPEC for apartment blocks (stair core, landings, S+1 to S+3 flats per floor,
-balconies behind facade balconies, derived flat occupants), villas, domed houses and souk shops.
-The same tests as prompt 46 per kind; one image with three plans.
+**Goal.** Every other dwelling: flats in colonial blocks and slabs with their stair cores and occupants,
+villas and the houses of the new districts, domed houses, and the shops and cafes of ground floors.
 
-**Check.** Fingerprint: `--allow ""`.
+**Read.** SPEC 6c (Shops and cafes, Domed house, Villas and houses of the new districts, Flats, Stairs `u`
+and the roof `newel`), `citygen/interior/` (prompts 45-46), `city/dressing.py` (`_sections`,
+`stair_columns`, `stair_rows`, `_stair_doors`, `front_of`, `_shop`, `_cafe`, `_house_door`, `_light`),
+`city/life.py` (`households`, `family_name`), `city/massing.py` (`masses`, set-back floors, steps).
 
-**Done when.** Every dwelling kind (house with and without a courtyard, domed house, apartment
-block, villa, shop) gets a valid plan; non-dwellings get none.
+**Do.**
+1. `interior/shop.py`: the hanout and makhzen of a souk house (carved from floor 0 before the dar or
+   compact layout runs on the rest) and the qahwa of a colonial cafe; `resolve` learns `pick:shop`.
+2. `interior/spine.py`: the engine of hall, couloir and rooms cut across it, from a program list.
+3. `interior/villa.py` (`villa`, `maison`), `interior/koubba.py`, `interior/flats.py` (colonial and slab
+   cores, landings, flat regions, types, numbering, occupants, lit). `stairs.py` gains the `u` box (with
+   its narrow fallback) and the top-floor newel up to a stair room.
+4. Style: `[interiors.flats]` (`types`, `two_flats` 130, `min_flat` 40), `[interiors.villa]` (hall,
+   couloir, `dining_area`, the programs), `[interiors.shop]`, `[interiors.cafe]`, the `u` numbers in
+   `[interiors.stairs]`.
+5. SPEC 6c and HANDOFF.
+
+**Tests** (about 2 s). The 45 fixture's city gives slabs, colonial blocks, domed houses and souk houses;
+the `villas` fixture's town (a `BuildContext(world, [town], town settlement)`) gives villas and maisons.
+- `test_new_district_plans_are_valid`: `rooms.check()` finds nothing for 10 slabs, 10 colonial blocks
+  (3 of them with a cafe or shop front), 10 villas (5 with 2 floors), 10 maisons, every domed house and 10
+  souk houses with a shop.
+- `test_flats`: every flat is reachable from its stair door through its core; its type matches its area;
+  flat 0 holds the plan's household and `plan_json(plan)["households"]` is the same before and after;
+  flats n >= 1 get the same occupants twice, and not all the same ones.
+- `test_slab_flats_follow_the_lit_rule`: in 10 slabs, each flat's front windows are all lit or all dark,
+  and its back windows too; a room is lit exactly when one of its windows is.
+- `test_shops_stand_apart`: a hanout opens only on the street; the house door leads into the house.
+- `test_only_dwellings`: one building of every other kind in the plan is refused.
+
+**Check.** Fingerprint: `--allow ""`. Look: `.venv/bin/python tools/interior_plans.py pick:slab
+pick:colonial "pick:villa:2@Ain Chilel" --out output/checks/47.png` (Ain Chilel is settlement 3 of the
+quick world, the `villas` fixture's town; check with `python -m citygen list --quick`). Look at it
+yourself: cores at the stair doors, S+n flats with the salon on a facade, the villa's hall, salon and stair.
+
+**Done when.** Every dwelling layout (dar, compact, small, koubba, colonial, slab, villa, maison, with
+their shops and cafes) gets a valid plan, and other kinds get none.
 
 ## 48. H1d - Interior walls and openings
 
 Model: Sonnet | Effort: high | Size: M | Needs: 47 | Look: interior
 
-Draft. Meshes: exterior walls 0.4-0.5 m and interior walls 0.15-0.25 m thick, door openings with
-frames and leaves (some open), window openings exactly where the facade windows are, arches
-between courtyard galleries and rooms in traditional houses, a zellige tile band (dado) in
-traditional rooms. Test: openings line up with the facade pieces within 2 cm.
+**Goal.** The plans become walls: thick outer walls with real holes where the facade has its doors and
+windows, partitions with doors, arches, and a zellige dado in traditional rooms.
 
-**Check.** Fingerprint: `--allow ""`.
+**Read.** SPEC 6c (Walls, Output) and 6 (textured walls, the plinth), `citygen/interior/` (prompts 45-47),
+`mesh/builder.py` (`add_walls`, `extrude`, `add_cap`, `add_arch`), `mesh/tile.py` (`building_mesh`,
+`roof_mesh`, `street_frontage` and the lines of `build_tile` that compute its `walk_width` and `reach`),
+`mesh/textures.py`.
 
-**Done when.** The interior folder opens in the viewer and in Blender, and doors and windows
-line up with the outside.
+**Do.**
+1. `interior/mesh.py`, `walls_mesh(mb, interior, outside, style) -> holes`: exterior and court walls as
+   solids between the outer face (the footprint ring, in the tile's wall material with meter UVs, v = 0 at
+   `high`, and the plinth on the same segments as the tile) and the inner face (`[interiors.palette]
+   plaster_inner`); a hole for every opening, with jambs, sill and head in the inner material; partitions
+   as solids centered on room boundaries, floor to ceiling, with their door holes; inner doors with a
+   wooden frame and leaf (`door_leaf`, `door_frame`), `open_share` (0.4) of them open 70-100 degrees (stream
+   `doors`); double leaves for `court_door`s; arches on a bortal's court side (`add_arch`); a `dado` (1.2 m)
+   of zellige on the inner faces of the living rooms of `dar`, `compact`, `small` and `koubba` (bit,
+   maqsura, skifa, ghorfa, koubba), broken at openings. It returns the holes it cut (opening id,
+   rectangle). The facade pieces stay instances, in their holes.
+2. `mesh/tile.py`: move `build_tile`'s `walk_width` and `reach` lines into `frontage_inputs(plan) ->
+   (walk_width, reach)`, called from there and from the interior (the fingerprint proves the tiles unchanged).
+3. `export.py`: the shell is now these walls plus the tile's own roof functions (`roof_mesh` for the flat
+   roofs of `outside.roofs`, `add_hip_roof`, `add_dome`); the floor caps stay until prompt 49.
+4. `mesh/textures.py`: a generated `zellige` texture (256 px, seamless, an eight-point star and cross tile
+   pattern in a few glazed colors, on `stream(seed, "texture", "zellige")`), named only by
+   `[interiors.palette] zellige`, so no tile uses it.
+5. `[interiors.palette]`: `plaster_inner`, `zellige`, `door_leaf`, `door_frame` (nothing new in `[palette]`).
+6. SPEC 6c and HANDOFF.
+
+**Tests** (about 1.5 s).
+- `test_interior_holes_match_the_facade`: for 5 interiors of every layout, every facade opening's hole
+  matches the opening rectangle of its piece within 0.02 m (center along the wall, width, sill, head); no
+  partition crosses a hole; every inner door's hole lies in its partition.
+- `test_interior_budget`: the largest slab and the largest dar of the quick capital stay under 150,000
+  triangles and 25 MB of .glb.
+
+**Check.** Fingerprint: `--allow ""`. Look: `.venv/bin/python tools/before_after.py --view interior
+--interior pick:dar:2 --out output/checks/48.png`, a command of its own; look at it. Then
+`.venv/bin/python tools/make_blend.py <that dar's interior folder>`, a command of its own (make_blend was
+written for builds: if it cannot read an interior folder, make the smallest fix there; a build's .blend
+stays as it was), and name the .blend file for Ali.
+
+**Done when.** The interior folder opens in the viewer and in Blender, and doors and windows line up with
+the outside.
 
 ## 49. H1e - Floors, ceilings, stairs and roof terrace
 
 Model: Sonnet | Effort: high | Size: M | Needs: 48 | Look: interior
 
-Draft. Floor slabs per storey (tiles in traditional houses, terrazzo in apartments), ceilings
-(painted wooden beams in traditional rooms), stairs (straight or L-shaped flights in the stair
-core or stair room), the roof terrace with its parapet and the stair room door, the courtyard
-floor with the majel, a tree (the courtyard trees of prompt 24) or a fountain. Inland water uses
-the `water_pool` palette material (never `water`, which Blender renders invisible). Tests:
-stairs connect the floors; headroom over 2.0 m.
+**Goal.** Walkable houses: slabs with their stair wells, ceilings, the stairs themselves, the courtyard
+floor and the roof terrace.
 
-**Check.** Fingerprint: `--allow ""`.
+**Read.** SPEC 6c (Stairs, Floors and ceilings, Courtyard house: court features and roof), 6b (benches,
+kiosks and fountains: `water_pool`), `citygen/interior/` (prompts 45-48), `mesh/tile.py` (`roof_mesh`,
+`_coping`, `_opening`), `mesh/furniture.py` (`fountain_colonial`), `city/dressing.py` (`tree`).
 
-**Done when.** A two-floor courtyard house and an apartment block can be walked through in
-Blender.
+**Do.**
+1. `interior/mesh.py`, `floors_mesh`: a slab per storey (`slab` 0.25 m, top at the floor's z) less the
+   stair wells, the covered court's light well and the court, with the slot rule; floor finishes (floor
+   tiles in traditional houses, `terrazzo` in flats: a generated texture like `zellige`, in
+   `[interiors.palette]` only); ceilings under the next slab: painted wooden beams across the shorter span
+   every `beam_step` (0.45 m) in traditional rooms (colors on stream `beams`), plaster elsewhere; the
+   koubba's ceiling is its dome seen from inside.
+2. `stairs_mesh`: newel (pier, steps as prisms with tread and riser, the landing quarter; the cell's walls
+   are its partitions), u (two flights with stringers, both landings, an iron railing on the open side),
+   entry steps, ladders.
+3. The roof: the deck as a slab with the stair room's square as its well; the stair room's inside (walls
+   from the deck, a ceiling at deck + `stair_height` whose underside `mesh.overheads` includes, the door
+   hole at `RoofLayout.door`); the parapet and
+   coping from `roof_mesh`; the menzah's inside.
+4. The court: paving `court_step` (0.15 m) under floor 0, the court walls' base meeting it; the majel (a
+   round stone curb 0.6 m across and 0.4 m high with a wooden lid); the court trees on the paving (their
+   `Dresser.tree` placement with the paving's z); the fesqiya (an octagonal marble basin 1.4 m across,
+   water `water_pool`, never `water`); the skylight panel over a covered court.
+5. `[interiors.floors]` and `[interiors.palette]` additions; SPEC 6c; HANDOFF.
+
+**Tests** (about 1.5 s).
+- `test_stairs_connect_floors_with_headroom`: for every stair of 5 interiors of every layout, the first
+  step leaves its floor and the last reaches the next floor (or the roof deck) within 0.01 m; every riser
+  is at most its `riser_max` (ladders aside); every tread point on the walking line, 0.1 m apart, has at
+  least 2.0 m clear above it against every slab (with its wells), landing and flight of the interior and
+  the ceiling of the roof stair room (`stairs.treads(stair)` and `mesh.overheads(interior)` give both).
+- `test_court_and_roof`: inland water uses `water_pool` only; court trees stand on the paving; the stair
+  room's door on the roof lies within 0.02 m of `RoofLayout.door`; no slab crosses an opening.
+
+**Check.** Fingerprint: `--allow ""`. Look: `.venv/bin/python tools/before_after.py --view interior
+--interior pick:dar:2 --out output/checks/49.png`. Then make the interiors of `pick:dar:2` and `pick:slab`
+on the quick build and run `.venv/bin/python tools/make_blend.py <folder>` for each, a command of its own;
+name the two .blend files for Ali.
+
+**Done when.** A two-floor courtyard house and an apartment block can be walked through in Blender.
 
 ## 50. H1f - Interiors in the viewer
 
 Model: Sonnet | Effort: high | Size: M | Needs: 49 | Look: interior
 
-Draft. A cutaway mode for interior folders in the viewer (roof and upper floors hidden on
-demand, orbit around). In the city viewer, the house card gets "Open interior" when the local
-`view` server can run the generator (it passes its build folder; the phone page shows a note
-instead).
+**Goal.** Ali clicks a house in the city and walks into it; an interior can be cut open floor by floor.
 
-**Check.** Fingerprint: `--allow ""`.
+**Read.** SPEC 6c (Viewer, Command), `citygen/view.py`, `tools/viewer/index.html` (loading the index and
+tiles, views, the card: `describe`, `showInfo`), `tools/viewer/gallery.html`, `tools/make_artifact.py`
+(what the phone page swaps), `interior/command.py`.
 
-**Done when.** From the viewer, clicking a house and "Open interior" shows its rooms; one
-snapshot of an interior. Tick H1.
+**Do.**
+1. Viewer: `folder=interiors/<name>` (only names matching `^interiors/[a-z0-9-]+$`) prefixes every data
+   path (`data/<folder>/tiles/index.json`, its tiles, `rooms.json`). With `index.interior`: a Cut menu
+   (none, roof, each floor) and the URL `cut=roof|<floor>`: one global clipping plane
+   (`renderer.clippingPlanes`) at that floor's z + `CUT` (1.3 m), or at the roof deck - 0.05 m for roof;
+   the orbit target on the building; a click names the room (its type and flat, floor, from rooms.json).
+2. `citygen/view.py`: `GET api/interior` answers `{"ok": true}`; `GET api/interior?city=NAME&building=K`
+   runs `make_interior(folder, K, city)` (one at a time behind a lock, one `BuildContext` per build folder
+   kept while the server runs, so a second interior takes about a second) and answers `{"folder":
+   "interiors/<slug>-<k>"}`, or status 400 with `{"error": message}`. The gallery answers the same under
+   `/b/<key>/api/interior`.
+3. The card: for a dwelling, an "Open interior" button when `api/interior` answers; a click shows "making
+   the interior..." and opens `?folder=...&view=interior` in a new tab. Without a server (the phone page)
+   the card says "Interiors: open this city with python -m citygen view on the computer".
+4. Gallery: `build_folders` also finds `*/interiors/*/tiles/index.json` and
+   `*/*/interiors/*/tiles/index.json`; each shows under its index `world_name` with its own Open in 3D.
+5. ROADMAP: tick H1 in section H and correct its text (dwellings only). SPEC 6c and HANDOFF.
+
+**Tests** (about 1.5 s).
+- `test_view_makes_interiors`: `start_server` on the 45 fixture's folder: `api/interior` answers ok; a
+  dar's city and number make the folder and `data/<folder>/tiles/index.json` is served; a minaret gets a
+  400 with the message.
+- `test_gallery_lists_interiors`: an interior folder under a build appears in `builds()`.
+
+**Check.** Fingerprint: `--allow ""`. Look: `.venv/bin/python tools/before_after.py --view overview
+--interior pick:dar:2 --query cut=1 --out output/checks/50.png`. The lead tries "Open interior" in the
+browser pane (click a house, open it, cut it, orbit).
+
+**Done when.** From the viewer, clicking a house and "Open interior" shows its rooms; one snapshot of an
+interior. Tick H1.
 
 ## 51. H2 - Furnishing: the design (no code)
 

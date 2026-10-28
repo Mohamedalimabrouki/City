@@ -746,6 +746,17 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`, and how the le
   header, at phone size in the browser pane. Hand-picked camera spots go stale when the plan changes (an
   apartment block grew over one, a wall moved onto another): heights from `Ground.surface` + 1.7 m, and
   `clear_spots` skips any spot within 1 m of a building.
+- **Interiors design** (prompt 44, SPEC 6c): facts that shaped it. Any `.py` edit changes the build key, so
+  an on-demand command reading a build's plan cache would find every build stale after each interior prompt:
+  the key now leaves out `citygen/interior/` and the style's `[interiors]` table, and interior-only
+  materials live in `[interiors.palette]`. `tools/fingerprint.py` hashes every file of a build folder, so
+  interior folders inside it must be skipped by name. A tile drops some of a building's pieces after
+  `Dresser.building` (`under_roofs` under a souk vault, `keep_off`): the bridge must replay `build_tile`'s
+  order, not just call `building`. The roof stair room is 2.5 m square: no straight or U stair keeps 2 m of
+  headroom under it, a square newel stair (3/4 turn per floor) does. Courtyard rings are mostly 2.8 m wide,
+  so dar bands are about 2.1 m deep inside: the kbou needs 3 m and appears only in big houses. Slab stair
+  doors stand in the window column nearest each section's middle, the same line `Dresser._sections` halves
+  at, so flats split on window-column boundaries match prompt 21's lit draws exactly.
 
 ## Known weak spots
 

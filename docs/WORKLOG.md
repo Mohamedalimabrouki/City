@@ -16,9 +16,10 @@ Entry format:
 ```
 
 ## 2026-10-25 - Resume here (paused after prompt 43, CP4)
-- State: prompts 1-43 are done, committed and pushed (branch `claude/procedural-city-generator-xop72h`;
-  CP4, prompt 43, on 25 October). Continue when Ali says (for example "Do prompt 44." or "continue the
-  playbook"). Weekly limit at CP4's start: 66% used (resets Tuesday 27 October, about 21:00 UTC).
+- State: prompts 1-44 are done, committed and pushed (branch `claude/procedural-city-generator-xop72h`;
+  CP4, prompt 43, on 25 October; 44, the interiors design, on 29 October). Next is prompt 45; continue
+  when Ali says (for example "Do prompt 45." or "continue the playbook"). Weekly limit on 29 October:
+  16% used (resets Tuesday 3 November, about 21:00 UTC).
 - How the work runs since prompt 20 (DeepSeek usage ended after 19): the lead session (Opus) briefs one
   Opus `city-builder` helper per prompt (effort from the playbook table). The helper reads CLAUDE.md, its
   prompt section and the HANDOFF lessons, implements, tests, fingerprints, takes the pictures and writes
@@ -27,8 +28,8 @@ Entry format:
   follow-ups, then commits one commit per prompt and pushes. Checkpoints add an independent Opus
   reviewer that reads only the committed history with git, so it can run beside a builder. The
   method in full, with Ali's preferences and the review techniques: `docs/LEAD.md` (read it first).
-- Next: 44 H1 Interiors: the design. Still open from the CP4 list (see the CP4 entry below): light tiles
-  over their byte budgets (accepted one by one, unchanged), the relaxed 3.5 MB tile target (densest
+- Next: 45 H1a Interior model and command (SPEC 6c is the design). Still open from the CP4 list (see the
+  CP4 entry below): light tiles over their byte budgets (accepted one by one, unchanged), the relaxed 3.5 MB tile target (densest
   quick tile 4.69 MB, seed 7 4.86 MB; next gains: merge each full tile's meshes per material, weld flat
   vertices), kiosk cafes only in tiles with buildings, quick builds losing lod1 blocks of unexported
   tiles. The phone page is confirmed on Ali's phone (25 October, two screenshots): textured plaster
@@ -39,6 +40,31 @@ Entry format:
 - Doubts and questions for Ali: in the CP4 entry below.
 - Added after the pause note, at Ali's request: the city gallery and keyboard navigation, the cemetery
   cypress that won a model duel, and the plan of two tracks after prompt 100 (entries below).
+
+## 2026-10-29 - Prompt 44 H1 Interiors: the design
+- Commit: (lead commits) | Model: Opus 5.5, high
+- Changed: docs/SPEC.md (new section 6c "Interiors"), docs/prompts/05-interiors.md (prompts 45-50
+  rewritten, same numbers, models and efforts; 46 Size M, 47 Size L), docs/ROADMAP.md, docs/WORKLOG.md,
+  docs/HANDOFF.md. No code.
+- Checked in the code: `TileContext` (kit from `make_kit`, `Ground` over every plan, `Covers`),
+  `build_tile` (`keep_roof`, `building_highs` gives `high`, `ground_heights`, `under_roofs`, `keep_off`),
+  `Dresser.building`/`entrances`/`front_of`/`_sections`/`_light`, `stair_columns`, piece bounds of doors,
+  windows, shops and balconies (glass, `shop_dark`, `door_*` leaves, `Kit.panes`), `roof_layout` (the 2.5 m
+  stair room, its door side), `masses`, `life.households` draw order, `load_or_plan` and the build key (any
+  .py edit changes it), `summary.json` (no settings today; fingerprint skips it), `view.py` and the gallery,
+  the card's `describe`, `kitsheet.py` (a hand-written viewable folder), `before_after.py` (needs a view in a
+  build folder: prompt 45 adds `--interior`). Timed on the quick capital: world 0.05 s, cached plan 0.03 s,
+  kit 0.2 s, one `Dresser.building` 1-12 ms; full world 0.6 s, the capital pickle 27 MB.
+- Main decisions: interiors for the four dwelling kinds only (mosque halls and marabouts have no door yet);
+  building = index in that city's `plan.buildings`, `--city` for builds with several cities, `pick:` specs
+  for Looks; `summary.json` gets the merged settings, older folders get a clear "build it again" message; the
+  build key and the fingerprint ignore interior code, `[interiors]` and `interiors/` folders; world
+  coordinates with a tile-like root node; partitions by `free_cut` (0.3 m rule), merge fallbacks, never a
+  crash; houses climb a square newel stair (3/4 turn per floor, headroom over 2.7 m) that fits under the
+  2.5 m stair room, other layouts U stairs between floors; slab flats follow prompt 21's sections exactly.
+- Doubts and questions for Ali: none that block. Two choices he may want to see later: modest courtyard
+  houses (most of the quick capital's) get a plain bit without the kbou alcove because their rooms are only
+  about 2.1 m deep; the skylight of covered courts shows only inside (the city tiles keep a plain roof).
 
 ## 2026-10-25 - Prompt 43 CP4 Checkpoint: people, landmarks, port, performance
 - Commit: (see git log) | Model: Opus 5.5 (lead), an independent Opus reviewer (read only the committed history
