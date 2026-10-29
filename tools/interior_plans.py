@@ -27,10 +27,15 @@ CAPTION = 22          # px for the caption under each panel
 COLORS = {"wast_ed_dar": (236, 226, 196), "skifa": (214, 178, 132), "bit": (240, 170, 150),
           "maqsura": (247, 208, 176), "matbakh": (170, 207, 150), "bit_el_ma": (150, 200, 232),
           "bit_el_mouna": (204, 192, 170), "droj": (190, 190, 190), "ghorfa": (240, 192, 162),
-          "stah": (226, 226, 214), "menzah": (232, 164, 194), "well": (252, 252, 252), "bortal": (222, 212, 170)}
+          "stah": (226, 226, 214), "menzah": (232, 164, 194), "well": (252, 252, 252), "bortal": (222, 212, 170),
+          "hall": (214, 178, 132), "couloir": (232, 214, 176), "palier": (190, 190, 190), "salon": (240, 170, 150),
+          "salle_a_manger": (244, 196, 150), "cuisine": (170, 207, 150), "chambre": (247, 208, 176),
+          "sdb": (150, 200, 232), "wc": (120, 180, 220), "koubba": (236, 160, 120), "hanout": (226, 150, 200),
+          "makhzen": (204, 192, 170), "qahwa": (226, 150, 200)}
 OTHER = (212, 212, 212)
 WALL, PARTITION, DOOR, WINDOW, GAP = (20, 20, 20), (120, 120, 120), (210, 40, 40), (40, 90, 220), (255, 255, 255)
-LABELS = {"wast_ed_dar": "wast ed dar", "bit_el_ma": "bit el ma", "bit_el_mouna": "mouna"}
+LABELS = {"wast_ed_dar": "wast ed dar", "bit_el_ma": "bit el ma", "bit_el_mouna": "mouna",
+          "salle_a_manger": "s. a manger"}
 
 
 def font(size: int):
@@ -177,6 +182,8 @@ def panel(pen, interior, outside, floor: int, at, scale: float, label_font) -> N
         p = polylabel(r.polygon, tolerance=0.05)
         cx, cy = at(p.x, p.y)
         text = LABELS.get(r.type, r.type.replace("_", " "))
+        if r.unit.startswith("flat "):
+            text += " " + r.unit[5:]                       # the flat's number
         box = pen.textbbox((0, 0), text, font=label_font)
         pen.text((cx - (box[2] - box[0]) / 2, cy - (box[3] - box[1]) / 2), text, fill=(30, 30, 30), font=label_font)
 

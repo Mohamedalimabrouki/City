@@ -136,6 +136,7 @@ class Interior:
     rules: dict = field(default_factory=dict)     # the numbers `rooms.check` tests against (not in rooms.json)
     focus: tuple | None = None                    # (room id, opening id) of the `interior` view (not in rooms.json)
     entry: object = None                          # the main door's Opening (not in rooms.json)
+    piers: list = field(default_factory=list)     # narrow piers a partition may stand on (not in rooms.json)
 
     @property
     def floors(self) -> int:

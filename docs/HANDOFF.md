@@ -797,6 +797,35 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`, and how the le
   court, on tight corner lots; 77 of the 416 houses `layout_of` calls compact run the small program (no
   court of 2.6 m fits once slots are refused, or the court crowds it) and now report `small`; `pick:` skips
   fallbacks, so Looks show the layout they name. Of the 339 real compact houses 26 have no skifa.
+- **Flats, villas, domed houses, shops** (prompt 47, `interior/spine.py`, `villa.py`, `flats.py`, `koubba.py`,
+  `shop.py`): judge them as for 46, with a city-wide survey script that counts the program problems by
+  kind, not only pass/fail; every fix moved one count and often broke another, so rerun the whole survey
+  (and the lead's two old-town scripts) after each change. Lessons: put the program rules in
+  `rooms.check` first (`program.modern_problems`): the first villas passed geometry with 40 m2 bath rooms
+  and no salon. Type cells by light, but give every program room a fallback (two narrow cells joined, a
+  blind cell) or the room silently vanishes. `R.repair` merges any pair whose partition meets a window:
+  a kept couloir swallowed whole salons until every spine line (couloir sides and ends, hall sides and
+  back) went through `free_cut`, and the merge now keeps the salon over a chambre (`rooms.RANK`). The
+  couloir's orientation decides everything in slab flats: along the windowed walls and in the middle,
+  else one band is 9 m deep and blind. Door widths: a wc or sdb carved beside a 1.65 m contact never
+  fits a full door; they take the narrow door. Carving a shop changes floor 0's frame (Frame.of the rest
+  rotates): keep the whole floor's frame (`Interior.full0`) for the stair corners. Units: a door may only
+  join one unit or a common core (`rooms.joinable`), or `connect` happily links flats through each other.
+  Slab flats follow prompt 21 only when the split uses the dresser's own `_sections` of each window (a
+  window exactly on a draw border belongs to the dresser's side, not to "t < border"); shut windows have
+  no lit twin and never light. The quick capital's colonial blocks have no window on floor 0 (stores) and
+  many one-sided or triangular lots: the weakest layout. Open (prompt 47): 33 of 270 quick-capital colonial blocks and 190 of 353
+  slabs pass every program rule; the flats short of chambres are the ones just over a type threshold (S+2 at
+  56-58 m2, S+3 at 83-103 m2), where the door rule's 1.65 m of wall per room does not fit; the lead decides
+  (WORKLOG). A shop house whose front stands where its only stair could go gets the warning
+  `layout.SHOP_STAIR` (6 of 136; the old-town stair test skips it). Survey output lists only the commonest
+  kinds: count crashes separately. Rounds with the lead taught: a merge that lets a way in (palier, hall,
+  couloir) take a room hides the real faults (fix the merge, then the counts get worse before better); try
+  several layouts per floor and score them with the check's own rules before building rooms
+  (`spine.faults`), it moved villas 77% -> 97%; stacked identical floors are the cheap win for time; cap the
+  search by unique layouts, not by cuts, or quality drops; develop on a subset, run the whole survey once per
+  round, and keep each survey script under a name of its own (the scratchpad is shared). Scratchpad scripts: the lead and the helper
+  share the scratchpad folder; give one-off scripts distinct names (a survey47.py was overwritten).
 
 ## Known weak spots
 

@@ -15,11 +15,26 @@ Entry format:
 - Doubts and questions for Ali: <none, or the question>
 ```
 
-## 2026-10-25 - Resume here (paused after prompt 43, CP4)
-- State: prompts 1-46 are done (branch `claude/procedural-city-generator-xop72h`; CP4, prompt 43, on 25
-  October; 44, the interiors design, 45, the interior command, and 46, old-town house plans, on 29 October).
-  Next is prompt 47; continue when Ali says (for example "Do prompt 47." or "continue the playbook"). Weekly limit on 29 October:
-  16% used (resets Tuesday 3 November, about 21:00 UTC).
+## 2026-10-29 - Resume here (paused after prompt 47)
+- State: prompts 1-47 are done (branch `claude/procedural-city-generator-xop72h`; CP4, prompt 43, on 25
+  October; the interiors 44-47 on 29 October: the design, the interior command, old-town house plans, and
+  flats, villas, domed houses and shops). Ali paused after 47 to save his weekly limit (27% used on 29
+  October; resets Tuesday 3 November, about 21:00 UTC). Continue when Ali says (for example "Do prompt
+  48." or "continue the playbook").
+- Next: 48 H1d interior walls and openings, 49 H1e floors, stairs and roof terrace, 50 H1f interiors in the
+  viewer. Ali most wants to walk inside the houses (sad not to see them in 3D yet): do 48-50 first, then
+  47.1 (colonial flats pass `rooms.check` for 39%, the slowest colonial block takes 14 s, slabs 93%,
+  domed house No. 570, colonial floor-0 stores as a few rooms) unless Ali says otherwise; its plan is in
+  the prompt 47 entry.
+- Lead notes for 48-50: 48 refreshes Blender after interior mesh changes with exactly `.venv/bin/python
+  tools/make_blend.py <that dar's interior folder>` (name the .blend for Ali), and its shell uses the
+  tile's ground_z, plinth and frontage; 49 runs make_blend for the pick:dar:2 and pick:slab folders, its
+  headroom test includes the stair room's ceiling, and it adds `water_pool`; 50: try "Open interior"
+  yourself in the browser pane (click a house, open it, cut, orbit) before ticking H1.
+- Review tools for interiors: `tools/interior_survey.py` (every dwelling of a city through `rooms.check`,
+  by group; run it before and after each interior prompt, `--city "Ain Chilel"` for the villas) and
+  `tools/interior_plans.py` (plan pictures). The fingerprint baseline `output/checks/fp-before.json` (282
+  parts) stays fixed for the interior prompts (`--allow ""`).
 - How the work runs since prompt 20 (DeepSeek usage ended after 19): the lead session (Opus) briefs one
   Opus `city-builder` helper per prompt (effort from the playbook table). The helper reads CLAUDE.md, its
   prompt section and the HANDOFF lessons, implements, tests, fingerprints, takes the pictures and writes
@@ -28,10 +43,7 @@ Entry format:
   follow-ups, then commits one commit per prompt and pushes. Checkpoints add an independent Opus
   reviewer that reads only the committed history with git, so it can run beside a builder. The
   method in full, with Ali's preferences and the review techniques: `docs/LEAD.md` (read it first).
-- Next: 46 H1b Courtyard houses and compact houses (SPEC 6c; builds on `citygen/interior/` of prompt 45).
-  Playwright's own Chromium is gone from the Mac since 29 October; snapshots now fall back to the installed
-  Google Chrome by themselves (prompt 45 entry). Still open from the CP4 list (see the
-  CP4 entry below): light tiles over their byte budgets (accepted one by one, unchanged), the relaxed 3.5 MB tile target (densest
+- Still open from the CP4 list (see the CP4 entry below): light tiles over their byte budgets (accepted one by one, unchanged), the relaxed 3.5 MB tile target (densest
   quick tile 4.69 MB, seed 7 4.86 MB; next gains: merge each full tile's meshes per material, weld flat
   vertices), kiosk cafes only in tiles with buildings, quick builds losing lod1 blocks of unexported
   tiles. The phone page is confirmed on Ali's phone (25 October, two screenshots): textured plaster
@@ -42,6 +54,75 @@ Entry format:
 - Doubts and questions for Ali: in the CP4 entry below.
 - Added after the pause note, at Ali's request: the city gallery and keyboard navigation, the cemetery
   cypress that won a model duel, and the plan of two tracks after prompt 100 (entries below).
+
+## 2026-10-29 - Prompt 47 H1c Apartments, villas, domed houses and shops
+- Commit: (lead commits) | Model: Opus 5.5, high
+- Changed: new citygen/interior/spine.py (hall-couloir engine, second couloirs, shared modern helpers),
+  villa.py, flats.py (cores, balanced colonial split with a landing strip, slab splits, occupants, ladder
+  well), koubba.py, shop.py; layout.py (`with_shop`, its tries tracked), rooms.py (`joinable`, `_units`,
+  repair keeps the salon), program.py (`modern_problems`, couloir in `most`), stairs.py (U box),
+  context.py (`pick:shop`), cuts.py, model.py (`piers`), dar.py/compact.py (whole-floor frame after a shop,
+  court ladder when a stair room has no way up, mixed-geometry guards); styles/maghreb.toml; tools/
+  interior_plans.py; tests (6 new + 1 slow); docs (SPEC 6c, HANDOFF, ROADMAP).
+- Checks (lead, final): `pytest -q` 122 passed in 34 s (the new fast tests add about 1.5 s); slow: the
+  new-district test passes, `test_open_samples_are_valid` xfail (open item 47.1); `build --quick` done;
+  fingerprint `--allow ""`: 282 parts, 0 changed; rooms.json the same in two processes; no em dash. The
+  lead's bar (95% of each group passing `rooms.check`) is met for villa, maison, koubba and shop, not for
+  colonial (39%) and slab (93%): open item 47.1.
+- Lead decision (follow-up 2): no flat under `min_flat` (40 m2) on any floor (a smaller region joins the flat
+  it shares most with, else the palier); flat types S+1 under 60 m2, S+2 under 100, else S+3 (moyen standing;
+  the prompt's "type matches its area" stays); inner doors of modern homes keep `inner_clear` 0.15 m from the
+  partitions (facade rule and old town unchanged); program check: at most one salon, salle a manger, cuisine
+  and hall per flat, villa or maison, every flat a facade window. Evidence (lead's histogram of flats short
+  of chambres, every 3rd building): slab 89 flats under 20 m2 all failing, 40-80 m2 26/99, 80-90 30/58,
+  90-100 77/182, 100-110 8/294, over 110 none; colonial under 50 m2 58/82 (26 under 20 m2), 60-100 53/177.
+  Builder: side-by-side couloirs removed (the second couloir of round 1 is gone).
+- Rounds 1-4 (lead follow-ups after the whole-city surveys): flats under 20 m2 (the main cause of
+  missing rooms), merges that let a palier or couloir swallow rooms, a layout search per floor (up to 18
+  variants), the salon and then the cuisine taking windows first, hall trims; the old town stayed at 15
+  fails (lead's scripts, now `tools/interior_survey.py`).
+- Round 5 (speed, slab stairs), no crash anywhere:
+
+  | group | round 4 | round 5 | slowest | top kinds left |
+  |---|---|---|---|---|
+  | slab (353) | 331 | 327 (93%) | 2.7 s (No. 1362) | 5 hall/chambre partitions near a window, 4 palier/hall, 4 no sdb |
+  | colonial (270) | 114 | 105 (39%) | 14.1 s (No. 773) | 48 salons without a window, 30 chambres over 36 m2, 25 hall/salon partitions |
+  | koubba (22) | 21 | 21 (95%) | 0.01 s | No. 570 |
+  | shop (136) | 135 | 135 (99%) | 0.35 s | No. 270 |
+  | villa (178) | 172 | 171 (96%) | 0.41 s | |
+  | maison (616) | 588 | 589 (96%) | 0.64 s | |
+  | full sample (300) | 279 | 277 (92%) | 2.0 s | |
+
+  Done: typical floors (a floor with the same region, entrance, program and facade reuses the lower floor's
+  cells, or a lower floor's plan that holds here without a fault; the stream is keyed by the flat's place),
+  a faster cut search (zones within reach only, spans of zones read without building partitions), widths
+  remembered, fewer variants on big floors; slab cores slide in and widen past a wide stair window, a
+  stepped block's upper floor becomes the upper floor of the flat below by a ladder (a duplex). Slowest slab
+  19 s -> 2.7 s (No. 1240: 1.4 s), colonial 20 s -> 14 s (No. 773, 100 m long, 7 floors whose windows
+  differ, so no floor repeats). Not done: the colonial ring fallback, colonial split lines against the
+  window zones, the salon on the facade before the bands. Fast fixture 6.9 s; tests 122 + 1 xfail.
+  Maison 442: a row of salon, two chambres, the roof stair, the hall at the door, a "bit" at the tip (now a
+  chambre: a modern merge past a service's largest makes a chambre). Slab 1049 floor 0: four flats of three
+  chambres each, cuisines about 12 m2, every salon on a facade.
+- Final (prompt 47 stops here for the week): rooms.check passes, first report -> round 5: slab 171/345 ->
+  327/353 (93%), colonial 21/267 -> 105/270 (39%), koubba 18 -> 21/22, shop 134 -> 135/136, villa 138 ->
+  171/178 (96%), maison 490 -> 589/616 (96%), full-capital sample 237 -> 277/300 (92%); no crash anywhere; old
+  town 16 -> 15 fails. Lead decisions: flat types S+1 under 60 m2, S+2 under 100; inner doors of modern homes
+  `inner_clear` 0.15 m; no flat under 40 m2; typical floors reuse a lower floor's plan. Tests: `pytest -q`
+  122 passed (the new fast tests add about 1.5 s); slow tests: all pass but `test_open_samples_are_valid`, xfail
+  (open item 47.1: the colonial and slab samples, and domed house No. 570, an L strip round its koubba a
+  bit under its width, which the lead moved there from the new-district test). Look: output/checks/47.png (slab No. 1264
+  stacked typical floors, colonial No. 867 floor 0 still a warren of 13 stores, villa No. 321 fine).
+- Open items for 47.1: colonial flats to 95% (ring fallback when the spine fails, split lines between flats
+  and against the palier moved clear of the window zones, the salon on the facade first on one-sided lots;
+  top kinds now 48 salons without a window, 30 chambres over 36 m2, 25 hall/salon partitions near a window);
+  colonial No. 773 takes 14 s (no floor repeats); the slab remainder (93%: hall/chambre and palier/hall
+  partitions near windows, 4 flats without a sdb); domed house No. 570; colonial floor-0 stores as a few
+  rooms off the core's couloir.
+- Lead review: the whole diff read after the first report (code findings a-g fixed, among them a shop
+  retry that kept the plan without its shop), later rounds checked by surveys, tests and plan pictures;
+  `tools/interior_survey.py` added (the lead's survey as a tool). Lesson in `docs/LEAD.md`: check a
+  helper's root-cause claim with a histogram before deciding a rule.
 
 ## 2026-10-29 - Prompt 46 H1b Courtyard houses and compact houses
 - Commit: (lead commits) | Model: Opus 5.5, high

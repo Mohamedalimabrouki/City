@@ -18,7 +18,7 @@ from ..rng import stream
 from . import rooms as R
 from . import program as P
 from . import stairs as S
-from .cuts import REACH, Cell, Frame, absorb, contact, cut, lines_of, parts, shared, snap, straight, union, width, zone
+from .cuts import REACH, Cell, Frame, absorb, contact, cut, lines_of, parts, polygonal, shared, snap, straight, union, width, zone
 from .cuts import free_cut as _free_cut
 from .model import Opening, Room
 
@@ -67,6 +67,7 @@ class Job:
         self.roof_ladder = False          # the newel could not stand under the stair room
         self.largest = {k: float(v) for k, v in self.dar.get("largest", {}).items()}   # m2 per service
         interior.rules["largest"] = dict(self.largest)
+        interior.rules["most"] = {k: float(v) for k, v in rooms.get("most", {}).items()}
         self.court = self.rng("court")    # one stream per house: court windows, then the majel, in that order
         self.wells: dict = {}             # floor -> the light well room of a covered court
         self.made: dict = {}              # id(cell) -> (cell, room)
@@ -732,7 +733,7 @@ def without(poly, square, thin: float = 0.45, zones=(), half: float = 0.1):
     between the cell and a wall join the droj (a landing beside the stair), not a room beyond it."""
     if square is None:
         return poly, None
-    rest = shapely.difference(poly, square, grid_size=1e-6)
+    rest = polygonal(shapely.difference(poly, square, grid_size=1e-6))
     opened = rest.buffer(-thin, join_style="mitre").buffer(thin, join_style="mitre")
     fr = Frame.of(square)                             # only what lies straight beside the cell, not along a wall
     u0, v0, u1, v1 = fr.bounds(square)
@@ -757,7 +758,8 @@ def plan(interior, outside, style: dict) -> None:
     from . import compact
     st0 = interior.storeys[0]
     holes = sorted((Polygon(h) for h in outside.b.footprint.interiors), key=lambda p: -p.area)
-    face = next((Polygon(h) for h in st0.polygon.interiors if holes and Polygon(h).contains(
+    whole = getattr(interior, "full0", None) or st0.polygon     # a souk house's floor 0 less its shop is cut
+    face = next((Polygon(h) for h in whole.interiors if holes and Polygon(h).contains(
         holes[0].representative_point())), None)
     if not holes or face is None:
         compact.plan(interior, outside, style)
@@ -964,7 +966,7 @@ def newel_square(job: Job, ring):
     if top <= 0:
         return None
     served = [ring.rings[f] for f in range(min(top, interior.floors - 1) + 1)]
-    region = shapely.intersection_all(served)
+    region = polygonal(shapely.intersection_all(served))
     if ring.kind == "covered":
         region = region.difference(ring.court)
     zones = job.zs(list(range(min(top, interior.floors - 1) + 1)))
@@ -1024,7 +1026,10 @@ def newel_record(job: Job, square, top: int) -> None:
 def ladder_up(job: Job) -> None:
     """No newel cell fits: a ladder from floor 0 up (a warning)."""
     interior = job.interior
-    region = shapely.intersection_all([st.polygon for st in interior.storeys])
+    region = polygonal(shapely.intersection_all([st.polygon for st in interior.storeys]))
+    if region.is_empty:                               # stepped masses that share no floor
+        interior.warnings.append("no newel stair fits: a ladder goes up, but no spot stands under every floor")
+        return
     fr = Frame.of(region)
     w, d = (float(v) for v in job.stairs.get("ladder", [0.6, 1.2]))
     spot = S.ladder(region, fr, region.centroid.coords[0], (w, d))
@@ -1073,7 +1078,8 @@ def program_doors(job: Job, ring) -> None:
                 arches(job, ring, room)
     rooms = sorted(interior.rooms, key=lambda r: r.id)
     for r in rooms:
-        if r.floor != 0 or r.type in ("skifa", "droj", R.COURT, "well", "bortal") or has_door(interior, r):
+        if (r.floor != 0 or r.type in ("skifa", "droj", R.COURT, "well", "bortal") or has_door(interior, r)
+                or r.unit != "home"):
             continue
         if r.type == "maqsura":
             bits = sorted(((shared(r.polygon, b.polygon), b.id, b) for b in rooms if b.floor == 0 and b.type == "bit"),
@@ -1247,6 +1253,11 @@ def stair_ladder(job: Job, droj) -> None:
     below = max((r for r in interior.rooms if r.floor == top.floor and spot is not None and r.type != "well"),
                 key=lambda r: (r.polygon.intersection(spot).area, -r.id), default=None)
     if spot is None or below is None:
+        stah = next((r for r in interior.rooms if r.type == "stah"), None)
+        if stah is not None and job.court_room is not None and R.is_court(job.court_room):
+            menzah_ladder(job, stah, droj.polygon)        # a ladder from the court up to the roof instead
+            if any(st.kind == "ladder" and stah.id in st.rooms for st in interior.stairs):
+                return
         interior.warnings.append("the stair room has no way up")
         return
     n = S.risers(interior.fh, 0.3)
@@ -1254,8 +1265,8 @@ def stair_ladder(job: Job, droj) -> None:
                                    [below.id, droj.id]))
 
 
-def menzah_ladder(job: Job, stah) -> None:
-    """A ladder from the court up to a roof without a stair room, next to the menzah."""
+def menzah_ladder(job: Job, stah, near=None) -> None:
+    """A ladder from the court up to a roof without a stair room, next to the menzah (or `near`)."""
     interior, lay = job.interior, job.roof
     court = job.court_room
     if court is None or not R.is_court(court):
@@ -1263,7 +1274,8 @@ def menzah_ladder(job: Job, stah) -> None:
         return
     w, d = (float(v) for v in job.stairs.get("ladder", [0.6, 1.2]))
     inner = court.polygon.buffer(-0.05, join_style="mitre")
-    spot = S.ladder(inner, Frame.of(court.polygon), lay.menzah.centroid.coords[0], (w, d)) if not inner.is_empty else None
+    target = (near if near is not None else lay.menzah).centroid.coords[0]
+    spot = S.ladder(inner, Frame.of(court.polygon), target, (w, d)) if not inner.is_empty else None
     if spot is None:
         interior.warnings.append("the menzah has no way up")
         return

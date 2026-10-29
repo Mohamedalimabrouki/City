@@ -19,7 +19,7 @@ from . import dar as D
 from . import program as P
 from . import rooms as R
 from . import stairs as S
-from .cuts import Cell, Frame, absorb, cut, offsets, parts, shared, snap, width
+from .cuts import Cell, Frame, absorb, cut, offsets, parts, polygonal, shared, snap, width
 from .model import Opening, Room, Storey  # noqa: F401  (Storey: the type of interior.storeys)
 
 
@@ -28,7 +28,7 @@ def plan(interior, outside, style: dict) -> None:
     interior.layout = "compact"
     job = D.Job(interior, outside, style)
     st0 = interior.storeys[0]
-    fr = Frame.of(st0.polygon)
+    fr = Frame.of(getattr(interior, "full0", None) or st0.polygon)   # a shop carved first keeps the frame
     court = central(job, fr)
     if court is None:
         small_plan(job)
@@ -42,7 +42,8 @@ def plan(interior, outside, style: dict) -> None:
     types = {r.type for r in interior.rooms if r.floor == 0}
     full_bit = any(r.type == "bit" and r.floor == 0 and job.fits(r.polygon, "bit") for r in interior.rooms)
     if not {"bit", "matbakh"} <= types or not full_bit:   # the court leaves no room for the program: small
-        interior.rooms, interior.stairs, interior.features = [], [], []
+        interior.rooms = [r for r in interior.rooms if r.unit != "home"]   # a shop carved before stays
+        interior.stairs, interior.features = [], []
         interior.openings, interior.warnings = facade, warnings
         small_plan(D.Job(interior, outside, style))
         return
@@ -67,7 +68,7 @@ def central(job: D.Job, fr: Frame):
     placement leaves the door in a band."""
     interior = job.interior
     st0 = interior.storeys[0].polygon
-    region = shapely.intersection_all([st.polygon for st in interior.storeys])
+    region = polygonal(shapely.intersection_all([st.polygon for st in interior.storeys]))
     u0, v0, u1, v1 = fr.bounds(st0)
     cfg = job.compact
     lo, hi = (float(v) for v in cfg.get("central", [0.4, 0.45]))
@@ -147,13 +148,13 @@ def small_plan(job: D.Job) -> None:
     interior = job.interior
     interior.layout = "small"                         # a fallback reports the layout it really got
     st0 = interior.storeys[0]
-    fr = Frame.of(st0.polygon)
-    ring = D.Ring(st0.polygon, None, {st.floor: snap(st.polygon) for st in interior.storeys}, "none")
+    fr = Frame.of(getattr(interior, "full0", None) or st0.polygon)   # a shop carved first keeps the frame
+    ring = D.Ring(getattr(interior, "full0", None) or st0.polygon, None, {st.floor: snap(st.polygon) for st in interior.storeys}, "none")
     top = D.stair_top(job)
     square = None
     if top > 0:
         served = list(range(min(top, interior.floors - 1) + 1))
-        region = shapely.intersection_all([ring.rings[f] for f in served])
+        region = polygonal(shapely.intersection_all([ring.rings[f] for f in served]))
         if job.roof is not None and job.roof.stair is not None:
             square = S.under_stair_room(job.roof.stair, region, job.zs(served), job.half,
                                         float(job.stairs.get("newel_min", 1.9)))

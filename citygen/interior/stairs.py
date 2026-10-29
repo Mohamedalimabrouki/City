@@ -188,3 +188,31 @@ def ladder(region, fr: Frame, near, size: tuple):
         if best is None or float(dist.min()) < best[0] - 1e-9:
             best = (float(dist.min()), rs[i])
     return None if best is None else best[1]
+
+
+# --- the U stair of villas, maisons and flats (prompt 47) -----------------------------------------------
+def u_size(fh: float, cfg: dict, width: float, tread: float, need: float) -> dict:
+    """The numbers of a U stair box: two flights of `width` side by side `gap` apart, n risers made even
+    (n/2 per flight, (n/2 - 1) treads of `tread`), the floor landing at least `need` deep (a door fits at
+    each side of it) and never shallower than `width`, the half landing `width` deep."""
+    n = risers(fh, float(cfg.get("riser_max", {}).get("modern", 0.18)))
+    n += n % 2
+    gap = float(cfg.get("u_gap", 0.1))
+    landing = max(width, need)
+    return {"risers": n, "riser": fh / n, "tread": tread, "width": width, "landing": landing,
+            "length": landing + (n // 2 - 1) * tread + width, "across": 2 * width + gap}
+
+
+def u_box(fr: Frame, x: float, y: float, size: dict):
+    """The box in a door frame `fr` (u along the door wall, v inward): centered on u = x, from v = y inward."""
+    half = size["across"] / 2
+    return fr.rect(x - half, y, x + half, y + size["length"])
+
+
+def u_record(box, fr: Frame, x: float, y: float, size: dict, floor: int, top: int) -> Stair:
+    """The `Stair` of a U box from `floor` to `top`; its door is the middle of the floor landing's end,
+    yaw the way out of the box there."""
+    p = fr.world(x, y)
+    yaw = math.atan2(-fr.v[1], -fr.v[0])
+    return Stair("u", box, floor, top, size["risers"], size["riser"], size["tread"], size["width"],
+                 (float(p[0]), float(p[1]), yaw))

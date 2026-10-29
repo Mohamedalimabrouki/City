@@ -58,7 +58,8 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
 - [x] 44 H1 Interiors: the design (SPEC 6c; prompts 45-50 rewritten)
 - [x] 45 H1a Interior model and command (`python -m citygen interior`, facade bridge, placeholder rooms)
 - [x] 46 H1b Courtyard houses
-- [ ] 47 H1c Apartments, villas, shops
+- [x] 47 H1c Apartments, villas, shops
+- [ ] 47.1 H1c fix: colonial flats to the bar (39% pass), the slowest colonial block (14 s)
 - [ ] 48 H1d Interior walls and openings
 - [ ] 49 H1e Floors, stairs, roof terrace
 - [ ] 50 H1f Interiors in the viewer

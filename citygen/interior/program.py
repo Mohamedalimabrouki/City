@@ -118,7 +118,9 @@ def from_bit(job, cells: list, free: list, bits: list, service: str, ref):
 def into_bit(cells: list, bits: list) -> list:
     """Every other living cell joins the bit it touches (a small house too small for a kitchen)."""
     for c in [c for c in living(cells) if c.type != "bit"]:
-        for b in sorted(bits, key=lambda b: -shared(c.poly, b.poly)):
+        hosts = sorted(bits, key=lambda b: -shared(c.poly, b.poly))
+        hosts += [d for d in cells if d.type == "droj" and shared(c.poly, d.poly) > 1e-3]   # else the stair's landing
+        for b in hosts:
             merged = union(b.poly, c.poly) if shared(c.poly, b.poly) > 1e-3 else None
             if merged is not None:
                 b.poly = merged
@@ -163,15 +165,26 @@ def carve(job, c, service: str, ref):
     return None
 
 
+MODERN = ("hall", "couloir", "salon", "salle_a_manger", "cuisine", "chambre", "sdb", "wc", "palier")
+SHOP = ("hanout", "makhzen", "qahwa")
+ONE = ("salon", "salle_a_manger", "cuisine", "hall")   # at most one of each per flat, villa or maison
+
+
 def problems(interior) -> list:
-    """The program rules `rooms.check` adds for old-town houses."""
+    """The program rules `rooms.check` adds: old-town houses here, the other layouts and every shop and
+    cafe in `modern_problems`."""
+    out = modern_problems(interior)
     if interior.layout not in ("dar", "compact", "small"):
-        return []
+        return out
+    return out + old_problems(interior)
+
+
+def old_problems(interior) -> list:
     rules = interior.rules
     program = interior.layout                         # a fallback already reports its real layout
     big = rules.get("largest", {})
     out = []
-    floor0 = [r for r in interior.rooms if r.floor == 0 and r.type not in FIXED]
+    floor0 = [r for r in interior.rooms if r.floor == 0 and r.type not in FIXED and r.unit == "home"]
     types = {r.type for r in floor0}
     if "bit" not in types:
         out.append("floor 0 has no bit")
@@ -194,3 +207,120 @@ def problems(interior) -> list:
             out.append(f"the maqsura {r.id} stands beside no bit")
     return out
 
+
+def modern_problems(interior) -> list:
+    """Program rules of koubba, villa, maison, colonial and slab plans, and of shops and cafes (SPEC 6c)."""
+    rules = interior.rules
+    most = rules.get("most", {})
+    out = []
+    checked = MODERN + SHOP + (("koubba",) + SERVICES if interior.layout == "koubba" else ())
+    for r in interior.rooms:
+        if r.type in checked and r.type in most and r.polygon.area > most[r.type] + 0.01:
+            out.append(f"the {r.type} {r.id} has {r.polygon.area:.1f} m2, over the most {most[r.type]}")
+    out += shop_problems(interior)
+    lay = interior.layout
+    if lay == "koubba":
+        out += koubba_problems(interior)
+    elif lay in ("villa", "maison"):
+        out += house_problems(interior)
+    elif lay in ("colonial", "slab"):
+        out += flat_problems(interior)
+    return out
+
+
+def types_of(rooms) -> set:
+    return {r.type for r in rooms}
+
+
+def shop_problems(interior) -> list:
+    """A shop has its hanout, a cafe its qahwa with a wc and a makhzen; their rooms keep their unit."""
+    out = []
+    for unit, need in (("shop", ("hanout",)), ("cafe", ("qahwa", "wc", "makhzen"))):
+        rooms = [r for r in interior.rooms if r.unit == unit]
+        if not rooms:
+            continue
+        for t in need:
+            if t not in types_of(rooms):
+                out.append(f"the {unit} has no {t}")
+    fronts = [o for o in interior.openings if o.kind == "shop" and o.floor == 0 and o.piece]
+    if fronts and interior.layout in ("dar", "compact", "small", "koubba", "maison") and not any(
+            r.unit == "shop" for r in interior.rooms):
+        out.append("the shop front has no hanout")
+    return out
+
+
+def koubba_problems(interior) -> list:
+    out = []
+    home = [r for r in interior.rooms if r.floor == 0 and r.unit == "home"]
+    if "koubba" not in types_of(home):
+        out.append("the domed house has no koubba")
+    annex = [r for r in home if r.type not in ("koubba", "droj")]
+    least = interior.rules["minimums"].get("matbakh", (3.5, 1.4))
+    room = [r for r in annex if r.polygon.area >= least[0] and width(r.polygon) >= least[1]]
+    if room and "matbakh" not in types_of(annex):         # a matbakh when one fits (SPEC 6c)
+        out.append("the annex has room for a matbakh but none")
+    if not annex and sum(r.polygon.area for r in home) > interior.rules.get("most", {}).get("koubba", 1e9):
+        out.append("the domed house has no annex")
+    return out
+
+
+def house_problems(interior) -> list:
+    """A villa or maison: hall, salon and cuisine on floor 0 (a wc too when there are more floors; a villa's
+    salle a manger when floor 0 is over `dining_area`), a chambre and a sdb, the U stair to every floor."""
+    out = []
+    home = [r for r in interior.rooms if r.unit == "home" and r.floor < interior.floors]
+    ground = types_of(r for r in home if r.floor == 0)
+    want = ["hall", "salon", "cuisine"] + (["wc"] if interior.floors > 1 else [])
+    if interior.layout == "villa" and interior.storeys[0].polygon.area > interior.rules.get("dining_area", 1e9):
+        want.append("salle_a_manger")
+    out += [f"floor 0 has no {t}" for t in want if t not in ground]
+    for t in ("chambre", "sdb"):
+        if t not in types_of(home):
+            out.append(f"the {interior.layout} has no {t}")
+    kinds = [r.type for r in home]
+    out += [f"the {interior.layout} has {kinds.count(t)} {t}s" for t in ONE if kinds.count(t) > 1]
+    if interior.floors > 1:
+        u = [s for s in interior.stairs if s.kind == "u"]
+        if not u or u[0].top < interior.floors - 1:
+            out.append("no U stair reaches every floor")
+    return out
+
+
+def flat_problems(interior) -> list:
+    """Every flat: its type matches its area, it holds its type's rooms (hall, salon, cuisine, sdb, the n
+    chambres of an S+n, a wc from `wc_area`), its salon has a facade window, its hall opens on a palier."""
+    rules = interior.rules
+    out = []
+    by_id = {r.id: r for r in interior.rooms}
+    for flat in interior.flats:
+        rooms = [by_id[i] for i in flat.rooms if i in by_id]
+        area = sum(r.polygon.area for r in rooms)
+        want = next((t for t, under in rules.get("flat_types", []) if area < under), flat.type)
+        if want != flat.type:
+            out.append(f"flat {flat.id} ({flat.type}) has {area:.0f} m2, a {want}")
+        n = int(flat.type.split("+")[1])
+        types = [r.type for r in rooms]
+        ids = {r.id for r in rooms}
+        for t in ("hall", "salon", "cuisine", "sdb"):
+            if t not in types:
+                out.append(f"flat {flat.id} ({flat.type}) has no {t}")
+        if types.count("chambre") < n:
+            out.append(f"flat {flat.id} ({flat.type}) has {types.count('chambre')} chambres")
+        if area >= rules.get("wc_area", 1e9) and "wc" not in types:
+            out.append(f"flat {flat.id} ({flat.type}) has no wc")
+        out += [f"flat {flat.id} has {types.count(t)} {t}s" for t in ONE if types.count(t) > 1]
+        if area < rules.get("min_flat", 0.0) - 0.01:
+            out.append(f"flat {flat.id} has {area:.1f} m2, under the least flat")
+        if not any(o.rooms[0] in ids and o.kind in ("window", "balcony") for o in interior.openings):
+            out.append(f"flat {flat.id} has no facade window")
+        if any(r.unit != f"flat {flat.id}" for r in rooms):
+            out.append(f"flat {flat.id} has rooms of another unit")
+        salon = next((r for r in rooms if r.type == "salon"), None)
+        if salon is not None and not any(o.rooms[0] == salon.id and o.kind in ("window", "balcony")
+                                         for o in interior.openings):
+            out.append(f"flat {flat.id}'s salon has no facade window")
+        outside = [by_id.get(next(iter(set(o.rooms) - ids)), None) for o in interior.openings
+                   if o.kind in ("inner", "arch") and len(set(o.rooms) & ids) == 1]
+        if not any(r is not None and r.unit == "common" for r in outside):
+            out.append(f"flat {flat.id} has no door on a palier")
+    return out

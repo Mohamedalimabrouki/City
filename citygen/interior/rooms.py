@@ -22,7 +22,10 @@ FACADE = ("door", "window", "balcony", "shop")      # openings in the exterior w
 PASS = ("door", "shop", "inner", "court_door", "arch")   # openings a person walks through
 COURT = "wast_ed_dar"
 VOIDS = ("well",)                                   # no floor: a covered court's light well upstairs
-KEEP = ("droj", COURT, "well", "stah", "menzah", "skifa")   # rooms nothing merges into or out of
+KEEP = ("droj", COURT, "well", "stah", "menzah", "skifa", "palier", "hall", "couloir", "koubba", "hanout",
+        "makhzen", "qahwa")   # rooms nothing merges into or out of
+WAYS = {"palier", "hall", "couloir"}   # a repair never lets a way in swallow a room (prompt 47)
+RANK = ("salon", "salle_a_manger", "cuisine", "chambre")   # which modern room a merge keeps, first first
 TOLERANCE = 0.01    # meters: how far a partition's face may reach into an opening's `clear` (rounding)
 
 
@@ -40,13 +43,23 @@ def is_court(r) -> bool:
     return r.type == COURT and r.open
 
 
+def joinable(a, b) -> bool:
+    """True when a door may join rooms a and b: the same unit, or a common stair core and a home or flat
+    (a shop or cafe opens only on the street and into its own rooms)."""
+    if a.unit == b.unit:
+        return True
+    units = {a.unit, b.unit}
+    return "common" in units and not units & {"shop", "cafe"}
+
+
 def court_ring(interior, floor: int):
     """The court-side face ring of the rooms of `floor` (the storey's hole holding the court), or None."""
     court = court_room(interior)
     if court is None or floor >= interior.floors:
         return None
     pt = court.polygon.representative_point()
-    for ring in interior.storeys[floor].polygon.interiors:
+    whole = getattr(interior, "full0", None) if floor == 0 else None     # a souk house's floor 0 with its shop
+    for ring in (whole or interior.storeys[floor].polygon).interiors:
         if Polygon(ring).contains(pt):
             return ring
     return None
@@ -165,7 +178,7 @@ def clash(interior, a, b, zones: list) -> bool:
     """True when the partition of rooms a and b (less the openings between them) meets a wall within
     `clear` of an opening (`zones`)."""
     rules = interior.rules
-    gaps = [gap(o, rules) for o in interior.openings if set(o.rooms) == {a.id, b.id}]
+    gaps = [gap(o, rules) for o in interior.openings if set(o.rooms) == {a.id, b.id}] + list(interior.piers)
     return clash_polys(a.polygon, b.polygon, zones, rules["partition"], gaps)
 
 
@@ -196,11 +209,15 @@ def repair(interior, zones: dict) -> None:
             rooms = [r for r in interior.rooms if r.floor == f and not is_court(r) and r.type not in VOIDS
                      and any(near(r.polygon, z) for z in zs)]   # only rooms reaching a zone can clash
             pair = next(((a, b) for i, a in enumerate(rooms) for b in rooms[i + 1:]
-                         if not (a.type in KEEP and b.type in KEEP) and clash(interior, a, b, zs)), None)
+                         if a.unit == b.unit and not (a.type in KEEP and b.type in KEEP)
+                         and not ({a.type, b.type} & WAYS and not {a.type, b.type} <= WAYS | set(KEEP))
+                         and clash(interior, a, b, zs)), None)
             if pair is None:
                 break
             a, b = pair
             keep, gone = (a, b) if (a.type in KEEP or (b.type not in KEEP and a.polygon.area >= b.polygon.area)) else (b, a)
+            if keep.type in RANK and gone.type in RANK and RANK.index(gone.type) < RANK.index(keep.type):
+                keep, gone = gone, keep                   # a modern home keeps its salon, then its other rooms
             if not merge(interior, keep, gone):
                 break
 
@@ -269,7 +286,8 @@ def merge(interior, keep, gone) -> bool:
     keep.lit = keep.lit or gone.lit
     big = {k: v for k, v in interior.rules.get("largest", {}).items() if k != "skifa"}
     if keep.type in big and (gone.type == "bit" or poly.area > big[keep.type] + 0.01):
-        keep.type = "bit"                             # a merge never grows a service past its largest
+        old = interior.layout in ("dar", "compact", "small", "koubba")
+        keep.type = "bit" if old else "chambre"       # a merge never grows a service past its largest
     interior.openings = [o for o in interior.openings if set(o.rooms) != {keep.id, gone.id}]
     for o in interior.openings:
         o.rooms = tuple(keep.id if r == gone.id else r for r in o.rooms)
@@ -302,11 +320,12 @@ def connect(interior) -> None:
     that holds one, else merge it into that neighbour; repeated until nothing changes. Where neither
     works, a narrow door (`narrow` wide, `narrow_clear` from the partitions) on the longest piece."""
     rules = interior.rules
-    _connect(interior, rules["door"], rules["clear"], False)
+    clear = rules.get("inner_clear", rules["clear"])   # modern homes: `inner_clear` (prompt 47)
+    _connect(interior, rules["door"], clear, False)
     _connect(interior, rules.get("narrow", 0.7), rules.get("narrow_clear", 0.05), False)
     _connect(interior, rules.get("narrow", 0.7), 0.0, False)
-    _connect(interior, rules["door"], rules["clear"], True)
-    _connect(interior, rules["door"], rules["clear"], True, last=True)
+    _connect(interior, rules["door"], clear, True)
+    _connect(interior, rules["door"], clear, True, last=True)
 
 
 def _connect(interior, door: float, clear: float, merging: bool, last: bool = False) -> None:
@@ -323,14 +342,15 @@ def _connect(interior, door: float, clear: float, merging: bool, last: bool = Fa
             near = sorted(neighbours(interior, r), key=lambda t: (-t[0], t[1].id))
             done = False
             for _, n in near:
-                if n.id in seen and n.type not in VOIDS:
+                if n.id in seen and n.type not in VOIDS and joinable(r, n):
                     kind = "court_door" if is_court(n) else "inner"
                     if place(interior, r, n, kind, door, rules["door_height"], clear=clear) is not None:
                         done = True
                         break
             if not done and merging:
                 for _, n in near:
-                    if n.id in seen and n.type not in KEEP and n.type not in VOIDS and r.type not in KEEP:
+                    if (n.id in seen and n.type not in KEEP and n.type not in VOIDS and r.type not in KEEP
+                            and n.unit == r.unit):
                         done = merge(interior, n, r)
                         if done:
                             break
@@ -338,7 +358,8 @@ def _connect(interior, door: float, clear: float, merging: bool, last: bool = Fa
                 r.type = "bit"                        # a covered court nobody reaches is a plain room
             if not done and last and r.type not in KEEP:
                 for _, n in sorted(near, key=lambda t: (t[1].id not in seen, t[1].type in KEEP, -t[0], t[1].id)):
-                    if n.type not in VOIDS and not is_court(n) and n.type not in ("stah", "menzah", "droj"):
+                    if (n.type not in VOIDS and not is_court(n) and n.type not in ("stah", "menzah", "droj")
+                            and n.unit == r.unit and n.type not in ("palier", "hall", "couloir")):
                         done = merge(interior, n, r)
                         if done:
                             break
@@ -448,6 +469,7 @@ def check(interior) -> list:
     out += _sizes(interior)
     out += _facade(interior)
     out += _reach(interior)
+    out += _units(interior)
     out += _headroom(interior)
     if interior.layout == "dar" and sees_court(interior):
         out.append("the court can be seen from the street door")
@@ -539,6 +561,23 @@ def _reach(interior) -> list:
     for s in interior.stairs:
         if any(r not in seen for r in s.rooms):
             out.append(f"the {s.kind} stair from floor {s.floor} stands in a room nobody reaches")
+    return out
+
+
+def _units(interior) -> list:
+    """Doors join rooms of one unit (or a stair core and a home or flat); the shop and cafe fronts open into
+    their shop or cafe, the doors into the home or the core."""
+    by_id = {r.id: r for r in interior.rooms}
+    out = []
+    for o in interior.openings:
+        if o.kind not in PASS:
+            continue
+        a, b = by_id.get(o.rooms[0]), by_id.get(o.rooms[1])
+        if a is not None and b is not None and not joinable(a, b):
+            out.append(f"the {o.kind} {o.id} joins {a.type} ({a.unit}) and {b.type} ({b.unit})")
+        if a is not None and o.rooms[1] == -1 and o.kind in ("door", "shop"):
+            if (o.kind == "shop") != (a.unit in ("shop", "cafe")):
+                out.append(f"the {o.kind} {o.id} ({o.piece}) opens into the {a.type} ({a.unit})")
     return out
 
 

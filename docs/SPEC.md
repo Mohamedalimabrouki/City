@@ -135,7 +135,7 @@ build.build()                 orchestrates the above into output/<country>-<seed
 | `citygen/city/station.py` | the railway station (prompt 33): site at the colonial edge, track layout and corridor, street and walk clipping, buildings and name, its camera view |
 | `citygen/city/massing.py` | building massing (prompt 23): the planning step, `masses(b)` (the volumes drawn and dressed), `floors_at`/`wall_height` (floors and wall height at a point of the outer wall), `outline`, `inner_walls`, `terrace_walls` |
 | `citygen/kitsheet.py` | `python -m citygen kit-sheet`: every piece in one viewable grid |
-| `citygen/interior/` | interiors on demand (prompt 45 on, SPEC 6c): `context.py` (the city from a build folder, `layout_of`, `resolve`), `outside.py` (the facade bridge), `model.py`, `layout.py`, `cuts.py` (frames, `free_cut`, `absorb`), `rooms.py` (doors, `assign`, `check`), `stairs.py`, `dar.py` (courtyard houses, the ring of bands), `compact.py` (houses without a courtyard, small houses), `export.py` (the viewable folder), `command.py` (`python -m citygen interior`); left out of the build key |
+| `citygen/interior/` | interiors on demand (prompt 45 on, SPEC 6c): `context.py` (the city from a build folder, `layout_of`, `resolve`), `outside.py` (the facade bridge), `model.py`, `layout.py`, `cuts.py` (frames, `free_cut`, `absorb`), `rooms.py` (doors, `assign`, `check`), `stairs.py`, `dar.py` (courtyard houses, the ring of bands), `compact.py` (houses without a courtyard, small houses), `program.py` (room programs and their checks), `shop.py` (hanout, makhzen, qahwa), `spine.py` (the hall-couloir engine of modern homes), `villa.py` (villas, maisons), `koubba.py` (domed houses), `flats.py` (colonial blocks, slabs), `export.py` (the viewable folder), `command.py` (`python -m citygen interior`); left out of the build key |
 | `citygen/export/maps.py` | country and city PNG maps |
 | `citygen/export/lore.py` | JSON data files and the gazetteer |
 | `citygen/build.py` | area selection and the full build |
@@ -1046,7 +1046,15 @@ Built so far (prompt 45): Command, The city from the build folder, The facade br
 Data model's classes, Output and Random streams, with one placeholder room per storey (type `room`, unit
 `home`) holding the facade openings of its floor. Prompt 46: Walls, the Layout engine, the Courtyard house,
 the House without a courtyard, the stairs `newel`, `steps` and `ladder`, Entering and light (old-town houses:
-`dar`, `compact`, `small`); the other layouts keep the placeholder until prompt 47. Measured (prompt 46):
+`dar`, `compact`, `small`). Prompt 47: Shops and cafes, the Domed house, Villas and houses of the new districts
+(the spine engine), Flats, the stair `u` and the roof `newel` of other layouts; every dwelling now has a real
+plan and `rooms.check` also tests each layout's program (see each section). Measured (prompt 47, final,
+`rooms.check` with the programs): quick capital slabs 327 of 353, colonial blocks 105 of 270, domed houses 21 of
+22, houses with a shop 135 of 136; Ain Chilel villas 171 of 178, maisons 589 of 616; full capital sample 277 of
+300; no crash; slowest slab 2.7 s, colonial 14 s (No. 773, 100 m long, no floor repeats). Open item 47.1:
+colonial flats to the bar (ROADMAP). Typical floors (prompt 47): a floor whose region, entrance, program and
+facade openings match a lower floor's reuses its cells, or a lower floor's plan that holds there without a
+fault (`spine.typical`); the layout stream is keyed by the flat's place on its floor. Measured (prompt 46):
 an old-town house's layout takes about 30 ms on average (slowest 0.3 s, quick capital; 0.56 s, full);
 639 of the quick capital's 655 dar, compact and small houses pass `rooms.check` (geometry and program),
 290 of a 300-house sample of the full capital.
@@ -1094,7 +1102,8 @@ manger, cuisine, chambre, salle de bain (`sdb`), wc, couloir, palier (landing); 
   center, the lower index on a tie, so Looks and tests stay put while plans change; from prompt 46 the
   first such dwelling whose plan keeps that layout (`context.keeps`: a dar whose court closes or a crowded
   compact house falls back and is skipped; a plain number is never re-checked); `pick:shop` (prompt
-  47) is the house with a shop front (`Dresser.front_of(k)[2] == "shop"`) nearest the center.
+  47, built) is the house with a shop front (`Dresser.front_of(k)[2] == "shop"`) nearest the center whose
+  plan gives it a hanout.
 - `--folder` the build folder (default: the latest, as `citygen view`). `--city` one of the build's
   cities by name (any case) or slug, default the build's focus (`select_area(world, area)[1]`); a city
   the build did not plan is an error listing the build's cities. A building number only means something
@@ -1347,10 +1356,37 @@ when 1.8 m more depth remains, else beside it away from the house door when 1.5 
 none. It opens only on the street; the house door beside it leads into the skifa. A colonial cafe front
 gives a `qahwa` (unit `cafe`) the street side of floor 0 (depth [5, 8] m, at most half the storey) with a
 wc and a makhzen behind.
+Built (prompt 47). Rules the code settled: every layout with a shop front gets the hanout (`dar`,
+`compact`, `small`, `koubba`, `maison`; `layout.with_shop`), carved before the layout, which then runs on
+floor 0 less the shop (the dar finds its court in the whole floor, `Interior.full0` while it runs); a
+crowded compact house keeps the shop when it falls back. The hanout's depth is cut back so it keeps
+clear of a house door on another wall and of the floor under the roof's stair room (never under 1.5 m).
+Where the pier between the shop front and the house door is narrower than `clear` + a partition (0.32 m on
+the quick capital's tightest fronts), the partition stands in the pier's middle and that pier is exempt
+from the clear rule (`Interior.piers`). When the house's stair then finds no room, a 2 m hanout without
+makhzen is tried, then one that leaves free the stair cell the house has without a shop; the first plan
+whose stairs work wins, else the one with the fewest problems, with the warning `layout.SHOP_STAIR` (6 of the
+quick capital's 136 shop houses; each still reaches every floor and the roof: a dar whose stair room has no
+way up gets a ladder from its court). The makhzen behind needs `makhzen` (1.8 m) depth and leaves the
+house `keep` (3.0 m) behind it; beside, it takes 2.0 m (the rest of a short wall); it never covers the
+house door's inside or the stair room's floor. Doors never join units: a door joins rooms of one unit, or
+a common core and a home or flat (`rooms.joinable`; the doors pass, merges and repairs respect it, and the
+check tests it with the shop front opening into the shop and the door into the house). Program check: a
+shop has its hanout, a cafe its qahwa, wc and makhzen. Colonial floor 0: the rest beside the cafe is the
+cafe's makhzen when under `min_flat` (40 m2), so `[interiors.rooms] most` allows a makhzen 40 m2.
 
 **Domed house** (`koubba`, prompt 47): the koubba is the square of side twice the dome's radius
 (`b.domes`) under the dome, clipped to the storey, its ceiling the dome; the rest is the annex: an entry
 when the door does not open into the koubba, a matbakh and a bit el mouna when they fit.
+Built (prompt 47, `interior/koubba.py`). Rules the code settled: the square's sides are moved by `free_cut`;
+the annex is cut every `annex_cell` (3.0 m) along its long side; the entry is a `skifa` (when it fits and
+the annex has another room); the services follow the old-town program (`program.place`: matbakh, bit el
+ma, bit el mouna, the store giving way first); other annex cells are bits. Every annex room opens into
+the koubba, else the entry. Program check: a koubba, and a matbakh whenever the annex holds twice its
+minimum. Follow-up round: annex strips too narrow for a bit are halved until each is a store's size
+(`koubba.halves`) and become bit el mounas; a service no door reaches trades its type with a reached cell;
+the services keep their type through the merges; the check wants a matbakh when an annex room holds its
+minimum area and width. Quick capital: 21 of 22 pass (No. 570: an L strip round the koubba).
 
 **Villas and houses of the new districts** (`villa`, `maison`, prompt 47, `interior/spine.py`): a hall at
 the main door (`hall` [2.0, 3.0] m deep, [1.8, 2.6] m wide), continued by a couloir (1.1 m) along the
@@ -1359,6 +1395,58 @@ else along one side; rooms on both sides cut across it in program order from the
 largest windowed cell), salle a manger (villa, storey over `dining_area` 110 m2), cuisine (windowed,
 toward the back), wc; the U stair beside the hall when there are more floors. Upper floors: palier and
 couloir, chambres on the facades, a salle de bain. A single storey also holds the chambres.
+Built (prompt 47, `interior/spine.py`, `interior/villa.py`). Rules the code settled:
+- The couloir runs along the walls with the most window width (so both sides reach a window; a slab flat's
+  couloir runs along the block), else the long side, never turned so its rooms get deeper than `deep`
+  (6 m). It lies in the middle when the region is at least 2 x `side` (2.6 m) + the couloir wide (the hall
+  reaches from the door to it, a couloir stub joining them when it lies off the hall), else along the door's
+  wall; with windows on one side only, the rooms along them are `room_depth` (4.5 m) deep. Its lines, the
+  hall's sides and back and the couloir's ends are moved clear of the openings (`free_cut`); the couloir
+  reaches each room door + a bath room door into the last rooms. A hall side nearer a wall than 1.2 m
+  reaches it.
+- Rooms are cut across the couloir every `rhythm` m (3.6, then 3.2, 2.8, 2.5: the first rhythm whose cells
+  hold the whole program wins). Types: the salon takes a balcony door's cell, else the largest windowed one;
+  the salle a manger the windowed cell beside it; the cuisine the windowed cell farthest from the entrance
+  (cut to about 0.8 x `largest` when bigger); chambres the largest windowed cells (`chambre*`: all left);
+  two narrow cells of a band join when no cell holds a living room; without a windowed cell left a living
+  room takes a blind one (rather than none; the check then names a salon without a facade window). The sdb
+  and wc take blind cells up to 1.6 x their `largest` (8, 3 m2), else are carved as a rectangle against the
+  couloir or hall from a room (the sdb's cell for a wc), else a guest wc from a corner of the hall; a bath
+  room over its largest is narrowed and cut back. Cells left over join the room they share most with
+  within its `largest` and `most`, else become rooms (a windowed one a chambre, a blind one beside the salon
+  a salle a manger), else join the couloir; a nook under its minimum beside the stair box joins the palier.
+- Programs (`[interiors.villa] programs` may replace them): villa floor 0 salon, salle a manger (over
+  `dining_area`), cuisine, wc, chambres; maison floor 0 salon, cuisine, wc, chambres; upper floors chambre,
+  sdb, chambres; one storey: salon, (salle a manger,) cuisine, chambre, sdb, (wc,) chambres. A maison gets a
+  sdb and a wc too (the table's short list would leave a family without one).
+- The U box stands against the door wall beside the door (the side with more room first), slid along the
+  wall and inward in 0.25 m steps until every storey holds it and its walls keep clear; it is a `palier`
+  room on every floor, joined to the hall or couloir by an arch. Upper floors are entered from the floor
+  landing's side toward the door. Doors: every room into the couloir or hall (the salon by a 1.4 m door
+  from the hall), sdb and wc by a narrow door (`narrow`, `narrow_clear`).
+- Program check: floor 0 has a hall, salon, cuisine (and a wc with more floors, a villa's salle a manger
+  over `dining_area`), the home a chambre and a sdb, a U stair reaching every floor; no room over its
+  `[interiors.rooms] most` (hall 20, salon 60, chambre 36, cuisine 22, sdb 10, wc 4.5 m2, ...).
+- Lead decision (prompt 47): inner doors of modern homes (villas, maisons, flats) keep `[interiors.openings]
+  inner_clear` (0.15 m, a door frame) from the partitions beside them, not `clear` (0.3 m, which stays the
+  facade rule and the old-town houses' door rule), so a room needs 1.35 m of shared wall for its door.
+  Never two couloirs side by side (a second couloir only as a branch from the first). Program check: at most
+  one salon, salle a manger, cuisine and hall per villa or maison.
+- Round 4 (prompt 47): each home floor tries spine variants in a fixed order (the drawn hall, then the
+  least; rhythms coarsest first; the couloir along the windowed walls, then turned; as the rules place it,
+  then against either side wall), at most `[interiors.villa] variants` (18): the first whose cells have no
+  fault wins (`spine.faults`: a program room missing, a room under its minimum or over its `most`, a
+  partition too near an opening, no hall, a salon or cuisine without a window in a lit home), else the
+  fewest. A repair never lets a palier, hall or couloir take a room (`rooms.WAYS`); a nook joins the palier
+  only under its type's least area; a hall over its `most` keeps a square round the entrance; a door on a
+  neck with no floor behind it gets the nearest cell as its hall. Widths are remembered per shape (time).
+- Follow-up round (prompt 47): room types
+  are chosen windowed cell first, then two cells joined, then a blind cell (chambres: windowed, blind, two
+  joined); a program room no cell holds is cut from the largest room that keeps its minimum and its door
+  (`spine.divide`; a salon or cuisine keeps its windowed part, and takes the windowed part of a big room
+  before a blind cell); when no hall fits at the entrance, the couloir's first stretch (or the cell at the
+  entrance) is the hall; scraps under their minimum join a neighbour (`spine.nooks`); a couloir or hall
+  never grows past its `most`.
 
 **Flats** (prompt 47, `interior/flats.py`). Every stair core is a U stair box (see Stairs) at a stair door,
 its floor landing (`palier`, unit `common`) against the door's wall, the flights going in.
@@ -1374,7 +1462,7 @@ its floor landing (`palier`, unit `common`) against the door's wall, the flights
   each flat runs from the front wall to the back wall; the landing reaches along the door wall to a door
   width past the split. Floor 0 has flats too (slabs have windows on every floor).
 - Each flat region is laid out by the spine engine, its hall at its landing door. Type by area
-  (`[interiors.flats] types`: S+1 under 55 m2, S+2 under 80, else S+3): hall, salon, the chambres,
+  (`[interiors.flats] types`: S+1 under 60 m2, S+2 under 100, else S+3, lead decision of prompt 47): hall, salon, the chambres,
   cuisine, sdb, a wc from 70 m2; a slab balcony door makes its room the salon (else a chambre).
 - Flats are numbered by floor, then along the frame's u (section, half; left before right seen from the
   door). Flat 0 holds the plan's household (`plan.households` is never touched). Flat n >= 1 gets derived
@@ -1386,6 +1474,35 @@ its floor landing (`palier`, unit `common`) against the door's wall, the flights
   rooms share one draw and its back rooms another (tested). In a colonial block the draws go per floor and
   side, so two flats of one floor facing the same street are lit together (accepted: prompt 21 has no
   flats there).
+- Built (prompt 47, `interior/flats.py`). Rules the code settled: the core's floor landing is deep enough
+  for a flat door at each side (door + 2 x (`clear` + half a partition), 1.65 m), never shallower than the
+  flight; the box is one `palier` room per floor (unit `common`). A colonial core slides inward
+  (`slide` 0.25 m up to `slide_most` 6 m), then along the door wall (0.5 m steps up to 3 m); a core that still
+  stops below the top serves the floors that hold it and a ladder rises from its last palier (a warning). A
+  gap under 1.5 m between the door and the core joins the palier; a longer one is floor 0's couloir, its
+  sides moved clear of a wide door (or standing in a narrow pier's middle beside a cafe front). A colonial
+  floor 0 with no window at all holds no flat: the block's stores (`makhzen`, unit `common`). Two colonial
+  flats: the cut through the core's middle is moved clear separately in front of the core and behind it.
+  Slab splits: the section-middle split runs through the core's middle and, behind the core, at the place
+  nearest it that keeps every window on its draw's side (the dresser's own `_sections` of each window) and
+  clear on every floor; section borders likewise; without such a place, the nearest that keeps clear. A
+  region no core reaches joins the reached region it shares most with. Lead decision (prompt 47): no flat
+  under `min_flat` (40 m2) on any floor (a smaller region joins the flat it shares most with, else the
+  palier), and the types are those of moyen-standing flats, S+1 under 60 m2, S+2 under 100, else S+3
+  (`[interiors.flats] types`; 55/80 were social-housing minimums); program check: at most one salon, salle a
+  manger, cuisine and hall per flat, every flat at least one facade window, none under `min_flat`.
+  Programs: salon, cuisine, the n chambres of an S+n, sdb, a wc from `wc_area` (70 m2), a salle a manger from `dining_area` (110 m2); more
+  chambres are allowed (a big flat's spare windowed cells). The flat's door: from the palier into its hall,
+  else the room it shares most with (narrow when no full door fits). Numbering: floor, then left to right
+  seen from the main door (records renumber units after the plan). Program check: the type matches the
+  area, the type's rooms are there, the salon has a facade window, the hall opens on a common room, and
+  every room keeps its flat's unit; tested: every flat reachable through its core only.
+  Round 4: a flat region with no facade window joins the windowed flat it shares most with (on floor 0 it
+  becomes stores). Follow-up round: two colonial flats are cut where their areas are equal; when that line misses the core,
+  the floor landing reaches along the door wall to a door's length past the cut (as a slab's), never over
+  a flat's window (else the cut goes through the core's middle). A windowless colonial floor 0 beside a
+  cafe or shop holds that unit's stores, reached from it. A block too thin for any U box gets a common
+  ladder well (`[interiors.stairs] ladder_well`, 1.2 m) at the door, a palier on every floor (a warning).
 
 **Stairs** (`[interiors.stairs]`, records prompts 46-47, geometry prompt 49). Rule (tested): every
 point of every tread on the walking line has at least `headroom` (2.0 m) clear above it. Risers: the
@@ -1430,6 +1547,11 @@ smallest count with riser at most `riser_max` (traditional 0.21 m, modern 0.18 m
   quick capital 493 of 655 old-town doors need steps (thresholds up to 2.4 m below floor 0), 148 steep.
 - `ladder` (0.6 x 1.2 m): the last fallback when no stair fits (a warning), and the way to a menzah on a
   roof without a stair room. Before the ladder, a `u` box may narrow to 0.8 m with 0.24 m treads.
+- Built (prompt 47, `stairs.u_size`, `u_box`, `u_record`; `spine.roof_newel`, `newel_rooms`): the `u` record's
+  door is the middle of the floor landing's end, yaw out of the box; its rooms are the paliers. The roof
+  newel of villas, maisons, flats and domed houses is cut from the top floor (`dar.without`, its landing
+  strips) and opens into the room it touches most on the stair room door's side (a palier first); without a
+  fit a ladder rises into the stair room (a warning). Roof rooms of flats are `common`.
 - Terraces of set-back floors and villa wings are roofs, not rooms: their walls carry windows, no door.
 
 **Floors and ceilings** (prompt 49, `[interiors.floors]`): slab 0.25 m with its top at the floor's z;
@@ -1479,7 +1601,9 @@ out through them until prompt 48 draws the walls' inner faces. Quick capital: da
 purpose per kind of choice: `layout` (band roles and lengths), `skifa`, `kbou`, `court` (court windows,
 majel, fesqiya), `doors` (positions within their span, which leaves stand open, prompt 48), `shop`,
 `flat` with its number (occupants; with `names` for the namer), `beams` (prompt 49). The bridge only
-replays existing streams, so no draw is added to any.
+replays existing streams, so no draw is added to any. Built (prompt 47): the spine draws its hall depth and
+width on `layout` with the home's key (`villa`|`maison`, floor; `flat`, n; `stores`, 0), a souk shop's depth
+and a qahwa's on `shop`.
 
 **Viewer** (prompt 50): an interior folder (index `interior`) gets a Cut menu (none, roof, or a floor: a
 clipping plane `cut` 1.3 m above that floor) and the URL `cut=roof|<floor>`; a click in it names the room;

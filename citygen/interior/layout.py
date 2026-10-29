@@ -1,11 +1,13 @@
 """Room layouts (SPEC 6c): the storeys of a dwelling, then the rooms of its layout.
 
-Prompt 46 lays out the old town's houses (`dar.py`, `compact.py`); the other layouts keep, until prompt
-47, one placeholder room per storey holding the facade openings of its floor.
+Prompt 46 lays out the old town's houses (`dar.py`, `compact.py`), prompt 47 every other dwelling
+(`koubba.py`, `villa.py`, `flats.py` on the `spine.py` engine) and the shops and cafes of ground floors
+(`shop.py`); `placeholder` (one room per storey) remains for a layout without a plan.
 """
 from __future__ import annotations
 
 from dataclasses import replace
+from types import SimpleNamespace
 
 from shapely import set_precision
 from shapely.geometry import Polygon
@@ -20,6 +22,7 @@ from .cuts import GRID
 from .model import Interior, Room, Storey
 
 TRADITIONAL = ("dar", "compact", "small", "koubba")   # layouts with traditional partitions, beams and tiles
+SOUK = ("dar", "compact", "small", "koubba", "maison")   # layouts whose shop front gets a hanout
 LIGHTS = ("window", "balcony")                         # facade openings that light a room
 
 
@@ -42,8 +45,87 @@ def plan_interior(outside, style: dict) -> Interior:
                             f"({walls['exterior']} m thick) leave no floor.")
     interior.openings = [replace(o) for o in outside.openings]
     interior.warnings = list(outside.warnings)
-    PLANS.get(layout, placeholder)(interior, outside, style)
+    if layout in SOUK and any(o.kind == "shop" and o.floor == 0 for o in interior.openings):
+        with_shop(interior, outside, style, layout)
+    else:
+        PLANS.get(layout, placeholder)(interior, outside, style)
     return interior
+
+
+def with_shop(interior: Interior, outside, style: dict, layout: str) -> None:
+    """A house with a shop front: the hanout and makhzen carved from floor 0 first, then the layout on the
+    rest (floor 0's storey is the rest while it runs); the shop opens only on the street. When the house's
+    stair then finds no room, a smaller shop (2 m, no makhzen) is tried, then one that leaves free the stair
+    cell the house would have without a shop; the first plan whose stairs work wins, else the one with the
+    fewest problems."""
+    from . import rooms as R
+    from . import shop
+    from .dar import Job
+    full = interior.storeys[0].polygon
+    facade, warnings = [replace(o) for o in interior.openings], list(interior.warnings)
+
+    def fresh():
+        interior.rooms, interior.stairs, interior.features, interior.piers = [], [], [], []
+        interior.openings, interior.warnings, interior.flats = [replace(o) for o in facade], list(warnings), []
+        interior.layout, interior.focus = layout, None
+
+    def run(small: bool, stair) -> bool:
+        """One plan with a shop; False when no hanout could be carved (then the house is planned whole)."""
+        fresh()
+        job = Job(interior, outside, style)
+        job.keep_free = stair
+        rooms, rest = shop.souk(job, full, layout == "dar", small)
+        interior.rules, interior.entry = {}, None
+        if not rooms:
+            PLANS.get(layout, placeholder)(interior, outside, style)
+            return False
+        interior.rooms = list(rooms)
+        interior.full0 = full
+        interior.storeys[0] = replace(interior.storeys[0], polygon=rest)
+        try:
+            PLANS.get(layout, placeholder)(interior, outside, style)
+        finally:
+            interior.storeys[0] = replace(interior.storeys[0], polygon=full)
+            del interior.full0
+        shop.doors(_door_job(interior, outside, style))
+        R.renumber(interior)
+        return True
+
+    def stuck() -> bool:
+        return any(w.endswith("a ladder goes up") or "no way up" in w or "ladder rises" in w for w in interior.warnings)
+
+    tries = [(False, None), (True, None)]
+    scores = []
+    held = None                                       # the try the interior holds now (None: a plan without shop)
+    for i in range(3):
+        if i == 2:                                    # the stair cell of the house planned without its shop
+            fresh()
+            PLANS.get(layout, placeholder)(interior, outside, style)
+            held = None
+            stair = next((st.polygon for st in interior.stairs if st.kind == "newel"), None)
+            if stair is None:
+                break
+            tries.append((True, stair))
+        if not run(*tries[i]):
+            return
+        held = i
+        if not stuck():
+            return
+        scores.append((len(R.check(interior)), i))
+    best = min(scores)[1]
+    if held != best:
+        run(*tries[best])
+    interior.warnings.append(SHOP_STAIR)
+
+
+SHOP_STAIR = "the shop front leaves no room for the house's stair"   # a known weak spot (prompt 47)
+
+
+def _door_job(interior, outside, style):
+    """The numbers the shop's doors need, without a new layout job (its streams stay untouched)."""
+    cfg = style.get("interiors", {}).get("openings", {})
+    return SimpleNamespace(interior=interior, door=float(cfg.get("door", 0.9)),
+                           door_height=float(cfg.get("door_height", 2.1)))
 
 
 def storeys(outside, thickness: float, court: float | None = None) -> list:
@@ -79,8 +161,9 @@ def placeholder(interior: Interior, outside, style: dict) -> None:
 
 
 def _plans() -> dict:
-    from . import compact, dar
-    return {"dar": dar.plan, "compact": compact.plan, "small": compact.small}
+    from . import compact, dar, flats, koubba, villa
+    return {"dar": dar.plan, "compact": compact.plan, "small": compact.small, "villa": villa.villa,
+            "maison": villa.maison, "koubba": koubba.plan, "colonial": flats.colonial, "slab": flats.slab}
 
 
-PLANS: dict = _plans()   # layout -> function(interior, outside, style); prompt 47 adds the rest, which get `placeholder`
+PLANS: dict = _plans()   # layout -> function(interior, outside, style)

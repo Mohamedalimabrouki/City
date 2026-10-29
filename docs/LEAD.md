@@ -85,6 +85,12 @@ and care as the last one: keep this file up to date when you learn something tha
   program is wrong. A 20-line script over every house of the quick capital (rooms per type, sizes,
   what is missing) found 61 compact houses without a kitchen and 30 m2 washrooms that `rooms.check`
   never looked at. Write it while the helper works, and send the numbers back with examples.
+- **Check a helper's root cause before deciding a rule** (prompt 47): the helper blamed missing chambres on
+  the flat-type thresholds and asked for a rule change; an area histogram of the failing flats showed the
+  main cause was slivers of 0-20 m2 counted as flats (a split bug). Set the bar as a pass rate per group
+  (95% of each group passing `rooms.check`, as the old town reached), run `tools/interior_survey.py` after
+  each round, and send the counts by kind with two plan pictures. Five rounds took villas and maisons to
+  96%, slabs to 93%, colonial blocks only to 39% (open item 47.1).
 - **A helper cut off by an error** (a network drop): `git diff` to see where it stopped, then SendMessage
   to the same helper; it resumes with its context.
 - **Blind, exact reruns.** To rerun a prompt, take its exact text from the transcript and compare its
@@ -112,6 +118,8 @@ More in the auto-memory note on the Mac environment.
   (the kit: 185 pieces made by code, 58 from the Tounes kit).
 - A `cd` into a worktree moves the session's working directory for the next commands: use absolute
   paths or a subshell `( cd ... && ... )`.
+- Helpers share the lead's session scratchpad folder: start the names of your own scripts there with
+  `lead` (prompt 47: the lead's `survey47.py` overwrote the helper's script of the same name).
 - Helpers in their own worktree (`isolation: "worktree"`) start without `output/` and `.venv`: tell them
   to run `/Users/mohamedalimabrouki/Desktop/City/.venv/bin/python` from their own folder.
 - Tool inputs turn a backslash-u escape into the real character: never type the em dash's escape in

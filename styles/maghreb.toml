@@ -1805,6 +1805,7 @@ door = 0.9         # meters, the clear width of an inner door
 door_height = 2.1  # meters, an inner door's head above its floor
 narrow = 0.7       # meters, the door a room gets when no full door fits anywhere (last resort)
 narrow_clear = 0.05   # meters a narrow door keeps from the partitions beside it
+inner_clear = 0.15    # meters an inner door of a modern home keeps from the partitions beside it (lead, prompt 47)
 
 [interiors.rooms]  # [least area m2, least width m] (width: twice the largest inscribed circle's radius)
 piece = 0.5        # m2: a smaller piece always joins its neighbour
@@ -1815,6 +1816,18 @@ bit_el_ma = [1.8, 0.9]
 bit_el_mouna = [1.5, 0.9]
 skifa = [3.5, 1.2]   # all the skifa rooms of a floor together
 ghorfa = [6.0, 1.8]
+hall = [2.5, 1.1]    # modern homes (prompt 47)
+salon = [12.0, 2.4]
+salle_a_manger = [9.0, 2.6]
+cuisine = [5.0, 1.7]
+chambre = [8.0, 2.4]
+sdb = [3.0, 1.4]
+wc = [1.1, 0.8]
+koubba = [9.0, 2.5]
+hanout = [3.0, 1.4]
+makhzen = [1.5, 0.9]
+qahwa = [12.0, 2.5]
+most = { hall = 20.0, couloir = 30.0, salon = 60.0, salle_a_manger = 40.0, cuisine = 22.0, chambre = 36.0, sdb = 10.0, wc = 4.5, palier = 40.0, koubba = 110.0, hanout = 30.0, makhzen = 40.0, qahwa = 120.0, matbakh = 14.0, bit_el_ma = 8.0, bit_el_mouna = 8.0 }   # m2: a room over this is absurd (rooms.check)
 
 [interiors.dar]    # courtyard houses (SPEC 6c "Courtyard house")
 skifa = [3.0, 4.5]       # meters along the entry band (stream skifa), longer up to skifa_reach when needed
@@ -1854,6 +1867,38 @@ gallery = 1.0            # meters, an upstairs gallery (bortal) along the light 
 small_entry = 1.6        # meters deep, the entry strip of a small house
 inner_window = { width = 0.8, sill = 1.6, head = 2.2 }   # meters: upper rooms look into the well
 
+[interiors.villa]   # villas, maisons and the flats' homes (SPEC 6c "Villas and houses", spine engine)
+hall = [2.0, 3.0]        # meters deep at the main door (stream layout)
+hall_width = [1.8, 2.6]  # meters wide
+couloir = 1.1            # meters wide
+side = 2.6               # meters: the least depth of rooms beside the couloir (else it runs along one side)
+room_depth = 4.5         # meters: the rooms along the only windowed wall of a floor (the couloir behind them)
+deep = 6.0               # meters: the couloir never turns so that the rooms beside it get deeper than this
+variants = 18            # spine plans tried per home floor before the best so far is kept (time)
+rhythm = [3.6, 3.2, 2.8, 2.5]   # meters between the cuts across the couloir, tried in turn until the program fits
+dining_area = 110.0      # m2: a villa's floor 0 over this has a salle a manger
+largest = { cuisine = 16.0, sdb = 8.0, wc = 3.0 }   # m2: a bigger cell gives the service its couloir end
+
+[interiors.flats]   # flats in colonial blocks and slabs (SPEC 6c "Flats")
+types = [["S+1", 60.0], ["S+2", 100.0], ["S+3", 1e9]]   # flat type by area (m2, under; lead: moyen standing)
+two_flats = 130.0        # m2: a colonial floor less its core keeping this has two flats
+min_flat = 40.0          # m2: floor 0 of a colonial block keeps a flat beside its shop or cafe from this
+wc_area = 70.0           # m2: a flat this big has a wc beside its sdb
+slide = 0.25             # meters: a colonial core slides inward in these steps until every storey holds it
+slide_most = 6.0         # meters: ... at most
+
+[interiors.shop]   # the hanout and makhzen of a ground floor shop front (SPEC 6c "Shops and cafes")
+depth = [3.0, 4.0]       # meters deep (stream shop), at most half the storey's depth
+makhzen = 1.8            # meters: depth left behind the hanout for a makhzen behind it
+makhzen_side = 1.5       # meters of wall left beside the hanout for a makhzen beside it
+keep = 3.0               # meters the house keeps behind a makhzen
+house_least = 20.0       # m2: the house keeps at least this of floor 0, else the shop has no makhzen
+
+[interiors.cafe]   # the qahwa of a colonial cafe front
+depth = [5.0, 8.0]       # meters deep (stream shop), at most half the storey's depth
+wc = [1.4, 1.6]          # meters, its wc (along the back wall, deep)
+makhzen = 2.0            # meters wide, its makhzen beside the wc
+
 [interiors.stairs]
 newel = 2.4              # meters, a newel cell's side when it fits
 newel_min = 1.9          # meters, its least side
@@ -1869,6 +1914,13 @@ riser_steep = 0.22       # meters, entry steps where the room is short (a warnin
 tread = 0.3              # meters, entry steps
 side = 0.1               # meters each side beyond the door opening
 turn = 0.9               # meters kept free beyond the entry steps
+u_width = 1.0            # meters, a flight of a villa's or maison's U stair
+core_width = 1.1         # meters, a flight of a block's stair core
+u_tread = 0.28           # meters
+u_gap = 0.1              # meters between the two flights
+u_narrow = 0.8           # meters, the narrow U stair tried before a ladder
+u_narrow_tread = 0.24    # meters
+ladder_well = 1.2        # meters square: the common well of a ladder in a block too thin for any stair
 
 [interiors.floors]
 slab = 0.25              # meters, a floor slab (prompt 49 lays it)

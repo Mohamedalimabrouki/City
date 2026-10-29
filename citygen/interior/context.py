@@ -127,12 +127,15 @@ def layout_of(plan, b, style: dict) -> str | None:
 
 def keeps(ctx: BuildContext, plan, k: int, layout: str) -> bool:
     """True when building k's plan keeps `layout` (a dar whose court closes, or a crowded compact house,
-    falls back to another layout)."""
-    if layout not in ("dar", "compact"):
+    falls back to another layout; `shop`: its shop front got a hanout)."""
+    if layout not in ("dar", "compact", "shop"):
         return True
     from .layout import plan_interior
     from .outside import Outside
-    return plan_interior(Outside(ctx, plan, k), ctx.world.style).layout == layout
+    interior = plan_interior(Outside(ctx, plan, k), ctx.world.style)
+    if layout == "shop":                                  # the shop front got its hanout
+        return any(r.type == "hanout" for r in interior.rooms)
+    return interior.layout == layout
 
 
 def resolve(ctx: BuildContext, plan, spec) -> int:
@@ -154,16 +157,21 @@ def resolve(ctx: BuildContext, plan, spec) -> int:
     parts = spec.split(":")
     if parts[0] != "pick" or len(parts) not in (2, 3) or (len(parts) == 3 and not parts[2].isdigit()):
         raise InteriorError(f"{spec!r} is not a building: give its number (the viewer's card shows it as No. k) "
-                            "or pick:<layout>[:<floors>], for example pick:dar or pick:slab:4.")
+                            "or pick:<layout>[:<floors>] (or pick:shop), for example pick:dar or pick:slab:4.")
     layout, floors = parts[1], int(parts[2]) if len(parts) == 3 else None
-    if layout not in LAYOUTS:
+    if layout not in LAYOUTS and layout != "shop":
         raise InteriorError(f"There is no layout called {layout!r}. Layouts: {', '.join(LAYOUTS)}.")
     centers = shapely.get_coordinates(shapely.centroid([b.footprint for b in plan.buildings]))
     d = np.hypot(centers[:, 0] - plan.settlement.x, centers[:, 1] - plan.settlement.y)
     for k in np.lexsort((np.arange(len(d)), d)).tolist():
         b = plan.buildings[k]
-        if (b.kind in HOUSING and (floors is None or int(b.floors) == floors)
-                and layout_of(plan, b, ctx.world.style) == layout and keeps(ctx, plan, k, layout)):
+        if not (b.kind in HOUSING and (floors is None or int(b.floors) == floors)):
+            continue
+        if layout == "shop":
+            if b.kind == "house" and ctx.dresser(plan).front_of(k)[2] == "shop" and keeps(ctx, plan, k, layout):
+                return k
+            continue
+        if layout_of(plan, b, ctx.world.style) == layout and keeps(ctx, plan, k, layout):
             return k
     with_floors = f" with {floors} floors" if floors is not None else ""
     raise InteriorError(f"{city} has no {layout} dwelling{with_floors} in this build.")

@@ -89,6 +89,22 @@ def parts(geom) -> list:
     return [p for p in polygons(geom) if p.area > EMPTY]
 
 
+def solid(geom):
+    """The polygons of a geometry (larger than `EMPTY`) as one geometry, on the grid; empty when none."""
+    got = parts(snap(geom))
+    return shapely.union_all(got) if got else Polygon()
+
+
+def polygonal(geom):
+    """A geometry as it is when polygonal, else its polygons (`solid`)."""
+    return geom if geom.geom_type in ("Polygon", "MultiPolygon") else solid(geom)
+
+
+def clip(a, b):
+    """`a` inside `b`, polygons only (lines and points of the overlay, and of its inputs, dropped)."""
+    return solid(shapely.intersection(polygonal(a), polygonal(b), grid_size=GRID))
+
+
 def cut(poly, frame: Frame, axis: int, at: float) -> tuple:
     """(before, after): the polygons of `poly` on both sides of the line {u, v}[axis] = at."""
     lo = parts(shapely.intersection(poly, frame.side(axis, at, False), grid_size=GRID))
@@ -110,12 +126,23 @@ def union(a, b):
     return None
 
 
+_WIDTHS: dict = {}
+
+
 def width(poly) -> float:
-    """Twice the radius of the largest circle inside `poly` (`shapely.ops.polylabel`)."""
+    """Twice the radius of the largest circle inside `poly` (`shapely.ops.polylabel`); remembered per shape
+    (the spine tries many plans of the same cells)."""
     if poly.is_empty or poly.area <= EMPTY:
         return 0.0
-    p = polylabel(poly, tolerance=0.02)
-    return 2.0 * float(poly.exterior.distance(p) if not poly.interiors else poly.boundary.distance(p))
+    key = shapely.to_wkb(poly)
+    got = _WIDTHS.get(key)
+    if got is None:
+        p = polylabel(poly, tolerance=0.02)
+        got = 2.0 * float(poly.exterior.distance(p) if not poly.interiors else poly.boundary.distance(p))
+        if len(_WIDTHS) > 50000:
+            _WIDTHS.clear()
+        _WIDTHS[key] = got
+    return got
 
 
 def near(a, b) -> bool:
@@ -181,7 +208,9 @@ def free_cut(poly, frame: Frame, axis: int, at: float, zones: list, half: float,
              step: float = 0.05, lo: float = -math.inf, hi: float = math.inf) -> float | None:
     """The nearest position to `at` (within `shift`, and within [lo, hi]) where the cut splits `poly` and
     its partition keeps clear of every opening zone; None when there is none (the cut is dropped)."""
-    zs = [z for z in zones if z is not None and z.intersects(poly.buffer(0.5))]
+    zs = [z for z in zones if z is not None]
+    if zs:                                                # the zones within 0.5 m of the polygon (as a buffer)
+        zs = [z for z, ok in zip(zs, shapely.dwithin(zs, poly, 0.5)) if ok]
     for d in offsets(shift, step):
         a = at + d
         if not lo <= a <= hi:
@@ -309,6 +338,8 @@ def straight(lines, tol: float = 1e-3) -> list:
     out: list = []
     for g in getattr(lines, "geoms", [lines]):
         if g.geom_type == "LineString":
+            if g.is_empty:
+                continue
             pts = np.asarray(g.coords)[:, :2]
         elif g.geom_type in ("MultiLineString", "GeometryCollection"):
             out += straight(g, tol)
