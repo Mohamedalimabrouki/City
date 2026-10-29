@@ -79,6 +79,13 @@ def main(argv=None) -> None:
     ts.add_argument("--out", default="output/checks/texture-sheet.png")
     ts.add_argument("--seed", type=int, help="texture seed (default: the world seed)")
 
+    it = sub.add_parser("interior", help="the inside of one dwelling as a viewable folder (made on demand)")
+    it.add_argument("building", help="its number (the viewer's card shows No. k) or pick:LAYOUT[:FLOORS], "
+                                     "e.g. pick:dar, pick:slab:4 (the one nearest the city center)")
+    it.add_argument("--folder", help="a built world folder (default: the latest build)")
+    it.add_argument("--city", help="a city of that build, by name (default: the build's main city)")
+    it.add_argument("--out", help="output folder (default: <build>/interiors/<city>-<number>)")
+
     st = sub.add_parser("stats", help="short summary of a built world (cheap for agents to read)")
     st.add_argument("folder", nargs="?", help="a built world folder (default: the latest build)")
     st.add_argument("--tiles", action="store_true", help="bytes of every 3D tile by category, heaviest first")
@@ -117,6 +124,15 @@ def main(argv=None) -> None:
         style = load_style(cfg["world"]["style"])
         seed = cfg["world"]["seed"] if args.seed is None else args.seed
         print(texture_sheet(args.out, style, seed))
+    elif args.cmd == "interior":
+        from .interior import InteriorError
+        from .interior.command import make_interior
+        try:
+            make_interior(_latest(args.folder), args.building, city=args.city, out=args.out,
+                          log=lambda msg: print(msg, flush=True))
+        except InteriorError as exc:
+            print(exc, file=sys.stderr)
+            sys.exit(2)
     elif args.cmd == "stats":
         folder = _latest(args.folder)
         if args.tiles or args.tile:

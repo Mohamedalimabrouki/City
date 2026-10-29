@@ -352,6 +352,7 @@ def build(cfg: dict, area: str | None = None, log=print, force: bool = False) ->
 
         summary = {
             "world": world.name, "build_key": key, "seed": world.seed, "size_km": world.size / 1000.0, "area": area,
+            "settings": cfg,   # the merged settings: `interior` rebuilds world and plans from them (SPEC 6c)
             "settlements": {k: sum(s.kind == k for s in world.settlements) for k in ("capital", "city", "town", "village")},
             "roads": len(world.roads),
             "plans": [{"name": p.settlement.name, "kind": p.settlement.kind, **p.stats} for p in plans],

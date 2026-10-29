@@ -1591,6 +1591,9 @@ def test_fingerprint_tool(tmp_path, monkeypatch):
     (folder / "tiles" / "tile_0_0.glb").write_bytes(b"abcd")
     assert fingerprint.main(["compare", "a", str(folder), "--allow", ""]) == 1
     assert fingerprint.main(["compare", "a", str(folder), "--allow", "tiles/*"]) == 0
+    (folder / "interiors" / "c-1" / "tiles").mkdir(parents=True)              # interiors are made on demand
+    (folder / "interiors" / "c-1" / "rooms.json").write_text("{}")
+    assert "files/interiors/c-1/rooms.json" not in fingerprint.fingerprint(folder)["parts"]
 
 
 def test_make_blend_command():
@@ -3487,3 +3490,163 @@ def test_gallery_lists_every_build_and_serves_each_viewer(tmp_path):
     finally:
         server.shutdown()
         server.server_close()
+
+
+# --- interiors (prompt 45, SPEC 6c) ----------------------------------------------------------------
+INTERIOR_FILES = ("tiles/interior.glb", "tiles/index.json", "rooms.json")
+
+
+@pytest.fixture(scope="module")
+def interior_build(tmp_path_factory, world, plan):
+    """A build folder for the interior command, written from the `world` and `plan` fixtures (nothing is
+    planned again): summary.json with its settings, and the plan in the build's plan cache."""
+    import pickle
+    from citygen.buildkey import build_key
+    from citygen.export.lore import slug
+    folder = tmp_path_factory.mktemp("interior") / "w"
+    key = build_key(world.cfg, [world.capital().id])
+    (folder / "cache").mkdir(parents=True)
+    (folder / "cache" / f"{slug(plan.settlement.name)}-{key[:12]}.pkl").write_bytes(
+        pickle.dumps(plan, protocol=pickle.HIGHEST_PROTOCOL))
+    (folder / "summary.json").write_text(json.dumps({"settings": world.cfg, "area": world.cfg["build"]["area"],
+                                                     "build_key": key}))
+    return folder
+
+
+@pytest.fixture(scope="module")
+def interior_ctx(interior_build):
+    from citygen.interior.context import load_build
+    return load_build(interior_build, log=lambda msg: None)
+
+
+def _facade_pieces(outside) -> list:
+    """The placements that must each be one opening (SPEC 6c bridge step 4), computed here on their own."""
+    kit, ps = outside.kit, outside.placements
+    cat = [kit.pieces[p.piece].category if p.piece in kit.pieces else "" for p in ps]
+    windows = [(p.x, p.y, p.z) for p, c in zip(ps, cat) if c == "window"]
+    return [p for p, c in zip(ps, cat) if c in ("door", "window", "shop")
+            or (c == "balcony" and all(math.dist((p.x, p.y, p.z), w) >= 0.1 for w in windows))]
+
+
+def test_interior_folders_for_three_layouts(interior_build, interior_ctx, tmp_path):
+    from citygen.interior.command import make_interior
+    for spec in ("pick:dar", "pick:compact", "pick:slab"):
+        out = make_interior(interior_build, spec, out=tmp_path / spec.replace(":", "-"), log=lambda m: None,
+                            ctx=interior_ctx)
+        assert all((out / f).is_file() for f in INTERIOR_FILES)
+        gltf, _ = read_glb(out / "tiles" / "interior.glb")
+        assert gltf["images"] and all("bufferView" in im and "uri" not in im for im in gltf["images"])
+        index = json.loads((out / "tiles" / "index.json").read_text())
+        tile = index["tiles"][0]
+        root = gltf["nodes"][gltf["scenes"][0]["nodes"][0]]
+        assert root["translation"] == [tile["x0"], 0.0, -tile["y0"]]
+        assert {"interior", "overview"} <= set(index["views"]) and index["interior"]["layout"] == spec[5:]
+        rooms = json.loads((out / "rooms.json").read_text())
+        assert rooms["layout"] == spec[5:] and rooms["storeys"]
+        assert [r["floor"] for r in rooms["rooms"]] == [s["floor"] for s in rooms["storeys"]]   # one room per storey
+        for s in rooms["storeys"]:
+            assert abs(s["z"] - (rooms["high"] + s["floor"] * rooms["floor_height"])) < 2e-3
+
+
+def test_interior_openings_match_the_facade(interior_ctx):
+    from citygen.interior.context import city_plan, resolve
+    from citygen.interior.layout import plan_interior
+    from citygen.interior.outside import Outside
+    plan = city_plan(interior_ctx)
+    for spec in ("pick:dar", "pick:compact", "pick:slab", "pick:colonial"):
+        outside = Outside(interior_ctx, plan, resolve(interior_ctx, plan, spec))
+        interior = plan_interior(outside, interior_ctx.world.style)
+        want = _facade_pieces(outside)
+        assert want and [o.piece for o in interior.openings] == [p.piece for p in want], spec
+        for o in interior.openings:
+            (ax, ay), (bx, by) = o.wall
+            off = abs((bx - ax) * (o.y - ay) - (by - ay) * (o.x - ax)) / math.hypot(bx - ax, by - ay)
+            assert off < 0.02, (spec, o.piece, off)
+            assert o.rooms[0] in [r.id for r in interior.rooms if r.floor == o.floor] and o.rooms[1] == -1
+        assert not interior.warnings, (spec, interior.warnings)
+
+
+@pytest.mark.slow
+def test_outside_replays_the_tile(world, plan):
+    from citygen.interior.context import BuildContext, resolve
+    from citygen.interior.outside import Outside
+    from citygen.mesh.tile import build_tile
+    ctx = BuildContext(world, [plan], world.capital())
+    outs = [Outside(ctx, plan, resolve(ctx, plan, s)) for s in ("pick:dar", "pick:slab", "pick:colonial")]
+    tc = TileContext(world, [plan])
+    dresser = tc.cities[0][4]
+    real, recorded = dresser.building, {}
+
+    def spy(k, high, paths=None):
+        out = real(k, high, paths)
+        recorded[k] = list(out)
+        return out
+
+    dresser.building = spy
+    for tile in sorted({o.tile for o in outs}):
+        _, placements = build_tile(tc, *tile)
+        kept = {id(p) for p in placements}
+        for o in (o for o in outs if o.tile == tile):
+            got = [p for p in recorded[o.k] if id(p) in kept]
+            assert got and [p.piece for p in got] == [p.piece for p in o.placements], o.k
+            for a, b in zip(got, o.placements):
+                assert max(abs(a.x - b.x), abs(a.y - b.y), abs(a.z - b.z)) < 1e-3 and a.yaw == b.yaw
+
+
+def test_interior_bytes_repeat(interior_build, interior_ctx, world, plan, tmp_path):
+    from citygen.interior.command import make_interior
+    from citygen.interior.context import BuildContext
+    fresh = BuildContext(world, [plan], world.capital())
+    a = make_interior(interior_build, "pick:dar", out=tmp_path / "a", log=lambda m: None, ctx=fresh)
+    b = make_interior(interior_build, "pick:dar", out=tmp_path / "b", log=lambda m: None, ctx=interior_ctx)
+    assert all((a / f).read_bytes() == (b / f).read_bytes() for f in INTERIOR_FILES)
+
+
+def test_interior_refuses_what_it_cannot_do(interior_ctx, tmp_path):
+    from citygen.interior import InteriorError
+    from citygen.interior.context import city_plan, load_build, resolve
+    (tmp_path / "summary.json").write_text(json.dumps({"area": "capital-center", "build_key": "x"}))
+    with pytest.raises(InteriorError, match="Build it again"):
+        load_build(tmp_path, log=lambda m: None)
+    plan = city_plan(interior_ctx)
+    minaret = next(k for k, b in enumerate(plan.buildings) if b.kind == "minaret")
+    with pytest.raises(InteriorError, match="minaret"):
+        resolve(interior_ctx, plan, str(minaret))
+    with pytest.raises(InteriorError, match=plan.settlement.name):
+        city_plan(interior_ctx, "Atlantis")
+    assert city_plan(interior_ctx, plan.settlement.name.upper()) is plan
+
+
+def test_build_key_ignores_interiors(tmp_path, monkeypatch):
+    from citygen import buildkey
+    from citygen.config import style_path
+    code = tmp_path / "code"
+    (code / "interior").mkdir(parents=True)
+    (code / "a.py").write_text("x = 1\n")
+    (code / "interior" / "b.py").write_text("y = 1\n")
+    monkeypatch.setattr(buildkey, "CODE", code)
+    first = buildkey._code_hash()
+    (code / "interior" / "b.py").write_text("y = 2\n")
+    assert buildkey._code_hash() == first                  # interior code never makes a build stale
+    (code / "a.py").write_text("x = 2\n")
+    assert buildkey._code_hash() != first
+    text = style_path("maghreb").read_text(encoding="utf-8")
+    (tmp_path / "a.toml").write_text(text)
+    (tmp_path / "b.toml").write_text(text + "\n[interiors.extra]\nwidth = 3.0\n")
+    (tmp_path / "c.toml").write_text(text.replace("[palette]", "[palette]\nextra = { color = \"#000000\" }", 1))
+    assert buildkey._style_hash(str(tmp_path / "a.toml")) == buildkey._style_hash(str(tmp_path / "b.toml"))
+    assert buildkey._style_hash(str(tmp_path / "a.toml")) != buildkey._style_hash(str(tmp_path / "c.toml"))
+
+
+@pytest.mark.slow
+def test_interior_two_processes(interior_build, tmp_path):
+    import os
+    import subprocess
+    import sys
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    for name, seed in (("a", "1"), ("b", "2")):
+        subprocess.run([sys.executable, "-m", "citygen", "interior", "pick:dar", "--folder", str(interior_build),
+                        "--out", str(tmp_path / name)], cwd=root, env={**os.environ, "PYTHONHASHSEED": seed},
+                       check=True, capture_output=True)
+    assert all((tmp_path / "a" / f).read_bytes() == (tmp_path / "b" / f).read_bytes() for f in INTERIOR_FILES)

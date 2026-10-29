@@ -1,10 +1,13 @@
 """One labelled picture: a git ref ("before") above the working tree ("after"), same camera.
 
     python tools/before_after.py --view street [--ref HEAD] [--out output/checks/NAME.png]
+    python tools/before_after.py --interior pick:dar [--city NAME] [--view interior|overview]
 
-Both sides run `citygen build --quick`, then tools/snapshot.py. Prints the mean absolute pixel
-difference between the halves (0.0 = identical). Snapshots start a local web server: run outside
-the Claude sandbox, or set sandbox.network.allowLocalBinding.
+Both sides run `citygen build --quick`, then tools/snapshot.py. With --interior, each side then runs
+`citygen interior SPEC --folder <its build>` and pictures that interior folder (a side without the
+command shows a grey half, "Before: no interior yet"). Prints the mean absolute pixel difference
+between the halves (0.0 = identical). Snapshots start a local web server: run outside the Claude
+sandbox, or set sandbox.network.allowLocalBinding.
 """
 from __future__ import annotations
 
@@ -62,6 +65,27 @@ def _build(tree: Path, build_args: str) -> Path:
         raise ToolError(f"build in {tree} did not report an output folder")
     folder = Path(found[-1].strip())
     return folder if folder.is_absolute() else tree / folder
+
+
+def _interior(tree: Path, build: Path, spec: str, city: str | None, required: bool) -> Path | None:
+    """`citygen interior SPEC` on the build in `tree`; returns the folder it reports ("... -> FOLDER").
+    A tree without the command (or that cannot make it) gives None, unless `required`."""
+    cmd = [sys.executable, "-m", "citygen", "interior", spec, "--folder", str(build), *(["--city", city] if city else [])]
+    done = subprocess.run(cmd, cwd=tree, capture_output=True, text=True)
+    found = re.findall(r"^interior .*? -> (.+)$", done.stdout, re.MULTILINE)
+    if done.returncode != 0 or not found:
+        if required:
+            tail = "\n".join((done.stdout + done.stderr).strip().splitlines()[-4:])
+            raise ToolError(f"citygen interior {spec} failed in {tree}:\n{tail}")
+        return None
+    folder = Path(found[-1].strip())
+    return folder if folder.is_absolute() else tree / folder
+
+
+def _grey(png: Path, size: tuple[int, int]) -> None:
+    from PIL import Image
+
+    Image.new("RGB", size, (128, 128, 128)).save(png)
 
 
 def _kit_sheet(tree: Path) -> Path:
@@ -148,7 +172,7 @@ def run(args) -> float:
     CHECKS.mkdir(parents=True, exist_ok=True)
     work = CHECKS / "_tmp_before"
     shutil.rmtree(work, ignore_errors=True)
-    args.view = args.view or ("sheet" if args.kit_sheet else "aerial")
+    args.view = args.view or ("sheet" if args.kit_sheet else "interior" if args.interior else "aerial")
     out = Path(args.out) if args.out else CHECKS / f"before-after-{args.view}.png"
     try:
         short = _export_ref(args.ref, work / "before")
@@ -157,6 +181,9 @@ def run(args) -> float:
         else:
             b_dir = _build(work / "before", args.build_args)
             a_dir = a_dir_for(args)
+            if args.interior:
+                b_dir = _interior(work / "before", b_dir, args.interior, args.city, required=False)
+                a_dir = _interior(ROOT, a_dir, args.interior, args.city, required=True)
         parts = list(args.query)
         if args.cam and args.look:
             parts += [f"cam={args.cam}", f"look={args.look}"]
@@ -164,13 +191,18 @@ def run(args) -> float:
             parts.append(_frame_camera(a_dir, args.frame))
         query = "&".join(parts)
         before_view, note = args.view, ""
-        if not _has_view(b_dir, args.view):
+        if b_dir is not None and not _has_view(b_dir, args.view):
             before_view, note = "aerial", f" - no {args.view} view yet, aerial shown"
         shots = work / "shots"
         shots.mkdir()
-        _snapshot(work / "before", b_dir, shots / "b.png", before_view, query, half, args.timeout)
+        label = f"Before ({args.ref} {short}){note}"
+        if b_dir is None:                      # --interior: the ref has no interior command yet
+            _grey(shots / "b.png", half)
+            label = "Before: no interior yet"
+        else:
+            _snapshot(work / "before", b_dir, shots / "b.png", before_view, query, half, args.timeout)
         _snapshot(ROOT, a_dir, shots / "a.png", args.view, query, half, args.timeout)
-        diff = _combine(shots / "b.png", shots / "a.png", f"Before ({args.ref} {short}){note}", out)
+        diff = _combine(shots / "b.png", shots / "a.png", label, out)
     finally:
         if not args.keep:
             shutil.rmtree(work, ignore_errors=True)
@@ -190,7 +222,8 @@ def a_dir_for(args) -> Path:
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Before (git ref) and after (working tree) in one picture.")
-    ap.add_argument("--view", default=None, help="aerial, street, souk, top or a named view")
+    ap.add_argument("--view", default=None, help="aerial, street, souk, top or a named view (interior, overview "
+                                                 "with --interior)")
     ap.add_argument("--ref", default="HEAD")
     ap.add_argument("--out", default=None)
     ap.add_argument("--query", action="append", default=[], metavar="K=V", help="extra viewer parameter, repeatable")
@@ -200,6 +233,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--no-build", action="store_true", help="reuse the latest build of the working tree")
     ap.add_argument("--kit-sheet", action="store_true", help="compare kit sheets instead of the city")
     ap.add_argument("--frame", default=None, metavar="PIECE", help="with --kit-sheet: camera on one piece")
+    ap.add_argument("--interior", default=None, metavar="SPEC",
+                    help="picture one dwelling's interior (a number or pick:LAYOUT[:FLOORS]) on both sides")
+    ap.add_argument("--city", default=None, help="with --interior: a city of the build (default: its main city)")
     ap.add_argument("--size", default="1280x720")
     ap.add_argument("--timeout", type=float, default=120.0)
     ap.add_argument("--keep", action="store_true", help="keep the temporary before tree")
@@ -208,6 +244,10 @@ def main(argv: list[str] | None = None) -> int:
         ap.error("--cam and --look go together")
     if args.frame and not args.kit_sheet:
         ap.error("--frame needs --kit-sheet")
+    if args.interior and args.kit_sheet:
+        ap.error("--interior and --kit-sheet do not go together")
+    if args.city and not args.interior:
+        ap.error("--city needs --interior")
     try:
         run(args)
     except ToolError as exc:

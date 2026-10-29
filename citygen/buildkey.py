@@ -2,7 +2,9 @@
 
 A finished plan or tile is reused only when its key equals the key of the current build.
 Simple and safe: any edit to any code file, setting, style, kit or planned city changes the key,
-and so does a new version of Python or of a library the code uses.
+and so does a new version of Python or of a library the code uses. Interiors (SPEC 6c) are made on
+demand from a finished build, so their code (`citygen/interior/`) and their style tables (`[interiors]`)
+never make a build stale.
 """
 from __future__ import annotations
 
@@ -12,19 +14,30 @@ import platform
 from importlib import metadata
 from pathlib import Path
 
-from .config import ROOT, style_path
+from .config import ROOT, load_style
 
 CODE = Path(__file__).resolve().parent
 NOT_CONTENT = ("output", "workers", "tiles_per_worker", "area")   # [build] settings that never change what a tile holds
 LIBRARIES = ("numpy", "scipy", "shapely", "contourpy", "pillow")   # a new version may change the numbers
+NOT_BUILD_CODE = ("interior",)      # code folders a build never runs (interiors are made on demand)
+NOT_BUILD_STYLE = ("interiors",)    # style tables a build never reads
 
 
 def _code_hash() -> str:
     h = hashlib.sha256()
     for path in sorted(CODE.rglob("*.py")):
-        h.update(path.relative_to(CODE).as_posix().encode())
+        rel = path.relative_to(CODE)
+        if rel.parts[0] in NOT_BUILD_CODE:
+            continue
+        h.update(rel.as_posix().encode())
         h.update(path.read_bytes())
     return h.hexdigest()
+
+
+def _style_hash(name: str) -> str:
+    """The parsed style without the tables a build never reads, so editing them keeps every build current."""
+    style = {k: v for k, v in load_style(name).items() if k not in NOT_BUILD_STYLE}
+    return hashlib.sha256(json.dumps(style, sort_keys=True).encode()).hexdigest()
 
 
 def _kit_folder(kit: str) -> Path:
@@ -51,7 +64,7 @@ def build_key(cfg: dict, settlement_ids) -> str:
     settings["build"] = {k: v for k, v in cfg["build"].items() if k not in NOT_CONTENT}
     parts = {
         "settings": json.dumps(settings, sort_keys=True, separators=(",", ":")),
-        "style": hashlib.sha256(style_path(cfg["world"]["style"]).read_bytes()).hexdigest(),
+        "style": _style_hash(cfg["world"]["style"]),
         "kits": [_kit_hash(k) for k in cfg["build"].get("kits", [])],
         "code": _code_hash(),
         "versions": _versions(),

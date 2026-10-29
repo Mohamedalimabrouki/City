@@ -135,6 +135,7 @@ build.build()                 orchestrates the above into output/<country>-<seed
 | `citygen/city/station.py` | the railway station (prompt 33): site at the colonial edge, track layout and corridor, street and walk clipping, buildings and name, its camera view |
 | `citygen/city/massing.py` | building massing (prompt 23): the planning step, `masses(b)` (the volumes drawn and dressed), `floors_at`/`wall_height` (floors and wall height at a point of the outer wall), `outline`, `inner_walls`, `terrace_walls` |
 | `citygen/kitsheet.py` | `python -m citygen kit-sheet`: every piece in one viewable grid |
+| `citygen/interior/` | interiors on demand (prompt 45 on, SPEC 6c): `context.py` (the city from a build folder, `layout_of`, `resolve`), `outside.py` (the facade bridge), `model.py`, `layout.py`, `export.py` (the viewable folder), `command.py` (`python -m citygen interior`); left out of the build key |
 | `citygen/export/maps.py` | country and city PNG maps |
 | `citygen/export/lore.py` | JSON data files and the gazetteer |
 | `citygen/build.py` | area selection and the full build |
@@ -517,7 +518,8 @@ breakwater lines, basins, lighthouses) when it has a harbor, `props` (`kind`, `x
 | `tiles/tile_<i>_<j>_lod1.glb` | the same tile for distant views (prompt 40): merged blocks, low-poly landmarks, 32 m terrain, flat colors |
 | `tiles/textures/*.png` | base-color images shared by the tiles (`[tiles] textures = "shared"`, the default) |
 | `tiles/index.json` | `citygen-tiles/1`: tile list (bytes, unique and drawn triangles, dressing pieces, `lod1`: file, bytes, triangles; `files`: shared textures and the lod1 file), `"parapets": true` when the tiles carry their own roof parapets, `focus` point, camera `views` (street, souk, and cathedral, theatre, station, port and corniche when the city has them), `cities` (name, plan file, bounds) |
-| `summary.json` | counts and timings (read this instead of big files) |
+| `summary.json` | counts and timings (read this instead of big files); `settings`: the merged settings of the build (prompt 45), from which `interior` rebuilds world and plans |
+| `interiors/<city>-<k>/` | made on demand by `python -m citygen interior` (SPEC 6c "Output"), never by a build: `tiles/interior.glb`, `tiles/index.json`, `rooms.json`; `tools/fingerprint.py` skips the folder |
 
 **.glb conventions:** one root node per tile with `translation = [x0, 0, -y0]`; vertices are
 local to it. One primitive per material; material names are palette names from the style pack
@@ -1040,9 +1042,15 @@ The inside of a dwelling is made on demand from a build folder, never stored and
 normal build; the same build always gives the same bytes. Nothing outside `citygen/interior/`,
 `__main__.py`, `view.py` and the tools imports the package, and the normal build output never changes
 (the fingerprint check of prompts 45-50 is `--allow ""`). Each prompt below marks what it built.
+Built so far (prompt 45): Command, The city from the build folder, The facade bridge, Coordinates, the
+Data model's classes, Output and Random streams (no stream drawn yet), with one placeholder room per storey
+(type `room`, unit `home`) holding the facade openings of its floor; the layouts of prompts 46-47 replace it.
 
 **Who gets one.** Dwellings only (`life.HOUSING` = the dresser's `DRESSED`: `house`, `domed`,
-`apartments`, `villa`). `layout_of(plan, b)` (prompt 45) picks the layout from kind, district and floor:
+`apartments`, `villa`). `layout_of(plan, b, style)` (prompt 45; the style gives `[interiors.compact] min_area`
+and the exterior wall) picks the layout from kind, district and floor area. Apartment blocks outside colonial
+and modern districts follow the dresser's own split (`Dresser._is_slab`: modern is a slab, any other a
+colonial block):
 
 | Layout | Buildings | Rooms |
 |---|---|---|
@@ -1072,7 +1080,9 @@ back room; **qahwa** a cafe. Modern homes use the French words Tunisians use: ha
 manger, cuisine, chambre, salle de bain (`sdb`), wc, couloir, palier (landing); a flat is typed **S+n**
 (a salon and n chambres). Room types in data are these words in lower case with `_` for spaces.
 
-**Command** (prompt 45). `python -m citygen interior BUILDING [--folder BUILD] [--city NAME] [--out FOLDER]`.
+**Command** (prompt 45, built: `interior/command.py` `make_interior(folder, building, city, out, log, ctx=None)`;
+`ctx` a `BuildContext` already loaded for that folder, which prompt 50's server keeps one of per build).
+`python -m citygen interior BUILDING [--folder BUILD] [--city NAME] [--out FOLDER]`.
 - BUILDING is the index k in `plan.buildings` of that city (the k of plan.json `buildings`, of a
   household's `building`, and of the viewer card's "No. k" line, prompt 45), or `pick:<layout>[:<floors>]`:
   the dwelling of that layout (and floor count) whose footprint centroid lies nearest the settlement
@@ -1084,10 +1094,12 @@ manger, cuisine, chambre, salle de bain (`sdb`), wc, couloir, palier (landing); 
   for one build and one city; a build holding several cities needs `--city` for all but its focus.
 - `--out` default `<BUILD>/interiors/<city slug>-<k>/`. `tools/fingerprint.py` skips the `interiors`
   folder, so making an interior never shows as a build change.
-- It prints `interior <k> (<layout>, <floors> floors, <rooms> rooms) in <s> s -> <folder>` and exits
-  with code 2 and one plain line on an `InteriorError`.
+- It prints `interior <k> (<layout>, <floors> floors, <rooms> rooms) in <s> s -> <folder>` ("1 floor",
+  "1 room" in the singular) and exits with code 2 and one plain line on an `InteriorError`. Measured
+  (prompt 45, Ali's Mac): 0.5 s inside the command, about 1 s with Python's start, on the quick capital;
+  1.8-1.9 s (2.5 s wall) on the full capital, the plan from the cache.
 
-**The city from the build folder** (prompt 45, `interior/context.py`). `build.build` writes the merged
+**The city from the build folder** (prompt 45, built, `interior/context.py`). `build.build` writes the merged
 settings into `summary.json` (`"settings"`). `load_build(folder)` reads them: `generate_world(settings)`,
 the planned settlements from `select_area(world, summary["area"])`, `build_key(settings, ids)`, and each
 plan through `load_or_plan(world, s, folder / "cache", key[:12], False, log)` (prompt 5's cache: 0.03 s
@@ -1105,34 +1117,41 @@ a build stale. Time: one interior of the quick capital under 5 s on Ali's Mac (i
 0.05 s, plan 0.03 s, kit 0.2 s, one building's layout and mesh well under 1 s), the full capital under
 10 s (world 0.6 s); the command prints its time.
 
-**The facade bridge** (prompt 45, `interior/outside.py`, `Outside(ctx, plan, k)`): building k exactly as
-its tile dresses it (tested against `build_tile`); it draws nothing new and only replays existing streams.
+**The facade bridge** (prompt 45, built, `interior/outside.py`, `Outside(ctx, plan, k)`): building k exactly as
+its tile dresses it (tested against `build_tile`; checked once for all 1,005 dwellings of the quick build's
+tiles: every piece, position and yaw the same); it draws nothing new and only replays existing streams.
+`Outside.tile` is the (i, j) of the tile owning k (the tile holding its footprint centroid).
 1. `high = building_highs(ground, [b])[0]`, the highest ground under the footprint ring. Floor f stands
    at `high + f * fh`, fh = `b.height / b.floors`, as `Dresser._windows` places windows.
 2. `roofs = roof_layouts(b, district kind, roof_stream(seed, city id, k), style["roofs"])`, then
    `dresser.keep_roof(k, roofs)`, `placements = dresser.building(k, high)`, `ground_heights(ground,
    placements)`, `dresser.under_roofs(placements)` (a souk vault drops upper windows) and `keep_off` with
-   the city's `rail_zone(plan)`, `keep_zone(plan.port)` and `land_zone(plan, style["port"]["props"])`
-   when they exist, in `build_tile`'s order.
+   the city's `rail_zone(plan)` (when the city has a station), `keep_zone(plan.port)` (when the port's
+   zone meets the owning tile) and `land_zone(plan, style["port"]["props"])` (when the plan has props and
+   that zone meets the owning tile), in `build_tile`'s order and under its conditions.
 3. `doors = dresser.entrances(k)`: the `DoorSpot`s, main door first (one per stair door in a slab).
 4. Facade openings: every placement whose piece category is `door`, `window`, `shop` or `balcony` (a
    balcony only when no window stands within 0.1 m of its anchor: an iron balcony stands in front of its
    own window, a mashrabiya instead of one). Its rectangle in the piece frame (x along the wall, y up,
    glTF axes) is the first of: the kit manifest's glass (`Kit.panes`); the bounds of its parts in the hole
-   materials `glass_dark`, `glass_lit`, `shop_dark` and `door_*` (the leaf); the piece bounds less
-   `[interiors.openings] frame` at both sides and the top. Scaled by `scale` (x also by `stretch`). Center
+   materials (a door: `glass_dark`, `glass_lit`, `shop_dark` and its leaf `door_*` together; any other
+   piece: the glass and `shop_dark`, or its `door_*` parts only when it has no glass, because the open
+   shutters of `window_shutter_*` and `window_slab_*` are `door_*` parts lying beside the hole); the piece
+   bounds less `[interiors.openings] frame` at both sides and the top (`interior/outside.hole`). Scaled by `scale` (x also by `stretch`). Center
    (x, y) + (cos yaw, sin yaw) (x0 + x1) / 2, sill z + y0, head z + y1. Its wall: the segment of the
    footprint's exterior ring or of a mass outline (`masses(b)`) whose outward normal lies within 1 degree
    of the piece front (-sin yaw, cos yaw) and which passes within 0.05 m; floor = (sill - high + 0.05) //
    fh, clamped to the floors. A `*_lit` piece, or a `*_pane_lit` right after it, marks it lit. A piece
    on no wall is a warning (tested: none).
 
-**Coordinates.** World meters (x east, y north, z up, absolute heights), as plan.json and the tiles. The
+**Coordinates** (prompt 45, built). World meters (x east, y north, z up, absolute heights), as plan.json and the tiles. The
 .glb has one root node at translation (x0, 0, -y0), (x0, y0) the footprint's lower-left bound minus 2 m,
 floored to whole meters, and vertices local to it, like a tile: the viewer, the Blender tools and the
 hero scenes of prompt 56 place it exactly over the city. rooms.json rounds coordinates to 1 mm.
 
-**Data model** (prompt 45, `interior/model.py`).
+**Data model** (prompt 45, built: the classes and `to_json()`, `interior/model.py`; `Storey` by
+`layout.storeys`, which keeps the largest part when the shrink splits a storey, slivers past a neck thinner
+than two walls).
 - `Storey(floor, z, height, polygon)`: the floor inside the exterior walls: the union of the masses
   standing at that floor (base <= floor height < top; a set-back top floor is the set-back polygon),
   shrunk by the exterior wall thickness with mitre joins, so courtyards grow by it.
@@ -1155,8 +1174,8 @@ hero scenes of prompt 56 place it exactly over the city. rooms.json rounds coord
   `features` (dicts with a type and a position: `majel`, `tree` with its plan index, `fesqiya`,
   `skylight`) and `warnings`; `to_json()` gives rooms.json.
 
-**Walls** (`[interiors.walls]`). Exterior thickness by district kind (medina and village 0.4, colonial
-0.45, modern, residential and suburb 0.3), court walls `court` 0.3, partitions `partition` 0.2 in
+**Walls** (`[interiors.walls]`). Exterior thickness by district kind (`exterior`: medina and village 0.4, colonial
+0.45, modern, residential and suburb 0.3; `exterior_fallback` 0.3 for any other), court walls `court` 0.3, partitions `partition` 0.2 in
 traditional houses and `partition_modern` 0.15. The outer face of an exterior wall is the footprint ring
 (the tile's wall face); the inner face is the storey polygon's edge; partitions are centered on room
 boundaries. **Rule (tested):** a partition meets an exterior or court wall at least `[interiors.openings]
@@ -1316,8 +1335,11 @@ core. Light comes from the facade windows (the tile's own pieces, in their holes
 and windows of every room on it), the skylight over a covered court with `inner_window`s onto it, and
 balcony doors. Rooms without daylight are the blind cells: stores, washrooms, couloirs, stairs.
 
-**Output** (prompt 45, `interior/export.py`), a folder like a build, every file written as `.part` and
-renamed:
+**Output** (prompt 45, built, `interior/export.py`), a folder like a build, every file written as `.part` and
+renamed (the index last). Prompt 45's mesh is the tile's own shell (`building_mesh` without the plinth)
+and a `paving` cap per storey; from inside, its walls show their back faces, so the `interior` view looks
+out through them until prompt 48 draws the walls' inner faces. Quick capital: dar No. 190 671 triangles,
+210 KB; compact No. 193 962, 236 KB; slab No. 1264 585, 247 KB (embedded textures are most of the bytes).
 - `tiles/interior.glb`: float positions (no quantization), textures embedded (only the images its
   materials use, `mesh/textures.encoded`), materials = palette + `[interiors.palette]` (interior-only
   materials live there, so `[palette]` and the build key never change for them), the bridge's placements
@@ -1393,7 +1415,8 @@ Maghreb-specific values.
 
 - `python -m citygen stats` prints `summary.json`; `stats --tiles` shows where each tile's bytes go.
 - Maps: `output/*/maps/*.png` (look at the image, not the data files).
-- 3D: `python -m citygen snapshot --view aerial|street|top` renders the viewer to a PNG.
+- 3D: `python -m citygen snapshot --view aerial|street|top` renders the viewer to a PNG (Playwright's
+  Chromium, or the installed Google Chrome when that is missing).
 - The viewer starts in **Fast** on phones and in the software snapshot browser, and in **High** on a
   computer (ambient occlusion and clean edges). Add `--query quality=high` to a snapshot to force
   High; add `?perf=1` to the viewer address to log the average frame time over 120 frames and the
@@ -1401,6 +1424,9 @@ Maghreb-specific values.
   their level of detail, nothing in flight), so one build always gives one picture.
 - `python tools/before_after.py --view street|souk|aerial` compares the last commit with the working
   tree in one labelled picture and prints the pixel difference (see HANDOFF.md).
+  `--interior SPEC [--city NAME]` (prompt 45) runs `citygen interior SPEC --folder <its build>` on each
+  side after its quick build and pictures that folder with `--view interior` (the default) or `overview`;
+  a side without the command (exit code not 0) shows a grey half "Before: no interior yet".
 
 **Checking a change.** `python tools/fingerprint.py save before` records a hash of every part
 of the latest build (world, each plan section, each tile, each kit piece, maps, other files;

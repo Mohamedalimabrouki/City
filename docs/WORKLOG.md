@@ -16,9 +16,9 @@ Entry format:
 ```
 
 ## 2026-10-25 - Resume here (paused after prompt 43, CP4)
-- State: prompts 1-44 are done, committed and pushed (branch `claude/procedural-city-generator-xop72h`;
-  CP4, prompt 43, on 25 October; 44, the interiors design, on 29 October). Next is prompt 45; continue
-  when Ali says (for example "Do prompt 45." or "continue the playbook"). Weekly limit on 29 October:
+- State: prompts 1-45 are done, committed and pushed (branch `claude/procedural-city-generator-xop72h`;
+  CP4, prompt 43, on 25 October; 44, the interiors design, and 45, the interior command, on 29 October).
+  Next is prompt 46; continue when Ali says (for example "Do prompt 46." or "continue the playbook"). Weekly limit on 29 October:
   16% used (resets Tuesday 3 November, about 21:00 UTC).
 - How the work runs since prompt 20 (DeepSeek usage ended after 19): the lead session (Opus) briefs one
   Opus `city-builder` helper per prompt (effort from the playbook table). The helper reads CLAUDE.md, its
@@ -28,7 +28,9 @@ Entry format:
   follow-ups, then commits one commit per prompt and pushes. Checkpoints add an independent Opus
   reviewer that reads only the committed history with git, so it can run beside a builder. The
   method in full, with Ali's preferences and the review techniques: `docs/LEAD.md` (read it first).
-- Next: 45 H1a Interior model and command (SPEC 6c is the design). Still open from the CP4 list (see the
+- Next: 46 H1b Courtyard houses and compact houses (SPEC 6c; builds on `citygen/interior/` of prompt 45).
+  Playwright's own Chromium is gone from the Mac since 29 October; snapshots now fall back to the installed
+  Google Chrome by themselves (prompt 45 entry). Still open from the CP4 list (see the
   CP4 entry below): light tiles over their byte budgets (accepted one by one, unchanged), the relaxed 3.5 MB tile target (densest
   quick tile 4.69 MB, seed 7 4.86 MB; next gains: merge each full tile's meshes per material, weld flat
   vertices), kiosk cafes only in tiles with buildings, quick builds losing lod1 blocks of unexported
@@ -40,6 +42,39 @@ Entry format:
 - Doubts and questions for Ali: in the CP4 entry below.
 - Added after the pause note, at Ali's request: the city gallery and keyboard navigation, the cemetery
   cypress that won a model duel, and the plan of two tracks after prompt 100 (entries below).
+
+## 2026-10-29 - Prompt 45 H1a Interior model and command
+- Commit: (lead commits) | Model: Opus 5.5, high
+- Changed: new package citygen/interior/ (`__init__`, `model`, `context`, `outside`, `layout`, `export`,
+  `command`), citygen/__main__.py (`interior`), citygen/build.py (`summary["settings"]`),
+  citygen/buildkey.py (`NOT_BUILD_CODE`, `NOT_BUILD_STYLE`, `_style_hash`), styles/maghreb.toml
+  (`[interiors]`, `.walls`, `.openings`, `.compact`), tools/fingerprint.py (skips `interiors/`),
+  tools/before_after.py (`--interior`, `--city`), tools/viewer/index.html (card line "No. k"),
+  tools/snapshot.py (falls back to Google Chrome when Playwright's Chromium is missing),
+  tests/test_citygen.py, docs (SPEC 6c marks, module and output tables, SPEC 9; HANDOFF; ROADMAP).
+- Checks: tests 112 passed (28 s; new normal interior tests about 1 s in all), slow `-k "interior or
+  outside"` 2 passed (replay 4.2 s, two processes 2.1 s). Quick build: every tile rebuilt once (new build
+  key by design), then reused; fingerprint `--allow ""`: 282 parts, 0 changed. `interior pick:dar` 0.5 s
+  in the command, 1.0 s wall. Dar No. 190 671 triangles 210 KB, compact No. 193 962 / 236 KB, slab
+  No. 1264 585 / 247 KB, colonial No. 867 4,193 / 496 KB. Full capital (rebuilt with `--area capital
+  --out output/full`, 53 s, so its summary holds the settings): `pick:dar` No. 3419 1.8 s in the command
+  (2.5 s wall), `pick:slab` No. 21320 1.9 s (2.5 s wall); both print "plan reused", nothing planned
+  again (SPEC target under 10 s). A one-off script replayed all 1,005 dwellings of
+  the quick build's 9 tiles: 0 differ (46 pieces dropped by the tile after `building`, handled), no
+  opening off its wall.
+- Code differs from the prompt: `layout_of(plan, b, style)` (it needs `min_area` and the wall thickness);
+  `make_interior` takes an optional `ctx` (a loaded `BuildContext`, for tests and prompt 50's server);
+  `keep_off` for the port and props zones runs only when they meet the owning tile, as `build_tile` does;
+  the hole rule uses a window's `door_*` parts only without glass (open shutters lie beside the hole);
+  apartment blocks outside colonial and modern districts are `colonial`; a storey split by the wall shrink
+  keeps its largest part. All written into SPEC 6c.
+- Look: none required (checks only). `output/bodjantouna-42/interiors/goumosbane-190/maps/snapshot-overview.png`
+  and `output/checks/45.png` (grey "Before: no interior yet" over the dar from the south-west: court,
+  roof deck, yellow-shuttered window, door, plants). Playwright's own Chromium is gone from
+  `~/Library/Caches/ms-playwright`, so `tools/snapshot.py` now falls back to the installed Google Chrome
+  (`channel="chrome"`, one line logged); no download. The `interior` view looks at the door's back: walls
+  seen from inside are culled until prompt 48 draws their inner faces.
+- Doubts and questions for Ali: none.
 
 ## 2026-10-29 - Prompt 44 H1 Interiors: the design
 - Commit: (lead commits) | Model: Opus 5.5, high

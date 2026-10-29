@@ -1349,11 +1349,12 @@ function describe(p, x, y) {
       return {
         title: house ? `Dar ${h.family}` : `The ${h.family} family`,
         lines: [`${plural(h.members, 'person').replace('persons', 'people')} \u00b7 ${h.trade}`,
-                `${wealthWord(h.wealth)} \u00b7 ${h.door.replace('door_', '')} door \u00b7 ${plural(b.floors, 'floor')}`, where],
+                `${wealthWord(h.wealth)} \u00b7 ${h.door.replace('door_', '')} door \u00b7 ${plural(b.floors, 'floor')}`, where,
+                `No. ${building}`],   // the number python -m citygen interior takes (prompt 45)
       };
     }
     const title = landmark ? landmark.m.name : b.kind.replace(/_/g, ' ');
-    return { title: title.charAt(0).toUpperCase() + title.slice(1), lines: [plural(b.floors, 'floor'), where] };
+    return { title: title.charAt(0).toUpperCase() + title.slice(1), lines: [plural(b.floors, 'floor'), where, `No. ${building}`] };
   }
   if (street >= 0) {
     const souk = p.souks.get(street);

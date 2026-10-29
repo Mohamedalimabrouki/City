@@ -1781,3 +1781,25 @@ arcade_bay = [["arcade_bay", 1]]
 arcade_corner = [["arcade_corner", 1]]
 balcony_iron = [["balcony_iron", 1]]
 balcony_iron_long = [["balcony_iron_long", 1]]
+
+# --- interiors (SPEC 6c): made on demand by `python -m citygen interior`, never by a build -------
+# The build key leaves these tables out (buildkey.NOT_BUILD_STYLE): editing them never makes a build stale.
+[interiors]
+eye = 1.6          # meters above the floor: the camera of the `interior` view
+look = 1.4         # meters above the floor: the point that view looks at
+margin = 2.0       # meters round the footprint before the .glb origin (whole meters, like a tile corner)
+
+[interiors.walls]
+exterior = { medina = 0.4, village = 0.4, colonial = 0.45, modern = 0.3, residential = 0.3, suburb = 0.3 }   # meters, by district
+exterior_fallback = 0.3   # meters, any other district
+court = 0.3               # meters, a courtyard wall
+partition = 0.2           # meters, inner walls of traditional houses
+partition_modern = 0.15   # meters, inner walls of flats, villas and maisons
+
+[interiors.openings]
+frame = 0.12       # meters of frame at both sides and the top of a piece with no glass or leaf
+clear = 0.3        # meters between a partition's face and the edge of any opening
+door = 0.9         # meters, the clear width of an inner door
+
+[interiors.compact]
+min_area = 35.0    # m2 inside the exterior walls: a house without a courtyard below this is `small`

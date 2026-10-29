@@ -132,7 +132,7 @@ def fingerprint(folder: Path) -> dict:
     for path in sorted(folder.rglob("*")):
         rel = path.relative_to(folder)
         top = rel.parts[0]
-        if (not path.is_file() or "cache" in rel.parts or top in ("maps", "tiles", "checks")
+        if (not path.is_file() or "cache" in rel.parts or top in ("maps", "tiles", "checks", "interiors")
                 or str(rel) in covered or path.name.startswith(".") or BLEND.search(path.name)
                 or (top == "cities" and path.name == "plan.json")):
             continue

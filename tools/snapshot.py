@@ -63,11 +63,19 @@ def _launch(pw, gpu: bool):
     try:
         return pw.chromium.launch(**opts)
     except Error as exc:
-        exe = _find_browser() if "Executable doesn't exist" in str(exc) else None
-        if exe is None:
-            raise SnapshotError(f"could not start Chromium ({str(exc).splitlines()[0]}).\n"
-                                "Try: playwright install chromium") from exc
-        return pw.chromium.launch(executable_path=exe, **opts)
+        missing = "Executable doesn't exist" in str(exc)
+        exe = _find_browser() if missing else None
+        if exe is not None:
+            return pw.chromium.launch(executable_path=exe, **opts)
+        if missing:   # no Playwright Chromium at all: the installed Google Chrome, if any
+            try:
+                browser = pw.chromium.launch(channel="chrome", **opts)
+                print("snapshot: Playwright's Chromium is missing, using Google Chrome", file=sys.stderr)
+                return browser
+            except Error:
+                pass
+        raise SnapshotError(f"could not start Chromium ({str(exc).splitlines()[0]}).\n"
+                            "Try: playwright install chromium") from exc
 
 
 def _serve_three(page, three_dir: Path) -> None:

@@ -232,8 +232,10 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`, and how the le
   it; no UVs or vertex colors (`read_parts` cannot read Blender's normalized uint16 colors). The
   fixture `tests/data/blender_kit/` re-exports byte for byte the same.
 - **Resumable builds** (`citygen/buildkey.py`, `build.py`): `build_key` = SHA-256 of settings (minus
-  `output`, `workers`, `area`), style bytes, kit manifests and .glb files, every `citygen/**/*.py`
-  and the sorted planned settlement ids, plus the Python and library versions; stored in `summary.json` and `tiles/index.json`. Plans
+  `output`, `workers`, `area`), the parsed style without `[interiors]` (`NOT_BUILD_STYLE`, since prompt 45;
+  before, the style file's bytes), kit manifests and .glb files, every `citygen/**/*.py` but
+  `citygen/interior/` (`NOT_BUILD_CODE`) and the sorted planned settlement ids, plus the Python and library
+  versions; stored in `summary.json` (with the merged `settings` since prompt 45) and `tiles/index.json`. Plans
   are pickled to `cache/<slug>-<key12>.pkl` right after planning (before tile export can touch
   them); reload resets `plan.settlement` to the world's own object. Tiles are written as
   `.glb.part` then renamed; each finished tile also leaves a note `cache/tiles-<key12>/tile_i_j.json`
@@ -757,6 +759,22 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`, and how the le
   so dar bands are about 2.1 m deep inside: the kbou needs 3 m and appears only in big houses. Slab stair
   doors stand in the window column nearest each section's middle, the same line `Dresser._sections` halves
   at, so flats split on window-column boundaries match prompt 21's lit draws exactly.
+
+- **Interior command** (prompt 45, `citygen/interior/`): the bridge (`Outside`) was checked once against
+  `build_tile` for all 1,005 dwellings of the quick build's 9 tiles (0 differ, 46 pieces the tile drops
+  after `building` handled); the test keeps three picks (slow, 4 s). Exactness needed the owning tile's
+  conditions too: `keep_off` for the port and the props zones runs only when those zones meet the tile.
+  The SPEC's hole rule had to change for windows: `window_shutter_*` and `window_slab_*` carry their open
+  shutters in `door_*` materials beside the glass, so a window uses its glass and the leaf only without
+  glass (a door uses both). `make_interior(..., ctx=)` reuses a loaded `BuildContext`; tests share one
+  module `interior_ctx` (about 1 s for all normal interior tests). Wall time of one interior on the quick
+  capital: 1 s with Python's start. A build written before prompt 45 is refused (no `settings`).
+  Full capital: one interior 1.8-1.9 s in the command (2.5 s wall), plan from the cache.
+- **Snapshot browser** (prompt 45, `tools/snapshot.py` `_launch`): on 2026-10-29 Playwright's own Chromium
+  was gone from `~/Library/Caches/ms-playwright` (also outside the sandbox). When its executable is missing
+  and no other Playwright Chromium is found, the tool launches the installed Google Chrome
+  (`channel="chrome"`) and prints one line saying so; `citygen snapshot` and `before_after.py` work again
+  without a download. `playwright install chromium` (about 250 MB) only with Ali's yes.
 
 ## Known weak spots
 
