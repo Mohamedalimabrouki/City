@@ -1795,11 +1795,81 @@ exterior_fallback = 0.3   # meters, any other district
 court = 0.3               # meters, a courtyard wall
 partition = 0.2           # meters, inner walls of traditional houses
 partition_modern = 0.15   # meters, inner walls of flats, villas and maisons
+cut_shift = 1.2           # meters a cut may move to keep `clear` from every opening (else it is dropped)
+cut_step = 0.05           # meters between the positions a cut tries, nearer first
 
 [interiors.openings]
 frame = 0.12       # meters of frame at both sides and the top of a piece with no glass or leaf
 clear = 0.3        # meters between a partition's face and the edge of any opening
 door = 0.9         # meters, the clear width of an inner door
+door_height = 2.1  # meters, an inner door's head above its floor
+narrow = 0.7       # meters, the door a room gets when no full door fits anywhere (last resort)
+narrow_clear = 0.05   # meters a narrow door keeps from the partitions beside it
+
+[interiors.rooms]  # [least area m2, least width m] (width: twice the largest inscribed circle's radius)
+piece = 0.5        # m2: a smaller piece always joins its neighbour
+bit = [7.0, 2.0]
+maqsura = [2.5, 1.2]
+matbakh = [3.5, 1.4]
+bit_el_ma = [1.8, 0.9]
+bit_el_mouna = [1.5, 0.9]
+skifa = [3.5, 1.2]   # all the skifa rooms of a floor together
+ghorfa = [6.0, 1.8]
+
+[interiors.dar]    # courtyard houses (SPEC 6c "Courtyard house")
+skifa = [3.0, 4.5]       # meters along the entry band (stream skifa), longer up to skifa_reach when needed
+skifa_reach = 6.0        # meters: the longest skifa (or L leg) tried before a plainer one
+baffle = 0.6             # share of the band's depth the baffle reaches from the court wall
+baffle_min = 0.3         # meters: the shortest baffle
+arch_min = 0.8           # meters: the narrowest passage past the baffle
+screen_strip = 1.0       # meters: the least depth of each strip of a skifa bent through its depth
+screen_length = 2.0      # meters: the shortest skifa bent through its depth (deep bands)
+court_door = 1.2         # meters, the T room's double door on the court
+court_door_height = 2.4  # meters
+court_window = { width = 0.8, sill = 0.9, head = 2.1 }   # meters
+window_share = 0.6       # share of bits and kitchens with a court window beside their door (stream court)
+window_every = 3.5       # meters of court wall per upstairs court window
+t_depth = 3.0            # meters: a main band this deep gives the T room its kbou
+kbou = [1.8, 2.6]        # meters wide (stream kbou)
+kbou_depth = 1.0         # meters
+bit_max = 6.0            # meters: a longer bit (or ghorfa) is split
+short_split = 4.4        # meters: a longer short band holds two rooms
+largest = { matbakh = 14.0, bit_el_ma = 8.0, bit_el_mouna = 8.0, skifa = 18.0 }   # m2: a bigger cell gives a service one end; the skifa's rooms together
+bortal = 1.8             # meters deep, the gallery of arches of a rich house
+bortal_wealth = 0.75     # household wealth above which a deep enough band gets a bortal
+arch = 1.6               # meters, one arch of a bortal
+arch_span = 2.2          # meters of gallery per arch
+arch_height = 2.6        # meters
+majel = 0.8              # meters from a court wall, the cistern mouth (stream court)
+fesqiya_wealth = 0.6     # household wealth above which a court without a tree gets a fountain
 
 [interiors.compact]
 min_area = 35.0    # m2 inside the exterior walls: a house without a courtyard below this is `small`
+central = [0.4, 0.45]    # share of the storey's length and width the covered court takes (stream layout)
+central_min = 2.6        # meters, its shortest side
+central_most = 0.45      # share of the storey it may take at most
+central_keep = 0.8       # share of its rectangle the court keeps inside the storey (no slot)
+band = 2.0               # meters: the least depth of rooms on a side of the covered court
+gallery = 1.0            # meters, an upstairs gallery (bortal) along the light well where rooms are cut off
+small_entry = 1.6        # meters deep, the entry strip of a small house
+inner_window = { width = 0.8, sill = 1.6, head = 2.2 }   # meters: upper rooms look into the well
+
+[interiors.stairs]
+newel = 2.4              # meters, a newel cell's side when it fits
+newel_min = 1.9          # meters, its least side
+pier = 0.3               # meters, the central pier
+walk = 0.45              # meters inside the cell's walls: the walking line treads are measured on
+riser_max = { traditional = 0.21, modern = 0.18 }   # meters
+headroom = 2.0           # meters clear over every tread
+landing_strip = 0.45     # meters: strips under twice this between the cell and a wall join the droj
+ladder = [0.6, 1.2]      # meters, a ladder's floor
+threshold = 0.15         # meters: a door further than this off floor 0 gets steps inside
+riser = 0.18             # meters, entry steps
+riser_steep = 0.22       # meters, entry steps where the room is short (a warning)
+tread = 0.3              # meters, entry steps
+side = 0.1               # meters each side beyond the door opening
+turn = 0.9               # meters kept free beyond the entry steps
+
+[interiors.floors]
+slab = 0.25              # meters, a floor slab (prompt 49 lays it)
+roof_room_ceiling = 0.15 # meters, the stair room's ceiling over the roof landing

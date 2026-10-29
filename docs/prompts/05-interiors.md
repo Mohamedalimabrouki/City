@@ -241,6 +241,10 @@ villas and the houses of the new districts, domed houses, and the shops and cafe
 and the roof `newel`), `citygen/interior/` (prompts 45-46), `city/dressing.py` (`_sections`,
 `stair_columns`, `stair_rows`, `_stair_doors`, `front_of`, `_shop`, `_cafe`, `_house_door`, `_light`),
 `city/life.py` (`households`, `family_name`), `city/massing.py` (`masses`, set-back floors, steps).
+From prompt 46: reuse `dar.Job`, `cuts` (`free_cut`, `absorb`, `trim`), `rooms` (`place`, `connect`, `repair`,
+`check`) and `stairs`; a shop front's zone keeps no `clear` beyond its edges (SPEC 6c Walls), so the hanout's
+partition may meet the wall at the shop front's edge but must keep `clear` from the house door; `check` must
+stay empty for every layout (the old-town fixture `old_town` shows the pattern).
 
 **Do.**
 1. `interior/shop.py`: the hanout and makhzen of a souk house (carved from floor 0 before the dar or
@@ -286,6 +290,10 @@ windows, partitions with doors, arches, and a zellige dado in traditional rooms.
 `mesh/builder.py` (`add_walls`, `extrude`, `add_cap`, `add_arch`), `mesh/tile.py` (`building_mesh`,
 `roof_mesh`, `street_frontage` and the lines of `build_tile` that compute its `walk_width` and `reach`),
 `mesh/textures.py`.
+From prompt 46: a skifa is two `skifa` rooms parted by a baffle (or screen) partition whose `arch` opening
+reaches the outer wall: draw that partition only outside the arch; a compact house's `well` rooms upstairs
+are voids (no floor, a balustrade along their edge) and its covered court's walls are partitions; court
+walls are `walls.court` thick (the storey's court grows by it).
 
 **Do.**
 1. `interior/mesh.py`, `walls_mesh(mb, interior, outside, style) -> holes`: exterior and court walls as
@@ -334,6 +342,10 @@ floor and the roof terrace.
 **Read.** SPEC 6c (Stairs, Floors and ceilings, Courtyard house: court features and roof), 6b (benches,
 kiosks and fountains: `water_pool`), `citygen/interior/` (prompts 45-48), `mesh/tile.py` (`roof_mesh`,
 `_coping`, `_opening`), `mesh/furniture.py` (`fountain_colonial`), `city/dressing.py` (`tree`).
+From prompt 46: a `Stair` door's yaw is the way out of the cell (`steps`: the way in from the door, a negative
+riser going down); a droj room may be larger than its `Stair` square (its landing strips); ladders stand in
+the court (menzah), under a stair room no newel reaches, or as the last fallback; `well` rooms get no slab;
+the court's trees are already instances (on the ground surface: move them to the paving).
 
 **Do.**
 1. `interior/mesh.py`, `floors_mesh`: a slab per storey (`slab` 0.25 m, top at the floor's z) less the

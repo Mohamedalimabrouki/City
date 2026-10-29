@@ -133,6 +133,9 @@ class Interior:
     flats: list = field(default_factory=list)
     features: list = field(default_factory=list)   # dicts with a type and a position (majel, tree, fesqiya, skylight)
     warnings: list = field(default_factory=list)
+    rules: dict = field(default_factory=dict)     # the numbers `rooms.check` tests against (not in rooms.json)
+    focus: tuple | None = None                    # (room id, opening id) of the `interior` view (not in rooms.json)
+    entry: object = None                          # the main door's Opening (not in rooms.json)
 
     @property
     def floors(self) -> int:

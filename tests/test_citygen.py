@@ -3543,7 +3543,10 @@ def test_interior_folders_for_three_layouts(interior_build, interior_ctx, tmp_pa
         assert {"interior", "overview"} <= set(index["views"]) and index["interior"]["layout"] == spec[5:]
         rooms = json.loads((out / "rooms.json").read_text())
         assert rooms["layout"] == spec[5:] and rooms["storeys"]
-        assert [r["floor"] for r in rooms["rooms"]] == [s["floor"] for s in rooms["storeys"]]   # one room per storey
+        floors = [r["floor"] for r in rooms["rooms"]]
+        assert {s["floor"] for s in rooms["storeys"]} <= set(floors)
+        if spec == "pick:slab":                                  # still a placeholder: one room per storey
+            assert floors == [s["floor"] for s in rooms["storeys"]]
         for s in rooms["storeys"]:
             assert abs(s["z"] - (rooms["high"] + s["floor"] * rooms["floor_height"])) < 2e-3
 
@@ -3557,8 +3560,9 @@ def test_interior_openings_match_the_facade(interior_ctx):
         outside = Outside(interior_ctx, plan, resolve(interior_ctx, plan, spec))
         interior = plan_interior(outside, interior_ctx.world.style)
         want = _facade_pieces(outside)
-        assert want and [o.piece for o in interior.openings] == [p.piece for p in want], spec
-        for o in interior.openings:
+        facade = [o for o in interior.openings if o.piece]       # inner and court openings have no piece
+        assert want and [o.piece for o in facade] == [p.piece for p in want], spec
+        for o in facade:
             (ax, ay), (bx, by) = o.wall
             off = abs((bx - ax) * (o.y - ay) - (by - ay) * (o.x - ax)) / math.hypot(bx - ax, by - ay)
             assert off < 0.02, (spec, o.piece, off)
@@ -3650,3 +3654,115 @@ def test_interior_two_processes(interior_build, tmp_path):
                         "--out", str(tmp_path / name)], cwd=root, env={**os.environ, "PYTHONHASHSEED": seed},
                        check=True, capture_output=True)
     assert all((tmp_path / "a" / f).read_bytes() == (tmp_path / "b" / f).read_bytes() for f in INTERIOR_FILES)
+
+
+# --- old-town interiors (prompt 46, SPEC 6c) --------------------------------------------------------
+@pytest.fixture(scope="module")
+def old_town(interior_ctx):
+    """(interior, outside) of the 20 dars, 20 compact and 10 small houses nearest the center, planned once."""
+    from citygen.interior.context import city_plan, layout_of
+    from citygen.interior.layout import plan_interior
+    from citygen.interior.outside import Outside
+    plan = city_plan(interior_ctx)
+    style = interior_ctx.world.style
+    centers = shapely.get_coordinates(shapely.centroid([b.footprint for b in plan.buildings]))
+    d = np.hypot(centers[:, 0] - plan.settlement.x, centers[:, 1] - plan.settlement.y)
+    want, out = {"dar": 20, "compact": 20, "small": 10}, []
+    for k in np.lexsort((np.arange(len(d)), d)).tolist():
+        b = plan.buildings[k]
+        lay = layout_of(plan, b, style) if b.kind == "house" else None
+        if want.get(lay, 0) > 0:
+            want[lay] -= 1
+            outside = Outside(interior_ctx, plan, k)
+            out.append((plan_interior(outside, style), outside))
+        if not any(want.values()):
+            break
+    return out
+
+
+def test_old_town_plans_are_valid(old_town):
+    from citygen.interior import rooms
+    assert len(old_town) == 50
+    for interior, _ in old_town:
+        assert rooms.check(interior) == [], (interior.building, interior.layout)
+        assert interior.layout in ("dar", "compact", "small")
+
+
+def test_fallbacks_report_their_layout(interior_ctx, old_town):
+    from citygen.interior.context import city_plan, layout_of, resolve
+    from citygen.interior.layout import plan_interior
+    from citygen.interior.outside import Outside
+    plan = city_plan(interior_ctx)
+    style = interior_ctx.world.style
+    k = resolve(interior_ctx, plan, "pick:compact")
+    interior = plan_interior(Outside(interior_ctx, plan, k), style)
+    assert interior.layout == "compact"
+    assert any(r.type == "wast_ed_dar" and not r.open and r.floor == 0 for r in interior.rooms)
+    fell = [i for i, o in old_town if layout_of(o.plan, o.b, style) == "compact" and i.layout != "compact"]
+    assert fell and all(i.layout == "small" for i in fell)     # a crowded compact house says it is small
+    assert all(not any(r.type == "wast_ed_dar" for r in i.rooms) for i in fell)
+
+
+def test_skifa_hides_the_courtyard(old_town):
+    from citygen.interior import rooms
+    dars = [(i, o) for i, o in old_town if i.layout == "dar"]
+    assert len(dars) == 20
+    for interior, outside in dars:
+        rules, spot = interior.rules, outside.doors[0]
+        door = min((o for o in interior.openings if o.kind == "door" and o.floor == 0),
+                   key=lambda o: math.hypot(o.x - spot.x, o.y - spot.y))
+        assert interior.rooms[door.rooms[0]].type == "skifa", interior.building
+        court = next(r for r in interior.rooms if r.type == "wast_ed_dar")
+        half = rules["partition"] / 2
+        free = shapely.union_all([r.polygon.buffer(-half, join_style="mitre") for r in interior.rooms
+                                  if r.floor == 0 and r is not court] + [court.polygon] +
+                                 [rooms.gap(o, rules) for o in interior.openings if o.floor == 0 and o.kind in rooms.PASS])
+        along = np.array([math.cos(door.yaw), math.sin(door.yaw)])
+        face = np.array([door.x, door.y]) + np.array([math.sin(door.yaw), -math.cos(door.yaw)]) * (rules["exterior"] + 0.01)
+        starts = [face + along * t for t in (-door.width / 2 + 0.05, 0.0, door.width / 2 - 0.05)]
+        x0, y0, x1, y1 = court.polygon.bounds
+        ends = [(x, y) for x in range(math.floor(x0), math.ceil(x1) + 1) for y in range(math.floor(y0), math.ceil(y1) + 1)
+                if court.polygon.contains(shapely.Point(x, y))]
+        lines = shapely.linestrings([[s, e] for s in starts for e in ends])
+        assert ends and not shapely.covers(free, lines).any(), interior.building
+
+
+def test_old_town_stairs(old_town):
+    for interior, outside in old_town:
+        roof = next((lay for m, lay in outside.roofs if m.main), None)
+        newel = [s for s in interior.stairs if s.kind == "newel"]
+        droj = {r.id: r for r in interior.rooms if r.type == "droj"}
+        if interior.floors > 1 or (roof is not None and roof.stair is not None):
+            assert len(newel) == 1, interior.building
+            s = newel[0]
+            floors = [interior.rooms[i].floor for i in s.rooms]
+            assert floors == list(range(len(floors))) and len(floors) >= interior.floors, interior.building
+            for i in s.rooms:
+                if interior.rooms[i].floor < interior.floors:      # the same cell on every floor
+                    assert s.polygon.difference(droj[i].polygon).area < 1e-3, interior.building
+        if roof is not None and roof.stair is not None and newel:
+            s = newel[0]
+            assert s.polygon.difference(roof.stair).area < 1e-3, interior.building
+            assert math.cos(s.door[2] - roof.door[2]) > 0.7, interior.building   # the stair room door's side
+            assert any(r.type == "stah" for r in interior.rooms)
+        rise = interior.high - outside.doors[0].z
+        assert (abs(rise) > 0.15) == any(s.kind == "steps" for s in interior.stairs), interior.building
+        for s in interior.stairs:
+            if s.kind == "ladder":
+                assert roof is not None and roof.menzah is not None and roof.stair is None, interior.building
+        assert all(s.riser <= 0.21 + 1e-9 for s in newel)
+
+
+def test_interior_plans_tool(interior_build, interior_ctx, tmp_path):
+    import importlib.util
+    from pathlib import Path
+    from PIL import Image
+    path = Path(__file__).resolve().parents[1] / "tools" / "interior_plans.py"
+    spec = importlib.util.spec_from_file_location("interior_plans", path)
+    tool = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(tool)
+    out = tmp_path / "plans.png"
+    tool.draw(tool.interiors(["pick:dar", "pick:small"], interior_build, interior_ctx), out)
+    with Image.open(out) as image:
+        assert image.width <= 1800 and image.height > 200
+

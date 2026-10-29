@@ -81,6 +81,10 @@ and care as the last one: keep this file up to date when you learn something tha
   `--out` pointing back into `output/`), so half-made edits never mix in; the same copy builds a HEAD
   quick city to count instances against. Look at new camera views in the GPU viewer: the seed 7
   cathedral view first stood against a wall, then inside a tree crown, both invisible in the numbers.
+- **Survey the whole city, not the fixture** (prompt 46): a helper's tests can all pass while the
+  program is wrong. A 20-line script over every house of the quick capital (rooms per type, sizes,
+  what is missing) found 61 compact houses without a kitchen and 30 m2 washrooms that `rooms.check`
+  never looked at. Write it while the helper works, and send the numbers back with examples.
 - **A helper cut off by an error** (a network drop): `git diff` to see where it stopped, then SendMessage
   to the same helper; it resumes with its context.
 - **Blind, exact reruns.** To rerun a prompt, take its exact text from the transcript and compare its
@@ -97,6 +101,9 @@ More in the auto-memory note on the Mac environment.
 - Snapshots, before/after pictures, the gallery and the phone-page preview start local web servers: run
   them with the sandbox off. `open` and `osascript` are blocked inside the sandbox: give Ali the
   command instead.
+- Playwright's cached Chromium vanished on 29 October; since commit 19cc596 `tools/snapshot.py` falls
+  back to the installed Google Chrome (`channel="chrome"`, one line on stderr says so). Never run
+  `playwright install` (about 250 MB) without Ali's yes.
 - The gallery: `Open City Gallery.command` or `.venv/bin/python -m citygen gallery` (port 8765, or a
   free one). If Ali sees "localhost refused to connect", it is not running: start it for him in the
   app's Terminal panel (`run_in_terminal`), where it keeps running after your turn.

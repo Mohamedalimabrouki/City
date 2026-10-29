@@ -16,9 +16,9 @@ Entry format:
 ```
 
 ## 2026-10-25 - Resume here (paused after prompt 43, CP4)
-- State: prompts 1-45 are done, committed and pushed (branch `claude/procedural-city-generator-xop72h`;
-  CP4, prompt 43, on 25 October; 44, the interiors design, and 45, the interior command, on 29 October).
-  Next is prompt 46; continue when Ali says (for example "Do prompt 46." or "continue the playbook"). Weekly limit on 29 October:
+- State: prompts 1-46 are done (branch `claude/procedural-city-generator-xop72h`; CP4, prompt 43, on 25
+  October; 44, the interiors design, 45, the interior command, and 46, old-town house plans, on 29 October).
+  Next is prompt 47; continue when Ali says (for example "Do prompt 47." or "continue the playbook"). Weekly limit on 29 October:
   16% used (resets Tuesday 3 November, about 21:00 UTC).
 - How the work runs since prompt 20 (DeepSeek usage ended after 19): the lead session (Opus) briefs one
   Opus `city-builder` helper per prompt (effort from the playbook table). The helper reads CLAUDE.md, its
@@ -42,6 +42,38 @@ Entry format:
 - Doubts and questions for Ali: in the CP4 entry below.
 - Added after the pause note, at Ali's request: the city gallery and keyboard navigation, the cemetery
   cypress that won a model duel, and the plan of two tracks after prompt 100 (entries below).
+
+## 2026-10-29 - Prompt 46 H1b Courtyard houses and compact houses
+- Commit: (lead commits) | Model: Opus 5.5, high
+- Changed: new citygen/interior/cuts.py, rooms.py, stairs.py, dar.py, compact.py, program.py; interior/layout.py (`PLANS`,
+  storeys grow the court by the court wall), model.py (`rules`, `focus`, `entry`, not in rooms.json),
+  export.py (court trees as instances, `interior` view from the layout's focus); styles/maghreb.toml
+  (`[interiors.rooms]`, `.dar`, `.stairs`, `.floors`, more in `.walls`, `.openings`, `.compact`); new
+  tools/interior_plans.py; tests/test_citygen.py (5 new tests, 2 prompt-45 tests adapted to real layouts);
+  docs (SPEC 6c marks and settled rules, module table, SPEC 9; prompts 47-49 notes; HANDOFF; ROADMAP).
+- Checks: tests 117 passed in about 30 s (new: the 50-house fixture 1.3 s, 5 tests about 0.4 s); slow
+  interior tests 2 passed; build --quick reused everything; fingerprint `--allow ""`: 282 parts, 0 changed.
+  City-wide one-off scripts (not committed): quick capital 639 of 655 old-town houses pass `rooms.check`,
+  which also tests the program (by reported layout 210 dars, 339 compact, 106 small; no crash; slowest
+  0.3 s); full capital sample of 300: 290 pass (slowest 0.56 s).
+- Lead review, three follow-ups: (1) the room program (survey of every quick-capital house, before ->
+  after, dar/compact/small): no matbakh 21/61/16 -> 0/0/9 (one-room floors), no bit on floor 0 3/126/7 ->
+  0/0/0, bit el ma over 8 m2 28/149 -> 0/0, matbakh over 14 m2 11/25/6 -> 0/0/0 (new `program.py`,
+  merges keep types, `check` tests the program); (2) covered courts narrower than 2.55 m 30 -> 0
+  (`central()` rejects slots and courts keeping under 80% of their rectangle); (3) a house that falls back
+  reports the layout it got (77 crowded compact houses say `small`) and `pick:` skips such houses. Left by
+  reported layout: compact without bit el ma 18, without skifa 26; dars without skifa 4. Fallbacks seen:
+  11 ladders, 493 entry steps, upstairs galleries in a few compact houses.
+- Look: output/checks/46.png (pick:dar:1 No. 614, pick:dar:2 No. 599, pick:compact:2 No. 262): bent skifas
+  with entry steps, the T room across the court with its double door and two windows, kitchen beside the
+  skifa, stairs under the roof's stair room, ghorfas in a ring upstairs, the stah; No. 262's covered court
+  on its west wall with a light well upstairs. No. 193 (its court was a 1.65 m slot) now runs the small
+  program and says `small`. 3D: output/bodjantouna-42/interiors/goumosbane-599 (walls still the tile shell
+  until prompt 48).
+- Doubts and questions for Ali: none needing a choice. Open items for the lead: 8 of 210 quick dars (7 of 97
+  sampled full) still let the street see the court (tight corner lots); 26 of 339 compact houses have no
+  skifa (it is capped at 18 m2) and 77 crowded ones run the small program; 8 houses keep small leftovers (undersized ghorfa or bit, 2 skifa walls near a window). The kbou appears in
+  21 houses only (most bands are 2.1-2.4 m deep).
 
 ## 2026-10-29 - Prompt 45 H1a Interior model and command
 - Commit: (lead commits) | Model: Opus 5.5, high

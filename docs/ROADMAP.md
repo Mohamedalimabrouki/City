@@ -57,7 +57,7 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
 - [x] 43 CP4 Checkpoint: people, landmarks, port (6 fixes, speed round byte-identical, cathedral fallback for shallow boulevard blocks)
 - [x] 44 H1 Interiors: the design (SPEC 6c; prompts 45-50 rewritten)
 - [x] 45 H1a Interior model and command (`python -m citygen interior`, facade bridge, placeholder rooms)
-- [ ] 46 H1b Courtyard houses
+- [x] 46 H1b Courtyard houses
 - [ ] 47 H1c Apartments, villas, shops
 - [ ] 48 H1d Interior walls and openings
 - [ ] 49 H1e Floors, stairs, roof terrace

@@ -16,6 +16,7 @@ from ..city.massing import main_mass
 from ..mesh.builder import MeshBuilder, add_cap
 from ..mesh.gltf import write_glb
 from ..mesh.textures import encoded, image_names, spec_for
+from ..mesh.props import tree_mesh
 from ..mesh.tile import building_mesh, instance_groups
 
 FLOOR = "paving"            # placeholder floor caps (prompt 49 lays real floors)
@@ -34,7 +35,7 @@ def write_folder(interior, outside, out) -> Path:
     building_mesh(mb, b, outside.ctx.ground.height, roofs=outside.roofs)   # the tile's shell (prompt 48 replaces it)
     for st in interior.storeys:
         add_cap(mb, st.polygon, st.z, FLOOR)
-    instances = instance_groups(outside, outside.placements, x0, y0)
+    instances = instance_groups(outside, outside.placements + court_trees(interior, outside, mb), x0, y0)
     parts = mb.gltf_parts()
     materials = {**outside.kit.materials, **cfg.get("palette", {})}
     images = used_images(world.style, world.seed, materials, [*parts, *(m for g in instances for m in g["parts"])])
@@ -51,6 +52,24 @@ def write_folder(interior, outside, out) -> Path:
     _write_json(tiles / "index.json", index_of(interior, outside, cfg, x0, y0, max(maxx - minx, maxy - miny),
                                                {"i": 0, "j": 0, "file": glb.name, "x0": x0, "y0": y0,
                                                 "triangles": triangles, "bytes": size}))
+    return out
+
+
+def court_trees(interior, outside, mb) -> list:
+    """The plan's trees standing in the court, as the tile draws them: kit pieces (`Dresser.tree`, on the
+    tree's own stream) or, without a tree piece, the generator's mesh."""
+    out = []
+    dresser = outside.ctx.dresser(outside.plan)
+    for f in interior.features:
+        if f["type"] != "tree":
+            continue
+        t = outside.plan.trees[f["tree"]]
+        z = float(outside.ctx.ground.surface(t.x, t.y))
+        got = dresser.tree(f["tree"], t, z)
+        if got is not None:
+            out.append(got)
+        else:
+            tree_mesh(mb, t, z)
     return out
 
 
@@ -83,8 +102,15 @@ def index_of(interior, outside, cfg: dict, x0: int, y0: int, extent: float, entr
 
 
 def inside_view(interior, outside, cfg: dict) -> dict:
-    """Eye height on the pole of inaccessibility of the main room, looking at its focus opening `look` m up
-    (the placeholder of prompt 45: floor 0 toward the main door)."""
+    """Eye height on the pole of inaccessibility of the main room, looking at its focus opening `look` m up:
+    the layout's `focus` (dar: from the court to the T room's door; compact: from the covered court to the
+    main bit's door; small: the bit toward its window), else floor 0 toward the main door."""
+    if interior.focus is not None:
+        room, op = interior.rooms[interior.focus[0]], interior.openings[interior.focus[1]]
+        p = polylabel(room.polygon, tolerance=0.05)
+        eye, look = float(cfg.get("eye", 1.6)), float(cfg.get("look", 1.4))
+        return {"cam": [round(p.x, 3), round(p.y, 3), round(room.z + eye, 3)],
+                "look": [round(op.x, 3), round(op.y, 3), round(room.z + look, 3)]}
     room = interior.rooms[0]
     p = polylabel(room.polygon, tolerance=0.05)
     doors = [o for o in interior.openings if o.floor == room.floor and o.kind in ("door", "shop")]

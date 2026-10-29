@@ -125,9 +125,20 @@ def layout_of(plan, b, style: dict) -> str | None:
     return "compact" if inner.area >= least else "small"
 
 
+def keeps(ctx: BuildContext, plan, k: int, layout: str) -> bool:
+    """True when building k's plan keeps `layout` (a dar whose court closes, or a crowded compact house,
+    falls back to another layout)."""
+    if layout not in ("dar", "compact"):
+        return True
+    from .layout import plan_interior
+    from .outside import Outside
+    return plan_interior(Outside(ctx, plan, k), ctx.world.style).layout == layout
+
+
 def resolve(ctx: BuildContext, plan, spec) -> int:
     """Building number k from a number or `pick:<layout>[:<floors>]` (the dwelling of that layout nearest
-    the settlement center, the lower number on a tie)."""
+    the settlement center, the lower number on a tie, whose plan keeps that layout: houses that fall back
+    are skipped; a number is never re-checked)."""
     spec = str(spec).strip()
     city = plan.settlement.name
     if spec.isdigit():
@@ -152,7 +163,7 @@ def resolve(ctx: BuildContext, plan, spec) -> int:
     for k in np.lexsort((np.arange(len(d)), d)).tolist():
         b = plan.buildings[k]
         if (b.kind in HOUSING and (floors is None or int(b.floors) == floors)
-                and layout_of(plan, b, ctx.world.style) == layout):
+                and layout_of(plan, b, ctx.world.style) == layout and keeps(ctx, plan, k, layout)):
             return k
     with_floors = f" with {floors} floors" if floors is not None else ""
     raise InteriorError(f"{city} has no {layout} dwelling{with_floors} in this build.")

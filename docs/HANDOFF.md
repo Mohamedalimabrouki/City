@@ -775,6 +775,28 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`, and how the le
   and no other Playwright Chromium is found, the tool launches the installed Google Chrome
   (`channel="chrome"`) and prints one line saying so; `citygen snapshot` and `before_after.py` work again
   without a download. `playwright install chromium` (about 250 MB) only with Ali's yes.
+- **Old-town interiors** (prompt 46, `interior/cuts.py`, `rooms.py`, `stairs.py`, `dar.py`, `compact.py`):
+  judge them with `tools/interior_plans.py` (no browser) and a one-off script that runs `rooms.check` over
+  every dar, compact and small house: the 50-house test fixture passed long before the whole city did.
+  Lessons: shapely overlays need a grid (`grid_size=1e-6`) or the two sides of a cut do not union back;
+  mixed-dimension results crash later overlays (keep only polygons, `cuts.parts`); bounding-box band
+  lines leave wedges against a slanted court side (each side needs its own frame); a fixed `bend` does
+  not hide the court (test the sight lines themselves); a skifa needs fallbacks (baffle, screen through
+  the depth, L into the next band); the light well of a covered court can cut upstairs rooms off (a
+  gallery); thin strips between a stair cell and a wall must join the stair, but only straight beside it;
+  room ids must stay unique after merges (`rooms.next_id`); `for ... else` does not run its `else` after a
+  `break` (it lost rooms once). Without `[interiors.rooms]` in the style every minimum-size rule silently
+  vanished: the style tables are part of the behaviour, rerun the city-wide script after editing them.
+  Judge the program, not only the geometry (lead review): the first version passed every geometric check
+  while 61 compact houses had no kitchen, a 30 m2 washroom stood beside no bit and kitchens vanished into
+  bits. Types must be decided after the merges (`program.assign`), merges must respect them (a service
+  never grows past `largest`, doors before merges), and `rooms.check` must test the program
+  (`program.problems`) so the fixture and the city-wide script measure it. One ordering bug merged whole
+  houses into one room: a door pass ran while the street doors were unassigned.
+  Open: 8 of 210 quick-capital dars (7 of 97 sampled in the full capital) still let the street see the
+  court, on tight corner lots; 77 of the 416 houses `layout_of` calls compact run the small program (no
+  court of 2.6 m fits once slots are refused, or the court crowds it) and now report `small`; `pick:` skips
+  fallbacks, so Looks show the layout they name. Of the 339 real compact houses 26 have no skifa.
 
 ## Known weak spots
 
