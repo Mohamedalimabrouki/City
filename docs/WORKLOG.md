@@ -54,6 +54,9 @@ Entry format:
 - Doubts and questions for Ali: in the CP4 entry below.
 - Added after the pause note, at Ali's request: the city gallery and keyboard navigation, the cemetery
   cypress that won a model duel, and the plan of two tracks after prompt 100 (entries below).
+- 30 October: Ali wants his promotional API credit ($86.51, expires 14 November) spent before his weekly
+  limit. It does not pay for Claude Code, so `tools/run_on_credit.py` runs a prompt through the Agent SDK
+  instead (a billing test passed); how to use it: `docs/LEAD.md`, section 4.
 
 ## 2026-10-29 - Prompt 47 H1c Apartments, villas, domed houses and shops
 - Commit: (lead commits) | Model: Opus 5.5, high

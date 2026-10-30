@@ -129,6 +129,13 @@ More in the auto-memory note on the Mac environment.
   tool before publishing to it; 16 MB per file, 64 MB per publish. The built-in browser is not signed in
   to Claude, so it cannot show the live page: check a host-like local copy (HANDOFF, "Phone page").
 - macOS `ls -l` shows extended attributes: do not parse its columns.
+- Ali's API credit (30 October): his Console credit is promotional ($100 granted 11 October, expires 14
+  November) and pays for the API and the Agent SDK, not Claude Code; anything started inside the Claude
+  app (chat, "!" box, Terminal tabs) uses his Max plan. To spend the credit, run a prompt with
+  `.venv-sdk/bin/python tools/run_on_credit.py "Do prompt N."` outside the sandbox (a Terminal tab): the
+  same lead (Opus, high effort, this folder's settings) runs through the Agent SDK on the Console key
+  that `claude auth login --console` saved, and `--resume "..."` answers it. Its session file lands in
+  `~/.claude/projects/` like any other, for review.
 
 ## 5. Where the decisions are
 
