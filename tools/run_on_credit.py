@@ -30,6 +30,9 @@ LAST_SESSION = ROOT / ".venv-sdk" / "last_session"
 # The Claude app gives every command it starts its own account (the Max plan); drop those settings
 # so the Console login is used.
 APP_PREFIXES = ("CLAUDE", "ANTHROPIC_")
+# Without a chat window Claude stops background helpers still working 10 minutes after the lead's
+# turn ends (prompt 48's first helper, 30 October); 0 waits for them however long they take.
+WAIT_FOR_HELPERS = {"CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS": "0"}
 TOOL_ARGS = ("command", "file_path", "path", "pattern", "description", "url")
 
 
@@ -51,6 +54,7 @@ def options(args: argparse.Namespace) -> ClaudeAgentOptions:
         setting_sources=["user", "project", "local"],
         system_prompt={"type": "preset", "preset": "claude_code"},
         extra_args={"strict-mcp-config": None},
+        env=WAIT_FOR_HELPERS,
     )
 
 
@@ -97,7 +101,11 @@ def main() -> int:
     parser.add_argument("--effort", default="high", choices=["low", "medium", "high", "xhigh", "max"])
     args = parser.parse_args()
     clean_env()
-    return asyncio.run(run(args))
+    try:
+        return asyncio.run(run(args))
+    except KeyboardInterrupt:
+        print("\n[stopped; continue later with --resume]")
+        return 130
 
 
 if __name__ == "__main__":

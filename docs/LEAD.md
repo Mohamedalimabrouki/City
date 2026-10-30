@@ -135,7 +135,9 @@ More in the auto-memory note on the Mac environment.
   `.venv-sdk/bin/python tools/run_on_credit.py "Do prompt N."` outside the sandbox (a Terminal tab): the
   same lead (Opus, high effort, this folder's settings) runs through the Agent SDK on the Console key
   that `claude auth login --console` saved, and `--resume "..."` answers it. Its session file lands in
-  `~/.claude/projects/` like any other, for review.
+  `~/.claude/projects/` like any other, for review. Without a chat window Claude stops background
+  helpers 10 minutes after the lead's turn ends (prompt 48's first helper died so, unnoticed by its
+  lead): the launcher sets `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0` to wait for them.
 
 ## 5. Where the decisions are
 
