@@ -60,7 +60,8 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
 - [x] 46 H1b Courtyard houses
 - [x] 47 H1c Apartments, villas, shops
 - [ ] 47.1 H1c fix: colonial flats to the bar (39% pass), the slowest colonial block (14 s)
-- [ ] 48 H1d Interior walls and openings
+- [x] 48 H1d Interior walls and openings (holes matching the facade, frames and leaves, zellige dado)
+- [ ] 48.1 H1d fix: plan faults the walls reveal (`mesh.faults`: slab 98/176, colonial 81/90, villa 60/89; with 47.1)
 - [ ] 49 H1e Floors, stairs, roof terrace
 - [ ] 50 H1f Interiors in the viewer
 - [ ] 51 H2 Furnishing: the design

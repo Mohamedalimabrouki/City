@@ -826,6 +826,28 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`, and how the le
   search by unique layouts, not by cuts, or quality drops; develop on a subset, run the whole survey once per
   round, and keep each survey script under a name of its own (the scratchpad is shared). Scratchpad scripts: the lead and the helper
   share the scratchpad folder; give one-off scripts distinct names (a survey47.py was overwritten).
+- **Interior walls** (prompt 48, `interior/mesh.py`): take the outer faces from the tile itself, not a
+  copy of its logic: `building_mesh` is now `building_walls` + `building_tops` (same order of mesh adds,
+  fingerprint 0 changed), and the interior records `building_walls`' quads with a stand-in builder
+  (`Recorder`) and cuts holes only in the quads an opening crosses, so plinth, frontage, ground and UVs
+  match the tile by construction. Draw inner faces per room from its free floor (the room less each walled
+  neighbour grown by half a partition): one rule gives exterior, court and partition faces, mitred
+  junctions and no end caps, so nothing z-fights. Find an opening's faces by geometry (parallel, on one
+  of its wall's two faces), never by bookkeeping. Modern `arch` passages span the whole shared edge
+  (center line to center line): cut them only where both sides have a face. An iron balcony
+  (`balcony_iron_long` spans several windows, so the bridge's 0.1 m rule makes it an opening) is a
+  railing: no hole (`[interiors.openings] railings`). The wall check (`mesh.faults`) sees plan defects
+  `rooms.check` misses: stair cells standing 0.1-0.2 m off an exterior wall (under the roof stair room),
+  leaving a sliver of the next room and the stair's partition a few cm behind a window or door; doors
+  placed at a partition junction; court openings past a court corner; thin hall strips along colonial
+  facades. Through a window hole the legacy kit windows (`props.window`: grille and shutter) showed the back
+  of their stone surround, modeled as a solid box 0.02 m into the wall (tan), and of their glass box: the
+  interior drops a window or balcony piece's wall-facing faces at or behind the wall face (an interior-only
+  copy of its parts, `export.seen_from_inside`; tiles untouched) and adds its own glazed casement with
+  see-through `glass_inner` (alpha, the first in the project). The prompt 20.1 pieces are one-sided quads,
+  already invisible from inside. Snapshot an inside view
+  with a copy of the folder whose index.json `interior` view is moved into a room: the dar's own view
+  stands in its court, often behind the court tree.
 
 ## Known weak spots
 

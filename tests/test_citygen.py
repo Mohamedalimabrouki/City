@@ -1,4 +1,5 @@
 """Fast checks for the whole pipeline (about 20 seconds). Run: python -m pytest -q"""
+import collections
 import functools
 import json
 import math
@@ -3956,3 +3957,72 @@ def test_only_dwellings(interior_ctx):
         k = next(k for k, b in enumerate(plan.buildings) if b.kind == kind)
         with pytest.raises(InteriorError, match="only dwellings"):
             resolve(interior_ctx, plan, str(k))
+
+
+# --- interior walls and openings (prompt 48, SPEC 6c "Walls") ---------------------------------------
+def _wall_samples(old_town, new_districts) -> list:
+    """(interior, outside): the first 5 old-town houses of each layout and one of every other group."""
+    out, seen = [], collections.Counter()
+    for interior, outside in old_town:
+        if seen[interior.layout] < 5:
+            seen[interior.layout] += 1
+            out.append((interior, outside))
+    return out + [item for items in new_districts.values() for item in items]
+
+
+OPEN_48 = {193: ["a partition crosses opening 1 (window)"],     # open item 48.1 (WORKLOG): a stair cell 0.1-0.2 m
+           322: ["a partition crosses opening 8 (window)"]}    # off the wall, its partition in front of a window
+
+
+def test_interior_holes_match_the_facade(interior_ctx, old_town, new_districts):
+    from citygen.interior import mesh as M
+    from citygen.interior.outside import hole
+    from citygen.mesh.builder import MeshBuilder
+    style = interior_ctx.world.style
+    frame = float(style["interiors"]["openings"]["frame"])
+    railings = style["interiors"]["openings"]["railings"]
+    samples = _wall_samples(old_town, new_districts)
+    assert {i.layout for i, _ in samples} >= {"dar", "compact", "small", "koubba", "colonial", "slab", "villa", "maison"}
+    for interior, outside in samples:
+        mb = MeshBuilder()
+        holes = {h.id: h for h in M.walls_mesh(mb, interior, outside, style)}
+        assert mb.triangles
+        found = M.faults(interior, list(holes.values()), style)
+        if interior.layout in OPEN_47:                # open item 47.1: partitions near windows in flats
+            found = [f for f in found if not f.startswith("a partition crosses")]
+        assert found == OPEN_48.get(interior.building, []), interior.building
+        facade = [o for o in interior.openings if o.piece]
+        pieces = _facade_pieces(outside)
+        assert [o.piece for o in facade] == [p.piece for p in pieces]
+        for o, p in zip(facade, pieces):            # the piece's own rectangle, measured here from the kit
+            if p.piece in railings:
+                assert o.id not in holes                # an iron balcony stands on a solid wall
+                continue
+            x0, x1, y0, y1 = hole(outside.kit, p.piece, frame)
+            along = p.scale * p.stretch
+            cx = p.x + math.cos(p.yaw) * (x0 + x1) / 2 * along
+            cy = p.y + math.sin(p.yaw) * (x0 + x1) / 2 * along
+            h = holes[o.id]
+            off = (h.x - cx) * math.cos(p.yaw) + (h.y - cy) * math.sin(p.yaw)
+            got = (off, h.width - (x1 - x0) * along, h.z0 - (p.z + y0 * p.scale), h.z1 - (p.z + y1 * p.scale))
+            assert max(abs(v) for v in got) < 0.02, (interior.building, p.piece, got)
+            assert abs(h.back - h.width) < 0.02, (interior.building, p.piece, h.back)   # cut through to the room
+
+
+def test_interior_budget(interior_build, interior_ctx, tmp_path):
+    from citygen.interior.command import make_interior
+    from citygen.interior.context import city_plan, layout_of
+    plan = city_plan(interior_ctx)
+    style = interior_ctx.world.style
+    for layout in ("slab", "dar"):
+        ks = [k for k, b in enumerate(plan.buildings)
+              if b.kind in ("house", "apartments") and layout_of(plan, b, style) == layout]
+        k = max(ks, key=lambda k: (plan.buildings[k].footprint.area * plan.buildings[k].floors, -k))
+        out = make_interior(interior_build, str(k), out=tmp_path / layout, log=lambda m: None, ctx=interior_ctx)
+        tile = json.loads((out / "tiles" / "index.json").read_text())["tiles"][0]
+        assert tile["triangles"] < 150_000 and tile["bytes"] < 25_000_000, (layout, k, tile)
+        gltf, _ = read_glb(out / "tiles" / "interior.glb")
+        names = {m["name"] for m in gltf["materials"]}
+        assert {"plaster_inner", "door_leaf", "door_frame"} <= names, layout
+        if layout == "dar":
+            assert "zellige" in names

@@ -10,14 +10,17 @@ import math
 import os
 from pathlib import Path
 
+import numpy as np
+
 from shapely.ops import polylabel
 
 from ..city.massing import main_mass
 from ..mesh.builder import MeshBuilder, add_cap
 from ..mesh.gltf import write_glb
-from ..mesh.textures import encoded, image_names, spec_for
+from ..mesh.textures import DEFAULTS, encoded, image_names, spec_for
 from ..mesh.props import tree_mesh
-from ..mesh.tile import building_mesh, instance_groups
+from ..mesh.tile import building_tops, instance_groups, ring_heights
+from .mesh import walls_mesh
 
 FLOOR = "paving"            # placeholder floor caps (prompt 49 lays real floors)
 HOMES = ("house", "domed", "villa")   # "Dar <family>", as the viewer's card names them
@@ -32,10 +35,15 @@ def write_folder(interior, outside, out) -> Path:
     minx, miny, maxx, maxy = b.footprint.bounds
     x0, y0 = math.floor(minx - margin), math.floor(miny - margin)
     mb = MeshBuilder(origin=(x0, y0))
-    building_mesh(mb, b, outside.ctx.ground.height, roofs=outside.roofs)   # the tile's shell (prompt 48 replaces it)
-    for st in interior.storeys:
+    walls_mesh(mb, interior, outside, world.style)        # the shell: walls with holes, then the tile's roofs
+    high = float(ring_heights(outside.ctx.ground, [b])[0].max())    # as the tile's building_walls reads it
+    building_tops(mb, b, outside.ctx.ground.height, high, roofs=outside.roofs)
+    for st in interior.storeys:                           # placeholder floors until prompt 49
         add_cap(mb, st.polygon, st.z, FLOOR)
     instances = instance_groups(outside, outside.placements + court_trees(interior, outside, mb), x0, y0)
+    for g in instances:
+        if outside.kit.pieces[g["name"]].category in SEEN_THROUGH:
+            g["parts"] = seen_from_inside(g["parts"])
     parts = mb.gltf_parts()
     materials = {**outside.kit.materials, **cfg.get("palette", {})}
     images = used_images(world.style, world.seed, materials, [*parts, *(m for g in instances for m in g["parts"])])
@@ -47,11 +55,32 @@ def write_folder(interior, outside, out) -> Path:
                      extras={"building": interior.building, "city": interior.city, "x0": x0, "y0": y0},
                      instances=instances, images=images)
     os.replace(part, glb)
-    triangles = mb.triangles + sum(outside.kit.pieces[g["name"]].triangles for g in instances)
+    triangles = mb.triangles + sum(len(part["idx"]) // 3 for g in instances for part in g["parts"].values())
     _write_json(out / "rooms.json", interior.to_json())
     _write_json(tiles / "index.json", index_of(interior, outside, cfg, x0, y0, max(maxx - minx, maxy - miny),
                                                {"i": 0, "j": 0, "file": glb.name, "x0": x0, "y0": y0,
                                                 "triangles": triangles, "bytes": size}))
+    return out
+
+
+SEEN_THROUGH = ("window", "balcony")   # pieces whose hole a room looks out through
+BEHIND = 0.03                          # meters: faces this near the wall face, or behind it, face the wall
+
+
+def seen_from_inside(parts: dict) -> dict:
+    """A window or balcony piece for the interior only: without the faces turned toward the wall at or
+    behind its face (the back of a solid stone surround, of a glass box), hidden in a tile, which would
+    close the hole seen from the room. Piece frame: glTF axes, the street toward -z."""
+    out = {}
+    for mat, part in parts.items():
+        idx = np.asarray(part["idx"]).reshape(-1, 3)
+        tri = np.asarray(part["pos"])[idx]
+        n = np.cross(tri[:, 1] - tri[:, 0], tri[:, 2] - tri[:, 0])
+        inward = n[:, 2] > 0.9 * np.maximum(np.linalg.norm(n, axis=1), 1e-12)
+        drop = inward & (tri[:, :, 2].min(axis=1) > -BEHIND)
+        if drop.all():
+            continue
+        out[mat] = {**part, "idx": idx[~drop].reshape(-1)} if drop.any() else part
     return out
 
 
@@ -74,12 +103,15 @@ def court_trees(interior, outside, mb) -> list:
 
 
 def used_images(style: dict, seed: int, materials: dict, names) -> dict:
-    """Embedded images for the textures these materials use, and no other (`mesh/textures.encoded`)."""
-    known = set(image_names(style))
+    """Embedded images for the textures these materials use, and no other (`mesh/textures.encoded`); an
+    interior-only texture (zellige) takes its numbers from `[interiors.textures]`."""
+    own = style.get("interiors", {}).get("textures", {})
+    known = set(image_names(style)) | set(own)
     wanted = sorted({materials.get(m, {}).get("texture") for m in names} & known)
     out = {}
     for name in wanted:
-        enc = encoded(name, seed, spec_for(style, name))
+        spec = {**DEFAULTS, **own[name]} if name in own else spec_for(style, name)
+        enc = encoded(name, seed, spec)
         out[name] = {"bytes": enc.data, "mime": enc.mime}
     return out
 

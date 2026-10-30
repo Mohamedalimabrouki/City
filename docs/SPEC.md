@@ -135,7 +135,7 @@ build.build()                 orchestrates the above into output/<country>-<seed
 | `citygen/city/station.py` | the railway station (prompt 33): site at the colonial edge, track layout and corridor, street and walk clipping, buildings and name, its camera view |
 | `citygen/city/massing.py` | building massing (prompt 23): the planning step, `masses(b)` (the volumes drawn and dressed), `floors_at`/`wall_height` (floors and wall height at a point of the outer wall), `outline`, `inner_walls`, `terrace_walls` |
 | `citygen/kitsheet.py` | `python -m citygen kit-sheet`: every piece in one viewable grid |
-| `citygen/interior/` | interiors on demand (prompt 45 on, SPEC 6c): `context.py` (the city from a build folder, `layout_of`, `resolve`), `outside.py` (the facade bridge), `model.py`, `layout.py`, `cuts.py` (frames, `free_cut`, `absorb`), `rooms.py` (doors, `assign`, `check`), `stairs.py`, `dar.py` (courtyard houses, the ring of bands), `compact.py` (houses without a courtyard, small houses), `program.py` (room programs and their checks), `shop.py` (hanout, makhzen, qahwa), `spine.py` (the hall-couloir engine of modern homes), `villa.py` (villas, maisons), `koubba.py` (domed houses), `flats.py` (colonial blocks, slabs), `export.py` (the viewable folder), `command.py` (`python -m citygen interior`); left out of the build key |
+| `citygen/interior/` | interiors on demand (prompt 45 on, SPEC 6c): `context.py` (the city from a build folder, `layout_of`, `resolve`), `outside.py` (the facade bridge), `model.py`, `layout.py`, `cuts.py` (frames, `free_cut`, `absorb`), `rooms.py` (doors, `assign`, `check`), `stairs.py`, `dar.py` (courtyard houses, the ring of bands), `compact.py` (houses without a courtyard, small houses), `program.py` (room programs and their checks), `shop.py` (hanout, makhzen, qahwa), `spine.py` (the hall-couloir engine of modern homes), `villa.py` (villas, maisons), `koubba.py` (domed houses), `flats.py` (colonial blocks, slabs), `mesh.py` (walls with holes, door frames and leaves, prompt 48), `export.py` (the viewable folder), `command.py` (`python -m citygen interior`); left out of the build key |
 | `citygen/export/maps.py` | country and city PNG maps |
 | `citygen/export/lore.py` | JSON data files and the gazetteer |
 | `citygen/build.py` | area selection and the full build |
@@ -1048,7 +1048,8 @@ Data model's classes, Output and Random streams, with one placeholder room per s
 the House without a courtyard, the stairs `newel`, `steps` and `ladder`, Entering and light (old-town houses:
 `dar`, `compact`, `small`). Prompt 47: Shops and cafes, the Domed house, Villas and houses of the new districts
 (the spine engine), Flats, the stair `u` and the roof `newel` of other layouts; every dwelling now has a real
-plan and `rooms.check` also tests each layout's program (see each section). Measured (prompt 47, final,
+plan and `rooms.check` also tests each layout's program (see each section). Prompt 48: the walls as meshes
+(Walls, `interior/mesh.py`) and the shell of Output. Measured (prompt 47, final,
 `rooms.check` with the programs): quick capital slabs 327 of 353, colonial blocks 105 of 270, domed houses 21 of
 22, houses with a shop 135 of 136; Ain Chilel villas 171 of 178, maisons 589 of 616; full capital sample 277 of
 300; no crash; slowest slab 2.7 s, colonial 14 s (No. 773, 100 m long, no floor repeats). Open item 47.1:
@@ -1214,6 +1215,41 @@ slant; the check allows a partition face 0.01 m into a zone (`rooms.TOLERANCE`, 
 cuts, rooms whose partition still meets a wall too near a facade opening are merged (`rooms.repair`: the
 smaller joins the larger, a skifa or stair cell takes its neighbour), court openings too near a partition
 are removed and placed again (`rooms.unclash`). `cut_step` 0.05 m.
+Built (prompt 48, `interior/mesh.py` `walls_mesh(mb, interior, outside, style) -> holes`). Outer faces
+are the tile's own wall quads (`mesh.tile.building_walls`, split out of `building_mesh` with `building_tops`
+for the roofs, the tiles byte-identical): the footprint ring and court rings from 0.6 m under the lowest
+ground of the ring, the plinth on the tile's frontage (`frontage_inputs` + `street_frontage`), the same
+meter UVs; a quad an opening crosses is triangulated in (along, z) less its holes. Inner faces are the
+edges of each room's free floor: its polygon less every walled neighbour grown by half a partition
+(mitre joins), so exterior, court and partition faces are drawn alike (`plaster_inner`), each seen from
+its own room, with clean junctions and no partition end caps; a covered court's `well` and its `bortal`
+gallery share no wall but a balustrade (`[interiors.walls] balustrade` 0.95 m). An opening cuts every
+face parallel to its wall (within 2 degrees) lying on one of the wall's two faces (within 0.03 m: an
+exterior wall from its inner face to the footprint ring, a court wall from the room to the court, a
+partition half a partition each way), with jambs, sill and head through the wall in `plaster_inner` (no
+sill where a partition's opening stands on the floor; a facade door below its floor gets a step face). A
+passage (`arch` between rooms, which may span the whole shared edge, center line to center line) is
+narrowed to the span faced on both sides. Inner and court doors get a wooden frame (`door_frame`,
+`casing` 0.05 m round the clear opening, `casing_proud` 0.02 m out of both faces; the hole is cut that
+much larger) and one leaf (`door_leaf`, `leaf` 0.04 m; two for a `court_door`), hinged on the face of
+the room it swings into (not a way through: couloir, hall, palier, droj, skifa, bortal, court), on stream
+`doors` keyed by the opening id: open (`open_share` 0.4) by `open_angle` 70-100 degrees, the hinge side.
+A bortal's court arches are horseshoe holes (`builder._horseshoe`) with `add_arch`'s stone band 0.01 m
+proud (`panel=False`). A `dado` (1.2 m) of `zellige` covers the faces of the `dado_rooms` (bit, maqsura,
+skifa, ghorfa, koubba) of `dar`, `compact`, `small` and `koubba` houses, broken by the holes. An iron balcony
+(`[interiors.openings] railings`) is a railing on a solid wall: no hole. Every window, court window,
+inner window and balcony hole holds a glazed casement `casement_inset` (0.08 m) from the wall's inner
+face: stiles and rails `casement` (0.05 m) wide, `casement_depth` 0.04 m, a middle stile over `mullion` (0.6 m),
+`casement_wood` in traditional houses, `casement_white` elsewhere, panes in `glass_inner` (alpha 0.18,
+double sided; `alpha` in a palette entry writes `alphaMode` BLEND, which no tile material uses). The
+interior's window and balcony pieces drop their faces turned toward the wall at or behind its face
+(`export.seen_from_inside`): the legacy `window()` pieces model the stone surround as a solid box whose back
+face, 0.02 m inside the wall, closed the hole seen from the room (with the back of the glass box); the
+tiles keep the whole pieces. The roof's
+rooms (stair room, menzah) and skylights are prompt 49's. `mesh.faults(interior, holes, style)` (tests,
+surveys) lists an opening without a hole, a hole not cut full width on both faces, a partition within
+0.1 m of the room side of an exterior or court hole, an inner door or passage outside its partition or
+crossed by another.
 
 **Layout engine** (prompt 46, `interior/cuts.py`, `rooms.py`). Rooms come from straight cuts of a storey
 along the axes of a frame (the courtyard's or the footprint's `frame`).
@@ -1571,13 +1607,16 @@ bit); facade openings go to the room just inside their wall (`rooms.assign`), an
 one of its windows or balconies is.
 
 **Output** (prompt 45, built, `interior/export.py`), a folder like a build, every file written as `.part` and
-renamed (the index last). Prompt 45's mesh is the tile's own shell (`building_mesh` without the plinth)
-and a `paving` cap per storey; from inside, its walls show their back faces, so the `interior` view looks
-out through them until prompt 48 draws the walls' inner faces. Quick capital: dar No. 190 671 triangles,
-210 KB; compact No. 193 962, 236 KB; slab No. 1264 585, 247 KB (embedded textures are most of the bytes).
+renamed (the index last). The mesh (prompt 48) is the walls of `walls_mesh` plus the tile's roofs
+(`building_tops`: `roof_mesh` for flat roofs, `add_hip_roof`, `add_dome`, roof things), and a `paving` cap
+per storey until prompt 49 lays the floors. Prompt 45 measured (the tile's shell only): dar No. 190 671
+triangles, 210 KB; slab No. 1264 585, 247 KB. Prompt 48 (walls): see the Walls paragraph and HANDOFF.
 - `tiles/interior.glb`: float positions (no quantization), textures embedded (only the images its
-  materials use, `mesh/textures.encoded`), materials = palette + `[interiors.palette]` (interior-only
-  materials live there, so `[palette]` and the build key never change for them), the bridge's placements
+  materials use, `mesh/textures.encoded`; an interior-only image such as `zellige` takes its numbers
+  from `[interiors.textures]`, so no build ever writes it), materials = palette + `[interiors.palette]`
+  (`plaster_inner`, `zellige`, `door_leaf`, `door_frame`, `glass_inner`, `casement_wood`, `casement_white`
+  since prompt 48; interior-only materials live
+  there, so `[palette]` and the build key never change for them), the bridge's placements
   as instances (`mesh.tile.instance_groups`, which reads only `.kit`), and from prompt 46 the court's
   trees as instances (`Dresser.tree`, or the tile's tree mesh without a kit tree; on the ground surface
   until prompt 49 lays the court paving). The `interior` view uses the layout's `focus` (prompt 46).
@@ -1599,7 +1638,7 @@ out through them until prompt 48 draws the walls' inner faces. Quick capital: da
 
 **Random streams.** Every choice draws from `stream(seed, "interior", city id, k, <purpose>, ...)`, one
 purpose per kind of choice: `layout` (band roles and lengths), `skifa`, `kbou`, `court` (court windows,
-majel, fesqiya), `doors` (positions within their span, which leaves stand open, prompt 48), `shop`,
+majel, fesqiya), `doors` (prompt 48, one stream per opening id: whether its leaves stand open, by how much, the hinge side), `shop`,
 `flat` with its number (occupants; with `names` for the namer), `beams` (prompt 49). The bridge only
 replays existing streams, so no draw is added to any. Built (prompt 47): the spine draws its hall depth and
 width on `layout` with the home's key (`villa`|`maison`, floor; `flat`, n; `stores`, 0), a souk shop's depth

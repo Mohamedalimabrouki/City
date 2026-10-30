@@ -528,12 +528,50 @@ def _ballast(rng, n: int, s: dict) -> np.ndarray:
     return v
 
 
+def _hex(color: str) -> np.ndarray:
+    c = color.lstrip("#")
+    return np.array([int(c[i:i + 2], 16) for i in (0, 2, 4)], dtype=np.float64) / 255.0
+
+
+def _zellige(rng, n: int, s: dict) -> np.ndarray:
+    """Glazed tiles (prompt 48, interiors only): the star-and-cross pattern, `cells` eight-point stars a
+    side, the stars in two glazes on a checkerboard round a small heart, the crosses between them in a
+    pale glaze, dark grout lines. Colored (n, n, 3) values, unlike the grey surfaces: the palette entry
+    naming it is white. Each tile's glaze varies a little in tone (`grain`), as hand-cut zellige does."""
+    cells = int(s.get("cells", 2))
+    unit = n / cells
+    y, x = np.mgrid[0:n, 0:n] + 0.5
+    i, j = (x // unit).astype(np.int64), (y // unit).astype(np.int64)
+    dx, dy = (x % unit) / unit - 0.5, (y % unit) / unit - 0.5
+    a = float(s.get("star", 0.3))
+    star = np.minimum(np.maximum(np.abs(dx), np.abs(dy)) - a,
+                      np.maximum(np.abs(dx + dy), np.abs(dx - dy)) / np.sqrt(2.0) - a)   # < 0 inside the star
+    heart = np.maximum(np.abs(dx + dy), np.abs(dx - dy)) / np.sqrt(2.0) - float(s.get("heart", 0.07))
+    glazes = [_hex(str(s.get(k, "#808080"))) for k in ("glaze", "glaze_2", "field", "heart_glaze", "grout")]
+    odd = ((i + j) % 2 == 1)[:, :, None]
+    out = np.where(odd, glazes[1], glazes[0])
+    out = np.where((heart < 0.0)[:, :, None], glazes[3], out)
+    field = star >= 0.0
+    out = np.where(field[:, :, None], glazes[2], out)
+    tone = 1.0 + s["grain"] * 0.08 * rng.uniform(-1.0, 1.0, (cells, cells, 3))   # star tiles, by cell
+    across = 1.0 + s["grain"] * 0.08 * rng.uniform(-1.0, 1.0, (cells, cells))   # cross tiles, by corner
+    ci, cj = ((x + unit / 2) // unit).astype(np.int64) % cells, ((y + unit / 2) // unit).astype(np.int64) % cells
+    shade = np.where(field, across[cj, ci], tone[j % cells, i % cells, 0])
+    out = out * shade[:, :, None]
+    out = out * (1.0 + 0.04 * s["mottle"] * (_noise(rng, n, 8, 2) - 0.5) * 2.0)[:, :, None]
+    line = float(s.get("grout_width", 0.018))
+    grout = (np.abs(star) < line) | (np.abs(heart) < line * 0.7)
+    out = np.where(grout[:, :, None], glazes[4], out)
+    return out
+
+
 _MAKERS = {
     "plaster": _plaster, "render": _render, "render_cream": _render_cream,
     "stone": _stone, "concrete": _concrete,
     "roof_tile": _roof_tile, "roof_flat": _roof_flat,
     "paving": _paving, "asphalt": _asphalt, "earth": _earth, "sand": _sand,
     "grass": _grass, "rock": _rock, "scrub": _scrub, "ballast": _ballast,
+    "zellige": _zellige,     # interiors only ([interiors.palette], [interiors.textures]), not in NAMES
 }
 
 
@@ -551,7 +589,9 @@ def texture(name: str, seed: int, spec: dict | None = None) -> Image.Image:
     size = int(values["pixels"])
     rng = stream(seed, "texture", name)
     value = np.clip(_MAKERS[name](rng, size, values), 0.0, 1.0)
-    rgb = np.repeat((value * 255.0 + 0.5).astype(np.uint8)[:, :, None], 3, axis=2)
+    if value.ndim == 2:
+        value = np.repeat(value[:, :, None], 3, axis=2)       # grey; only zellige is colored
+    rgb = (value * 255.0 + 0.5).astype(np.uint8)
     return Image.fromarray(rgb, "RGB")
 
 

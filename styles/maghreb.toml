@@ -1797,6 +1797,9 @@ partition = 0.2           # meters, inner walls of traditional houses
 partition_modern = 0.15   # meters, inner walls of flats, villas and maisons
 cut_shift = 1.2           # meters a cut may move to keep `clear` from every opening (else it is dropped)
 cut_step = 0.05           # meters between the positions a cut tries, nearer first
+dado = 1.2                # meters, the zellige dado of traditional living rooms (prompt 48)
+dado_rooms = ["bit", "maqsura", "skifa", "ghorfa", "koubba"]   # in dar, compact, small and koubba houses
+balustrade = 0.95         # meters, the low wall between a covered court's light well and its gallery
 
 [interiors.openings]
 frame = 0.12       # meters of frame at both sides and the top of a piece with no glass or leaf
@@ -1806,6 +1809,29 @@ door_height = 2.1  # meters, an inner door's head above its floor
 narrow = 0.7       # meters, the door a room gets when no full door fits anywhere (last resort)
 narrow_clear = 0.05   # meters a narrow door keeps from the partitions beside it
 inner_clear = 0.15    # meters an inner door of a modern home keeps from the partitions beside it (lead, prompt 47)
+open_share = 0.4      # share of inner and court doors standing open (stream doors, prompt 48)
+open_angle = [70.0, 100.0]   # degrees an open leaf stands from its closed place
+leaf = 0.04           # meters, a door leaf's thickness
+casing = 0.05         # meters, the wooden door frame round the clear opening (it stays within narrow_clear)
+casing_proud = 0.02   # meters the frame stands out of each wall face
+arch_frame = 0.1      # meters, the stone band round a bortal's arch on the court side
+railings = ["balcony_iron", "balcony_iron_long"]   # balcony pieces standing on a solid wall (no hole cut)
+casement = 0.05       # meters, the frame of the glazed casement in every window hole (its rails and stiles)
+casement_depth = 0.04 # meters, its thickness
+casement_inset = 0.08 # meters from the wall's inner face to the casement's middle
+mullion = 0.6         # meters: a wider casement has two leaves (a middle stile)
+
+[interiors.palette]   # interior-only materials (never in a tile, so the build key and [palette] stay as they were)
+plaster_inner = { color = "#F2EDE3", roughness = 0.95, texture = "plaster", texture_size = [3.0, 3.0] }
+zellige = { color = "#FFFFFF", roughness = 0.3, texture = "zellige", texture_size = [0.3, 0.3] }   # the image holds the colors
+door_leaf = { color = "#7A5232", roughness = 0.6, texture = "plaster", texture_size = [1.2, 1.2] }
+door_frame = { color = "#5E4029", roughness = 0.6 }
+glass_inner = { color = "#DCE8EC", roughness = 0.05, alpha = 0.18, double_sided = true }   # the casement's panes, seen through
+casement_wood = { color = "#6B4A2E", roughness = 0.6 }      # casements of traditional houses
+casement_white = { color = "#ECEAE4", roughness = 0.5 }     # casements of flats, villas and maisons
+
+[interiors.textures]  # images only interiors use (mesh/textures.py makes them; the build never writes them)
+zellige = { pixels = 256, cells = 2, star = 0.35, heart = 0.08, grout_width = 0.018, grain = 0.5, mottle = 0.5, glaze = "#1E4F8F", glaze_2 = "#2B7A55", field = "#EEE7D6", heart_glaze = "#D9A632", grout = "#4E4A44" }
 
 [interiors.rooms]  # [least area m2, least width m] (width: twice the largest inscribed circle's radius)
 piece = 0.5        # m2: a smaller piece always joins its neighbour

@@ -60,6 +60,9 @@ def _material(name: str, spec: dict, texture: int | None = None) -> dict:
             "extensions": {"KHR_texture_transform": {"scale": [1.0 / w, 1.0 / h]}},
         }
     mat = {"name": name, "pbrMetallicRoughness": base}
+    if spec.get("alpha") is not None:          # see-through (interior glass, prompt 48); no tile material has it
+        base["baseColorFactor"][3] = float(spec["alpha"])
+        mat["alphaMode"] = "BLEND"
     if spec.get("double_sided"):
         mat["doubleSided"] = True
     if spec.get("emissive"):

@@ -474,10 +474,12 @@ def round_head(width: float, height: float, segments: int) -> np.ndarray:
 
 
 def add_arch(mb: MeshBuilder, x: float, y: float, z: float, yaw: float, width: float, height: float,
-             frame: float, material: str, frame_material: str = "stone_frame", head: str = "horseshoe") -> None:
+             frame: float, material: str, frame_material: str = "stone_frame", head: str = "horseshoe",
+             panel: bool = True, proud: float = 0.12) -> None:
     """A horseshoe-arched (or with `head` "round", round-arched) door or window on a wall face: the panel
     just in front of the wall at (x, y) (yaw = outward normal), its foot at z, and a stone band `frame` m
-    wide round the jambs and arc."""
+    wide round the jambs and arc, `proud` m in front of the wall. Without `panel`, only the band (round an
+    open arch cut in the wall, prompt 48)."""
     n = np.array([math.cos(yaw), math.sin(yaw)])
     t = np.array([-math.sin(yaw), math.cos(yaw)])      # (t, up, n) right-handed: CCW in (s, z) faces out
     segs = 10 if width > 2.0 else 6
@@ -498,14 +500,15 @@ def add_arch(mb: MeshBuilder, x: float, y: float, z: float, yaw: float, width: f
     m = len(out)
     fan = np.stack([np.zeros(m, dtype=np.int64), 1 + np.arange(m), 1 + (np.arange(m) + 1) % m], axis=1)
     nrm = np.tile([n[0], n[1], 0.0], (len(pos), 1))
-    mb.add(material, pos, nrm, np.column_stack([np.vstack([center, out])[:, 0], -np.vstack([center, out])[:, 1]]), fan)
+    if panel:
+        mb.add(material, pos, nrm, np.column_stack([np.vstack([center, out])[:, 0], -np.vstack([center, out])[:, 1]]), fan)
     if frame <= 0.0:
         return
     inner = out[1:]                                    # from the right foot up, over, down to the left foot
     outer = shape(width + 2 * frame, height + frame, segs)[1:]
     outer = np.vstack([outer, [[-(width / 2 + frame), 0.0]]])
     inner = np.vstack([inner, [[-width / 2, 0.0]]])
-    pos = np.vstack([world(inner, 0.12), world(outer, 0.12)])
+    pos = np.vstack([world(inner, proud), world(outer, proud)])
     k = len(inner)
     i = np.arange(k - 1)
     tris = np.concatenate([np.stack([i, k + i, k + i + 1], axis=1), np.stack([i, k + i + 1, i + 1], axis=1)])

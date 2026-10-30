@@ -359,27 +359,51 @@ def building_mesh(mb: MeshBuilder, b, height_fn, roof: RoofLayout | None = None,
     if b.kind in LANDMARK_KINDS:
         landmark_mesh(mb, b, height_fn, landmarks or {})
         return
+    high = building_walls(mb, b, height_fn, roof, plinth, frontage, roofs, ground_z)
+    building_tops(mb, b, height_fn, high, roof, roofs)
+
+
+def building_walls(mb: MeshBuilder, b, height_fn, roof: RoofLayout | None = None,
+                   plinth: tuple[str, float] | None = None, frontage=None, roofs: list | None = None,
+                   ground_z: np.ndarray | None = None) -> float:
+    """The outer walls of `building_mesh` (from 0.6 m under the lowest ground of the footprint ring to the
+    roof, or its parapet), as vertical quads; returns `high`, the highest ground of that ring (the
+    interior's shell cuts its holes in these quads, prompt 48)."""
     fp = orient(b.footprint, sign=1.0)
     ring = np.asarray(fp.exterior.coords)
     ground = height_fn(ring[:, 0], ring[:, 1]) if ground_z is None else ground_z
     low, high = float(ground.min()), float(ground.max())
     z0, z1 = low - 0.6, high + b.height
     if roofs is not None and massed(b):
-        _masses_mesh(mb, b, roofs, z0, high, plinth, frontage)
+        _masses_walls(mb, b, roofs, z0, high, plinth, frontage)
+        return high
+    if roofs is not None:
+        roof = roofs[0][1]
+    parapet = b.roof_shape != "hip" and roof is not None and roof.band is not None
+    extrude(mb, fp, z0, z1 + roof.height if parapet else z1, b.wall, None, z_ref=high, plinth=plinth,
+            frontage=frontage)
+    return high
+
+
+def building_tops(mb: MeshBuilder, b, height_fn, high: float, roof: RoofLayout | None = None,
+                  roofs: list | None = None) -> None:
+    """Everything of `building_mesh` above its outer walls: roofs, parapet copings, roof rooms, domes,
+    roof machines, battlements and arched doors."""
+    fp = orient(b.footprint, sign=1.0)
+    z1 = high + b.height
+    if roofs is not None and massed(b):
+        _masses_roofs(mb, b, roofs, high)
         _roof_things(mb, b, high, next(m for m, _ in roofs if m.main).top + high)
         return
     if roofs is not None:
         roof = roofs[0][1]
     if b.roof_shape == "hip":
-        extrude(mb, fp, z0, z1, b.wall, None, z_ref=high, plinth=plinth, frontage=frontage)
         cx, cy, length, width, angle = frame(fp)
         corners = np.asarray(rectangle(cx, cy, length, width, angle).exterior.coords)[:4]
         add_hip_roof(mb, corners, z1, 0.32 * width, b.roof)
     else:
-        parapet = roof is not None and roof.band is not None
-        z_top = z1 + roof.height if parapet else z1
-        extrude(mb, fp, z0, z_top, b.wall, None if parapet else b.roof, z_ref=high,
-                plinth=plinth, frontage=frontage)
+        if (roof is None or roof.band is None) and b.roof:
+            add_cap(mb, fp, z1, b.roof)
         roof_mesh(mb, b, roof, z1)
     for x, y, r, mat in b.domes:
         extrude(mb, regular_polygon(x, y, r, 12), z1, z1 + 0.18 * r, b.wall, None, z_ref=high)
@@ -435,11 +459,10 @@ def paving_mesh(mb: MeshBuilder, tc: TileContext, b) -> None:
            np.stack([pts[:, 0], -pts[:, 1]], axis=1), np.asarray(inv).reshape(-1, 3))
 
 
-def _masses_mesh(mb: MeshBuilder, b, roofs: list, z0: float, high: float, plinth, frontage) -> None:
-    """A massed building drawn as one solid: the outer walls once round the footprint, each segment up
-    to the tallest mass standing on it (one ring, so the texture runs on across a step and the plinth
-    stays one course), the walls where a taller mass rises over a neighbour or a terrace, and every
-    roof: hip, or the deck, parapet and rooms of a flat one (`roof_mesh`)."""
+def _masses_walls(mb: MeshBuilder, b, roofs: list, z0: float, high: float, plinth, frontage) -> None:
+    """A massed building's walls, drawn as one solid: the outer walls once round the footprint, each segment
+    up to the tallest mass standing on it (one ring, so the texture runs on across a step and the plinth
+    stays one course), and the walls where a taller mass rises over a neighbour or a terrace."""
     ms = [m for m, _ in roofs]
     tops = [high + m.top + (lay.height if lay.band is not None else 0.0) for m, lay in roofs]
     ring = outline(b)
@@ -453,6 +476,10 @@ def _masses_mesh(mb: MeshBuilder, b, roofs: list, z0: float, high: float, plinth
             add_walls(mb, hr, z0, float(z), b.wall, high, only=hs == z)
     for _k, mring, mask, lo, hi in inner_walls(b, [t - high for t in tops]):
         add_walls(mb, mring, high + lo, high + hi, b.wall, high, only=mask)
+
+
+def _masses_roofs(mb: MeshBuilder, b, roofs: list, high: float) -> None:
+    """Every roof of a massed building: hip, or the deck, parapet and rooms of a flat one (`roof_mesh`)."""
     for m, lay in roofs:
         z = high + m.top
         if m.shape == "hip":
@@ -662,6 +689,18 @@ def street_frontage(ring, plan, walk_width: np.ndarray, street_tree, reach: floa
     return mask
 
 
+def frontage_inputs(plan) -> tuple:
+    """(walk_width, reach) for `street_frontage`: the widest sidewalk of each street, and how far from a
+    wall a street center line can still make it a frontage (the interior's shell uses them too)."""
+    walk_width = np.zeros(len(plan.streets))
+    for walk in getattr(plan, "walks", ()):
+        if walk.kind == "sidewalk" and 0 <= walk.street < len(walk_width):
+            walk_width[walk.street] = max(walk_width[walk.street], float(walk.width))
+    reach = 0.6 + max((s.width / 2.0 + walk_width[k] for k, s in enumerate(plan.streets)),
+                      default=0.0)
+    return walk_width, reach
+
+
 def build_tile(tc: TileContext, i: int, j: int) -> tuple:
     """Meshes of one tile, plus the dressing placements to draw as instances."""
     x0, y0, x1, y1 = tile_bounds(tc, i, j)
@@ -694,12 +733,7 @@ def build_tile(tc: TileContext, i: int, j: int) -> tuple:
         walk_meshes(mb, tc, plan, tile, street_tree)
         front_meshes(mb, tc, plan, tile, None if street_tree is None else
                      (lambda x, y: street_directions(street_tree, x, y)))   # the seafront promenade (prompt 36)
-        walk_width = np.zeros(len(plan.streets))
-        for walk in getattr(plan, "walks", ()):
-            if walk.kind == "sidewalk" and 0 <= walk.street < len(walk_width):
-                walk_width[walk.street] = max(walk_width[walk.street], float(walk.width))
-        reach = 0.6 + max((s.width / 2.0 + walk_width[k] for k, s in enumerate(plan.streets)),
-                          default=0.0)
+        walk_width, reach = frontage_inputs(plan)
         inside = (centers[:, 0] >= x0) & (centers[:, 0] < x1) & (centers[:, 1] >= y0) & (centers[:, 1] < y1)
         owned = np.nonzero(inside)[0]
         plain = [int(k) for k in owned if plan.buildings[int(k)].kind not in PAVED_KINDS | STATION_KINDS | LANDMARK_KINDS]

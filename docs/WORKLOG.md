@@ -16,14 +16,12 @@ Entry format:
 ```
 
 ## 2026-10-29 - Resume here (paused after prompt 47)
-- State: prompts 1-47 are done (branch `claude/procedural-city-generator-xop72h`; CP4, prompt 43, on 25
-  October; the interiors 44-47 on 29 October: the design, the interior command, old-town house plans, and
-  flats, villas, domed houses and shops). Ali paused after 47 to save his weekly limit (27% used on 29
-  October; resets Tuesday 3 November, about 21:00 UTC). Continue when Ali says (for example "Do prompt
-  48." or "continue the playbook").
-- Next: 48 H1d interior walls and openings, 49 H1e floors, stairs and roof terrace, 50 H1f interiors in the
-  viewer. Ali most wants to walk inside the houses (sad not to see them in 3D yet): do 48-50 first, then
-  47.1 (colonial flats pass `rooms.check` for 39%, the slowest colonial block takes 14 s, slabs 93%,
+- State: prompts 1-48 are done (branch `claude/procedural-city-generator-xop72h`; CP4, prompt 43, on 25
+  October; the interiors 44-47 on 29 October, 48 (walls and openings) on 30-31 October). Continue when Ali
+  says (for example "Do prompt 49." or "continue the playbook").
+- Next: 49 H1e floors, stairs and roof terrace, 50 H1f interiors in the
+  viewer. Ali most wants to walk inside the houses (sad not to see them in 3D yet): do 49-50 first, then
+  47.1 together with 48.1 (the plan faults the walls reveal, prompt 48 entry) (colonial flats pass `rooms.check` for 39%, the slowest colonial block takes 14 s, slabs 93%,
   domed house No. 570, colonial floor-0 stores as a few rooms) unless Ali says otherwise; its plan is in
   the prompt 47 entry.
 - Lead notes for 48-50: 48 refreshes Blender after interior mesh changes with exactly `.venv/bin/python
@@ -57,6 +55,54 @@ Entry format:
 - 30 October: Ali wants his promotional API credit ($86.51, expires 14 November) spent before his weekly
   limit. It does not pay for Claude Code, so `tools/run_on_credit.py` runs a prompt through the Agent SDK
   instead (a billing test passed); how to use it: `docs/LEAD.md`, section 4.
+
+## 2026-10-30 - Prompt 48 H1d Interior walls and openings
+- Commit: (lead commits) | Model: Opus 5.5, high
+- Changed: new citygen/interior/mesh.py (`walls_mesh`, `faults`); interior/export.py (shell = walls +
+  `building_tops`, interior-only textures); mesh/tile.py (`frontage_inputs`, `building_mesh` split into
+  `building_walls` + `building_tops`, same order of mesh adds); mesh/builder.py (`add_arch` `panel`,
+  `proud`); mesh/textures.py (`zellige`, colored); styles/maghreb.toml (`[interiors.palette]`,
+  `[interiors.textures]`, walls `dado`, `dado_rooms`, `balustrade`, openings `open_share`, `open_angle`,
+  `leaf`, `casing`, `casing_proud`, `arch_frame`, `railings`, `casement*`, `mullion`; palette `glass_inner`,
+  `casement_wood`, `casement_white`); mesh/gltf.py (`alpha` -> alphaMode BLEND, no tile uses it); tests (2
+  new); SPEC 6c, HANDOFF, ROADMAP.
+- Checks: `pytest -q` 124 passed in 34 s (new tests about 1.5 s: holes 0.1 s on shared fixtures, budget
+  1.4 s); slow interior bytes test passes; `build --quick` done; fingerprint `--allow ""`: 282 parts, 0
+  changed. Budget (with the casements): largest slab No. 1169 (10 floors) 42,426 triangles, 3.6 MB;
+  largest dar No. 68 4,204, 0.50 MB.
+- Whole-city wall check (helper's survey, 1,340 interiors: every old-town house, every 2nd slab, villa and
+  maison, every 3rd colonial block): 0 crashes; every facade hole matches its piece within 0.02 m (center,
+  width, sill, head; iron balconies are railings, no hole); walls take at most 0.5 s (slab). Interiors
+  where `mesh.faults` finds something: dar 19/159, compact 41/278, small 10/82, koubba 1/22, shop 28/136,
+  slab 98/176, colonial 81/90, villa 60/89, maison 58/308. All the cases looked at (about 25, pictures)
+  are plan geometry that `rooms.check` does not see: stair cells 0.1-0.2 m off an exterior wall (under the
+  roof stair room) leaving a sliver and the stair partition a few cm behind a window or the main door;
+  doors placed across a partition junction (a modern door overlapping the next door, slab wc doors 7 cm off
+  their couloir); sliver couloirs and hall strips (colonial); court openings past a court corner; openings
+  on a footprint part no storey covers (villa windows, a small house's door). The walls cut through a wall
+  thickened by such a sliver (up to 0.15 m) so doors stay passable. Open item 48.1 (lead: plan faults,
+  plans untouched here), interiors with faults / interiors: dar 19/159, compact 41/278, small 10/82,
+  koubba 1/22, shop 28/136, slab 98/176, colonial 81/90, villa 60/89, maison 58/308; fix: put these
+  checks in `rooms.check`, then the plans. The test lists two known houses (`OPEN_48`: 193, 322) and
+  skips partition crossings in flats (open item 47.1).
+- Look: output/checks/48.png - the prompt's view stands in the court behind the court tree (only a strip of
+  zellige through the T room's door shows). An extra snapshot of a copy with the camera in ghorfa 16
+  showed solid plaster walls, the zellige dado broken at the window, plaster reveals, an open leaf in its
+  wooden frame. Blender: output/bodjantouna-42/interiors/goumosbane-599/dar-labidi.blend (make_blend
+  needed no change).
+- Lead follow-up (windows from inside): the legacy kit windows showed the back of their solid stone
+  surround (tan) in the hole. The interior's window and balcony pieces now drop their wall-facing faces at
+  or behind the wall face (interior-only copies, `export.seen_from_inside`), and every window, court
+  window, inner window and balcony hole holds a glazed two-leaf casement (wood in old-town houses, white
+  elsewhere) with see-through `glass_inner`. Survey rerun: same counts, 0 crashes, 0 piece mismatches.
+  Looks: output/checks/48-ghorfa.png (the ghorfa camera: casement, sky through the panes, the yellow
+  shutter at the edge), output/checks/48-slab.png (slab salon: white casement). .blend refreshed.
+- Lead review: read the whole diff; tests 124 passed; `build --quick --force` then fingerprint `--allow ""`:
+  282 parts, 0 changed (the tile split is byte-identical); no em dash; reran the helper's wall survey (same
+  counts) and traced slab No. 1042 door 93 myself: the wc door stands 0.07 m from the palier's corner, a plan
+  fault. One follow-up (windows from inside). Picture for Ali: output/checks/48-ghorfa.png.
+- Doubts and questions for Ali: a closed slab persienne is a one-sided piece, so from inside the casement
+  shows the street, not the closed shutter. No ceilings until 49.
 
 ## 2026-10-29 - Prompt 47 H1c Apartments, villas, domed houses and shops
 - Commit: (lead commits) | Model: Opus 5.5, high
