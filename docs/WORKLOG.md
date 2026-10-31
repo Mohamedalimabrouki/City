@@ -19,6 +19,14 @@ Entry format:
 - State: prompts 1-50 are done (branch `claude/procedural-city-generator-xop72h`; CP4, prompt 43, on 25
   October; the interiors 44-47 on 29 October, 48 (walls and openings) on 30-31 October). Continue when Ali
   says (for example "Do prompt 49." or "continue the playbook").
+- In progress (31 October, 13:20): 47.1 + 48.1. Ali's API credit ran out at 12:12, as the credit
+  run's lead started round 4; Ali then asked the lead to finish 47.1 + 48.1 on his plan. Pushed:
+  2ac52f7 (Open interior first shows the house from above, cut at floor 0) and 3918228. Part 1 (plan
+  checks for the old town, shops, villas and maisons; turned entry steps), round 3, unreviewed: branch
+  `wip/47.1-48.1` (0aafa2d, its WORKLOG entry has the numbers); round 2: `refs/wip/471-r2`. Left: round 4
+  (the street door opening into the stair cell, villa and maison stairs flush on their wall, the faults
+  left), part 2 (slabs), part 3 (colonial flats). Uncommitted changes in the tree are that work; with a
+  clean tree, bring it back with `git cherry-pick -n wip/47.1-48.1 && git reset -q`.
 - Next: 47.1 with 48.1 (50 done 31 October: Open interior on a dwelling's card in `citygen view` and the
   gallery). Then 51. For 47.1 + 48.1:
   47.1 together with 48.1 (the plan faults the walls reveal, prompt 48 entry) (colonial flats pass `rooms.check` for 39%, the slowest colonial block takes 14 s, slabs 93%,
