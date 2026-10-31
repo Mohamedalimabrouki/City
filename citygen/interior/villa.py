@@ -58,10 +58,9 @@ def plan(interior, outside, style: dict, kind: str) -> None:
     core = place_box(job, entry, list(range(floors))) if floors > 1 and entry is not None else None
     if floors > 1 and core is None:
         interior.warnings.append("no stair fits between the floors: a ladder goes up")
+    core, square = roof_stair(job, entry, core)
     box = core[0] if core else None
     top = floors - 1
-    top_region = interior.storeys[top].polygon if box is None else snap(interior.storeys[top].polygon.difference(box))
-    square = P.roof_newel(job, top_region)
     progs = programs(job, kind)
     halls, droj = [], None
     for st in interior.storeys:
@@ -148,10 +147,36 @@ def shapely_less(region, box):
     return shapely.union_all(got)
 
 
-def place_box(job, entry, floors: list):
+def roof_stair(job, entry, core) -> tuple:
+    """(core, roof newel square): when the U box takes the floor under the roof's stair room, the box
+    keeps off it where it still fits (the roof newel then stands there; 47.1/48.1)."""
+    interior = job.interior
+    top = interior.floors - 1
+
+    def newel(c):
+        region = interior.storeys[top].polygon if c is None else snap(interior.storeys[top].polygon.difference(c[0]))
+        return P.roof_newel(job, region, on_walls=True)
+
+    square = newel(core)
+    if square is not None or core is None or job.roof is None or job.roof.stair is None:
+        return core, square
+    off = place_box(job, entry, list(range(interior.floors)), off=job.roof.stair)
+    if off is None or off[0].equals(core[0]):
+        return core, square
+    said, job.roof_ladder = list(interior.warnings), False
+    again = newel(off)
+    if again is None:
+        interior.warnings, job.roof_ladder = said, True
+        return core, square
+    interior.warnings = [w for w in said if "the roof stair does not fit" not in w]
+    return off, again
+
+
+def place_box(job, entry, floors: list, off=None):
     """(box, size, x, y, door frame) of the U stair beside the hall: against the door wall beside the door
     (the side with more room first), slid along the wall and inward in 0.25 m steps until it lies inside
-    every storey and its walls keep clear; the narrow box when no full one fits; None when none does."""
+    every storey and its walls keep clear (and off `off`); the narrow box when no full one fits; None when
+    none does."""
     fd = P.door_frame(entry)
     st0 = job.interior.storeys[0].polygon
     x0, _, x1, _ = fd.bounds(st0)
@@ -166,7 +191,7 @@ def place_box(job, entry, floors: list):
             for s in sides:
                 x = s * (half + e + size["across"] / 2)
                 box = S.u_box(fd, x, float(y), size)
-                if P.box_fits(job, box, floors):
+                if (off is None or box.intersection(off).area < 1e-4) and P.box_fits(job, box, floors):
                     return box, size, x, float(y), fd
     return None
 

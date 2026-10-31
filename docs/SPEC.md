@@ -1457,7 +1457,7 @@ the services keep their type through the merges; the check wants a matbakh when 
 minimum area and width. Quick capital: 21 of 22 pass (No. 570: an L strip round the koubba).
 
 **Villas and houses of the new districts** (`villa`, `maison`, prompt 47, `interior/spine.py`): a hall at
-the main door (`hall` [2.0, 3.0] m deep, [1.8, 2.6] m wide), continued by a couloir (1.1 m) along the
+the main door (`hall` [2.0, 3.0] m deep, [1.8, 2.6] m wide), continued by a couloir (1.15 m) along the
 storey's long axis, through the middle when the storey is at least 2 x the room depth + the couloir wide,
 else along one side; rooms on both sides cut across it in program order from the hall: salon (the
 largest windowed cell), salle a manger (villa, storey over `dining_area` 110 m2), cuisine (windowed,
@@ -1488,7 +1488,8 @@ Built (prompt 47, `interior/spine.py`, `interior/villa.py`). Rules the code sett
   sdb, chambres; one storey: salon, (salle a manger,) cuisine, chambre, sdb, (wc,) chambres. A maison gets a
   sdb and a wc too (the table's short list would leave a family without one).
 - The U box stands against the door wall beside the door (the side with more room first), slid along the
-  wall and inward in 0.25 m steps until every storey holds it and its walls keep clear; it is a `palier`
+  wall and inward in 0.25 m steps until every storey holds it and its walls keep clear (and off the floor
+  under the roof's stair room when the roof newel would not fit beside it, 47.1/48.1); it is a `palier`
   room on every floor, joined to the hall or couloir by an arch. Upper floors are entered from the floor
   landing's side toward the door. Doors: every room into the couloir or hall (the salon by a 1.4 m door
   from the hall), sdb and wc by a narrow door (`narrow`, `narrow_clear`).
@@ -1598,7 +1599,8 @@ smallest count with riser at most `riser_max` (traditional 0.21 m, modern 0.18 m
   one newel cell from floor 0 to the top floor, and on to the roof deck inside the stair room when there
   is one (the stair room's square is the well in the deck). Other layouts use a newel cell only from the
   top floor to the roof, under the stair room, opening into the room it touches most (a core's landing
-  first). Over the top of the roof flight stands the stair room's ceiling, `[roofs] stair_height` (2.4 m)
+  first); in villas and maisons, when no square on the 0.05 m grid keeps the rule, squares flush on the
+  walls under the stair room are tried (a window there opens into the stair cell and lights it, 47.1/48.1). Over the top of the roof flight stands the stair room's ceiling, `[roofs] stair_height` (2.4 m)
   above the deck: the clear height over the arrival landing is 2.4 m less that ceiling's thickness
   (`[interiors.floors] roof_room_ceiling` 0.15 m, so 2.25 m), which must stay at least `headroom` (2.0 m);
   the headroom test counts that ceiling as an overhead.

@@ -1910,7 +1910,7 @@ inner_window = { width = 0.8, sill = 1.6, head = 2.2 }   # meters: upper rooms l
 [interiors.villa]   # villas, maisons and the flats' homes (SPEC 6c "Villas and houses", spine engine)
 hall = [2.0, 3.0]        # meters deep at the main door (stream layout)
 hall_width = [1.8, 2.6]  # meters wide
-couloir = 1.1            # meters wide
+couloir = 1.15           # meters wide (clear 1.0: an arch at its end keeps 0.8 m between its jambs, 47.1)
 side = 2.6               # meters: the least depth of rooms beside the couloir (else it runs along one side)
 room_depth = 4.5         # meters: the rooms along the only windowed wall of a floor (the couloir behind them)
 deep = 6.0               # meters: the couloir never turns so that the rooms beside it get deeper than this
@@ -1923,6 +1923,7 @@ largest = { cuisine = 16.0, sdb = 8.0, wc = 3.0 }   # m2: a bigger cell gives th
 types = [["S+1", 60.0], ["S+2", 100.0], ["S+3", 1e9]]   # flat type by area (m2, under; lead: moyen standing)
 two_flats = 130.0        # m2: a colonial floor less its core keeping this has two flats
 min_flat = 40.0          # m2: floor 0 of a colonial block keeps a flat beside its shop or cafe from this
+couloir = 1.1            # meters wide, the flats' couloir (villas and maisons: [interiors.villa] couloir)
 wc_area = 70.0           # m2: a flat this big has a wc beside its sdb
 slide = 0.25             # meters: a colonial core slides inward in these steps until every storey holds it
 slide_most = 6.0         # meters: ... at most

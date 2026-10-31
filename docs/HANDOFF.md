@@ -897,7 +897,15 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`, and how the le
   store rooms a hair wide; a skifa must not give away its strips (the bent entry broke, No. 203). A dar's
   plan can fail the court rule for reasons far from the skifa: replan it without the steps' room rather than
   patch the skifa planner. Relaxing an opening zone for stair placement (`zs(shallow=True)`) cut ladders but
-  lost more passes than it won every time it was tried for villas and maisons.
+  lost more passes than it won every time it was tried for villas and maisons. Round 4: measure before
+  building a lead decision. The street door into the stair cell (B) cannot be built in the old town: the
+  stair room is 2.35 m deep inside the facade and a cell holding a 1.74 m door with `clear` needs 2.54 m.
+  Villa/maison roof ladders came from two plain geometry facts, found by printing the failing square: the
+  wall's face lies a few mm off the 0.05 m search grid (so a "flush" square never was), and the U box
+  moved 0.25 m onto the floor under the stair room; give the search flush positions after the grid (so
+  passing plans keep their squares) and place the box off the stair room only when the newel then fits.
+  A couloir 1.1 m wide leaves 0.95 m clear, under the 1.0 m run an end arch needs: 1.15 m fixed 5, 1.2 m
+  broke more (rooms under their minimum).
 
 ## Known weak spots
 

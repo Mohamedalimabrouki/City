@@ -19,6 +19,14 @@ Entry format:
 - State: prompts 1-50 are done (branch `claude/procedural-city-generator-xop72h`; CP4, prompt 43, on 25
   October; the interiors 44-47 on 29 October, 48 (walls and openings) on 30-31 October). Continue when Ali
   says (for example "Do prompt 49." or "continue the playbook").
+- In progress (31 October, 13:20): 47.1 + 48.1. Ali's API credit ran out at 12:12, as the credit
+  run's lead started round 4; Ali then asked the lead to finish 47.1 + 48.1 on his plan. Pushed:
+  2ac52f7 (Open interior first shows the house from above, cut at floor 0) and 3918228. Part 1 (plan
+  checks for the old town, shops, villas and maisons; turned entry steps), round 3, unreviewed: branch
+  `wip/47.1-48.1` (0aafa2d, its WORKLOG entry has the numbers); round 2: `refs/wip/471-r2`. Left: round 4
+  (the street door opening into the stair cell, villa and maison stairs flush on their wall, the faults
+  left), part 2 (slabs), part 3 (colonial flats). Uncommitted changes in the tree are that work; with a
+  clean tree, bring it back with `git cherry-pick -n wip/47.1-48.1 && git reset -q`.
 - Next: 47.1 with 48.1 (50 done 31 October: Open interior on a dwelling's card in `citygen view` and the
   gallery). Then 51. For 47.1 + 48.1:
   47.1 together with 48.1 (the plan faults the walls reveal, prompt 48 entry) (colonial flats pass `rooms.check` for 39%, the slowest colonial block takes 14 s, slabs 93%,
@@ -84,17 +92,17 @@ Entry format:
 - Checks: survey (`tools/interior_survey.py`, the new checks; "before" = today's plans: old town exact,
   Ain Chilel = rooms.check passes less those with wall or step faults):
 
-  | group | before (old check) | before (new checks) | round 1 | round 2 | round 3 | bar | slowest before -> after |
-  |---|---|---|---|---|---|---|---|
-  | dar (159) | 151 | 84 | 138 | 136 | 141 (89%) | 152 | 0.07 -> 0.11 s |
-  | compact (277) | 273 | 196 | 258 | 257 | 259 (94%) | 264 | 0.11 -> 0.14 s |
-  | small (83) | 81 | 61 | 77 | 77 | 80 (96%, at the bar) | 79 | 0.07 -> 0.08 s |
-  | koubba (22) | 21 | 17 | 19 | 19 | 20 (91%) | 21 | 0.02 -> 0.02 s |
-  | shop (136) | 135 | 86 | 114 | 120 | 124 (91%) | 130 | 0.27 -> 0.29 s |
-  | villa (178, Ain Chilel) | 171 | about 58 | 134 | 157 | 157 (88%) | 170 | 0.43 -> 0.37 s |
-  | maison (616, Ain Chilel) | 589 | about 472 | 508 | 554 | 554 (90%) | 586 | 0.65 -> 0.61 s |
-  | slab (353, part 2) | 326 | | 301 | 308 | 308 (87%) | | 2.03 -> 2.13 s |
-  | colonial (270, part 3) | 117 | | 51 | 83 | 84 (31%) | | 13.0 -> 16.4 s (No. 773) |
+  | group | before (old check) | before (new checks) | round 1 | round 2 | round 3 | round 4 | bar | slowest before -> after |
+  |---|---|---|---|---|---|---|---|---|
+  | dar (159) | 151 | 84 | 138 | 136 | 141 (89%) | 141 | 152 | 0.07 -> 0.11 s |
+  | compact (277) | 273 | 196 | 258 | 257 | 259 (94%) | 259 | 264 | 0.11 -> 0.14 s |
+  | small (83) | 81 | 61 | 77 | 77 | 80 (96%, at the bar) | 80 | 79 | 0.07 -> 0.08 s |
+  | koubba (22) | 21 | 17 | 19 | 19 | 20 (91%) | 20 | 21 | 0.02 -> 0.02 s |
+  | shop (136) | 135 | 86 | 114 | 120 | 124 (91%) | 124 | 130 | 0.27 -> 0.29 s |
+  | villa (178, Ain Chilel) | 171 | about 58 | 134 | 157 | 157 (88%) | 157 | 170 | 0.43 -> 0.37 s |
+  | maison (616, Ain Chilel) | 589 | about 472 | 508 | 554 | 554 (90%) | 559 (91%) | 586 | 0.65 -> 0.61 s |
+  | slab (353, part 2) | 326 | | 301 | 308 | 308 (87%) | 308 | | 2.03 -> 2.13 s |
+  | colonial (270, part 3) | 117 | | 51 | 83 | 84 (31%) | 84 | | 13.0 -> 16.4 s (No. 773) |
 
   0 crashes. Every interior that passes `rooms.check` gives 0 `mesh.faults` and 0 entry-step faults (plan
   + walls + the prompt 49 tread, riser and headroom test on every tread of straight and turned steps, every
@@ -134,6 +142,60 @@ Entry format:
   squeezed between the palier and a wall}; the stair test's ladder case (B, above).
 - Doubts: colonial No. 773 got slower (13 -> 16 s, deeper zones); domed house No. 570 still fails (its
   annex strip, 47.1 list).
+- Round 4 (helper, from the round 3 tree; survey at the start = the round 3 column exactly).
+  - B stopped by geometry, not built (data from `h471b_geo*.py`): the 13 compact ladders (No. 34, 65, 104,
+    259, 260, 298, 300, 325, 347, 459, 472, 503, 514, 535) all have the roof stair room flush on the facade
+    over the street door: 2.5 m along the facade but only 2.35 m deep inside the 0.4 m facade wall. A cell
+    holding the street door needs door + 2 x (`clear` 0.3 + half a partition 0.1): 2.54 m for the 1.74 m
+    double doors (9 houses), more than the stair room gives; of the 4 houses with 1.25 m doors and the
+    0.95 m one, the stair room ends 0.05-1.05 m short of the door's far edge in 4 (No. 34, 259, 298, 325).
+    Only No. 459 (no entry steps) could take it. A cell beside the door (door + `clear` outside it) leaves
+    1.05-1.6 m: under `newel_min`. At HEAD these cells stood 0.15 m behind the door (the hair strip
+    `front_keep` now refuses). Ways that would work (lead's choice): (a) the newel open on floor 0 inside
+    the entry room (no cell walls there, so no `clear` to keep; needs the combined entry flight, rails on
+    the open sides of its floor-0 steps and the headroom check under them: a new arrangement, about a
+    round of its own); (b) 2-floor houses only (No. 325, 347, 459, 472): floor 0 -> 1 newel in a corner and
+    a roof newel from floor 1 under the stair room (as villas do). The test keeps the ladder case.
+  - C built (villa/maison ladders 5/46 -> 3/10; HEAD 2/31; passes 157/554 kept). Two causes, by geometry
+    (`h471b_diag*.py`): (1) the roof newel square slid on its 0.05 m grid never stood on the wall: the
+    wall's inner face lies a few mm off the grid (reveals and slanted walls), so the square kept a sliver
+    whose partition ran along the window behind it (`front_keep`). `stairs.flush`: once every size failed
+    on the grid, the squares flush on the walls under the stair room (0, 0.005, 0.01 m inward) are tried:
+    the window then opens into the stair cell and lights it (9 ladders gone). (2) the U box, moved 0.25 m by
+    the new zones, took part of the floor under the roof's stair room: `villa.roof_stair` places the box
+    again off the stair room when the roof newel does not fit and keeps that when the newel then fits (28
+    gone). Tried and dropped: sliding a U box found off the door wall back onto it (1 ladder, 1 pass lost).
+    Left: villa No. 303, 322 and maison No. 795 (a window off the stair room's middle: a flush cell would
+    cross it, a cell 0.575 m off the window wall is 1.875 m, under `newel_min` 1.9), maison No. 754 (a 2.2 m
+    balcony), No. 713, 866, 982 (one-floor maisons, the stair room over the street door: B's geometry), and
+    the 5 with no U stair at all (No. 353, 408, 429, 476, 1015; 408 and 429 at HEAD too), No. 532 (as at
+    HEAD). Old town untouched: the flush squares are for villas and maisons only (`on_walls`; in the old
+    town they put a small house's newel beside its entry steps: shop No. 230, "the entry steps run under
+    the newel stair").
+  - Item 3 (villa/maison wall faults), classified with `h471_cls.py`: 19 arches (17 couloir-palier), 8
+    inner doors "other" (4 couloir-sdb), 6 doors on a room's hair arm (3 hall-wc), 3 short pieces. The
+    arch class: a couloir 1.1 m wide has 0.95 m of clear floor, under the 1.0 m run an arch at its end needs
+    (0.8 m between its 0.1 m jambs). `[interiors.villa] couloir` 1.1 -> 1.15 (clear 1.0): maison 554 ->
+    559, villa 157 (same), narrowed arches 13 -> 8 (1.2 m was worse: villa 154, maison 552, rooms lose
+    their minimum). Every passing interior: 0 mesh faults, 0 step faults. Flats keep 1.1 m (`[interiors.flats] couloir`: with
+    1.15 colonial fell 84 -> 77). Not done: the 8 inner doors "other" and 6 on hair arms (next classes).
+  - Item 4 (old town) classified, not built (no round left after B, C, 3): the 15 entry-step faults
+    (`h471_steps2.py`) are 7 where the storey is deep enough but the entry room is not (No. 78, 175, 209,
+    276, 501, 591, 687: the planner could give the skifa `steps_need`; a dar's bent entry wins today) and
+    8 where the storey itself is too shallow behind the door (No. 55: 0.38 m, 542: 0.2 m, 248: 1.19 m for
+    a 2.36 m rise, 255, 284, 353, 374, 645: doors on a footprint spike or at a room's corner). Choice for
+    Ali: for the 8, (a) floor 0 set lower behind the door (a sunken entry room, steps up inside to the rest
+    of the floor) or (b) a U entry flight (second turn along the next wall); (b) keeps one floor level,
+    (a) is the common old-town answer. Lead pick suggested: (a) for the 8, a deeper skifa for the 7. Also
+    left: 8 dars whose court shows from the street door (decision D), the "storey crosses" facade openings
+    on footprint spikes (8, tile geometry), koubba No. 570 (annex strip) and 501 (steps, above).
+  - Round 4 checks: survey above; ladder warnings dar 1, compact 14 (B), small 1, shop 6, villa 3 (HEAD 2),
+    maison 10 (HEAD 31); slowest unchanged (villa 0.37 s, maison 0.61 s, colonial No. 773 16.5 s, slab
+    2.15 s). Every interior that passes `rooms.check` (old town, villas, maisons): 0 `mesh.faults`, 0 step
+    faults. `pytest -q` 130 passed, slow 5 passed + 1 xfail; `build --quick` done; fingerprint `--allow ""`:
+    282 parts, 0 changed. Picture: output/checks/471-r4-villa.png (maison No. 489: the roof newel flush on
+    its wall, the window lighting it; No. 812: the U box off the stair room, the roof newel beside it; No.
+    508: the 1.15 m couloir reaching the palier through a full arch).
 
 ## 2026-10-31 - Prompt 50 H1f Interiors in the viewer
 - Commit: (lead commits) | Model: Opus 5.5, high

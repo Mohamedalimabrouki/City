@@ -61,9 +61,10 @@ def sizes(top: float, least: float) -> list:
     return [round(top - i * STEP, 3) for i in range(max(n, 0) + 1)]
 
 
-def under_stair_room(room, region, zones: list, half: float, least: float):
+def under_stair_room(room, region, zones: list, half: float, least: float, on_walls: bool = False):
     """The largest square inside the roof's stair room square (and inside `region`) with a side of at
-    least `least` whose walls keep the rule, nearest the stair room's center; None when none fits."""
+    least `least` whose walls keep the rule, nearest the stair room's center; None when none fits.
+    `on_walls` (villas and maisons): when none does, squares flush on the walls are tried (`flush`)."""
     fr = Frame.of(room)
     u0, v0, u1, v1 = fr.bounds(room)
     side = min(u1 - u0, v1 - v0)
@@ -71,19 +72,41 @@ def under_stair_room(room, region, zones: list, half: float, least: float):
     inside = region.buffer(1e-6)
     shapely.prepare(inside)
     edge = region.boundary.buffer(0.01, quad_segs=1)
-    for s in sizes(side, least):
-        slack = (side - s) / 2
-        n = int(slack / STEP + 1e-9)
-        offs = np.array(sorted(((i * STEP, j * STEP) for i in range(-n, n + 1) for j in range(-n, n + 1)),
-                               key=lambda t: (abs(t[0]) + abs(t[1]), t[0], t[1])))
-        us, vs = cu + offs[:, 0], cv + offs[:, 1]
-        squares = fr.rects(us - s / 2, vs - s / 2, us + s / 2, vs + s / 2)
-        held = shapely.contains(inside, squares)
-        held[held] = ~surely_unclear(squares[held], region, zones, half)
-        for i in np.flatnonzero(held):
-            if squares[i].difference(region).area < 1e-6 and walls_clear(squares[i], region, zones, half, edge):
-                return squares[i]
+    walls = fr.bounds(region.intersection(room)) if region.intersects(room) else None
+    for flushed in (False, True) if on_walls else (False,):   # every size on the grid first, then on the walls
+        for s in sizes(side, least):
+            slack = (side - s) / 2
+            n = int(slack / STEP + 1e-9)
+            offs = [(i * STEP, j * STEP) for i in range(-n, n + 1) for j in range(-n, n + 1)]
+            offs = flush(offs, walls, (cu, cv), s, slack) if flushed else offs
+            if not offs:
+                continue
+            offs = np.array(sorted(offs, key=lambda t: (abs(t[0]) + abs(t[1]), t[0], t[1])))
+            us, vs = cu + offs[:, 0], cv + offs[:, 1]
+            squares = fr.rects(us - s / 2, vs - s / 2, us + s / 2, vs + s / 2)
+            held = shapely.contains(inside, squares)
+            held[held] = ~surely_unclear(squares[held], region, zones, half)
+            for i in np.flatnonzero(held):
+                if squares[i].difference(region).area < 1e-6 and walls_clear(squares[i], region, zones, half, edge):
+                    return squares[i]
     return None
+
+
+def flush(grid: list, walls, center: tuple, s: float, slack: float) -> list:
+    """Offsets that put a square of side `s` flush on the walls the stair room's square reaches over
+    (`walls`: the bounds of the floor under it), tried once the `STEP` grid finds nothing: a cell a sliver
+    off a wall, its partition along a window, stands on the wall instead (lead decision C, 47.1/48.1)."""
+    if walls is None:
+        return []
+    u0, v0, u1, v1 = walls
+    cu, cv = center
+    nudge = (0.0, 0.005, 0.01)                        # inward, within the 0.01 m a wall's face may wander
+    ends = ([u0 + s / 2 - cu + d for d in nudge] + [u1 - s / 2 - cu - d for d in nudge],
+            [v0 + s / 2 - cv + d for d in nudge] + [v1 - s / 2 - cv - d for d in nudge])
+    ends = [[round(e, 6) for e in pair if abs(e) <= slack + 1e-9] for pair in ends]
+    us = sorted({t[0] for t in grid}) + ends[0]
+    vs = sorted({t[1] for t in grid}) + ends[1]
+    return [(a, b) for a in us for b in vs if a in ends[0] or b in ends[1]]
 
 
 def in_corner(corners: list, fr: Frame, region, zones: list, half: float, top: float, least: float,
