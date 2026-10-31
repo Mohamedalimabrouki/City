@@ -862,6 +862,21 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`, and how the le
   must skip the lines where the floor below draws a wall face, or they z-fight with it. Open (plans of 46,
   not touched): old-town entry steps with treads under 0.2 m, steps clipped by a short or bent skifa, a few
   doors whose steps run into the newel cell (WORKLOG prompt 49).
+- **Interiors in the viewer** (prompt 50, `tools/viewer/index.html`, `view.Interiors`): three.js turns global
+  clipping planes off in the shadow pass (`WebGLClipping.beginShadows`), so a cut with
+  `renderer.clippingPlanes` alone left the clipped roof casting its shadow over every room. The tile
+  materials carry the same plane too (`clippingPlanes`, `clipShadows`, `renderer.localClippingEnabled`);
+  proved by the depth programs' cache key (1 clipping plane) and by hiding every mesh above the cut (same
+  picture). At golden hour (sun 14 degrees) most of a cut floor still lies in the shadow of its 1.3 m
+  walls: that is right, noon shows the wall shadows plainly. Rays ignore clipping: filter hits above the
+  plane. Open the new tab inside the click (`window.open('')`, then set its location): a tab opened after
+  the server's answer is a blocked pop-up. The phone page must not probe `api/interior` (a 404 is a console
+  error): `make_artifact` swaps `SERVER_API` to false. `before_after.py` copies the working tree's viewer
+  into the before side on purpose, so a viewer-only prompt shows a mean difference of 0.00. `view.py` is
+  build code for the build key (only `citygen/interior/**` is left out), so editing it makes the build
+  stale: until `build --quick` runs again, the server's first interior plans the city again (3.3 s and a
+  warning; 1.1 s after the build, then 0.15 s each). Scripts run outside the sandbox (browser checks) see
+  another TMPDIR: keep them in `/tmp/claude-501`, not `$TMPDIR`.
 
 ## Known weak spots
 

@@ -16,10 +16,11 @@ Entry format:
 ```
 
 ## 2026-10-29 - Resume here (paused after prompt 47)
-- State: prompts 1-49 are done (branch `claude/procedural-city-generator-xop72h`; CP4, prompt 43, on 25
+- State: prompts 1-50 are done (branch `claude/procedural-city-generator-xop72h`; CP4, prompt 43, on 25
   October; the interiors 44-47 on 29 October, 48 (walls and openings) on 30-31 October). Continue when Ali
   says (for example "Do prompt 49." or "continue the playbook").
-- Next: 50 H1f interiors in the viewer (49 done 31 October). Ali most wants to walk inside the houses (sad not to see them in 3D yet): do 49-50 first, then
+- Next: 47.1 with 48.1 (50 done 31 October: Open interior on a dwelling's card in `citygen view` and the
+  gallery). Then 51. For 47.1 + 48.1:
   47.1 together with 48.1 (the plan faults the walls reveal, prompt 48 entry) (colonial flats pass `rooms.check` for 39%, the slowest colonial block takes 14 s, slabs 93%,
   domed house No. 570, colonial floor-0 stores as a few rooms) unless Ali says otherwise; its plan is in
   the prompt 47 entry.
@@ -54,6 +55,38 @@ Entry format:
 - 30 October: Ali wants his promotional API credit ($86.51, expires 14 November) spent before his weekly
   limit. It does not pay for Claude Code, so `tools/run_on_credit.py` runs a prompt through the Agent SDK
   instead (a billing test passed); how to use it: `docs/LEAD.md`, section 4.
+
+## 2026-10-31 - Prompt 50 H1f Interiors in the viewer
+- Commit: (lead commits) | Model: Opus 5.5, high
+- Changed: citygen/view.py (`api/interior` in `citygen view` and under `/b/<key>/` in the gallery,
+  `Interiors`: a lock and one BuildContext per build; the gallery finds interior folders),
+  tools/viewer/index.html (`folder=interiors/<name>`, Cut menu and `cut=roof|<floor>` with one global
+  clipping plane plus the same plane on the materials for shadows, rooms named on click, "Open interior" on
+  a dwelling's card, a smaller shadow box for interiors), tools/viewer/gallery.html (interior cards),
+  tools/make_artifact.py (`SERVER_API = false` on the phone page), tests (2 new, 1 assertion), ROADMAP (50
+  and H1 ticked), SPEC 6c Viewer, HANDOFF.
+- Checks: tests 128 passed in 36 s (the new ones about 1.0 s); build --quick 4.7 s (tiles rebuilt once:
+  view.py is in the build key); fingerprint 282 parts, 0 changed. Real flow tried in Chrome (Playwright,
+  `citygen view` on the quick build): a click on a house showed "Open interior", the click opened a new tab
+  at `?folder=interiors/goumosbane-597&view=interior` in 1.2 s (3.3 s before the rebuild, when the stale
+  build key made the server plan the city again), the cut and room clicks worked ("Ghorfa: upper room, floor 1, 18 m2", "Bit el ma:
+  washroom"); 49 of 72 rays through a cut house first hit something above the plane, and the picks skipped
+  them; `folder=../summary.json` stops with a message; the phone page card shows the note and asks no
+  server. Second interior through the server 0.15 s. No console errors besides Chrome's own GL notes.
+- Look: output/checks/50.png - dar No. 599 cut at floor 1 from the overview (both halves the same, 0.00:
+  `before_after` shows both sides through today's viewer and the interior data is unchanged).
+  output/checks/50-card.png (the card with Open interior), output/checks/50-dar-cut1.png (the dar opened
+  with `cut=1`), output/checks/50-interior-cut.png (the koubba opened from the card, cut at the ground floor).
+- Doubts and questions for Ali: none. For the lead: `view.py` edits make every build stale (it is build
+  code for the key); adding it to `buildkey.NOT_BUILD_CODE` would avoid that (one more rebuild once).
+  The `interior` view of some houses stands right at a door (koubba No. 597), a choice of prompt 46/47.
+- Lead review: read the whole diff, tests 128 passed, fingerprint 0 changed, no em dash. Own Chrome run
+  (script `lead50_flow.py` in the session scratchpad: a click sweep over the street view until
+  a card offers Open interior): colonial No. 845, new tab in 1.6 s, cut roof/1/0 at 22.17/9.12/5.52 m, room
+  clicks named "Qahwa: cafe, ground floor, 81 m2" and two back rooms. Pictures output/checks/50-lead-card.png
+  and 50-lead-cut0.png. Doubt for Ali: the tab opens on the `interior` spot, which for No. 845 faces a
+  bedroom window from 2.5 m (a plain wall); opening on the overview cut at the ground floor would show the
+  whole plan first (one word to change). Open: add `view.py` to `buildkey.NOT_BUILD_CODE`.
 
 ## 2026-10-31 - Prompt 49 H1e Floors, ceilings, stairs and roof terrace
 - Commit: (lead commits) | Model: Opus 5.5, high

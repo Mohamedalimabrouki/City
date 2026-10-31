@@ -1050,7 +1050,7 @@ the House without a courtyard, the stairs `newel`, `steps` and `ladder`, Enterin
 (the spine engine), Flats, the stair `u` and the roof `newel` of other layouts; every dwelling now has a real
 plan and `rooms.check` also tests each layout's program (see each section). Prompt 48: the walls as meshes
 (Walls, `interior/mesh.py`) and the shell of Output. Prompt 49: the stairs' geometry, Floors and ceilings,
-the roof deck and roof rooms, the court (`interior/floors.py`, `stairs.py`, `mesh.stairs_mesh`). Measured (prompt 47, final,
+the roof deck and roof rooms, the court (`interior/floors.py`, `stairs.py`, `mesh.stairs_mesh`). Prompt 50: the Viewer (Open interior, the Cut menu, rooms named on click, the gallery's interior folders). Measured (prompt 47, final,
 `rooms.check` with the programs): quick capital slabs 327 of 353, colonial blocks 105 of 270, domed houses 21 of
 22, houses with a shop 135 of 136; Ain Chilel villas 171 of 178, maisons 589 of 616; full capital sample 277 of
 300; no crash; slowest slab 2.7 s, colonial 14 s (No. 773, 100 m long, no floor repeats). Open item 47.1:
@@ -1692,11 +1692,39 @@ replays existing streams, so no draw is added to any. Built (prompt 47): the spi
 width on `layout` with the home's key (`villa`|`maison`, floor; `flat`, n; `stores`, 0), a souk shop's depth
 and a qahwa's on `shop`.
 
-**Viewer** (prompt 50): an interior folder (index `interior`) gets a Cut menu (none, roof, or a floor: a
-clipping plane `cut` 1.3 m above that floor) and the URL `cut=roof|<floor>`; a click in it names the room;
-`folder=interiors/<name>` makes the viewer read that sub folder; `citygen view` and the gallery answer
-`api/interior?city=NAME&building=K` by making it, and the house card gets "Open interior" (the phone page,
-which has no server, shows a note instead); the gallery lists interior folders.
+**Viewer** (prompt 50, built: `tools/viewer/index.html`, `citygen/view.py`, `tools/viewer/gallery.html`).
+- `folder=interiors/<name>` (only names matching `^interiors/[a-z0-9-]+$`, else the page stops with a
+  message) prefixes every data path: `data/<folder>/tiles/index.json`, its tiles, `rooms.json`.
+- An index with `interior` (its `floors` z and `roof`) opens on its `interior` view (on `overview` with
+  `cut=` alone), lists only its own views, and gets a Cut menu (none, roof, each floor from the top) and
+  the URL `cut=roof|<floor>`: one global clipping plane (`renderer.clippingPlanes`) at that floor's z +
+  `CUT` (1.3 m), or the roof deck - 0.05 m. three.js leaves global planes out of the shadow pass, so the
+  tile materials also carry the same plane with `clipShadows` (the cut-away roof casts no shadow into the
+  rooms); the sky dome and the post passes have no clipping code. Choosing a cut in the menu puts the
+  orbit target in the middle of the building at that floor (the overview spot at 0.75 of its distance
+  when the camera is not already above the cut). Rays ignore clipping, so clicks and double-clicks skip
+  hits above the plane. A click names the room under it (rooms.json: the room on the highest floor at or
+  under the hit whose polygon holds it, or has a wall within 0.6 m): its type (`bit_el_ma` -> "Bit el
+  ma") with a plain English word ("washroom"), the flat (`Flat 2 (S+3)` and its family), the shared core
+  or the home's family, the floor, its area and "daylight" when lit. The shadow box shrinks to 3 x the
+  tile size (texels of a few cm, `normalBias` scaled with it).
+- `citygen view` and the gallery (under `/b/<key>/api/interior`) answer `GET api/interior` with
+  `{"ok": true}`, and `api/interior?city=NAME&building=K` by running `make_interior` (status 400 with
+  `{"error": message}` for a refused building, a bad number or an unknown city; 500 with the error for a
+  bug, its traceback in the server's window). `view.Interiors`: one interior at a time behind a lock (a
+  second request waits in its own thread; `ThreadingHTTPServer` keeps serving tiles meanwhile), one
+  `BuildContext` per build folder kept while the server runs and loaded again when its summary.json
+  changes. Measured on the quick capital: the first interior 1.1 s (3.3 s when the build key is stale and
+  the plan is made again), the next 0.15 s. The answer's folder is checked against the same pattern.
+- The card of a dwelling (`HOUSING`: house, domed, apartments, villa) gets "Open interior" when
+  `api/interior` answers ok; a click opens a tab at once (a tab opened after the wait would be stopped as
+  a pop-up), shows "making the interior..." and sends that tab to `?folder=...&view=interior`; a refusal
+  shows its message on the card. Without a server the card says "Interiors: open this city with python
+  -m citygen view on the computer" (the phone page of `tools/make_artifact.py` sets `SERVER_API = false`
+  and asks no server).
+- The gallery's `build_folders` also finds `*/interiors/*/tiles/index.json` and
+  `*/*/interiors/*/tiles/index.json`: each shows under its index `world_name` ("Goumosbane No. 599
+  (dar)") with its own Open in 3D and its views.
 
 ## 7. Style pack (`styles/<name>.toml`)
 

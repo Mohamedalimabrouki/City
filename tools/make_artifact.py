@@ -66,6 +66,8 @@ def page(title: str, start: str) -> str:
             "loader.manager.addHandler(/^textures\\//, new THREE.TextureLoader(loader.manager));",
         "  const name = q.get('view') || 'aerial';": f"  const name = q.get('view') || '{start}';",
         "  fillViews(index, q.get('view') || 'aerial');": f"  fillViews(index, q.get('view') || '{start}');",
+        # no server behind the phone page: its house cards say where interiors open (prompt 50)
+        "const SERVER_API = true;": "const SERVER_API = false;",
     }
     for old, new in swaps.items():
         if html.count(old) != 1:

@@ -67,6 +67,14 @@
   #info-title { font-size: 15px; font-weight: 650; padding-right: 22px; overflow-wrap: anywhere; }
   #info-lines { color: var(--muted); margin-top: 2px; }
   #info-lines div + div { margin-top: 1px; }
+  #info-more:empty { display: none; }
+  #info-more { margin-top: 7px; color: var(--muted); }
+  #info-more button {
+    font: inherit; font-weight: 600; color: #fff; background: var(--accent); border: 0; border-radius: 999px;
+    padding: 6px 13px; cursor: pointer;
+  }
+  #info-more button:disabled { opacity: 0.7; cursor: progress; }
+  #info-more a { color: var(--accent); }
   #info-close {
     position: absolute; top: 6px; right: 8px; border: 0; background: none; font: 18px/1 system-ui, sans-serif;
     color: var(--muted); cursor: pointer; padding: 2px 4px;
@@ -102,6 +110,7 @@
         <option value="night">Night</option>
       </select>
       <select id="views" class="glass pill" aria-label="Camera spot" hidden></select>
+      <select id="cut" class="glass pill" aria-label="Cut the house open" hidden></select>
       <select id="quality" class="glass pill" aria-label="Quality">
         <option value="high">High</option>
         <option value="fast">Fast</option>
@@ -115,6 +124,7 @@
   <button id="info-close" type="button" aria-label="Close">&times;</button>
   <div id="info-title"></div>
   <div id="info-lines"></div>
+  <div id="info-more"></div>
 </div>
 <noscript>This viewer needs JavaScript.</noscript>
 
@@ -152,7 +162,14 @@ function fail(message) {
 // view=aerial|street|top or a camera spot named in the index "views", or cam=x,y,z and look=x,y,z
 // in generator coordinates (meters, z up); light=noon|golden|night (time=night is an old alias);
 // quality=high|fast (ambient occlusion and clean edges), perf=1 (log the average frame time);
-// pick=x,y shows who lives at that point.
+// pick=x,y shows who lives at that point; folder=interiors/<name> opens that interior folder of the build
+// (prompt 50) and cut=roof|<floor> cuts it open (a floor number, 0 for the ground floor).
+const FOLDER = q.get('folder');
+const FOLDER_RE = /^interiors\/[a-z0-9-]+$/;   // the only sub folders the viewer opens: never ../ or a path
+const FOLDER_OK = FOLDER === null || FOLDER_RE.test(FOLDER);
+const DATA = FOLDER && FOLDER_OK ? `data/${FOLDER}/` : 'data/';
+const CUT = 1.3;              // meters above a floor where the cut runs (index.interior), at the roof deck - 0.05
+const HOUSING = new Set(['house', 'domed', 'apartments', 'villa']);   // the dwellings that have an interior
 const RADIUS = Math.max(0, num('radius', 2500));
 const LOD_MODE = ['full', 'lod1'].includes(q.get('lod')) ? q.get('lod') : 'auto';
 const LOD_DISTANCE = Math.max(0, num('lod_distance', 1500));
@@ -409,7 +426,8 @@ function presetView(name) {
 // a menu of the generator's camera spots and the presets, for jumping around without the URL
 function fillViews(index, current) {
   const select = $('views');
-  const names = [...Object.keys(index.views || {}).filter((n) => indexView(index, n)), 'aerial', 'top'];
+  const presets = interior ? [] : ['aerial', 'top'];   // an interior has its own spots only
+  const names = [...Object.keys(index.views || {}).filter((n) => indexView(index, n)), ...presets];
   const label = (n) => (n.charAt(0).toUpperCase() + n.slice(1)).replace(/_/g, ' ');
   select.replaceChildren(...[...new Set(names)].map((n) => new Option(label(n), n, false, n === current)));
   select.hidden = false;
@@ -446,7 +464,7 @@ const loader = new GLTFLoader();
 const sharedMaterials = new Map();
 let extent = 500;          // distance from the focus to the farthest corner of a wanted tile
 let lowest = Infinity;     // lowest point of any shown tile; the camera stays above it
-const tileBase = new URL('data/tiles/', location.href);
+const tileBase = new URL(DATA + 'tiles/', location.href);
 const slots = [];          // one per tile of the index, see makeSlots
 let inflight = 0;          // tile files being fetched or parsed
 let tileVersion = 0;       // bumped whenever the shown tiles change
@@ -496,6 +514,7 @@ function shared(material) {
     }
     if (m.emissive && (m.emissive.getHex() !== 0 || LIT_AT_NIGHT[m.name])) m.userData.glows = true;
     if (night) glow(m);
+    clipMaterial(m);
     m.userData.shared = true;
     sharedMaterials.set(key, m);
   }
@@ -852,6 +871,7 @@ let dayMode = 'golden';       // the day mode the night returns to
 let activePreset = PRESETS.noon;
 let shadowAcross = SHADOW_HALF;
 let shadowUp = SHADOW_HALF;
+let shadowScale = 1;          // an interior's shadow box is a few times the house, not 1.4 km (prompt 50)
 let hazeScale = 1;
 
 function retone() {
@@ -874,14 +894,16 @@ function setWaterEnv(p) {
 function applyDayLook(p) {
   activePreset = p;
   aimSun(p);
-  shadowAcross = p.across;
-  shadowUp = p.up;
+  shadowAcross = p.across * shadowScale;
+  shadowUp = p.up * shadowScale;
   const cam = sun.shadow.camera;
   cam.left = -shadowAcross; cam.right = shadowAcross;
   cam.top = shadowUp; cam.bottom = -shadowUp;
+  cam.near = 50 * shadowScale;                        // the depth range scales too, and the depth bias with it
+  cam.far = (SUN_DISTANCE + 1300) * shadowScale;
   cam.updateProjectionMatrix();
   sun.shadow.bias = p.bias;
-  sun.shadow.normalBias = p.normalBias;
+  sun.shadow.normalBias = p.normalBias * shadowScale;
   if (renderer.toneMapping !== p.tone) {
     renderer.toneMapping = p.tone;
     retone();
@@ -935,7 +957,7 @@ function placeSun() {
   if (snapped.distanceToSquared(lastSnap) < 1e-6) return false;
   lastSnap.copy(snapped);
   sun.target.position.copy(snapped);
-  sun.position.copy(snapped).addScaledVector(SUN_DIR, SUN_DISTANCE);
+  sun.position.copy(snapped).addScaledVector(SUN_DIR, SUN_DISTANCE * shadowScale);
   return true;
 }
 
@@ -1231,6 +1253,193 @@ function tuneAo() {
 const raycaster = new THREE.Raycaster();
 const ndc = new THREE.Vector2();
 
+// ---------------------------------------------------------------- interiors (prompt 50)
+// An interior folder (index.interior: the z of each floor and of the roof deck) gets a Cut menu: one
+// clipping plane for the whole scene (renderer.clippingPlanes), CUT meters above a floor or just under the
+// roof deck. three.js leaves global planes out of the shadow pass, so the tile materials also carry the same
+// plane with clipShadows: the cut-away roof and upper walls then cast no shadow into the rooms. The sky
+// dome and the post passes have no clipping code and stay whole. Rays ignore clipping: picks skip hits
+// above the plane. A click names the room (rooms.json).
+let interior = null;          // index.interior of an interior folder, else null
+let interiorIndex = null;     // its index (views)
+let roomsData = null;         // promise of its rooms.json
+let cutZ = null;              // height of the cut (generator z, which is three.js y); null: no cut
+const clipPlane = new THREE.Plane(new THREE.Vector3(0, -1, 0), 0);   // keeps what lies below its constant
+const unclipped = (hit) => cutZ === null || hit.point.y <= cutZ + 1e-3;
+
+function clipMaterial(m) {
+  const on = cutZ !== null;
+  if (Boolean(m.clippingPlanes && m.clippingPlanes.length) === on) return;
+  m.clippingPlanes = on ? [clipPlane] : null;
+  m.clipShadows = on;
+  m.needsUpdate = true;
+}
+
+// 'none', 'roof' or the number of a floor of this interior
+function cutOf(value) {
+  if (!interior || value === null || value === undefined) return 'none';
+  if (value === 'roof') return 'roof';
+  const k = Number(value);
+  return value !== '' && Number.isInteger(k) && k >= 0 && k < interior.floors.length ? String(k) : 'none';
+}
+
+const cutHeight = (cut) => (cut === 'none' ? null : cut === 'roof' ? interior.roof - 0.05 : interior.floors[Number(cut)] + CUT);
+
+function setCut(value, move) {
+  const cut = cutOf(value);
+  cutZ = cutHeight(cut);
+  clipPlane.constant = cutZ ?? 0;
+  renderer.clippingPlanes = cutZ === null ? [] : [clipPlane];
+  renderer.localClippingEnabled = cutZ !== null;
+  for (const m of sharedMaterials.values()) clipMaterial(m);
+  $('cut').value = cut;
+  if (move && cutZ !== null) lookAtCut(cut);
+  shadowDirty = dirty = true;
+}
+
+// orbit round the middle of the building at the cut floor; from above it, or from the overview spot
+function lookAtCut(cut) {
+  const over = indexView(interiorIndex, 'overview');
+  const floor = cut === 'roof' ? interior.roof : interior.floors[Number(cut)];
+  const middle = over ? over.look : [focus.x, focus.y, floor];
+  const target = toThree(middle[0], middle[1], floor);
+  const offset = camera.position.clone().sub(controls.target);
+  const above = camera.position.y > cutZ + 3 && offset.length() > 8;
+  if (!above && over) offset.copy(toThree(...over.cam).sub(toThree(...over.look))).multiplyScalar(0.75);   // a floor is lower than the house
+  setView(target.clone().add(offset), target);
+}
+
+function setupInterior(index, viewGiven) {
+  interiorIndex = index;
+  shadowScale = THREE.MathUtils.clamp(3 * (index.tile_size || 20) / PRESETS.noon.across, 0.05, 1);
+  roomsData = fetch(DATA + 'rooms.json').then((res) => {
+    if (!res.ok) throw new Error(`rooms.json: HTTP ${res.status}`);
+    return res.json();
+  });
+  roomsData.catch(() => {});   // reported when a room is clicked
+  if (!viewGiven) q.set('view', q.has('cut') ? 'overview' : 'interior');
+  const menu = $('cut');
+  const floors = interior.floors.map((z, k) => [String(k), k === 0 ? 'Cut: ground floor' : `Cut: floor ${k}`]).reverse();
+  menu.replaceChildren(...[['none', 'Cut: none'], ['roof', 'Cut: roof'], ...floors].map(([v, label]) => new Option(label, v)));
+  menu.hidden = false;
+  menu.addEventListener('change', () => {
+    setCut(menu.value, true);
+    menu.blur();
+  });
+  $('help').textContent = $('help').textContent.replace(/(click|tap) a house/, '$1 a room \u00b7 Cut menu: open a floor');
+}
+
+const GLOSS = { skifa: 'entrance', wast_ed_dar: 'courtyard', bit: 'room', maqsura: 'small room', kbou: 'alcove',
+                bortal: 'gallery', matbakh: 'kitchen', bit_el_ma: 'washroom', bit_el_mouna: 'storeroom',
+                droj: 'stairs', ghorfa: 'upper room', stah: 'roof terrace', menzah: 'roof room', hanout: 'shop',
+                makhzen: 'back room', qahwa: 'cafe', hall: 'entrance hall', salon: 'living room',
+                salle_a_manger: 'dining room', cuisine: 'kitchen', chambre: 'bedroom', sdb: 'bathroom',
+                wc: 'toilet', couloir: 'corridor', palier: 'landing', koubba: 'domed room' };
+
+function ringArea(ring) {
+  let a = 0;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) a += ring[j][0] * ring[i][1] - ring[i][0] * ring[j][1];
+  return Math.abs(a) / 2;
+}
+
+// the room at (x, y, z): on the highest floor at or under z whose room holds the point, or has a wall
+// within 0.6 m of it (a click on a wall, a door frame or a window)
+function roomAt(data, x, y, z) {
+  let best = null;
+  for (const r of data.rooms || []) {
+    if (!(r.z <= z + 0.15 && z <= r.z + r.height + 0.05) || !r.polygon || !r.polygon.length) continue;
+    const inside = insideRing(r.polygon[0], x, y) && !r.polygon.slice(1).some((h) => insideRing(h, x, y));
+    const d = inside ? 0 : Math.min(...r.polygon.map((ring) => ringDist(ring, x, y)));
+    if (d > 0.6) continue;
+    if (!best || r.z > best.r.z + 0.5 || (Math.abs(r.z - best.r.z) <= 0.5 && d < best.d)) best = { r, d };
+  }
+  return best && best.r;
+}
+
+function describeRoom(data, r) {
+  const word = r.type.replace(/_/g, ' ');
+  const lines = [];
+  if (GLOSS[r.type]) lines.push(GLOSS[r.type]);
+  const flat = /^flat (\d+)$/.exec(r.unit || '');
+  const f = flat && (data.flats || []).find((x) => x.id === Number(flat[1]));
+  const family = (h) => (h && h.family ? `the ${h.family} family` : '');
+  if (f) lines.push([`Flat ${f.id} (${f.type})`, family(f.household)].filter(Boolean).join(' \u00b7 '));
+  else if (r.unit === 'common') lines.push('shared by the flats');
+  else if (r.unit === 'shop' || r.unit === 'cafe') lines.push(`the ${r.unit}`);
+  else if (r.unit === 'home' && data.household) lines.push(family(data.household).replace(/^t/, 'T'));
+  const floor = r.floor === 0 ? 'ground floor' : r.floor >= interior.floors.length ? 'roof' : `floor ${r.floor}`;
+  const area = r.polygon.reduce((a, ring, i) => a + (i ? -1 : 1) * ringArea(ring), 0);
+  lines.push([floor, `${area.toFixed(area < 10 ? 1 : 0)} m\u00b2`, r.lit ? 'daylight' : ''].filter(Boolean).join(' \u00b7 '));
+  return { title: word.charAt(0).toUpperCase() + word.slice(1), lines };
+}
+
+async function showRoom(x, y, z) {
+  const card = $('info');
+  const token = ++infoToken;
+  try {
+    const data = await roomsData;
+    if (token !== infoToken) return;
+    const r = roomAt(data, x, y, z);
+    if (!r) { card.hidden = true; return; }
+    fillCard(describeRoom(data, r));
+  } catch (err) {
+    fillCard({ title: 'Rooms', lines: ['no room list for this interior (' + (err.message || err) + ')'] });
+  }
+}
+
+// "Open interior" on a dwelling's card when a citygen server answers api/interior (citygen view and
+// the gallery); a page without one (the phone page) says where interiors open instead.
+let serverCheck = null;
+let infoToken = 0;            // the card's current subject: late answers for an older click are dropped
+const SERVER_API = true;      // tools/make_artifact.py writes false: the phone page has no server to ask
+const hasServer = () => (serverCheck ??= !SERVER_API ? Promise.resolve(false)
+  : fetch('api/interior', { cache: 'no-store' })
+    .then((res) => (res.ok ? res.json() : null))
+    .then((answer) => Boolean(answer && answer.ok === true))
+    .catch(() => false));
+
+async function offerInterior(city, k, token) {
+  const server = await hasServer();
+  if (token !== infoToken) return;
+  const more = $('info-more');
+  if (!server) {
+    more.textContent = 'Interiors: open this city with python -m citygen view on the computer';
+    return;
+  }
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.textContent = 'Open interior';
+  button.addEventListener('click', () => openInterior(city.name, k, button));
+  more.replaceChildren(button);
+}
+
+async function openInterior(cityName, k, button) {
+  const more = $('info-more');
+  button.disabled = true;
+  button.textContent = 'making the interior...';
+  // the tab opens now, inside the click: a tab opened after the wait would be stopped as a pop-up
+  const tab = window.open('', '_blank');
+  if (tab) tab.document.write(`<title>No. ${k}</title><p style="font:16px system-ui;margin:2em">making the interior of No. ${k}...</p>`);
+  try {
+    const res = await fetch(`api/interior?city=${encodeURIComponent(cityName)}&building=${k}`, { cache: 'no-store' });
+    const answer = await res.json().catch(() => ({}));
+    if (!res.ok || !FOLDER_RE.test(answer.folder || '')) throw new Error(answer.error || `the server answered ${res.status}`);
+    const url = new URL(`?folder=${answer.folder}&view=interior`, location.href).href;
+    if (tab) tab.location.href = url;
+    else if (!window.open(url, '_blank')) {
+      const link = Object.assign(document.createElement('a'), { href: url, target: '_blank', textContent: 'Open the interior' });
+      more.append(' ', link);
+    }
+  } catch (err) {
+    if (tab) tab.close();
+    const note = document.createElement('div');
+    note.textContent = String(err.message || err);
+    more.append(note);
+  }
+  button.disabled = false;
+  button.textContent = 'Open interior';
+}
+
 // ---------------------------------------------------------------- who lives here
 // A click on a house shows the household behind its door (family, trade, people, wealth), read
 // from the city's plan.json; a click on a souk shows its name and trade.
@@ -1282,7 +1491,7 @@ function indexPlan(plan) {
 
 function loadPlan(city) {
   if (!plans.has(city.plan)) {
-    plans.set(city.plan, fetch('data/' + city.plan).then((res) => {
+    plans.set(city.plan, fetch(DATA + city.plan).then((res) => {
       if (!res.ok) throw new Error(`${city.plan}: HTTP ${res.status}`);
       return res.json();
     }).then(indexPlan));
@@ -1351,10 +1560,12 @@ function describe(p, x, y) {
         lines: [`${plural(h.members, 'person').replace('persons', 'people')} \u00b7 ${h.trade}`,
                 `${wealthWord(h.wealth)} \u00b7 ${h.door.replace('door_', '')} door \u00b7 ${plural(b.floors, 'floor')}`, where,
                 `No. ${building}`],   // the number python -m citygen interior takes (prompt 45)
+        k: building, dwelling: HOUSING.has(b.kind),
       };
     }
     const title = landmark ? landmark.m.name : b.kind.replace(/_/g, ' ');
-    return { title: title.charAt(0).toUpperCase() + title.slice(1), lines: [plural(b.floors, 'floor'), where, `No. ${building}`] };
+    return { title: title.charAt(0).toUpperCase() + title.slice(1), lines: [plural(b.floors, 'floor'), where, `No. ${building}`],
+             k: building, dwelling: HOUSING.has(b.kind) };
   }
   if (street >= 0) {
     const souk = p.souks.get(street);
@@ -1366,22 +1577,32 @@ function describe(p, x, y) {
   return district ? { title: district.name, lines: [KIND[district.kind] || district.kind] } : null;
 }
 
+function fillCard(found) {
+  $('info-title').textContent = found.title;
+  $('info-lines').replaceChildren(...found.lines.filter(Boolean).map((line) => {
+    const div = document.createElement('div');
+    div.textContent = line;
+    return div;
+  }));
+  $('info-more').replaceChildren();
+  $('info').hidden = false;
+}
+
 async function showInfo(x, y) {
   const city = cities.find((c) => x >= c.bounds[0] && x <= c.bounds[2] && y >= c.bounds[1] && y <= c.bounds[3]);
   const card = $('info');
+  const token = ++infoToken;
   if (!city) { card.hidden = true; return; }
   $('info-title').textContent = city.name;
   $('info-lines').textContent = 'reading the city plan...';
+  $('info-more').replaceChildren();
   card.hidden = false;
   try {
     const found = describe(await loadPlan(city), x, y);
+    if (token !== infoToken) return;
     if (!found) { card.hidden = true; return; }
-    $('info-title').textContent = found.title;
-    $('info-lines').replaceChildren(...found.lines.filter(Boolean).map((line) => {
-      const div = document.createElement('div');
-      div.textContent = line;
-      return div;
-    }));
+    fillCard(found);
+    if (found.dwelling) await offerInterior(city, found.k, token);
   } catch (err) {
     $('info-lines').textContent = 'no plan for this city (' + (err.message || err) + ')';
   }
@@ -1391,8 +1612,9 @@ function pickAt(clientX, clientY) {
   const r = canvas.getBoundingClientRect();
   ndc.set(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1);
   raycaster.setFromCamera(ndc, camera);
-  const hit = raycaster.intersectObjects(tiles.children, true)[0];
-  if (hit) showInfo(hit.point.x + focus.x, focus.y - hit.point.z);
+  const hit = raycaster.intersectObjects(tiles.children, true).find(unclipped);
+  if (hit && interior) showRoom(hit.point.x + focus.x, focus.y - hit.point.z, hit.point.y);
+  else if (hit) showInfo(hit.point.x + focus.x, focus.y - hit.point.z);
 }
 
 // ---------------------------------------------------------------- interaction
@@ -1401,7 +1623,7 @@ function focusAt(clientX, clientY) {
   const r = canvas.getBoundingClientRect();
   ndc.set(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1);
   raycaster.setFromCamera(ndc, camera);
-  const hit = raycaster.intersectObjects(tiles.children, true)[0];
+  const hit = raycaster.intersectObjects(tiles.children, true).find(unclipped);
   if (!hit) return;
   focusAnim = { from: controls.target.clone(), to: hit.point.clone(), t0: performance.now(), ms: calm ? 1 : 450 };
   dirty = true;
@@ -1583,8 +1805,9 @@ window.addEventListener('resize', resize);
 
 // ---------------------------------------------------------------- boot
 async function boot() {
-  const res = await fetch('data/tiles/index.json', { cache: 'no-store' });
-  if (!res.ok) throw new Error(`data/tiles/index.json: HTTP ${res.status}`);
+  if (!FOLDER_OK) throw new Error('folder= names an interior folder, like interiors/goumosbane-190');
+  const res = await fetch(DATA + 'tiles/index.json', { cache: 'no-store' });
+  if (!res.ok) throw new Error(`${DATA}tiles/index.json: HTTP ${res.status}`);
   const index = await res.json();
   if (!String(index.format || '').startsWith('citygen-tiles/1')) console.warn('unexpected tile format:', index.format);
 
@@ -1604,8 +1827,16 @@ async function boot() {
   document.title = world + ' - citygen';
 
   cities = Array.isArray(index.cities) ? index.cities : [];
+  const inside = index.interior;
+  const finite = (v) => typeof v === 'number' && Number.isFinite(v);
+  const viewGiven = q.has('view') || Boolean(triple('cam')) || Boolean(triple('look'));
+  if (inside && Array.isArray(inside.floors) && inside.floors.length && inside.floors.every(finite) && finite(inside.roof)) {
+    interior = inside;
+    setupInterior(index, viewGiven);
+  }
   const view = initialView(index);
   applyView(view.cam, view.look);
+  if (interior) setCut(q.get('cut'), !viewGiven);   // cut=... alone: orbit round that floor
   fillViews(index, q.get('view') || 'aerial');
   syncQualityMenu();
   await applyQuality(quality);     // High loads the post chain; Fast skips it in the day
@@ -1614,7 +1845,7 @@ async function boot() {
     : q.get('time') === 'night' ? 'night' : 'golden');
 
   makeSlots(index);
-  if (LOD_MODE !== 'full' && slots.length && !slots.some((s) => s.lodFile)) console.warn('no lod1 tiles in this build');
+  if (LOD_MODE !== 'full' && slots.length && !interior && !slots.some((s) => s.lodFile)) console.warn('no lod1 tiles in this build');
   // with no spot from the index, the street preset looks for open ground once the nearby tiles are in
   streetPending = q.get('view') === 'street' && !triple('cam') && !triple('look') && !indexView(index, 'street');
   updateLod();
@@ -1637,7 +1868,8 @@ async function boot() {
 
 // handle for the browser console and for tests
 window.citygen = { THREE, scene, camera, controls, renderer, sun, tiles, slots, toThree, setNight, setLight: applyLight,
-                   applyQuality, showInfo, get focus() { return focus; }, get light() { return lightMode; },
+                   applyQuality, showInfo, setCut, get focus() { return focus; }, get light() { return lightMode; },
+                   get cut() { return cutZ; },
                    get quality() { return quality; }, get composer() { return composer; } };
 setShadows(shadowsOn);
 resize();

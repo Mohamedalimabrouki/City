@@ -95,6 +95,7 @@ function title(b) {
 }
 
 function subtitle(b) {
+  if (b.interior) return `Inside one house (python -m citygen interior), made from ${b.parent}`;
   const [kind] = (b.area || '').split(':');
   const parts = [];
   if (b.size_km) parts.push(`${b.world}, ${b.size_km < 30 ? `small test country (${b.size_km} km)` : `${b.size_km} km country`}`);
@@ -116,10 +117,10 @@ function card(b, newest) {
   const row = el('div', { class: 'row' });
   if (b.has3d) {
     row.append(el('a', { class: 'btn main', href: open }, 'Open in 3D'));
-    const views = b.path.endsWith('kit-sheet') ? b.views : ['aerial', ...b.views];
+    const views = b.path.endsWith('kit-sheet') || b.interior ? b.views : ['aerial', ...b.views];
     for (const v of views) row.append(el('a', { class: 'btn', href: `${open}?view=${encodeURIComponent(v)}` },
                                          VIEW_NAMES[v] || v[0].toUpperCase() + v.slice(1)));
-    if (!b.path.endsWith('kit-sheet')) row.append(el('a', { class: 'btn', href: `${open}?light=night` }, 'Night'));
+    if (!b.path.endsWith('kit-sheet') && !b.interior) row.append(el('a', { class: 'btn', href: `${open}?light=night` }, 'Night'));
   }
   const maps = el('div', { class: 'row' });
   for (const m of b.maps) maps.append(el('a', { class: 'btn', href: m.url, target: '_blank' },

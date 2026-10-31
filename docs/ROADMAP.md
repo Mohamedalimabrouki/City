@@ -63,7 +63,7 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
 - [x] 48 H1d Interior walls and openings (holes matching the facade, frames and leaves, zellige dado)
 - [ ] 48.1 H1d fix: plan faults the walls reveal (`mesh.faults`: slab 98/176, colonial 81/90, villa 60/89; with 47.1)
 - [x] 49 H1e Floors, stairs, roof terrace (slabs with wells and light slots, beams, terrazzo and tiles, newel/U/steps/ladders, hollow roof rooms, paved court; slab cores slide past entry steps)
-- [ ] 50 H1f Interiors in the viewer
+- [x] 50 H1f Interiors in the viewer (Open interior on a dwelling's card, Cut menu, rooms named on click, gallery lists interiors)
 - [ ] 51 H2 Furnishing: the design
 - [ ] 52 H2a Traditional furniture
 - [ ] 53 H2b Modern furniture
@@ -332,11 +332,14 @@ This scales because nothing is stored: an interior, or the clutter of a street, 
 when a scene, a game or a picture needs it, and it is always the same for the same seed. A
 studio fills a few rooms by hand; rules fill every one of the 40,000 houses on demand.
 
-- [ ] **H1 Interiors on demand** (L, Opus medium for the design, then Sonnet) -
-  `python -m citygen interior BUILDING` builds the inside of any building. Courtyard houses get a
-  bent entrance (skifa), the courtyard (wast ed dar), rooms around it, a kitchen and stairs to the
-  roof terrace; apartment blocks get flats on every floor. Doors and windows match the facade.
-  Output: one .glb plus a JSON list of rooms.
+- [x] **H1 Interiors on demand** (L, Opus medium for the design, then Sonnet; prompts 44-50) -
+  `python -m citygen interior BUILDING` builds the inside of any dwelling (houses, domed houses,
+  apartment blocks and villas, with their shops; mosques, minarets and other public buildings get none).
+  Courtyard houses get a bent entrance (skifa), the courtyard (wast ed dar), rooms around it, a
+  kitchen and stairs to the roof terrace; apartment blocks get flats on every floor. Doors and
+  windows match the facade. Output: one .glb plus a JSON list of rooms. In `citygen view` and the
+  gallery, a dwelling's card has "Open interior" (prompt 50): the interior opens in a new tab, with
+  a Cut menu to open it floor by floor. Open: the plan faults of 47.1 and 48.1.
 - [ ] **H2 Furnishing** (L) - Furniture and objects per room type from the kit (A0): banquettes,
   carpets (klim, mergoum), chests, low tables, lanterns, pottery, beds; fridge and TV in modern
   flats. A `density` setting: sparse, lived-in, extremely full.

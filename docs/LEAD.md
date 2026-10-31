@@ -93,6 +93,10 @@ and care as the last one: keep this file up to date when you learn something tha
   96%, slabs to 93%, colonial blocks only to 39% (open item 47.1).
 - **A helper cut off by an error** (a network drop): `git diff` to see where it stopped, then SendMessage
   to the same helper; it resumes with its context.
+- **No browser pane** (prompt 50, a run without MCP tools): drive the real viewer with a Playwright script on
+  Chrome (`snapshot._launch(pw, gpu=True)`, `start_server`, `_wait_ready`): click a grid of points on a view
+  until the card shows what you test, catch new tabs with `context.expect_page()`, use `select_option` for
+  menus and mouse drags to orbit, and print the card's text after each click.
 - **Blind, exact reruns.** To rerun a prompt, take its exact text from the transcript and compare its
   sha1; hide anything that would leak the answer (a memory note) while it runs, and restore it after.
 - **Scoring.** Declare criteria and weights before judging (the duel: result 30, solid work 25,

@@ -3435,6 +3435,7 @@ def test_phone_page_patches_the_viewer_and_stores_lod1_tiles(tmp_path):
     assert "atob((await res.json()).glb)" in html and "res.arrayBuffer()" not in html
     assert "fetch(url, { signal })" in html          # cancellable loads survive the patch
     assert "addHandler(/^textures\\//, new THREE.TextureLoader" in html   # textures as <img> (prompt 42)
+    assert "const SERVER_API = false;" in html and "Interiors: open this city with python -m citygen view" in html
 
 
 def test_phone_page_skips_spots_a_plan_puts_against_a_wall():
@@ -3620,6 +3621,61 @@ def test_interior_refuses_what_it_cannot_do(interior_ctx, tmp_path):
     with pytest.raises(InteriorError, match=plan.settlement.name):
         city_plan(interior_ctx, "Atlantis")
     assert city_plan(interior_ctx, plan.settlement.name.upper()) is plan
+
+
+def test_view_makes_interiors(interior_build, interior_ctx):
+    """Prompt 50: citygen view answers api/interior, makes a dwelling's folder and serves it; refusals are 400s."""
+    import re
+    import urllib.parse
+    import urllib.request
+    from urllib.error import HTTPError
+    from citygen.interior.context import city_plan, layout_of
+    from citygen.view import Interiors, start_server
+    plan = city_plan(interior_ctx)
+    city = plan.settlement.name
+    dar = next(k for k, b in enumerate(plan.buildings) if layout_of(plan, b, interior_ctx.world.style) == "dar")
+    minaret = next(k for k, b in enumerate(plan.buildings) if b.kind == "minaret")
+    makers = Interiors()
+    makers.keep(interior_build, interior_ctx)                # the module's context: nothing is loaded again
+    server, base = start_server(interior_build, interiors=makers)
+    get = lambda path: json.loads(urllib.request.urlopen(base + path, timeout=30).read())   # noqa: E731
+
+    def refused(path: str) -> str:
+        with pytest.raises(HTTPError) as err:
+            urllib.request.urlopen(base + path, timeout=30)
+        assert err.value.code == 400
+        return json.loads(err.value.read())["error"]
+    try:
+        assert get("/api/interior") == {"ok": True}
+        folder = get(f"/api/interior?city={urllib.parse.quote(city)}&building={dar}")["folder"]
+        assert re.fullmatch(r"interiors/[a-z0-9-]+", folder) and folder.endswith(f"-{dar}")
+        index = get(f"/data/{folder}/tiles/index.json")
+        assert index["interior"]["building"] == dar and get(f"/data/{folder}/rooms.json")["rooms"]
+        assert "minaret" in refused(f"/api/interior?city={urllib.parse.quote(city)}&building={minaret}")
+        assert "number" in refused("/api/interior?building=..%2Fx")
+        assert "Atlantis" in refused(f"/api/interior?city=Atlantis&building={dar}")
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_gallery_lists_interiors(tmp_path):
+    """Prompt 50: an interior folder made in a build shows in the gallery under its own name."""
+    from citygen.view import builds
+    world = tmp_path / "w"
+    (world / "tiles").mkdir(parents=True)
+    (world / "summary.json").write_text(json.dumps({"world": "Land", "plans": [{"name": "Town"}]}))
+    (world / "tiles" / "index.json").write_text(json.dumps({"tiles": []}))
+    inside = world / "interiors" / "town-5" / "tiles"
+    inside.mkdir(parents=True)
+    (inside / "index.json").write_text(json.dumps({"world_name": "Town No. 5 (dar)", "tiles": [],
+                                                   "views": {"interior": {}, "overview": {}},
+                                                   "interior": {"floors": [0.0], "roof": 3.4}}))
+    found = {b["key"]: b for b in builds(tmp_path)}
+    assert set(found) == {"w", "w~interiors~town-5"}
+    room = found["w~interiors~town-5"]
+    assert room["world"] == "Town No. 5 (dar)" and room["interior"] and room["parent"] == "output/w"
+    assert room["has3d"] and room["views"] == ["interior", "overview"] and not found["w"]["interior"]
 
 
 def test_build_key_ignores_interiors(tmp_path, monkeypatch):
