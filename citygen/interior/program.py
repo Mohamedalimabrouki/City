@@ -25,6 +25,14 @@ def living(cells: list) -> list:
     return [c for c in cells if c.type not in FIXED]
 
 
+def avoid_way(job, cells: list, goal=None) -> tuple:
+    """The `avoid` sets a service tries in turn: the cells on the only way in first, then none."""
+    way = set() if getattr(job.interior, "way_free", False) else way_cells(job, cells, goal)
+    if way:
+        job.interior.way_used = True
+    return (way, set()) if way else (set(),)
+
+
 def assign(job, cells: list, small: bool = False) -> list:
     """Types for the living cells of floor 0 (see the module doc); returns the cells (carving adds some)."""
     cells = list(cells)
@@ -43,9 +51,13 @@ def assign(job, cells: list, small: bool = False) -> list:
     taken: dict = {}
     for service in wanted:
         ref = taken.get("matbakh") if service == "bit_el_ma" else (skifa[0] if skifa and service == "matbakh" else None)
-        got = place(job, cells, free, service, ref, bits)
-        if got is None and service in ("matbakh", "bit_el_ma"):
-            got = from_bit(job, cells, free, bits, service, ref)
+        got = None
+        for avoid in (avoid_way(job, cells) if service != "bit_el_mouna" else (set(),)):
+            got = place(job, cells, free, service, ref, bits, avoid)
+            if got is None and service in ("matbakh", "bit_el_ma"):
+                got = from_bit(job, cells, free, bits, service, ref, avoid)
+            if got is not None:
+                break
         if got is not None:
             taken[service] = got.poly
     for c in [c for c in free if not c.type]:
@@ -67,10 +79,11 @@ def assign(job, cells: list, small: bool = False) -> list:
     return cells
 
 
-def place(job, cells: list, free: list, service: str, ref, bits: list):
-    """The cell for one service among the free ones (carved to `largest` when bigger); None when none fits."""
+def place(job, cells: list, free: list, service: str, ref, bits: list, avoid=frozenset()):
+    """The cell for one service among the free ones (carved to `largest` when bigger), none of `avoid`
+    (cells on the only way in); None when none fits."""
     big = job.largest.get(service, 99.0)
-    cands = [c for c in free if not c.type and job.fits(c.poly, service)]
+    cands = [c for c in free if not c.type and job.fits(c.poly, service) and id(c) not in avoid]
 
     def key(c):
         off_main = c.part != "corner" or c.band != main_of(bits)
@@ -96,11 +109,11 @@ def place(job, cells: list, free: list, service: str, ref, bits: list):
     return None
 
 
-def from_bit(job, cells: list, free: list, bits: list, service: str, ref):
+def from_bit(job, cells: list, free: list, bits: list, service: str, ref, avoid=frozenset()):
     """No free cell holds the service: carve it from one end of a bit (the largest first, never the T room's
     kbou), the rest staying a bit at its minimum; None when no bit can spare it."""
     for b in sorted(bits, key=lambda b: (b.alcove is not None, is_t_room(b), -b.poly.area)):
-        if b.alcove is not None:
+        if b.alcove is not None or id(b) in avoid:
             continue
         got = carve(job, b, service, ref)
         if got is None:
@@ -113,6 +126,43 @@ def from_bit(job, cells: list, free: list, bits: list, service: str, ref):
         cells.append(c)
         return c
     return None
+
+
+def way_cells(job, cells: list, goal=None) -> set:
+    """The living cells (ids) every way from a skifa with no court door to the court (or the polygon
+    `goal`, a koubba) crosses: no wet room nor matbakh goes there when it fits elsewhere (open items 47.1 +
+    48.1, round 6)."""
+    skifa = [c for c in cells if c.type == "skifa"]
+    if not skifa or any(d[0] == "court_door" for c in skifa for d in c.doors):
+        return set()
+    court = [c.poly for c in cells if c.type == "wast_ed_dar"] if goal is None else [goal]
+    grown = [p.buffer(0.02) for p in court]           # a covered court or koubba shares the cells' edges
+    if goal is None and getattr(job, "court_poly", None) is not None:   # the open court beyond its wall
+        grown.append(job.court_poly.buffer(job.court_wall + 0.02))
+    if not grown:
+        return set()
+    need = job.door + 2 * (job.clear + job.half)
+    walk = [c for c in cells if c.type not in ("droj", "well", "stah", "menzah", "wast_ed_dar")]
+    ends = {id(c) for c in walk if any(c.poly.boundary.intersection(g).length >= need for g in grown)}
+    if ends & {id(c) for c in skifa}:
+        return set()
+
+    def reaches(without) -> bool:
+        seen = [c for c in skifa]
+        todo = list(seen)
+        while todo:
+            a = todo.pop()
+            if id(a) in ends:
+                return True
+            for b in walk:
+                if b is not without and all(b is not x for x in seen) and shared(a.poly, b.poly) >= need:
+                    seen.append(b)
+                    todo.append(b)
+        return False
+
+    if not reaches(None):                             # no doorway on: the skifa's neighbours are the way
+        return {id(c) for c in living(walk) if any(shared(c.poly, k.poly) >= need for k in skifa)}
+    return {id(c) for c in living(walk) if not reaches(c)}
 
 
 def into_bit(cells: list, bits: list) -> list:
@@ -195,8 +245,10 @@ def old_problems(interior) -> list:
         if "matbakh" not in types:
             out.append("floor 0 has no matbakh")
         least = rules["minimums"].get("bit_el_ma", (0.0, 0.0))
+        from .plancheck import way_rooms
+        way = set(way_rooms(interior))                # a store on the way in is no place for a bit el ma
         spare = [r for r in floor0 if r.type in ("bit_el_mouna", "maqsura") and r.polygon.area >= least[0]
-                 and width(r.polygon) >= least[1]]
+                 and width(r.polygon) >= least[1] and r.id not in way]
         if "bit_el_ma" not in types and spare:
             out.append("floor 0 has no bit el ma but a store or maqsura that should have given way")
     for r in interior.rooms:
@@ -324,3 +376,46 @@ def flat_problems(interior) -> list:
         if not any(r is not None and r.unit == "common" for r in outside):
             out.append(f"flat {flat.id} has no door on a palier")
     return out
+
+
+def swap_way(interior, check, tries: int = 12) -> None:
+    """A wet room or matbakh the way in still crosses trades its type with a room of floor 0 off that way
+    (a bit, maqsura or store); a trade is kept when `check` then finds no new fault of another kind and
+    fewer faults, or as many with fewer such rooms on the way; a bit el ma no trade moves becomes a store,
+    the program's last service to give way (round 6)."""
+    from .plancheck import KITCHENS, WET, way_rooms
+
+    def score():                                      # (other faults, all faults, rooms crossed)
+        types = {r.id: r.type for r in interior.rooms}
+        bad = check(interior)
+        return (sum(not f.startswith("the way in") for f in bad), len(bad),
+                sum(types[i] in WET + KITCHENS for i in way_rooms(interior)))
+
+    way = way_rooms(interior)
+    on = [r for r in interior.rooms if r.id in way and r.type in WET + KITCHENS]
+    if not on:
+        return
+    best = score()
+    off = [r for r in interior.rooms if r.floor == 0 and r.unit == "home" and r.id not in way
+           and r.type in ("bit", "maqsura", "bit_el_mouna")]
+    n = 0
+    for a in on:
+        for b in sorted(off, key=lambda r: (abs(r.polygon.area - a.polygon.area), r.id)):
+            if n >= tries or best[1] == 0:
+                return
+            n += 1
+            a.type, b.type = b.type, a.type
+            got = score()
+            if got[0] <= best[0] and got[1:] < best[1:]:   # never trades the way for another fault
+                best = got
+                off = [r for r in off if r is not b]
+                break
+            a.type, b.type = b.type, a.type
+        else:
+            if a.type == "bit_el_ma":                 # the bit el ma gives way (the program's order)
+                a.type = "bit_el_mouna"
+                got = score()
+                if got[0] <= best[0] and got[1:] < best[1:]:
+                    best = got
+                else:
+                    a.type = "bit_el_ma"

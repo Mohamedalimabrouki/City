@@ -24,6 +24,9 @@ from .cuts import Frame, zone
 from .mesh import CASED, FACADE, GAP, depths, frame_of, free, passage, walled_in
 
 SLACK = 1e-4      # m2 a strip may miss (rounding)
+WET = ("bit_el_ma", "wc", "sdb")                     # rooms nobody walks through on the way in (round 6)
+KITCHENS = ("matbakh", "cuisine")
+WALK = ("door", "shop", "inner", "court_door", "arch")   # openings a person walks through (`rooms.PASS`)
 
 
 def faults(interior) -> list:
@@ -33,7 +36,7 @@ def faults(interior) -> list:
     for f in range(interior.floors):
         out += _walls(interior, f, cfg)
     out += _steps(interior, cfg)
-    return out
+    return out + way_in(interior)
 
 
 def rect(c, front, along, t0: float, t1: float, d0: float, d1: float) -> Polygon:
@@ -124,10 +127,11 @@ def _walls(interior, f: int, cfg: dict) -> list:
 def trim(interior) -> None:
     """Hair strips of finished rooms (thinner than 2 x `cuts.HAIR`: walls would swallow them and the doors on
     them) go to the neighbour of the same unit they share most boundary with, when no partition then meets
-    a wall near an opening and the room keeps its minimum (47.1/48.1)."""
+    a wall near an opening and the room keeps its minimum (47.1/48.1); a bent skifa's half all hair strip
+    joins its other neighbour (the court: the skifa's arch then opens on it, round 6)."""
     from ..city.geo import polygons
-    from .cuts import GRID, HAIR, VOID_TYPES, parts, shared, union
-    from .rooms import KEEP, clash_polys, is_court, merge, renumber, zones_of
+    from .cuts import GRID, HAIR, VOID_TYPES, parts, shared, union, width
+    from .rooms import KEEP, clash_polys, connect, is_court, merge, renumber, zones_of
     least = interior.rules.get("minimums", {})
     merged = False
     for f in range(interior.floors):
@@ -136,12 +140,23 @@ def trim(interior) -> None:
         for r in list(rooms):
             core = parts(r.polygon.buffer(-HAIR, join_style="mitre").buffer(HAIR, join_style="mitre")
                          .intersection(r.polygon))
-            if not core:                              # a room all hair strip joins its neighbour
-                ranked = sorted(((shared(r.polygon, o.polygon), o.id, o) for o in rooms
-                                 if o is not r and o.unit == r.unit), key=lambda t: (-t[0], t[1]))
-                if r.type not in KEEP and ranked and ranked[0][0] > 0.1 and merge(interior, ranked[0][2], r):
+            half = r.type == "skifa" and any(o.type == "skifa" and o is not r and o.unit == r.unit for o in rooms)
+            if not core or half and width(r.polygon) < 2 * HAIR:   # a room all hair strip joins its neighbour
+                hosts = rooms + ([o for o in interior.rooms if o.floor == f and o.type == "wast_ed_dar" and not o.open]
+                                 if half else [])     # a skifa half: the covered court takes it
+                ranked = sorted(((shared(r.polygon, o.polygon), o.id, o) for o in hosts
+                                 if o is not r and o.unit == r.unit and not (half and o.type == "skifa")),
+                                key=lambda t: (-t[0], t[1]))
+                if ((r.type not in KEEP or half) and ranked and ranked[0][0] > 0.1   # a skifa's hair half (round 6)
+                        and merge(interior, ranked[0][2], r)):
                     rooms.remove(r)
                     merged = True
+                    if half:                          # its arch would open on the hair strip: the doors pass
+                        host = ranked[0][2]           # finds the skifa another way in
+                        interior.openings = [o for o in interior.openings if not (
+                            host.id in o.rooms and o.kind in ("arch", "inner", "court_door") and any(
+                                x.id in o.rooms and x.type == "skifa" for x in rooms))]
+                        connect(interior)
                 continue
             body = max(core, key=lambda p: p.area)
             for arm in polygons(shapely.difference(r.polygon, body, grid_size=GRID)):
@@ -203,6 +218,32 @@ def settle(interior, again: bool = True) -> None:
         R.connect(interior)
         R.renumber(interior)
         settle(interior, again=False)
+
+
+def bend(interior) -> None:
+    """The bent entry (decision D, round 6): a dar whose court shows from the street door slides the
+    inner openings of its entry room, then of the rooms that room opens into, along their walls to the
+    nearest place the walls accept where the court no longer shows (the skifa's door off the street
+    door's line); the first such place stays."""
+    door = interior.entry
+    if interior.layout != "dar" or door is None or door not in interior.openings or not _sees_court(interior):
+        return
+    cfg = interior.rules.get("plan", {})
+    by_id = {r.id: r for r in interior.rooms}
+    first = [i for i in door.rooms if i in by_id]
+    ops = [o for o in interior.openings if o.floor == 0 and walled_in(interior, o, cfg) and o.kind in MOVABLE]
+    near = {i for o in ops if set(o.rooms) & set(first) for i in o.rooms} - set(first)
+    order = [o for o in ops if set(o.rooms) & set(first)] + [o for o in ops if set(o.rooms) & near
+                                                             and not set(o.rooms) & set(first)]
+    fl = Floor(interior, 0, cfg)
+    fl.hidden = False
+    holes = {o.id: fl.hole(o) for o in ops}
+    for o in order:
+        old = (o.x, o.y, o.s, o.width)
+        for place in _places(interior, o, o.width, by_id, fl.floor):
+            if _fits(fl, _put(o, place, o.width), holes, by_id) and not _sees_court(interior):
+                return
+        o.x, o.y, o.s, o.width = old
 
 
 def _put(o, place: tuple, width: float):
@@ -359,3 +400,51 @@ def step_faults(s, others: list, cfg: dict) -> list:
         if s.polygon.intersection(o.polygon).area > 0.01:
             out.append(f"the entry steps run under the {o.kind} stair")
     return out
+
+
+def way_in(interior) -> list:
+    """The way from the street door to the court (without one, to the hall) crosses no wet room and no
+    matbakh, and no sunken entry's steps stand in one (open items 47.1 + 48.1, round 6)."""
+    out = [f"the entry steps stand in the {r.type}" for s in interior.stairs if s.kind == "steps" and s.sunk >= 0
+           for r in interior.rooms if r.id == s.rooms[0] and r.type in WET + KITCHENS]
+    rooms = {r.id: r for r in interior.rooms}
+    crossed = [rooms[i].type for i in way_rooms(interior) if rooms[i].type in WET + KITCHENS]
+    if crossed:
+        out.append(f"the way in crosses the {' and the '.join(crossed)}")
+    return out
+
+
+def way_rooms(interior) -> list:
+    """The room ids of floor 0 on the way in (`way_in`): the fewest wet rooms and kitchens crossed."""
+    door = interior.entry
+    if door is None or door not in interior.openings or interior.flats:
+        return []
+    rooms = {r.id: r for r in interior.rooms if r.floor == door.floor}
+    goal = {i for i, r in rooms.items() if r.type == "wast_ed_dar"} or {i for i, r in rooms.items() if r.type == "hall"}
+    start = [i for i in door.rooms if i in rooms]
+    return _path(interior, rooms, start, goal) if goal and start else []
+
+
+def _path(interior, rooms: dict, start: list, goal: set) -> list:
+    """The room ids on a way from `start` to `goal` that crosses the fewest wet rooms and kitchens (Dijkstra
+    on whole rooms; [] when no way)."""
+    import heapq
+    graph = {i: set() for i in rooms}
+    for o in interior.openings:
+        a, b = o.rooms
+        if o.kind in WALK and a in rooms and b in rooms:
+            graph[a].add(b)
+            graph[b].add(a)
+    cost = lambda i: 100 if rooms[i].type in WET + KITCHENS else 1
+    todo = [(cost(i), i, (i,)) for i in sorted(start)]
+    done = set()
+    while todo:
+        c, i, way = heapq.heappop(todo)
+        if i in goal:
+            return list(way)
+        if i in done:
+            continue
+        done.add(i)
+        for j in sorted(graph[i] - done):
+            heapq.heappush(todo, (c + cost(j), j, way + (j,)))
+    return []

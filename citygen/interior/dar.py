@@ -852,6 +852,7 @@ def build(job: Job, ring, court_room, wells=None) -> None:
     """Rooms, doors, stairs and roof of a house round a court (`ring`); `court_room` is the dar's open
     court (outside the storeys) or the covered court of floor 0; `wells` the light wells upstairs."""
     interior = job.interior
+    job.court_poly = court_room.polygon if court_room is not None and court_room.open else None
     square = newel_square(job, ring)
     top = stair_top(job)
     square = square if top > 0 else None
@@ -936,6 +937,7 @@ def finish(job: Job, ring, square, top: int, doors=None) -> None:
     R.repair(interior, job.zones)
     R.assign(interior)
     (doors or program_doors)(job, ring)
+    skifa_way(job)
     newel_record(job, square, top)
     roof(job, top)
     entry_steps(job)
@@ -1186,6 +1188,78 @@ def program_doors(job: Job, ring) -> None:
                 upper_windows(job, ring, a, "court_window", court)
             elif job.wells.get(f) is not None:
                 upper_windows(job, ring, a, "inner_window", job.wells[f])
+
+
+ASIDE = ("bit_el_ma", "wc", "sdb", "matbakh", "cuisine")   # rooms nobody walks through on the way in (round 6)
+
+
+def skifa_way(job: Job) -> None:
+    """The entry room with no way to the court but through a wet room or the matbakh gets its own: the
+    shortest chain of other rooms of floor 0 from it to the court, with a door wherever the chain has none
+    (dropped again when a dar's court would then show from the street; open items 47.1 + 48.1, round 6)."""
+    interior, court = job.interior, job.court_room
+    door = interior.entry
+    if court is None or door is None or door not in interior.openings or getattr(interior, "way_free", False):
+        return
+    by_id = {r.id: r for r in interior.rooms}
+    room = next((by_id[i] for i in door.rooms if i in by_id), None)
+    if room is None or room.type in ASIDE or _way_ok(interior, room, court):
+        return
+    interior.way_used = True
+    for chain in _chains(interior, room, court, job):
+        made = []
+        for a, b in zip(chain[:-1], chain[1:]):
+            if _opens_on(interior, a, b):
+                continue
+            kind = ("court_door" if court.open else "inner") if b is court else "inner"
+            o = R.place(interior, a, b, kind, job.door, job.door_height, clear=job.clear - job.half)
+            if o is None:
+                break
+            made.append(o)
+        else:
+            if not (interior.layout == "dar" and R.sees_court(interior)):
+                return
+        interior.openings = [o for o in interior.openings if all(o is not m for m in made)]
+
+
+def _chains(interior, room, court, job: Job, most: int = 4) -> list:
+    """Up to `most` shortest chains of rooms from `room` to the court through rooms of its unit on floor 0
+    that are no wet room, matbakh, stair cell or well, each pair sharing a piece a door fits."""
+    need = job.door + 2 * job.clear - 1e-6           # the door `skifa_way` places (`clear` less half a partition)
+    ok = [r for r in interior.rooms if r.floor == 0 and r.unit == room.unit and r.type not in ASIDE + ("droj", "well")
+          and r is not court]
+    out, todo = [], [(room,)]
+    while todo and len(out) < most:
+        nxt = []
+        for chain in todo:
+            last = chain[-1]
+            near = {n.id: s for s, n in R.neighbours(interior, last)}
+            on_court = max((math.dist(*p) for p in R.pieces_between(interior, last, court)), default=0.0)
+            if on_court >= need:
+                out.append(chain + (court,))
+            nxt += [chain + (r,) for r in ok if r not in chain and near.get(r.id, 0.0) >= need]
+        todo = nxt[:64]
+    return out[:most]
+
+
+def _opens_on(interior, r, court) -> bool:
+    return any(o.kind in R.PASS and set(o.rooms) == {r.id, court.id} for o in interior.openings)
+
+
+def _way_ok(interior, room, court) -> bool:
+    """True when the court is reached from `room` through doors without crossing a room of `ASIDE`."""
+    graph = R.links(interior)
+    by_id = {r.id: r for r in interior.rooms}
+    seen, todo = {room.id}, [room.id]
+    while todo:
+        n = todo.pop()
+        if n == court.id:
+            return True
+        for m in sorted(graph.get(n, ())):
+            if m not in seen and m in by_id and by_id[m].type not in ASIDE and by_id[m].floor == 0:
+                seen.add(m)
+                todo.append(m)
+    return False
 
 
 def has_door(interior, r) -> bool:

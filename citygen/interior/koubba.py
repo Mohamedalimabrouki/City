@@ -105,7 +105,9 @@ def annex_cells(job, annex: list, koubba) -> list:
     free = [c for c in cells if not c.type]
     ref = next((c.poly for c in cells if c.type == "skifa"), None)
     for service in ("matbakh", "bit_el_ma", "bit_el_mouna"):
-        PR.place(job, cells, free, service, ref, [])
+        for avoid in (PR.avoid_way(job, cells, koubba) if service != "bit_el_mouna" else (set(),)):
+            if PR.place(job, cells, free, service, ref, [], avoid) is not None:
+                break
     big = job.largest.get("bit_el_mouna", 8.0)
     for c in [c for c in cells if not c.type and not job.fits(c.poly, "bit")]:
         cells.remove(c)                               # a strip too narrow for a bit: stores of their size

@@ -1309,6 +1309,19 @@ along the axes of a frame (the courtyard's or the footprint's `frame`).
   railings at floor 0 + `rail` along the flight's sides no wall holds); a one-room floor 0 sinks whole and
   needs no steps; not when a stair stands in the entry room or a passage leads into the court. The floor
   of a sunken room is drawn at its own `z`; an upstairs ghorfa a gallery left under its minimum is a store.
+  Round 6 (lead decisions): the way in. `plancheck.way_in` (in `rooms.check`): the way from the street
+  door to the court (no court: the hall) crossing the fewest wet rooms (bit el ma, wc, sdb) and kitchens
+  (matbakh, cuisine) crosses none, and no sunken entry's steps stand in one. The plans keep it: services
+  never take a cell every way from a skifa without a court door crosses when another cell holds them
+  (`program.way_cells`, koubba annexes too); an entry room with no dry way gets doors along the shortest
+  chain of dry rooms to the court (`dar.skifa_way`); a service still on the way trades its type with a dry
+  room off it, and a bit el ma no trade moves becomes a store (`program.swap_way`; a store on the way in is
+  never one that should have given way); when these acted and other faults remain, the plan without them
+  is tried and the better kept (`layout.free_way`). A sunken entry's opening into a wet room or matbakh goes
+  when that room is reached another way, else that room trades its type with a dry one; a bit takes the
+  steps only when the skifa has no other dry way on. A dar whose court shows from the street door slides
+  its entry openings until it does not (`plancheck.bend`, the bent entry); a bent skifa's half all hair
+  strip joins the covered court.
 - Built (prompt 46). Rules the code settled: every cut, union and difference runs on a 1 micrometer grid
   and pieces under 0.001 m2 are numerical slivers, dropped. Before and after the merges, arms of a room
   thinner than 0.8 m (strips an irregular lot leaves along a wall) move to the neighbour they share more

@@ -912,6 +912,16 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`, and how the le
   (raise `height` with it to keep the ceiling); the floor cap, the passage's threshold and its head (keep
   it over floor 0, or the next room has no face for its hole) were the only drawing changes. Print the
   depth that failed before changing a rule: the ladder's 0.05 m buffer took 0.6 mm under `steps_need`.
+  Round 6: a new check costs passes before it gains any (the way-in check took 76 old-town houses);
+  classify what it flags by what the entry room opens into and touches (`h471d_way.py`) and fix in layers:
+  doors first (a chain of dry rooms to the court), then the program (no service on the only way), then
+  type trades after the plan (kept only when no fault of a new kind appears: a plain fault count let a way
+  fault be traded for a size fault). `rooms.neighbours` never sees the open court on floor 0 (the same-floor
+  branch wins); use `pieces_between` for the court. Retry with a rule off only when the rule acted and
+  faults other than the entry steps' remain, or every failing house is planned twice. The court seen from
+  the street door was cheapest as a slide of the existing openings (`plancheck.bend`, the settle machinery)
+  rather than a new skifa plan: 7 of 7. A viewer camera set through `window.citygen` must not call
+  `controls.update()` itself, or the frame loop sees no change and draws nothing new.
 
 ## Known weak spots
 

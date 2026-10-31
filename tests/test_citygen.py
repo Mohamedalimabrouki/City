@@ -3852,7 +3852,28 @@ def test_sunken_entry(interior_ctx):
             assert z[-1] == S.level(interior, 0) and S.treads(s, interior, cfg)[0].z_from == room.z
         assert len(flights) == {353: 1, 255: 2, 284: 0}[k]
         assert all(len(S.rails(s, interior, cfg, {})) == (0 if k == 353 else 2) for s in flights)   # 353:
-        # the steps span the bit el ma wall to wall
+        # the steps span the store wall to wall (round 6: the bit el ma no longer on the way in)
+
+
+def test_way_in(interior_ctx):
+    """The way from the street door to the court crosses no wet room or matbakh, and no sunken entry's steps
+    stand in one (47.1/48.1 round 6): a dar whose court showed through the street door bends its entry
+    (No. 108), services trade places off the way (No. 367), a bent skifa's hair half joins the covered
+    court (No. 344), a sunken skifa's matbakh trades its type (No. 255)."""
+    from citygen.interior import rooms
+    from citygen.interior.context import city_plan
+    from citygen.interior.layout import plan_interior
+    from citygen.interior.outside import Outside
+    from citygen.interior.plancheck import KITCHENS, WET, way_in, way_rooms
+    plan = city_plan(interior_ctx)
+    style = interior_ctx.world.style
+    for k in (108, 367, 344, 255):
+        interior = plan_interior(Outside(interior_ctx, plan, k), style)
+        assert rooms.check(interior) == [], (k, rooms.check(interior)[:3])
+        assert way_in(interior) == [] and way_rooms(interior), k
+        assert not rooms.sees_court(interior), k
+        types = {r.id: r.type for r in interior.rooms}
+        assert not any(types[s.rooms[0]] in WET + KITCHENS for s in interior.stairs if s.kind == "steps"), k
 
 
 def rooms_pieces(interior, a, b) -> list:

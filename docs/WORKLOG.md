@@ -21,10 +21,10 @@ Entry format:
   says (for example "Do prompt 49." or "continue the playbook").
 - In progress (31 October): 47.1 + 48.1. Ali's API credit ran out at 12:12 during round 4; Ali then
   asked the lead to finish 47.1 + 48.1 on his plan. Pushed: 2ac52f7 (Open interior first shows the house
-  from above, cut at floor 0), 3918228, part 1 rounds 1-4 (4997d82) and round 5 (sunken entries; see the
-  47.1 + 48.1 entry). Next: round 6 (old town: sunken flights out of wet rooms, ways in through wet rooms,
-  courts seen from the street door, shop classes), round 7 (villa and maison doors; B (a): the newel stair
-  open in the entry room for the 13 compact ladders), then part 2 (slabs), part 3 (colonial flats).
+  from above, cut at floor 0), 3918228, part 1 rounds 1-4 (4997d82), round 5 (sunken entries, ce09078) and
+  round 6 (the way in, bent entries; see the 47.1 + 48.1 entry). Next: round 7 (every house keeps a wet
+  room; villa and maison doors and arches), part 3 (colonial flats), part 2 (slabs), then round 8 (old
+  town: compact and shop ways in; B (a): the newel stair open in the entry room for 13 compact ladders).
   Uncommitted changes in the tree are the round in progress (backup branch `wip/47.1-48.1`).
 - Next: 47.1 with 48.1 (50 done 31 October: Open interior on a dwelling's card in `citygen view` and the
   gallery). Then 51. For 47.1 + 48.1:
@@ -92,17 +92,17 @@ Entry format:
 - Checks: survey (`tools/interior_survey.py`, the new checks; "before" = today's plans: old town exact,
   Ain Chilel = rooms.check passes less those with wall or step faults):
 
-  | group | before (old check) | before (new checks) | round 1 | round 2 | round 3 | round 4 | round 5 | bar | slowest before -> after (round 5) |
-  |---|---|---|---|---|---|---|---|---|---|
-  | dar (159) | 151 | 84 | 138 | 136 | 141 (89%) | 141 | 146 (92%) | 152 | 0.07 -> 0.11 s (0.15 s, No. 276) |
-  | compact (277) | 273 | 196 | 258 | 257 | 259 (94%) | 259 | 266 (96%, bar met) | 264 | 0.11 -> 0.14 s (0.12 s) |
-  | small (83) | 81 | 61 | 77 | 77 | 80 (96%, at the bar) | 80 | 81 | 79 | 0.07 -> 0.08 s (0.08 s) |
-  | koubba (22) | 21 | 17 | 19 | 19 | 20 (91%) | 20 | 21 (bar met) | 21 | 0.02 -> 0.02 s (0.06 s, No. 501) |
-  | shop (136) | 135 | 86 | 114 | 120 | 124 (91%) | 124 | 125 | 130 | 0.27 -> 0.29 s (0.30 s) |
-  | villa (178, Ain Chilel) | 171 | about 58 | 134 | 157 | 157 (88%) | 157 | 157 | 170 | 0.43 -> 0.37 s (0.37 s) |
-  | maison (616, Ain Chilel) | 589 | about 472 | 508 | 554 | 554 (90%) | 559 (91%) | 559 | 586 | 0.65 -> 0.61 s (0.60 s) |
-  | slab (353, part 2) | 326 | | 301 | 308 | 308 (87%) | 308 | | | 2.03 -> 2.13 s |
-  | colonial (270, part 3) | 117 | | 51 | 83 | 84 (31%) | 84 | | | 13.0 -> 16.4 s (No. 773) |
+  | group | before (old check) | before (new checks) | round 1 | round 2 | round 3 | round 4 | round 5 | round 6 | bar | slowest before -> after (round 5; round 6) |
+  |---|---|---|---|---|---|---|---|---|---|---|
+  | dar (159) | 151 | 84 | 138 | 136 | 141 (89%) | 141 | 146 (92%) | 154 (97%, bar met) | 152 | 0.07 -> 0.11 s (0.15 s, No. 276; 0.34 s, No. 90 fails) |
+  | compact (277) | 273 | 196 | 258 | 257 | 259 (94%) | 259 | 266 (96%, bar met) | 262 (95%) | 264 | 0.11 -> 0.14 s (0.12 s; 0.23 s, No. 268 fails) |
+  | small (83) | 81 | 61 | 77 | 77 | 80 (96%, at the bar) | 80 | 81 | 81 | 79 | 0.07 -> 0.08 s (0.08 s; 0.08 s) |
+  | koubba (22) | 21 | 17 | 19 | 19 | 20 (91%) | 20 | 21 (bar met) | 21 | 21 | 0.02 -> 0.02 s (0.06 s, No. 501; 0.07 s) |
+  | shop (136) | 135 | 86 | 114 | 120 | 124 (91%) | 124 | 125 | 122 (90%) | 130 | 0.27 -> 0.29 s (0.30 s; 0.29 s) |
+  | villa (178, Ain Chilel) | 171 | about 58 | 134 | 157 | 157 (88%) | 157 | 157 | 157 | 170 | 0.43 -> 0.37 s (0.37 s; 0.39 s) |
+  | maison (616, Ain Chilel) | 589 | about 472 | 508 | 554 | 554 (90%) | 559 (91%) | 559 | 559 | 586 | 0.65 -> 0.61 s (0.60 s; 0.67 s) |
+  | slab (353, part 2) | 326 | | 301 | 308 | 308 (87%) | 308 | | | | 2.03 -> 2.13 s |
+  | colonial (270, part 3) | 117 | | 51 | 83 | 84 (31%) | 84 | | | | 13.0 -> 16.4 s (No. 773) |
 
   0 crashes. Every interior that passes `rooms.check` gives 0 `mesh.faults` and 0 entry-step faults (plan
   + walls + the prompt 49 tread, riser and headroom test on every tread of straight and turned steps, every
@@ -252,6 +252,65 @@ Entry format:
   bit and the matbakh, and its skifa does not touch the court. Round 6: flights never in a wet room, a way
   in that reaches the court or a hall without crossing a wet room, the 8 courts seen from the street door,
   shop classes. Accepted: dar No. 276 planned twice (slowest dar 0.15 s, still tiny).
+- Round 6 (helper, from ce09078; survey at the start = the round 5 column exactly).
+  - Item 1, the way in. New plan check `plancheck.way_in`: the way from the street door to
+    the court (no court: the hall) that crosses the fewest wet rooms (bit el ma, wc, sdb) and kitchens
+    (matbakh, cuisine) crosses none, and no sunken entry's steps stand in one. It flagged (old town, before
+    any fix) 76 houses: dar 146 -> 140, compact 266 -> 227, koubba 21 -> 20, shop 125 -> 96; villas and
+    maisons none (157, 559 unchanged). Classes (`h471d_way.py`): the skifa opens only into the matbakh (31),
+    into the matbakh and a bit or bit el ma (18), only into the bit el ma (5), the skifa touching the court
+    with no door on it (about 12), the house entered through a matbakh or store (3).
+  - Fixes: `dar.skifa_way` (after the program's doors): an entry room with no dry way to the court gets
+    the shortest chain of dry rooms to it, a door wherever the chain has none (dropped when a dar's court
+    then shows from the street); `program.way_cells`: the cells every way from a skifa without a court door
+    to the court (or a koubba) crosses take no matbakh or bit el ma when another cell holds it (koubba
+    annex too); `program.swap_way`: a service still on the way trades its type with a dry room off it, kept
+    only when the check finds fewer faults and none of a new kind; `layout.free_way`: when these rules acted
+    and faults other than the entry steps' are left, the plan without them is tried too, the better kept.
+    Sunken entries (`sunken.reroute`): an inner opening into a wet room or matbakh goes when that room gets
+    a door elsewhere (a narrow one if needed), else it trades its type with a dry room not touching the
+    skifa (No. 255: the matbakh and a maqsura); a bit's opening goes when the skifa keeps another dry one.
+  - Survey after item 1: dar 147, compact 262, small 81, koubba 21, shop 116 (way-in faults left: shop 9,
+    compact 4, skifas boxed in by the hanout and a service cell no other cell can hold: No. 166, 413, 494).
+    Sunken entries: No. 248 (steps into a bit: the skifa's only other neighbour is the matbakh), 255 (a bit
+    and the maqsura: the bit is the skifa's only way on), 353 and 501 (a store), 284 (a one-room floor 0),
+    542 (fails: a footprint spike). Every passing interior: 0 `mesh.faults`, 0 step faults.
+  - Item 2, the sunken skifa in 3D (`h471d_shot.py`: Chrome through Playwright, the camera set over the
+    skifa, cut at floor 0): output/checks/471-r6-sunken.png (No. 255 and No. 248). Looked: the walls reach
+    the sunken floor, the flights rise from the lowered inner doors with rails on their open sides, the
+    street door stands on the sunken floor. Doubt: a thin slanted grey sliver beside No. 255's skifa (top
+    right picture), maybe the outer wall seen edge on; worth a look in the viewer.
+  - Item 3, the 8 courts seen from the street door (decision D): `plancheck.bend` (layout `bent`, a dar only,
+    kept when the check finds less) slides the entry room's inner openings, then those of the rooms it opens
+    into, to the nearest place the walls accept where the court no longer shows. All 7 left (No. 90, 108,
+    236, 339, 441, 558, 568; the 8th went with item 1) pass: dar 147 -> 154, courts seen from the street 0.
+  - Item 4, shop: a bent skifa's half all hair strip (No. 344, 419: 0.28 m wide between the hanout and the
+    covered court) joins the covered court in `plancheck.trim`, its arch goes and the doors pass finds the
+    skifa another way in (No. 344 passes; No. 419 then crosses its matbakh). A bit el ma no trade moves off
+    the way becomes a store (the program's own order: it gives way last), and a store on the way in no
+    longer counts as one that should have given way: shop 116 -> 122, compact unchanged.
+  - Round 6 checks: survey in the table; 0 crashes; every passing interior: 0 `mesh.faults`, 0 step faults
+    (`h471_mesh.py`, old town); ladder warnings dar 1, compact 14, small 1, shop 6, villa 3, maison 10 (as
+    round 5). `pytest -q` 132 passed (`test_way_in` new, 0.5 s), slow 5 + 1 xfail; `build --quick` done;
+    fingerprint `--allow ""`: 282 parts, 0 changed. Plans: output/checks/471-r6-old.png (No. 353: skifa,
+    store with the steps, bit, court; No. 255: the matbakh traded with a maqsura, flights into the maqsura and
+    the bit, the skifa's only way on; No. 108: the bent entry; No. 344: the hair half gone, skifa, bit, court).
+  - Left under the bar: compact 262/264 (way in through the matbakh: No. 250 entered through its matbakh,
+    334, 488, 574, skifas boxed in by services; 5 "storey crosses" on spikes; 51 and 496 a wall crosses an
+    inner door); shop 122/130 (way in: No. 166, 419, 493, 707 through the matbakh, 622 the bit el ma; 3
+    "storey crosses" on spikes No. 71, 374, 636; 270 no matbakh; 298, 432, 449, 645, 686 one each).
+  - Choices for Ali/lead: the way-in check counts walking through a bit or store as fine (only wet rooms and
+    the matbakh are refused); a house whose bit el ma would stand on the only way in gives it up (a store
+    there) rather than fail; a sunken skifa's steps may stand in a bit when the bit is the skifa's only way
+    on (No. 248, 255) and in a store (No. 353, 501).
+  - Weak spots: dar's and compact's slowest plans are failing houses planned twice (0.34 s, 0.23 s); No. 175
+    (passing) went 0.06 -> 0.17 s (a second plan for its steps). The four compact way-in failures need a plan
+    change (the matbakh cell is the skifa's only neighbour): next round.
+- Lead (after round 6): committed as progress (dar reaches its bar; the way-in check found 76 houses
+  entered through a wet room or the matbakh, and the plans fix most). 3D (471-r6-sunken.png): walls reach
+  the sunken floor, steps and rails show. To fix next: a bit el ma that becomes a store can leave a house
+  with no wet room (round 7 counts and fixes). Accepted for Ali: the way in may cross a bit or a store;
+  sunken steps in a bit (No. 248, 255) or a store (353, 501); the slowest failing plans take 0.2-0.34 s.
 
 ## 2026-10-31 - Prompt 50 H1f Interiors in the viewer
 - Commit: (lead commits) | Model: Opus 5.5, high

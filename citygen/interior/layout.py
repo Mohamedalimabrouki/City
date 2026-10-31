@@ -49,7 +49,10 @@ def plan_interior(outside, style: dict) -> Interior:
     interior.warnings = list(outside.warnings)
     reveals(interior, float(walls_cfg.get("reveal", 0.2)), float(walls_cfg.get("reveal_wall", 0.15)))
     before = _held(interior)
+    interior.way_used = False
     _plan(interior, outside, style, layout)
+    if layout in TRADITIONAL:
+        free_way(interior, outside, style, layout, before)
     if layout in TRADITIONAL and short_steps(interior, style):     # the entry room too short for its steps (47.1)
         best, faults = _held(interior), len(check(interior))
         for more in KEEP_MORE:                        # the plan keeps the steps' strip free of partitions
@@ -65,9 +68,53 @@ def plan_interior(outside, style: dict) -> Interior:
             if not faults:
                 break
         _hold(interior, best)
+    if layout in TRADITIONAL:
+        from .program import swap_way
+        swap_way(interior, check)                     # services off the way in (round 6)
     if layout in TRADITIONAL and any("entry steps" in f for f in plan_steps(interior)):
         sunk(interior, style)
+    if layout == "dar":
+        bent(interior)
+    interior.__dict__.pop("way_used", None)
     return interior
+
+
+def bent(interior: Interior) -> None:
+    """The bent entry where the court still shows from the street door (`plancheck.bend`), kept when
+    `rooms.check` finds less (round 6)."""
+    from .plancheck import bend
+    from .rooms import sees_court
+    if not sees_court(interior):
+        return
+    first, faults = _held(interior), len(check(interior))
+    bend(interior)
+    if len(check(interior)) >= faults:
+        _hold(interior, first)
+
+
+def free_way(interior: Interior, outside, style: dict, layout: str, before: dict) -> None:
+    """Services kept off the only way in (`program.way_cells`) and the skifa's own way to the court
+    (`dar.skifa_way`) can cost a plan other faults: when they acted and faults other than the entry steps'
+    are left, the plan without them is tried too, each after `program.swap_way`; the one with fewer faults
+    stays (round 6)."""
+    from .program import swap_way
+    swap_way(interior, check)
+    if not interior.__dict__.pop("way_used", False):
+        return
+    bad = check(interior)
+    faults = len(bad)
+    if all("entry steps" in f for f in bad):          # no fault, or the steps' (their retries follow)
+        return
+    first = _held(interior)
+    _hold(interior, before)
+    interior.way_free = True
+    try:
+        _plan(interior, outside, style, layout)
+    finally:
+        del interior.way_free
+    swap_way(interior, check)
+    if len(check(interior)) >= faults:
+        _hold(interior, first)
 
 
 def plan_steps(interior: Interior) -> list:
