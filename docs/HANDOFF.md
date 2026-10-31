@@ -982,6 +982,20 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`, and how the le
   darker: score the box (an arch's length on any side), break ties by dark rooms, and weigh a moved floor
   against the whole house planned without that choice. A whole block's `rooms.check` takes up to 0.8 s:
   judge a flat's doors by the wall checks of the floors they stand on.
+  Round 11 (villas and maisons back to their bars): classify the lost houses by the room between the way and
+  the room off it (`cls.py`: gap, hosts touching both). Most upper floors had one chambre wrapping the stair
+  box between palier and couloir: carving a couloir-wide strip of it after the plan (the strip joins the
+  couloir) won 7 maisons where every search change had made a chambre dark. Each refusal printed its reason
+  first: the leftover chambre in two pieces (a hair beside the strip: let small scraps join the couloir), a
+  couloir that already has a hole (round a droj: count holes, do not forbid them), a window on a scrap.
+  Look at every won plan: a strip joined to its hall by a hair passed every check and the walls; a neck test
+  (`buffer(-0.4)` pieces) is the guard. A droj is no passage: a second door off a newel's landing quarter
+  crosses its steps (`stairs.landing_quarter`). Time: a fault no second plan cures should stop the second
+  plans (survey which: "floor 0 has no cuisine" is cured, "the maison has no sdb" is not); remember
+  `rooms.check` per plan state (pickle of the held state, md5) since the retries ask the same plan up to 7
+  times; a pass found by a cheap repair should spare the expensive redraws, but compare its dark rooms with
+  what the redraws find, or the guard grows (No. 580). A memo of `spine.cut_region` across second plans hit
+  only 22%: not kept.
 
 ## Known weak spots
 

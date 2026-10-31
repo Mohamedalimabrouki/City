@@ -4422,3 +4422,19 @@ def test_way_home():
     bad.openings = [o for o in bad.openings if o.rooms != (0, 4)]      # the wc only through the chambre too
     bad.openings.append(Opening(9, "inner", 0.0, 0.0, 0.0, 0.7, 0.0, 2.1, 0, (2, 4)))
     assert way_home(bad)[-1] == "the home: every bath room only through a chambre" and astray(bad) == 2
+
+
+def test_carve_band():
+    """A couloir carved through a chambre (47.1 + 48.1 round 11): from the palier's side, straight in up to the
+    couloir, 1.15 m wide and as short as it can be; along a couloir beside it; none when the goal is out of
+    reach. Hand-made squares: palier 0-2 x 0-3, chambre 2-6 x 0-4 wrapping it, couloir 0-6 x 4-5."""
+    from shapely.geometry import box
+
+    from citygen.interior.carve import band
+    chambre = box(0, 3, 2, 4).union(box(2, 0, 6, 4))
+    couloir = box(0, 4, 6, 5)
+    got = band(chambre, ((0.0, 3.0), (2.0, 3.0)), couloir, 1.15, 0.1, 8.0)    # the palier's top edge
+    assert got and abs(got[0].area - 1.15) < 1e-6 and got[0].bounds[1] == 3.0 and got[0].bounds[3] == 4.0
+    beside = band(chambre, ((2.0, 0.0), (6.0, 0.0)), box(6, 0, 7, 4), 1.15, 0.1, 8.0)   # a goal along it
+    assert beside and abs(beside[0].bounds[2] - 6.0) < 1e-6 and abs(beside[0].area - 4 * 1.15) < 1e-6
+    assert band(chambre, ((2.0, 0.0), (6.0, 0.0)), box(10, 0, 11, 4), 1.15, 0.1, 8.0) == []

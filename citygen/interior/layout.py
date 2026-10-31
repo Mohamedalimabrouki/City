@@ -50,16 +50,66 @@ def plan_interior(outside, style: dict) -> Interior:
     reveals(interior, float(walls_cfg.get("reveal", 0.2)), float(walls_cfg.get("reveal_wall", 0.15)))
     before = _held(interior)
     _stages(interior, outside, style, layout, before)
-    if layout in TRADITIONAL + HOUSES and any(not any(w in f for w in DEAF) for f in check(interior)):
-        redraw(interior, outside, style, layout, before)
+    carved = None
+    if layout in HOUSES and any(f.endswith(WAY) for f in check(interior)):
+        start = _held(interior)
+        carve(interior, style, whole=True)            # a cut that makes it pass spares the redraws (time) ...
+        if not check(interior) and dim(interior, style):
+            carved = (_held(interior), dim(interior, style))   # ... unless they may find fewer dark rooms
+            _hold(interior, start)
+    if layout in TRADITIONAL + HOUSES and any(not any(w in f for w in DEAF) for f in check(interior)) and not hopeless(
+            interior, layout):
+        again = redraw(interior, outside, style, layout, before)
+    else:
+        again = True
+    if layout in HOUSES and again and any(f.endswith(WAY) for f in check(interior)):
+        carve(interior, style)                        # (a plan the first carve saw: no second)
+    if carved is not None and (check(interior) or dim(interior, style) > carved[1]):
+        _hold(interior, carved[0])
+    interior.__dict__.pop("checked", None)
     return interior
 
 
-def redraw(interior: Interior, outside, style: dict, layout: str, before: dict) -> None:
+def carve(interior: Interior, style: dict, whole: bool = False) -> None:
+    """A villa or maison whose couloir or day rooms its entry still reaches only through a chambre, cuisine or
+    sdb gets a couloir cut through that room (`carve.passages`, `carve.cut`, then the way's doors), the
+    smallest strip first (then those past a jog of the wall, `carve.OVER`), `[interiors.villa] carve_tries`
+    cuts tried per round; a cut kept when `rooms.check` finds no new fault of another kind, fewer faults (or
+    as many, with fewer rooms off the way) and the home no more dark rooms, up to `carves` cuts; `whole`: all
+    kept only when the plan then passes (47.1 + 48.1 round 11)."""
+    from .carve import OVER, cut, passages
+    from .plancheck import settle, way_doors
+    cfg = style.get("interiors", {}).get("villa", {})
+    wide, scrap = float(cfg.get("couloir", 1.15)), float(cfg.get("carve_scrap", 0.0))
+    bad, dark, first = check(interior), dim(interior, style), _held(interior)
+    best = _score(interior, bad)
+    for _ in range(int(cfg.get("carves", 0))):
+        if not any(f.endswith(WAY) for f in bad):
+            break
+        start, won, tries = _held(interior), False, int(cfg.get("carve_tries", 0))
+        for strip, host, _, into in passages(interior, wide) + passages(interior, wide, over=OVER):
+            if tries > 0 and cut(interior, strip, host, into, scrap):
+                tries -= 1
+                if way_doors(interior):
+                    settle(interior)
+                got = check(interior)
+                if (sum(not f.endswith(WAY) for f in got) <= sum(not f.endswith(WAY) for f in bad)
+                        and _score(interior, got) < best and dim(interior, style) <= dark):
+                    bad, best, won = got, _score(interior, got), True
+                    break
+            _hold(interior, start)
+        if not won:
+            break
+    if whole and bad:
+        _hold(interior, first)
+
+
+def redraw(interior: Interior, outside, style: dict, layout: str, before: dict) -> bool:
     """An old-town house, villa or maison the plan check still faults is planned again with fresh draws
     (`Job.rng`, the shop's stream and `spine.rng` take the purpose path + ("again", n)), up to `[interiors.dar]`
-    or `[interiors.villa] redraws` times; the plan with the fewest faults and no more dark rooms kept (round 8)."""
-    best, faults, dark = _held(interior), len(check(interior)), dim(interior, style)
+    or `[interiors.villa] redraws` times; the plan with the fewest faults and no more dark rooms kept (round 8).
+    True when a redrawn plan was kept."""
+    best, faults, dark, kept = _held(interior), len(check(interior)), dim(interior, style), False
     times = style.get("interiors", {}).get("villa" if layout in HOUSES else "dar", {}).get("redraws", 0)
     times = int(times.get(layout, 0) if isinstance(times, dict) else times)
     for n in range(1, times + 1):
@@ -72,10 +122,11 @@ def redraw(interior: Interior, outside, style: dict, layout: str, before: dict) 
             del interior.redraw, interior.bays_early
         got = len(check(interior))
         if got < faults and dim(interior, style) <= dark:   # never more dark rooms (blind or strips) for a pass
-            best, faults, dark = _held(interior), got, dim(interior, style)
+            best, faults, dark, kept = _held(interior), got, dim(interior, style), True
         if not faults:
             break
     _hold(interior, best)
+    return kept
 
 
 def dim(interior: Interior, style: dict) -> int:
@@ -118,7 +169,7 @@ def _stages(interior: Interior, outside, style: dict, layout: str, before: dict)
                 break
         _hold(interior, best)
     if layout in HOUSES and not interior.__dict__.get("redraw") and any(
-            not any(w in f for w in SEARCH_DEAF) for f in check(interior)):
+            not any(w in f for w in SEARCH_DEAF) for f in check(interior)) and not hopeless(interior, layout):
         early_bays(interior, outside, style, layout, before)
     if layout in HOUSES and interior.floors == 1 and not interior.__dict__.get("redraw") and any(
             f.endswith(SHORT) for f in check(interior)):
@@ -253,6 +304,15 @@ def sunk(interior: Interior, style: dict) -> None:
 SHORT = ("has no chambre", "has no salon")   # a tiny one-floor house tries again with its wc in the sdb
 DEAF = ("storey crosses", "no U stair", "entry steps", "has no chambre", "has no salon")   # faults no redraw
 # cured (tile spikes, no room for the U stair, a tiny house's program: survey, round 8)
+HOPELESS = ("storey crosses", "no U stair", "villa has no", "maison has no")   # a villa or maison faulted so is never
+# planned again (47.1 + 48.1 round 11: the time; no second plan cured one, survey; "floor 0 has no" it may)
+
+
+def hopeless(interior: Interior, layout: str) -> bool:
+    """True for a villa or maison whose plan has a fault no second plan cures (`HOPELESS`; round 11)."""
+    return layout in HOUSES and any(w in f for f in check(interior) for w in HOPELESS)
+
+
 SEARCH_DEAF = ("has no", "no U stair", "storey crosses", "entry steps")   # faults a second search never cures
 HOUSES = ("villa", "maison")   # modern houses retried for their steps too (47.1 round 7)
 KEEP_MORE = (0.0, 0.3)   # m beyond the steps' least depth kept free on a second and third plan (47.1)
@@ -361,8 +421,19 @@ def _hold(interior: Interior, state: dict) -> None:
 
 
 def check(interior: Interior) -> list:
+    """`rooms.check`; a villa's or maison's remembered per plan state while it is planned (its retries ask the
+    same plan again and again; 47.1 + 48.1 round 11, time)."""
+    import hashlib
+    import pickle
     from .rooms import check as rooms_check
-    return rooms_check(interior)
+    if interior.layout not in HOUSES:
+        return rooms_check(interior)
+    state = [getattr(interior, k) for k in HELD] + [getattr(interior, "full0", None)]
+    key = hashlib.md5(pickle.dumps(state, protocol=5)).digest()
+    memo = interior.__dict__.setdefault("checked", {})
+    if key not in memo:
+        memo[key] = rooms_check(interior)
+    return list(memo[key])
 
 
 def plain(interior: Interior) -> list:

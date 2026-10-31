@@ -28,8 +28,10 @@ Entry format:
   the 47.1 + 48.1 entry). Open with Ali: the blind rooms question (a courtyard or light wells for deep
   colonial blocks and maisons) and the model mix for the next rounds. Round 10 added the way-home check
   for modern homes (no salon, salle a manger, cuisine or couloir reached only through a chambre, bath or
-  cuisine): villa 165/170 and maison 578/586 under it, colonial 66 and slab 215. Next: round 11, villas
-  and maisons back to their bars under that check, and the failing houses' plan time (up to 2.5 s).
+  cuisine); round 11: villa 167/170, maison 585/586 under it, colonial 66 and slab 215. Ali then chose
+  the redesign (47.2 in docs/ROADMAP.md, design in the 47.1 + 48.1 entry: courtyards and light wells for
+  deep colonial blocks and maisons, every chambre, salon, salle a manger and cuisine with a window), and
+  left the models to the lead (helpers Opus high from round A). Next: 47.2 round A, the courts in the city.
   Uncommitted changes in the tree are the round in progress (backup branch `wip/47.1-48.1`).
 - Next: 47.1 with 48.1 (50 done 31 October: Open interior on a dwelling's card in `citygen view` and the
   gallery). Then 51. For 47.1 + 48.1:
@@ -724,6 +726,92 @@ Entry format:
   passed; fingerprint 0 changed. Seen in 471-r10.png: villa No. 235 is now hall, palier, salon; its salon
   keeps an arm along the cuisine (already there at 5333337) and its door beside the flight wants a look in
   3D. Failing houses take up to 2.5 s alone (round 9: 1.6 s): for round 11.
+- Round 11 (villas and maisons, helper, about 52 minutes; scripts `/tmp/claude-501/h471r11/`: `cls.py` the
+  room between the way and the room off it, `dbg4.py` + `why.py` each carve candidate and why it was
+  refused, `stage.py` time per stage, `chk.py` repeated checks, `guard.py` + `gcmp.py` against a full
+  `git archive HEAD` tree in `head/`, `diff.py` won/lost/changed by rooms.json hash):
+  - Baseline (afe6708, Ain Chilel, survey with walls): villa 165, maison 578. Lost list classified: 10
+    maisons and villa 330 have an upper floor whose couloir one chambre (wrapping the U box) keeps from the
+    palier; villa 254 and 332 a hall or palier whose way runs through the cuisine; villa 298 and maison
+    551, 908 a droj between the hall and the salon.
+  - Fix 1, a couloir carved through the room in between (`carve.py`, `layout.carve`, after the plan): a
+    strip `[interiors.villa] couloir` (1.15 m) wide straight from the palier or hall to the room off the
+    way (or back, or along it when it lies beside, then up to 0.3 m past the ends round a jog of the wall);
+    it joins the hall or couloir, else becomes a couloir; scraps of the host up to `carve_scrap` 2 m2 go
+    with it, a window on it lights the couloir when the host keeps one, no stair under it, the host keeps
+    its minimum, no neck under 0.8 m in the grown room (a hall joined by a hair passed every check: seen
+    in villa No. 254's plan, fixed). Then the way's doors, kept as round 10's (no new kind, fewer faults,
+    no more dark rooms). Hosts chambre, cuisine, sdb; `carve_tries` 6, `carves` 2. Won maison No. 481,
+    608, 628, 725, 754, 776, 785, 1003; villa No. 254, 298.
+  - Tried and removed: doors through the droj (No. 298, 551, 908 pass the check, but each second door
+    stands off the newel's landing quarter, so the way crosses its steps); a memo of `spine.cut_region`
+    (22% hits); fewer variants for second plans (`retry_variants` 0.6: lost 2 maisons, 18 changed).
+  - Time: (a) a villa or maison whose plan has a fault no second plan cures (`layout.HOPELESS`: a storey
+    crossing a window, no U stair, "the villa/maison has no ...") is planned no second time (surveyed:
+    "floor 0 has no cuisine" is cured, so it stays out; 0 passes changed); (b) the carve runs first on the
+    first plan, kept only when the house then passes, and a pass with dark rooms still lets the redraws
+    try, the one with fewer dark rooms kept (without that, No. 580 grew a dark room); (c) the second carve
+    only after a redraw that was kept; (d) `layout.check` remembers `rooms.check` per plan state for
+    villas and maisons (md5 of the pickled held state; up to 7 asks of the same plan); (e) `[interiors.villa]
+    redraws` 2 -> 1: the second redraw won only maison No. 620 for 0.6 s per failing house.
+  - Final (Ain Chilel, survey with walls): villa 165 -> 167 (bar 170, 3 short), maison 578 -> 585 (bar
+    586, 1 short: maison No. 620 is lost with the second redraw; `redraws = 2` gives 586 and failing houses
+    2.3 s alone, Ali's/lead's choice). Won maison No. 481, 608, 628, 725, 754, 776, 785, 1003; villa No.
+    254, 298; lost maison No. 620; passing but changed maison No. 565 and villa No. 310 (carved before the
+    redraw that passed them at HEAD; dark rooms 3 -> 3 and 0 -> 0). Old town rooms.json identical (677 of
+    677, capital: dar 155, compact 266, small 81, koubba 21, shop 130); colonial 66 and slab 215
+    byte-identical (623 of 623). Every passing interior 0 `mesh.faults`, 0 step faults. Guard (`layout.dim`,
+    full HEAD tree): grew on 0 changed or passing homes; the 10 won houses keep their failing plans' count
+    (No. 481 2, 754 2, 785 8, 1003 3, ...); totals over passing homes villa 90 (HEAD 90), maison 2184 (HEAD
+    2172, the won houses). Times alone: maison No. 892 2.33 -> 1.68 s, 666 2.27 -> 1.63 s, 961 2.32 ->
+    1.59 s, 528 2.53 -> 0.49 s, 500 1.61 s, 481 1.58 s (passing via a carve, was failing). `pytest -q` 140
+    passed (`test_carve_band` new, 0.01 s); `build --quick` done; fingerprint `--allow ""`: 282 parts, 0
+    changed. Picture: output/checks/471-r11.png (villa No. 254: the hall in the acute corner runs along the
+    street wall to the palier, the cuisine behind it; maison No. 754 floor 1: a couloir stub from the
+    couloir to the palier between two chambres).
+  - Choices for Ali: a couloir may take a strip of a chambre, cuisine or sdb (the room keeps its minimum
+    and a window) and a scrap up to 2 m2 beside it (a nook, as a real villa's couloir widens near the
+    stair); a window on the strip lights the couloir; a hall may run along the front from an acute corner
+    to the stair (No. 254). A droj (the roof stair's room) is never a passage.
+  - Left: villa No. 330 (the cut makes its chambre a strip: the guard refuses), 332 (the new couloir
+    through the cuisine gets no doors to the palier and salon), 250 (sunken hall in an acute corner, no
+    strip fits), and the program-limited villas (266, 307, 320, 369, 388); maison No. 961 (its only cut
+    meets the couloir by a 0.6 m neck), 892 (second plans pass but are darker), 490 and 673 (the room in
+    between under its minimum after a cut), 845 (bath at a triangle's tip), 620 (the second redraw); the
+    U box's doors off its landing were not checked (a probe was inconclusive: the palier room is larger
+    than the box).
+- Lead (after round 11): committed as progress (villa 167, maison 585; failing houses back under 1.7 s;
+  old town and flats byte-identical). Lead's choice on the helper's question: `redraws` stays 1 (the
+  second won one maison for 0.6 s more per failing house, and 47.2 plans the maisons again). Read the
+  whole diff: `layout.check`'s memo keys a plan state's pickle (a cache only: a miss costs time, never
+  a result). `pytest -q` 140 passed; fingerprint 0 changed. Seen in 471-r11.png: villa No. 254's hall
+  runs along the front wall from its acute corner to the stair; maison No. 754 keeps a wc box inside its
+  salon (round 7's wet carve) and its roof ladder stands in a floor-1 chambre (one of the 10 maison
+  ladders): both for 47.2's maison plans.
+- Decision (Ali, 31 October, "Yes, redesign"; the lead chose the forms for quality): deep colonial blocks
+  and maisons get courtyards, so every chambre, salon, salle a manger and cuisine has a window. Design,
+  for the rounds that follow (A: the courts in the city; B: interiors lit by them and the window check;
+  C: the bars):
+  - Which buildings: colonial blocks (`apartments` outside modern districts) and maisons (`house` outside
+    the traditional districts) whose footprint has a deep part: farther than `reach` (about 6.5 m: a room
+    of 4.5-5 m behind a 1.1-1.2 m couloir) from its windowed facades (the street fronts; party walls have
+    no windows). Villas and slabs keep their footprints (their dark rooms are a planning matter).
+  - The form, as real blocks of Tunis and Algiers (1900-1950) and Tunisian town houses have it: a colonial
+    block gets a main courtyard (at least 4 x 4 m) where the deep part is wide, rooms of every kind may
+    face it, and light wells (courettes, at least 2.4 x 2.4 m) where only a cuisine or bath needs light; a
+    maison gets one patio (at least 3 x 3 m) in its deep part. Courts are open to the sky from floor 0
+    (a ground-floor shop row stays on the street); a block's setback top floor and stepped parts keep them.
+  - Nothing else moves: the same buildings in the same order, kinds, floors and streams (any new choice
+    takes its own purpose path), so households, names and every other building stay byte-identical
+    (`life.households` draws one household per housing building, without geometry).
+  - The city shows them as it shows old-town courts (holes in the footprint: inner walls, parapets);
+    the interiors put court windows on their walls as `dar` does, the spine plans habitable rooms on lit
+    walls and services on the light wells.
+  - A new check: every chambre, salon, salle a manger and cuisine of a modern home has a window (street,
+    court or light well); an sdb or wc may stay blind.
+  - Bars, with every check (way home included): colonial 257/270, slab 336/353, maison 586/616, villa
+    170/178, the old town unchanged. The fingerprint changes only in the parts that hold changed
+    buildings (listed exactly); `tools/make_blend.py` refreshes Blender when tiles change.
 
 ## 2026-10-31 - Prompt 50 H1f Interiors in the viewer
 - Commit: (lead commits) | Model: Opus 5.5, high

@@ -1338,7 +1338,7 @@ along the axes of a frame (the courtyard's or the footprint's `frame`).
   is planned again with the trade inside the search (`layout.early_bays`); a one-floor house with no
   chambre or salon tries `villa.tiny` (no wc of its own, the chambre before the cuisine). Then every
   old-town house, villa and maison still faulty is drawn again (`layout.redraw`: the house's streams take
-  the path + ("again", n), `[interiors.dar] redraws` 3, `[interiors.villa] redraws` 2), unless its faults
+  the path + ("again", n), `[interiors.dar] redraws` 3, `[interiors.villa] redraws` 2, 1 since round 11), unless its faults
   are all ones no redraw cures (facade openings on tile spikes, no room for the U stair, entry steps, a
   tiny house's missing chambre or salon). Each second plan is kept only when `rooms.check` finds fewer
   faults and the home has no more dark rooms (`layout.dim`: a chambre, salon, salle a manger or cuisine
@@ -1376,6 +1376,20 @@ along the axes of a frame (the courtyard's or the footprint's `frame`).
   the day rooms off the way and a way missing the stair box as faults and, of variants as good, take the
   fewest dark rooms; their upper floors join the couloir to the landing by a stub and take the couloir
   piece at the landing. The steps', tiny houses' and sunken entries' retries choose without the way faults.
+  Round 11 (villas and maisons under the way check): a house whose couloir, palier or day room its entry
+  still reaches only through a chambre, cuisine or sdb gets a couloir carved through that room
+  (`carve.py`, `layout.carve`): a strip `[interiors.villa] couloir` wide running straight from a room the
+  entry reaches on that floor (the palier, the hall) to the room off the way, or back, or along it when it
+  lies beside (then strips standing up to 0.3 m past the ends, round a jog of the wall); the strip joins
+  that hall or couloir, else the goal couloir, else becomes a couloir of its own; pieces of the host left
+  beside it up to `carve_scrap` m2 go with it, a window on it lights the couloir (the host keeps one of its
+  own), no stair under it, the host keeps its minimum, and the grown room has no neck under 0.8 m. The
+  smallest strips first, `carve_tries` per round, `carves` rounds; kept as the way's doors are. The carve
+  runs first on the first plan, kept only when the house then passes (a pass with dark rooms still lets
+  the redraws try, and the one with fewer dark rooms wins), and again after a redraw that was kept. A villa
+  or maison with a fault no second plan cures (a storey crossing a window, no U stair, the whole home
+  missing a room type) is planned no second time, `[interiors.villa] redraws` is 1, and a house's
+  `rooms.check` is remembered per plan state while it is planned (time).
 - Built (prompt 46). Rules the code settled: every cut, union and difference runs on a 1 micrometer grid
   and pieces under 0.001 m2 are numerical slivers, dropped. Before and after the merges, arms of a room
   thinner than 0.8 m (strips an irregular lot leaves along a wall) move to the neighbour they share more
