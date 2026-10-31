@@ -19,23 +19,30 @@ Entry format:
 - State: prompts 1-50 are done (branch `claude/procedural-city-generator-xop72h`; CP4, prompt 43, on 25
   October; the interiors 44-47 on 29 October, 48 (walls and openings) on 30-31 October). Continue when Ali
   says (for example "Do prompt 49." or "continue the playbook").
-- In progress (31 October): 47.1 + 48.1. Ali's API credit ran out at 12:12 during round 4; Ali then
-  asked the lead to finish 47.1 + 48.1 on his plan. Pushed: 2ac52f7 (Open interior first shows the house
-  from above, cut at floor 0), 3918228, part 1 rounds 1-4 (4997d82), 5 (sunken entries, ce09078), 6 (the
-  way in, 4ebe082), 7 (wet rooms kept, villas and maisons), flats rounds 1-3 (d7cbd67, 6160ada, 43ef2c3:
-  colonial 167/270, slab 317/353) and round 8 (houses: compact 266 and maison 588 meet their bars, shop
-  129 and villa 169 one short) and round 9 (every house group at its bar; ladders compact 11, shop 5; see
-  the 47.1 + 48.1 entry). Open with Ali: the blind rooms question (a courtyard or light wells for deep
-  colonial blocks and maisons) and the model mix for the next rounds. Round 10 added the way-home check
-  for modern homes (no salon, salle a manger, cuisine or couloir reached only through a chambre, bath or
-  cuisine); round 11: villa 167/170, maison 585/586 under it, colonial 66 and slab 215. Ali then chose
-  the redesign (47.2 in docs/ROADMAP.md, design in the 47.1 + 48.1 entry: courtyards and light wells for
-  deep colonial blocks and maisons, every chambre, salon, salle a manger and cuisine with a window), and
-  left the models to the lead (helpers Opus high from round A). 47.2 round A done (courts in the city:
-  241 colonial blocks, 293 maisons) and round B (the window check; with every check: villa 165/178,
-  maison 390/616, slab 139/353, colonial 1/270). Next: 47.2 round C, colonial flats planned round their
-  courts (wings), then the narrow maisons, the dark cuisines and the slab plan time.
-  Uncommitted changes in the tree are the round in progress (backup branch `wip/47.1-48.1`).
+- Paused (1 November, about 51% weekly): Ali said "once you finish this stop, also never use more than 55%
+  weekly". Resume here when Ali says, and keep under his cap (55% of the weekly limit).
+  - Done and pushed for 47.1 + 48.1 (31 October): 2ac52f7 (Open interior first shows the house from above),
+    part 1 rounds 1-11 and flats rounds 1-3 (up to 901a5d6): every old-town group at its bar (dar 155,
+    compact 266, small 81, koubba 21, shop 130); 0 `mesh.faults` and 0 step faults on every passing
+    interior; the way-in check (old town, round 6) and the way-home check (modern homes, round 10).
+  - 47.2, Ali's redesign (docs/ROADMAP.md; design block in the 47.1 + 48.1 entry): round A (7523fad) cut
+    courtyards and light wells into 241 colonial blocks and patios into 293 maisons, with windows on every
+    floor; round B (69150ea) added the window check (every chambre, salon, salle a manger and cuisine of a
+    modern home has a window). With every check: villa 165/178 (bar 170), maison 390/616 (bar 586), slab
+    139/353 (bar 336), colonial 1/270 (bar 257). The fingerprint baseline (fp-before.json) is round A's.
+  - Round C (colonial flats split into wings round their courts, `wings.py`) is saved on branch
+    `wip/47.2-round-c` (66567f2), not merged: no colonial block won (1/270) and No. 958 plans in 8.1-8.2 s
+    cold (bar 8 s). Its lesson: most colonial faults come from the spine's own flat plans, so a wing
+    planner should place the rooms itself (salon and chambres on the street, couloir on the court side,
+    cuisine and baths on the court or a light well) instead of running the spine per wing; the per-wing
+    spine helped 39 flats and hurt 20. Merge the branch only to build on it.
+  - Next, in order: (1) colonial flats: a wing planner that places rooms itself, the floor-0 entry fault
+    (13 blocks whose landing nobody reaches), No. 958's time; (2) the 193 narrow maisons with no patio
+    (115 fail the window check): a patio or light well against one party wall, or a rear court (a city
+    change: name its fingerprint parts, refresh Blender); (3) the 73 maisons with a dark cuisine; (4) slab
+    No. 1324's plan time (2.52 s alone, bar 2.2 s); (5) the bars, then tick 47.1, 48.1 and 47.2; then 51.
+  - Models (Ali, 31 October: "you decide for better quality"): the lead on Opus max for its reviews, helpers
+    Opus high (`effort: high` in the Agent call). A round costs about 1% of the weekly limit.
 - Next: 47.1 with 48.1 (50 done 31 October: Open interior on a dwelling's card in `citygen view` and the
   gallery). Then 51. For 47.1 + 48.1:
   47.1 together with 48.1 (the plan faults the walls reveal, prompt 48 entry) (colonial flats pass `rooms.check` for 39%, the slowest colonial block takes 14 s, slabs 93%,
