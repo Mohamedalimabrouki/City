@@ -968,6 +968,52 @@ Entry format:
   Seen in 472-b-plans.png: No. 971's flats put their salons on the street and their chambres round the
   court; No. 940's floors 1-3 keep a chambre of about 110 m2 wrapping the court's south side (it fails
   the check: round C's wings).
+- 47.2 round C (colonial wings; helper, Opus 5.5; the lead commits; partly done, about 55 minutes):
+  - Baseline (HEAD 69150ea, every check; survey with walls, `/tmp/claude-501/h472b/dump.py`): colonial 1 of 270;
+    1,743 flats with a fault, 5,439 faults; blind chambres 1,491, salles a manger 214, cuisines 116. Most blocks
+    have 4-10 faulty flats of 6-12 (a block passes only when all pass): 13 blocks fail at once because floor 0's
+    palier cannot be reached (No. 940's street door opens into the cafe: every room "cannot be reached").
+  - Built (`citygen/interior/wings.py`, `flats.best_lay`/`wing_lay`, `[interiors.flats] wings`, `wing_court`,
+    `wing_least`, `wing_narrow`, `wing_variants`, `wing_way`, `wing_need`; SPEC 6c): a flat region that wraps a
+    court (both sides 3.9 m or more) is split at the court's corners into wings; corners join the wing beyond
+    them from the entry; a strip under 2.4 m between two wings is a gallery couloir along the court (No. 971:
+    1.6 m between its court and the party wall); the program is shared out by room sizes; wing 1 from the
+    landing with its hall, each next wing from the way before it, carried to their shared edge (straight on,
+    turning across the wing's end, or across the wing), joined by an arch or the try ends.
+  - Measured per flat (wings on and off in one process, `/tmp/claude-501/h472c/ab.py`, the 110 blocks with wing
+    flats): wing plan always (v1): clean wing flats 78 -> 56, worse 128, better 61 (the sub-wings were not
+    joined: "the couloir only through a chambre"); with the join check 43 -> 42; kept only when the cell score
+    plus a walk (rooms no door joins to the way in) is lower: 65 -> 68; with the crossings and a walk through
+    salons 65 -> 72 (better 39, worse 20). Time: a wing's search with `hall` False set `way_moved` and `layout`
+    planned the whole block twice (No. 958 17.6 s alone, HEAD 7.7 s): cleared after each wing; then the wings only
+    as `best_lay`'s other plan (after a failing first plan, floors 1 and up, not again for a flat where it lost,
+    a quarter of the variants).
+  - Final (every check; HEAD -> now): colonial 1 -> 1 of 270 (both the same); flats with a fault 1,743 -> 1,736;
+    blind chambres 1,491 -> 1,514, salles a manger 214 -> 214, cuisines 116 -> 124; faults 5,439 -> 5,514 (the
+    rise is "cannot be reached" cascades in blocks whose floor-0 palier is cut off, No. 940 and 803). Slab 139 of
+    353, all 139 byte-identical (the code runs for colonial only). Villa, maison and old town: code untouched
+    (spine, layout and their planners unchanged; not surveyed). Guard: no colonial or slab pass changed. Times
+    alone (two runs, the first warm-up): No. 958 8.1-8.2 / 6.6-6.7 s (HEAD 7.7 / 6.3 s): over the 8 s bar by
+    about 0.2 s on a cold run; No. 994 4.8 s. `pytest -q` 143 passed (new `test_wing_split`, 0.1 s); fingerprint
+    282 parts, 0 changed.
+  - Picture output/checks/472-c-plans.png (No. 940, 971, 941; no new block passes), looked at: No. 940's floors
+    1-3 no longer have a chambre wrapping the court: both flats carry a couloir along the court in wings; but
+    after the spine the east flat's salon and cuisine are joined into chambres of 40-45 m2 (the spine's cells
+    are typed right; the later step that merges them was not found; the block fails anyway: its floor-0
+    palier cannot be reached); No. 971 has a gallery couloir along its court's party-wall side joining two
+    wings; No. 941 (3 floors) is laid in wings on floors 1 and 2 (couloirs along the court, salons and salles a
+    manger on the street).
+  - Choices for Ali: a strip under 2.4 m between the court and a party wall is a gallery (as real blocks have
+    open or glazed galleries round their courts); the corner where two wings meet goes to the second wing,
+    holding its way in; day rooms in the first wing, the baths with the chambres; floor 0 (shop or cafe, the
+    way in) is planned as one region.
+  - Weak spots and what is left: the gain is small; most faults are not the wrap but the spine's flats
+    themselves (blind chambres in a band beside the couloir, baths reached through a chambre, the program over
+    or under the type); the cell score misses what the walk check sees; No. 958 0.2 s over its time bar;
+    No. 940's floor-0 palier (the cafe takes the street door) and 12 blocks like it; light wells are not wing
+    splits (round B's cuts). Next: the floor-0 entry fault (13 blocks), then a wing planner that places rooms
+    itself (salon and chambres street side, couloir court side) instead of the spine per wing. Scripts in
+    /tmp/claude-501/h472c/ (ab.py, cls.py, flats.py, one.py, dbg*.py, prof.py).
 
 ## 2026-10-31 - Prompt 50 H1f Interiors in the viewer
 - Commit: (lead commits) | Model: Opus 5.5, high

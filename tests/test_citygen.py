@@ -4440,6 +4440,43 @@ def test_way_home():
     assert way_home(bad)[-1] == "the home: every bath room only through a chambre" and astray(bad) == 2
 
 
+def test_wing_split():
+    """Colonial flats round a court (47.2 round C, `interior/wings`): a ring-shaped floor splits at the court's
+    corners into four wings and four corners; each corner joins the wing beyond it from the entry, so the
+    wings cover the floor, each is entered from the one before it across a full edge, and the start corner
+    stays with the first wing. A strip narrower than `narrow` between two wings stays a gallery; at an end it
+    joins its neighbour."""
+    from shapely.geometry import Point, box
+
+    from citygen.interior.cuts import Frame, shared
+    from citygen.interior.wings import group, split
+
+    court = box(6, 6, 14, 10)                              # an 8 x 4 m court in a 20 x 16 m floor
+    ring = box(0, 0, 20, 16).difference(court)
+    F = Frame(10.0, 8.0, 0.0)
+    ats = [(0, -4.0), (0, 4.0), (1, -2.0), (1, 2.0)]
+    pieces = split(ring, court, F, ats)
+    assert len(pieces) == 8
+    assert sorted(k for _, k in pieces) == [(0, 0), (0, 1), (0, 2), (1, 0), (1, 2), (2, 0), (2, 1), (2, 2)]
+    wings = group(pieces, Point(3.0, 0.0))                 # entered from the street (y = 0) near the SW corner
+    assert len(wings) == 4 and wings[0][1] is None
+    assert abs(sum(w.area for w, _ in wings) - ring.area) < 1e-6
+    assert wings[0][0].contains(Point(1.0, 1.0))           # the start corner stays with the first wing
+    for w, parent in wings[1:]:
+        assert parent is not None and shared(w, wings[parent][0]) >= 3.9   # a whole wing's depth
+    assert all(w.area > 30.0 for w, _ in wings)
+
+    narrow = box(0, 0, 20, 12.5).difference(box(6, 6, 14, 11))   # 1.5 m between the court and the north wall
+    got = group(split(narrow, box(6, 6, 14, 11), Frame(10.0, 8.5, 0.0), [(0, -4.0), (0, 4.0), (1, -2.5), (1, 2.5)]),
+                Point(10.0, 0.0))
+    assert len(got) == 4                                   # south, west, east and the north gallery
+    assert sum(1 for w, _ in got if w.bounds[1] >= 11.0 - 1e-6) == 1
+    half = box(0, 0, 20, 12.5).difference(box(6, 6, 14, 11)).intersection(box(0, 0, 10, 12.5))
+    got = group(split(half, box(6, 6, 14, 11), Frame(10.0, 8.5, 0.0), [(0, -4.0), (1, -2.5), (1, 2.5)]),
+                Point(3.0, 0.0))
+    assert all(w.bounds[1] < 11.0 - 1e-6 for w, _ in got)   # the gallery's end piece joins the west wing
+
+
 def test_windows():
     """Every chambre, salon, salle a manger and cuisine of a villa, maison or flat has a window (street, court or
     light well); an sdb or wc may stay blind; old-town layouts are not asked (47.2 round B). Hand-made

@@ -1023,6 +1023,18 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`, and how the le
   white over the court walls. Do not edit the code while a spawn-pool survey is starting: workers import the
   modules on their first job and may mix two versions; finish the run, then edit.
 
+- **Colonial wings** (47.2 round C, `interior/wings.py`): split a flat that wraps a court at the court's
+  corners and join each corner to the wing beyond it from the entry, so the junction is a whole wing end; a
+  strip between a court and a party wall is often only 1.6 m (the court keeps 2.4 m from the party wall,
+  less two walls): a gallery couloir, not a wing. Each wing's way must be carried to the next wing's edge
+  (straight on, turning across the wing's end, or across the wing) or the flat is reached only through a
+  room; check the join afterwards both ways. The spine's search on an upper floor with `hall` False sets
+  `way_moved`, which makes `layout` plan the whole block again (2x time): a sub-plan must clear it. Measure
+  per flat (wings on and off in one process, `/tmp/claude-501/h472c/ab.py`): the block counts move little
+  (a block passes only when all its 6-12 flats do), and the cell score (`flat_score`) misses what the walk
+  check sees: score a candidate with a walk too and keep it only where it does better. Time the slowest
+  block alone twice (first run warms caches); with HEAD measured the same way.
+
 ## Known weak spots
 
 Tile weight: prompt 39 quantized tiles and dropped flat normals (densest quick tile 8.7 -> 4.7 MB,

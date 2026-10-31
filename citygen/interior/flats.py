@@ -26,6 +26,7 @@ from . import rooms as R
 from . import shop as SH
 from . import spine as P
 from . import stairs as S
+from . import wings as W
 from .cuts import Cell, Frame, clashes, clip, offsets, partition, parts, shared, solid
 from .model import Flat
 
@@ -361,7 +362,7 @@ def run(job, cores: list, kind: str) -> None:
             es = (core.entries(region, core.paliers[f].polygon if f in core.paliers else None, P.need(job))
                   if core is not None else [])
             es = es or [P.Entry(*region.representative_point().coords[0], 1.0, 0.0)]
-            cells = best_lay(job, region, es, program(job, ftype, area), f, ("flat", place))   # stacked flats repeat
+            cells = wing_lay(job, region, es, program(job, ftype, area), f, ("flat", place))   # stacked flats repeat
             halved(job, region, cells, f)
             rooms = P.add_rooms(job, cells, f, unit)
             rooms = P.nooks(job, rooms)
@@ -404,15 +405,20 @@ def run(job, cores: list, kind: str) -> None:
     focus(job)
 
 
-def best_lay(job, region, entries: list, prog: list, f: int, key: tuple) -> list:
+def best_lay(job, region, entries: list, prog: list, f: int, key: tuple, alt=None) -> list:
     """The flat's cells from its first entry; when that plan faults (`flat_score` over 1), the other
     entries, then the first with a second hall draw (stream key + "again"), each with `retry_variants` of
     the variants (by layout; 0: no second tries), the best kept, the first on a tie (47.1 flats round 1). A region no chambre fits in, or
-    one whose second tries on a floor below won nothing, is not tried again (time)."""
+    one whose second tries on a floor below won nothing, is not tried again (time). `alt` (a flat round a
+    court, 47.2 round C): another plan, asked for when the first fails the score or the walk (`wings.walk`),
+    kept at once when it passes both, else at the end when it does better on them than the best; where it lost,
+    not asked for again on the floors above (time)."""
     tries = [(e, key) for e in entries] + [(entries[0], key + ("again",))]
     memo = job.__dict__.setdefault("retried", {})       # a floor below with this region tried in vain: not again
     base = (shapely.to_wkb(shapely.set_precision(region, 1e-3)), tuple(entries), tuple(prog), key)
-    best, done = None, 0
+    best, done, other = None, 0, None
+    lost = job.__dict__.setdefault("alt_lost", set())   # a floor below where the other plan lost: not again
+    near = (tuple(prog), key, round(region.area))       # (the same flat, give or take a balcony's floor)
     for i, (e, k) in enumerate(tries):
         share = float(job.cfg.get("flats", {}).get("retry_variants", {}).get(job.interior.layout, 0.0))
         if i == 1 and (share <= 0.0 or not job.fits(region, "chambre") or memo.get(base) is False):
@@ -426,11 +432,32 @@ def best_lay(job, region, entries: list, prog: list, f: int, key: tuple) -> list
         first, done = (cells if i == 0 else first), i + 1
         if best is None or score < best[0]:
             best = (score, cells)
+        if i == 0 and alt is not None and near not in lost and (score > 1 or W.walk(job, cells, entries[0])):
+            got = alt()
+            if got is None:
+                lost.add(near)
+            else:
+                other = (flat_score(job, got, prog, f) + 2 * W.walk(job, got, entries[0]), got)
+                if other[0] == 0:
+                    return got
         if score <= 1:
             break
     if done > 1:
         memo[base] = memo.get(base, False) or best[1] is not first
+    if other is not None and other[0] < best[0] + 2 * W.walk(job, best[1], entries[0]):
+        return other[1]
+    if other is not None:
+        lost.add(near)
     return best[1]
+
+
+def wing_lay(job, region, entries: list, prog: list, f: int, key: tuple) -> list:
+    """`best_lay`, with the flat laid wing by wing (`wings.lay`, 47.2 round C) as its other plan where the
+    layout has `[interiors.flats] wings`."""
+    on = job.cfg.get("flats", {}).get("wings", {}).get(job.interior.layout)
+    alt = (lambda: W.lay(job, region, entries[0], prog, f, key)) if on and f > 0 else None   # noqa: E731
+    # (floor 0 holds the shop or cafe and the way in: its flat is planned as one region, time)
+    return best_lay(job, region, entries, prog, f, key, alt)
 
 
 def halved(job, region, cells: list, f: int) -> None:

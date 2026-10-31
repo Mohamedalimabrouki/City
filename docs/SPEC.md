@@ -1419,6 +1419,26 @@ along the axes of a frame (the courtyard's or the footprint's `frame`).
   (`blind_join`). Colonial bands are cut at the ends of every court or light well they wrap
   (`spine.court_cuts`, `court_cuts` by layout), so a room beside a court reaches from the street wall to the
   court wall and no room wraps a court's corner; a maison's 3 m patio keeps its L rooms.
+  47.2 round C (colonial wings, `interior/wings.py`, `[interiors.flats] wings` by layout): a colonial flat
+  region that wraps a court with both sides at least `wing_court` m (light wells do not) is split at the
+  court's corners (the lines of its sides, moved up to 0.6 m off it clear of the openings) into wing pieces
+  (street wall to court wall) and corner pieces. A corner joins the wing beyond it as seen from the flat's
+  entry (a thin corner, or the entry's own corner, the wider wing it shares most with), so the corner where
+  two wings meet holds the second wing's way in. A wing narrower than `wing_narrow` m between two others is a
+  gallery (one couloir along the court); at an end it joins its neighbour; a piece under `wing_least` m2
+  joins its neighbour. The program is shared out by `wing_need` (m2 per room, `wing_way` of each wing kept
+  for its ways): day rooms in the first wing that holds them, then a chambre for every wing still empty,
+  the other chambres where most room is left, the baths with the chambres. The first wing is laid by the
+  spine from the landing with its hall, each next one from the way of the wing before it, carried on to
+  their shared edge (straight on, turning a couloir wide across the wing's end, or straight across the wing
+  at its ends or every 0.5 m; a room it crosses keeps one piece fit for its type, a cut-off end joins a
+  room), its own couloir starting there; a wing whose way does not meet the one before by an arch, or a
+  wing left without a room, ends the try. The wing plan is `flats.best_lay`'s other plan: asked for on
+  floors 1 and up when the region's first plan fails the search's score or the walk (`wings.walk`: rooms no
+  door joins to the way in, walking through arches, salons and salles a manger), kept at once when its
+  score plus twice its walk is 0, else at the end when lower than the best plan's; where it lost or found
+  no wings it is not asked for again for that flat (program, place, area) on the floors above, and each
+  wing's search tries `wing_variants` of the variants (time). A typical floor reuses its wing plan.
 - Built (prompt 46). Rules the code settled: every cut, union and difference runs on a 1 micrometer grid
   and pieces under 0.001 m2 are numerical slivers, dropped. Before and after the merges, arms of a room
   thinner than 0.8 m (strips an irregular lot leaves along a wall) move to the neighbour they share more
