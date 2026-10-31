@@ -24,10 +24,10 @@ Entry format:
   from above, cut at floor 0), 3918228, part 1 rounds 1-4 (4997d82), 5 (sunken entries, ce09078), 6 (the
   way in, 4ebe082), 7 (wet rooms kept, villas and maisons), flats rounds 1-3 (d7cbd67, 6160ada, 43ef2c3:
   colonial 167/270, slab 317/353) and round 8 (houses: compact 266 and maison 588 meet their bars, shop
-  129 and villa 169 one short; see the 47.1 + 48.1 entry). Open with Ali: the blind rooms question (a
-  courtyard or light wells for deep colonial blocks and maisons) and the model mix for the next rounds.
-  Next on the houses: B (a), the newel stair open in the entry room for the 13 compact ladders; the last
-  shop and villa.
+  129 and villa 169 one short) and round 9 (every house group at its bar; ladders compact 11, shop 5; see
+  the 47.1 + 48.1 entry). Open with Ali: the blind rooms question (a courtyard or light wells for deep
+  colonial blocks and maisons) and the model mix for the next rounds. Next: round 10, the way in for
+  modern homes (a salon reached only through a chambre, sdb, wc or cuisine: a new check and the doors).
   Uncommitted changes in the tree are the round in progress (backup branch `wip/47.1-48.1`).
 - Next: 47.1 with 48.1 (50 done 31 October: Open interior on a dwelling's card in `citygen view` and the
   gallery). Then 51. For 47.1 + 48.1:
@@ -598,6 +598,68 @@ Entry format:
   471-r8.png, for the later plan-quality item: No. 488's way to the wast ed dar crosses the droj and the
   bit, and its bit el ma is entered through the matbakh; No. 166's bit wraps the hanout and makhzen on
   three sides. The checks allow both.
+- Round 9 (houses, helper; scripts `/tmp/claude-501/h471r9/`: `geo.py` and `dbg.py` the stair-room
+  geometry, `shot.py` the 3D views; surveys `h471f_dump.py` with walls, `diff.py`, `blind.py`):
+  - Baseline (93a6161): dar 155, compact 266, small 81, koubba 21, shop 129, villa 169, maison 588 (Ain
+    Chilel); colonial 167, slab 317. Ladder warnings compact 14, shop 6, dar 1, small 1.
+  - B (a), the newel open on floor 0 in the entry room, built and measured, then removed (not kept: it
+    won no house). A newel turns 3/4 per floor, so its landing faces the roof stair room's door on every
+    floor and that door fixes which quarter stands over the street door. Stair room door at the back or the
+    street (No. 34, 65, 260, 300, shop 298): the middle quarter, 0.85-1.85 m over floor 0, over the door.
+    Door on a side (No. 104, 259, 503, 514, 535, 347, 459, 171): at best the last quarter, its lowest step
+    2.05 m over floor 0, but the street doors' heads stand 2.09-2.71 m over floor 0 (No. 104 2.58, 503
+    2.71, 514 2.15, 259 2.09); dar No. 171 (door head under 2.0 m, rise 1.06 m) passed that, but its 5 entry
+    steps meet the newel's pier 0.6 m inside the door and a turned flight's door landing meets the first
+    steps. A full-turn newel or a straight flight do not fit either (a flight to the roof needs about 2.5 m
+    under the stair room, which is 2.35 m deep).
+  - B (b), built (`dar.roof_newel`, `newel_up`, `layout.newel_up`): a house of 2 floors or more whose newel
+    does not fit under the stair room is planned again with a roof newel from the top floor under the stair
+    room (its cell keeps `clear` of that floor's windows only) and the house's newel in a corner up to the
+    top floor; kept when the ladder goes, `rooms.check` finds no more and `layout.dim` no more dark rooms.
+    Won compact No. 325, 347, 472 and shop No. 40 (all passing before and after). No. 459 keeps its ladder:
+    the roof newel's cell meets the light well beside a floor-1 window ("partition of droj and well within
+    0.3 m of an opening"). One-floor houses skip the retry (no top floor to stand on).
+  - Shop 129 -> 130 (No. 298, a ladder house of 1 floor): its ladder into the stair room stood on the entry
+    steps (the stair room lies over the hanout; the skifa part of it is 0.8 m wide). `stair_ladder` now
+    tries a place off the turned flight's strip along the door's wall (`steps_flight` 0.9 m deep) before
+    giving up on the steps; the steps then turn beside the ladder (`Job.entry_keep(wide=)`).
+  - Villa 169 -> 170 (No. 250): the street door in an acute corner left 0.06 m treads; the sunken entry of
+    round 5 now runs for villas and maisons too (the hall at the threshold, 6 steps up into the chambre).
+    Maisons: no other house changed (the sinking is kept only when the check finds less).
+  - Final: dar 155, compact 266, small 81, koubba 21, shop 130 (bar met), villa 170 (bar met), maison 588;
+    0 crashes; 0 lost; changed rooms.json: compact No. 325, 347, 472 and shop No. 40 (roof newels), shop
+    No. 298 and villa No. 250 (won), nothing else in any group; colonial 167 and slab 317 byte-identical
+    (0 of 623). Every passing interior: 0 `mesh.faults`, 0 step faults. Dark-room guard (`blind.py`):
+    villa chambres blind 19, strip 29, maison 1451 and 201 (as round 8); No. 250 has none. Ladder warnings:
+    compact 14 -> 11, shop 6 -> 5, dar 1, small 1 (reasons above; compact No. 285, small 206, shop 600, 612,
+    645 are "no newel stair fits" at all, another cause, not touched). Slowest alone unchanged (compact No.
+    116 0.59 s, shop No. 432 0.39 s); the 2-floor ladder houses are planned twice (No. 40 0.25 -> 0.32 s,
+    347 0.07 -> 0.15 s, 459 0.05 -> 0.10 s). `pytest -q` 138 passed
+    (`test_roof_newel_climbs_from_top_floor` new, pure, 0.01 s; `test_old_town_stairs` accepts the roof
+    newel); `build --quick` done; fingerprint `--allow ""`: 282 parts, 0 changed.
+  - Plans: output/checks/471-r9.png (compact No. 347 and 325: the corner newel up to floor 1 and the roof
+    newel's droj on floor 1 under the stair room; shop No. 298: the turned steps beside the ladder; villa
+    No. 250: the sunken hall, -1.0 m, steps up into the chambre). 3D: output/checks/471-r9-stair.png (No.
+    347 and 325 cut at floor 1: the roof newel's cell, steps, rail and door).
+  - Choices for Ali/lead: a 2-floor house whose stair room stands over the street door has two stairs, a
+    newel in a corner from the ground floor and a second one under the stair room from the upper floor (as
+    many medina houses have a separate flight to the terrace); a 1-floor house keeps its ladder into the
+    stair room (way (a) cannot be built with today's door heights and stair rooms: the stair room would
+    have to move off the street door, a tile change); a villa's hall may be sunken and its steps stand in
+    a chambre (No. 250).
+  - Left: the 11 compact, 5 shop, 1 dar and 1 small ladders above; shop No. 71, 374, 636 (tile spikes),
+    432, 449, 645; villa No. 266, 307, 320, 353, 369, 380, 388, 390.
+- Lead (after round 9): committed as progress (shop 130 and villa 170 reach their bars; ladders compact
+  14 -> 11, shop 6 -> 5). Read the whole diff: `test_old_town_stairs` keeps its checks on the house newel
+  and puts the stair-room door checks on the roof newel. `pytest -q` 138 passed (one known shapely
+  envelope warning from the new test's square); fingerprint 0 changed. Seen in 471-r9.png: villa No. 250,
+  won by the sunken hall, is entered through two chambres (hall, chambre, chambre, then the couloir).
+  Measured over the passing homes (`/tmp/claude-501/lead/wayin.py`, `wayin_flats.py`: the salon reached
+  from the entry without crossing a chambre, sdb, wc or cuisine): villas 37 of 170 fail it (No. 235: the
+  salon, cuisine and salle a manger only through chambre 1), maisons 51 of 588, flats 262 of 1104
+  (colonial) and 1065 of 4637 (slab; No. 1064 flat 11: the salon only through a chambre). Round 6's way
+  in covers old-town houses only. Lead's decision: round 10 adds the check for modern homes and fixes the
+  doors, so the bars count honest plans.
 
 ## 2026-10-31 - Prompt 50 H1f Interiors in the viewer
 - Commit: (lead commits) | Model: Opus 5.5, high

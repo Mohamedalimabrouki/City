@@ -79,6 +79,7 @@ class Job:
                     zones[0].append(strip)
         self.thin = float(self.stairs.get("landing_strip", 0.45))   # half the widest strip the droj takes
         self.roof_ladder = False          # the newel could not stand under the stair room
+        self.roof_newel = None            # the cell of a newel from the top floor to the roof (47.1 round 9)
         self.largest = {k: float(v) for k, v in self.dar.get("largest", {}).items()}   # m2 per service
         interior.rules["largest"] = dict(self.largest)
         interior.rules["wet_carve"] = [float(a) for a in self.dar.get("wet_carve", [2.5])]   # m2 (47.1 round 7)
@@ -110,16 +111,18 @@ class Job:
         least = self.minimums.get(type_)
         return least is None or (poly.area >= least[0] and width(poly) >= least[1])
 
-    def entry_keep(self, deep: float | None = None):
+    def entry_keep(self, deep: float | None = None, wide: float | None = None):
         """The floor inside the main door its entry steps and their landing need (None without steps):
-        ladders keep off it (47.1); `deep` m from the wall's inner face (default: the steps or a `turn`)."""
+        ladders keep off it (47.1); `deep` m from the wall's inner face (default: the steps or a `turn`),
+        `wide` m each side of the door's middle (default: the steps' half width; round 9: a turned flight's
+        strip along the wall)."""
         if self.spot is None or self.main is None or self.steps_need <= 0.0:
             return None
         s = self.spot
         inward = -np.array([s.nx, s.ny])
         along = np.array([-inward[1], inward[0]])
         face = np.array([s.x, s.y]) + inward * self.ext
-        w = self.main.width / 2 + float(self.stairs.get("side", 0.1))
+        w = self.main.width / 2 + float(self.stairs.get("side", 0.1)) if wide is None else wide
         deep = max(self.steps_need, float(self.stairs.get("turn", 0.9))) if deep is None else deep
         return Polygon([face - along * w, face + along * w, face + along * w + inward * deep,
                         face - along * w + inward * deep])
@@ -861,6 +864,11 @@ def build(job: Job, ring, court_room, wells=None) -> None:
     served = min(top, interior.floors - 1) if square is not None else -1
     split = {f: (without(p, square, job.thin, job.zs([f]), job.half) if f <= served else (p, None))
              for f, p in ring.rings.items()}
+    upper_droj = {}
+    if job.roof_newel is not None:                    # the roof newel's cell on the top floor (round 9)
+        f = interior.floors - 1
+        rest, upper_droj[f] = without(split[f][0], job.roof_newel, job.thin, job.zs([f]), job.half)
+        split[f] = (rest, split[f][1])
     pos = band_cuts(job, ring, split[0][0])
     cells, skifa = ground(job, ring, pos, split[0][0])
     cells = join_kbou_sides(cells)
@@ -871,6 +879,8 @@ def build(job: Job, ring, court_room, wells=None) -> None:
     for f, cs in per_floor.items():
         if split[f][1] is not None:
             cs = cs + [Cell(split[f][1], "droj", "", "stair")]
+        if f in upper_droj:
+            cs = cs + [Cell(upper_droj[f], "droj", "", "stair")]
         takes = ()
         if ring.kind == "covered" and (f == 0 or wells.get(f) is not None):
             cs = cs + [Cell(court_room.polygon if f == 0 else wells[f], R.COURT if f == 0 else "well", "", "court")]
@@ -1043,7 +1053,7 @@ def ring_gallery(job: Job, well, wide: float) -> bool:
 def stair_top(job: Job) -> int:
     """The floor a house's newel stair reaches: the roof through the stair room, else the top floor."""
     floors = job.interior.floors
-    if job.roof is not None and job.roof.stair is not None and not job.roof_ladder:
+    if job.roof is not None and job.roof.stair is not None and not job.roof_ladder and job.roof_newel is None:
         return floors
     return floors - 1
 
@@ -1066,10 +1076,27 @@ def newel_square(job: Job, ring):
         sq = S.under_stair_room(job.roof.stair, region, zones, job.half, least)
         if sq is not None:
             return sq
+        if getattr(interior, "newel_up", False) and roof_newel(job, ring, least):   # a roof ladder's second plan
+            region = region.difference(job.roof_newel.buffer(job.half * 2, join_style="mitre"))
+            return S.in_corner(corners(job, ring), ring.fr, region, zones, job.half, big, least)
         interior.warnings.append("the newel stair does not fit under the roof's stair room: it stands in a "
                                  "corner and a ladder rises into the stair room")
         job.roof_ladder = True
     return S.in_corner(corners(job, ring), ring.fr, region, zones, job.half, big, least)
+
+
+def roof_newel(job: Job, ring, least: float) -> bool:
+    """A house of 2 floors or more whose newel cannot stand under the roof's stair room on every floor: a
+    second newel from the top floor to the roof under the stair room (way (b), 47.1 round 9, as a villa's
+    roof stair), the house's newel in a corner below it. True when its cell fits (`job.roof_newel`)."""
+    interior = job.interior
+    f = interior.floors - 1
+    if f < 1:
+        return False
+    region = ring.rings[f].difference(ring.court) if ring.kind == "covered" else ring.rings[f]
+    job.roof_newel = S.under_stair_room(job.roof.stair, polygonal(region), job.zs([f], shallow=True), job.half,
+                                        least)
+    return job.roof_newel is not None
 
 
 def corners(job: Job, ring) -> list:
@@ -1091,6 +1118,11 @@ def newel_record(job: Job, square, top: int) -> None:
             ladder_up(job)
         return
     droj = [r for r in interior.rooms if r.type == "droj" and r.floor < interior.floors]
+    if job.roof_newel is not None:                    # the roof newel's cell is not the house newel's
+        up = max((r for r in droj if r.floor == interior.floors - 1),
+                 key=lambda r: (r.polygon.intersection(job.roof_newel).area, -r.id))
+        droj = [r for r in droj if r is not up]
+        newel_up(job, up)
     regions = [r.polygon for r in interior.rooms if r.floor in [d.floor for d in droj] and r.type != "droj"
                and not R.is_court(r) and r.type != "well"]
     toward = job.roof.door[2] if (job.roof is not None and job.roof.stair is not None) else None
@@ -1111,6 +1143,28 @@ def newel_record(job: Job, square, top: int) -> None:
                         for p in R.pieces_between(interior, d, r)):
                     if R.place(interior, d, r, "inner", job.door, job.door_height, on=line) is not None:
                         break
+
+
+def newel_up(job: Job, droj) -> None:
+    """The `Stair` of the roof newel (`roof_newel`) from the top floor to the roof, its door toward the
+    stair room's door, and its door into the next room."""
+    interior = job.interior
+    square, f = job.roof_newel, interior.floors - 1
+    floor = shapely.union_all([r.polygon for r in interior.rooms if r.floor == f and r is not droj
+                               and r.type != "well" and not R.is_court(r)])
+    door = S.door_side(square, [floor], job.roof.door[2]) or S.door_side(square, [floor])
+    stair = S.newel(square, door, interior.floors, interior.fh, job.stairs)
+    stair.floor, stair.rooms = f, [droj.id]
+    interior.stairs.append(stair)
+    if door is None:
+        return
+    line = S.door_line(square, door)
+    for r in sorted(interior.rooms, key=lambda r: r.id):
+        if r.floor == f and r is not droj and r.type != "well" and not R.is_court(r) and any(
+                LineString(line).distance(Point(*np.add(p[0], p[1]) / 2)) < 0.05
+                for p in R.pieces_between(interior, droj, r)):
+            if R.place(interior, droj, r, "inner", job.door, job.door_height, on=line) is not None:
+                break
 
 
 def ladder_up(job: Job) -> None:
@@ -1373,10 +1427,10 @@ def roof(job: Job, top: int) -> None:
         droj = Room(R.next_id(interior), f, "droj", lay.stair, z, lay.stair_height)
         interior.rooms.append(droj)
         roof_door(interior, droj, stah, lay.door, lay.door_width, door_h)
-        stair = next((s for s in interior.stairs if s.kind == "newel"), None)
-        if stair is not None and stair.top >= f:
+        stair = next((s for s in interior.stairs if s.kind == "newel" and s.top >= f), None)
+        if stair is not None:
             stair.rooms.append(droj.id)
-        elif job.roof_ladder or stair is None:
+        elif job.roof_ladder or not any(s.kind == "newel" for s in interior.stairs):
             stair_ladder(job, droj)
     if has_menzah:
         men = Room(R.next_id(interior), f, "menzah", lay.menzah, z, lay.menzah_height)
@@ -1415,7 +1469,8 @@ def stair_ladder(job: Job, droj) -> None:
     region = droj.polygon.intersection(top.polygon).buffer(-0.05, join_style="mitre")
     keep = job.entry_keep() if top.floor == 0 else None
     spot = None
-    for area in ([region.difference(keep)] if keep is not None else []) + [region]:   # off the entry steps first
+    offs = [keep, job.entry_keep(wide=50.0, deep=float(job.stairs.get("steps_flight", 0.9)))] if keep is not None else []
+    for area in [region.difference(k) for k in offs] + [region]:   # off the entry steps, then off a turned flight
         near = droj.polygon.centroid.coords[0]
         spot = None if area.is_empty else S.ladder(area, Frame.of(droj.polygon), near, (w, d))
         if spot is not None:

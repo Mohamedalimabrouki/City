@@ -1343,6 +1343,19 @@ along the axes of a frame (the courtyard's or the footprint's `frame`).
   tiny house's missing chambre or salon). Each second plan is kept only when `rooms.check` finds fewer
   faults and the home has no more dark rooms (`layout.dim`: a chambre, salon, salle a manger or cuisine
   with no facade window or court opening, or with a strip over `[interiors.flats] strip`).
+  Round 9 (the houses' ladders): an old-town house whose newel does not fit under the roof's stair room
+  (the stair room over the street door) is planned again (`layout.newel_up`, kept when the ladder is gone,
+  `rooms.check` finds no more faults and the home no more dark rooms): with 2 floors or more, a roof newel
+  (`dar.roof_newel`) stands under the stair room on the top floor only (its cell keeps `clear` of that
+  floor's openings; the cell 0.2 m apart from the house's newel), a second `newel` record from the top
+  floor to the roof (its door toward the stair room's door), and the house's newel stands in a corner from
+  floor 0 to the top floor. A one-floor house keeps its ladder up into the stair room; the ladder stands
+  off the entry steps, else off a turned flight's strip along the door's wall (`steps_flight` deep), so
+  the steps can turn beside it. A villa's or maison's entry steps that still fault sink its hall
+  (`sunken.py`, as the old town's). Way (a), the newel standing open in the entry room over the street
+  door, was measured and not built: its last quarter over the door is only 2.05 m over floor 0, under the
+  2.09-2.71 m heads of the street doors, and where the stair room's door faces the street or the back its
+  middle quarter (0.85-1.85 m up) stands over the door.
 - Built (prompt 46). Rules the code settled: every cut, union and difference runs on a 1 micrometer grid
   and pieces under 0.001 m2 are numerical slivers, dropped. Before and after the merges, arms of a room
   thinner than 0.8 m (strips an irregular lot leaves along a wall) move to the neighbour they share more

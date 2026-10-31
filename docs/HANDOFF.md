@@ -962,6 +962,14 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`, and how the le
   second plan with the quality measure (`layout.dim`), not only the fault count: a redraw happily trades a
   fault for a strip chambre. Compare the guard on the same houses (`guard.py cmp`) and, for newly passing
   houses, against their failing plans; totals over all passing houses grow with every house won.
+  Round 9 (houses' ladders): measure a planned stair form before building it. Way (a), the newel open in
+  the entry room over the street door, was coded and then removed: a newel's landing faces the stair
+  room's door on every floor (3/4 turn per floor), so the quarter over the street door is fixed by the
+  roof; at best it is the last quarter, 2.05 m over floor 0, and old-town street doors stand 2.1-2.7 m
+  high over floor 0 (only the high-rise doors, whose entry steps then hit the pier, would pass). Way (b),
+  a second newel from the top floor under the stair room (as villas do), won 4 of the 5 two-floor ladder
+  houses at once. A keyword argument named like a local variable (`along`) is silently shadowed: the
+  survey's hash diff caught 5 houses changed for no reason; always diff hashes, not only counts.
 
 ## Known weak spots
 

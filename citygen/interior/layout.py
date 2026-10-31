@@ -96,6 +96,8 @@ def _stages(interior: Interior, outside, style: dict, layout: str, before: dict)
     """The plan by layout and its retries and repairs (rounds 5-8)."""
     interior.way_used = False
     _plan(interior, outside, style, layout)
+    if layout in TRADITIONAL and interior.floors > 1 and any(w.endswith(ROOF_LADDER) for w in interior.warnings):
+        newel_up(interior, outside, style, layout, before)
     if layout in TRADITIONAL:
         free_way(interior, outside, style, layout, before)
     if layout in TRADITIONAL + HOUSES and short_steps(interior, style):   # the entry room too short for its steps
@@ -122,11 +124,30 @@ def _stages(interior: Interior, outside, style: dict, layout: str, before: dict)
     if layout in TRADITIONAL:
         from .program import swap_way
         swap_way(interior, check)                     # services off the way in (round 6)
-    if layout in TRADITIONAL and any("entry steps" in f for f in plan_steps(interior)):
-        sunk(interior, style)
+    if layout in TRADITIONAL + HOUSES and any("entry steps" in f for f in plan_steps(interior)):
+        sunk(interior, style)                         # villas and maisons too (47.1 round 9)
     if layout == "dar":
         bent(interior)
     interior.__dict__.pop("way_used", None)
+    interior.__dict__.pop("newel_up", None)
+
+
+ROOF_LADDER = "a ladder rises into the stair room"
+
+
+def newel_up(interior: Interior, outside, style: dict, layout: str, before: dict) -> None:
+    """A house whose newel did not fit under the roof's stair room is planned again with a second newel from
+    the top floor to the roof under it (`dar.roof_newel`, 47.1 round 9); kept when the ladder is gone and the
+    plan check finds no more faults and the home no more dark rooms. The flag then stays for later retries."""
+    first, faults, dark = _held(interior), len(check(interior)), dim(interior, style)
+    _hold(interior, before)
+    interior.newel_up = True
+    _plan(interior, outside, style, layout)
+    if (not any(w.endswith(ROOF_LADDER) for w in interior.warnings) and len(check(interior)) <= faults
+            and dim(interior, style) <= dark):
+        return
+    del interior.newel_up
+    _hold(interior, first)
 
 
 def bent(interior: Interior) -> None:

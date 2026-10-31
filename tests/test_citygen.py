@@ -3914,6 +3914,14 @@ def test_old_town_stairs(old_town):
         if any("a ladder rises into the stair room" in w for w in interior.warnings):   # the stair room stands
             assert any(s.kind == "ladder" and s.top == interior.floors for s in interior.stairs), interior.building
             continue                                      # over the street door (47.1/48.1): a ladder up into it
+        up = [s for s in newel if s.floor > 0]        # the roof newel from the top floor (47.1 round 9)
+        if up:
+            assert len(up) == 1 and len(newel) == 2 and roof is not None and roof.stair is not None
+            assert (up[0].floor, up[0].top) == (interior.floors - 1, interior.floors), interior.building
+            assert droj[up[0].rooms[0]].floor == up[0].floor and up[0].polygon.difference(roof.stair).area < 1e-3
+            assert math.cos(up[0].door[2] - roof.door[2]) > 0.7, interior.building
+            newel = [s for s in newel if s.floor == 0]
+            assert newel[0].top == up[0].floor and newel[0].polygon.intersection(up[0].polygon).area < 1e-6
         if interior.floors > 1 or (roof is not None and roof.stair is not None):
             assert len(newel) == 1, interior.building
             s = newel[0]
@@ -3922,7 +3930,7 @@ def test_old_town_stairs(old_town):
             for i in s.rooms:
                 if interior.rooms[i].floor < interior.floors:      # the same cell on every floor
                     assert s.polygon.difference(droj[i].polygon).area < 1e-3, interior.building
-        if roof is not None and roof.stair is not None and newel:
+        if roof is not None and roof.stair is not None and newel and not up:
             s = newel[0]
             assert s.polygon.difference(roof.stair).area < 1e-3, interior.building
             assert math.cos(s.door[2] - roof.door[2]) > 0.7, interior.building   # the stair room door's side
@@ -3933,6 +3941,27 @@ def test_old_town_stairs(old_town):
             if s.kind == "ladder":
                 assert roof is not None and roof.menzah is not None and roof.stair is None, interior.building
         assert all(s.riser <= 0.21 + 1e-9 for s in newel)
+
+
+def test_roof_newel_climbs_from_top_floor():
+    """A roof newel (47.1 round 9, `dar.roof_newel`) is a newel record from the top floor: its steps, pier,
+    well and walking line start at that floor's level, not at floor 0."""
+    from types import SimpleNamespace
+    from shapely.geometry import box
+    from citygen.interior import stairs as S
+    cfg, fl = {"riser_max": {"traditional": 0.21}, "walk": 0.45, "pier": 0.3}, {"waist": 0.15, "slab": 0.25}
+    stair = S.newel(box(0.0, 0.0, 2.2, 2.2), (1.1, 2.2, math.pi / 2), 2, 3.4, cfg)
+    stair.floor = 1
+    interior = SimpleNamespace(high=10.0, fh=3.4, floors=2, rooms=[])
+    lo, hi = S.level(interior, 1), S.level(interior, 2)
+    steps = [p for p in S.parts(stair, interior, cfg, fl) if p.kind == "step"]
+    assert len(steps) == stair.risers and min(p.z0 for p in steps) >= lo - stair.riser - 0.15 - 1e-9
+    assert abs(max(p.z1 for p in steps) - hi) < 1e-9
+    assert S.well(stair, 1, interior, cfg) is None
+    assert abs(S.well(stair, 2, interior, cfg).area - (2.2 ** 2 - S.landing_quarter(stair, cfg).area)) < 1e-6
+    (run,) = S.treads(stair, interior, cfg)
+    z = np.concatenate([[run.z_from], run.pts[:, 2], [run.z_to]])
+    assert (run.z_from, run.z_to) == (lo, hi) and (np.diff(z) >= -1e-9).all() and np.diff(z).max() <= 0.21
 
 
 def test_interior_plans_tool(interior_build, interior_ctx, tmp_path):
