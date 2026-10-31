@@ -4,7 +4,7 @@ A finished plan or tile is reused only when its key equals the key of the curren
 Simple and safe: any edit to any code file, setting, style, kit or planned city changes the key,
 and so does a new version of Python or of a library the code uses. Interiors (SPEC 6c) are made on
 demand from a finished build, so their code (`citygen/interior/`) and their style tables (`[interiors]`)
-never make a build stale.
+never make a build stale; nor does `citygen/view.py` (the viewer's web server).
 """
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ from .config import ROOT, load_style
 CODE = Path(__file__).resolve().parent
 NOT_CONTENT = ("output", "workers", "tiles_per_worker", "area")   # [build] settings that never change what a tile holds
 LIBRARIES = ("numpy", "scipy", "shapely", "contourpy", "pillow")   # a new version may change the numbers
-NOT_BUILD_CODE = ("interior",)      # code folders a build never runs (interiors are made on demand)
+NOT_BUILD_CODE = ("interior", "view.py")   # code a build never runs (interiors are made on demand; the viewer server)
 NOT_BUILD_STYLE = ("interiors",)    # style tables a build never reads
 
 
