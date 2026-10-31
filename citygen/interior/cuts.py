@@ -21,6 +21,8 @@ GRID = 1e-6       # meters: the snapping grid of every cut and union
 REACH = 1e4       # meters: half the size of a half plane
 TOUCH = 1e-4      # meters: boundaries this close count as shared
 EMPTY = 1e-3      # m2: a piece smaller than this is no piece (a numerical sliver)
+VOID_TYPES = ("wast_ed_dar", "well", "stah", "menzah")   # keep types that never take a hair strip
+HAIR = 0.15       # meters: strips thinner than twice this are hair strips (47.1/48.1, `trim`)
 SLIVER = 0.9      # meters: a room narrower than this with no other neighbour joins a stair cell or court
 
 
@@ -159,9 +161,10 @@ def shared(a, b) -> float:
     return float(a.boundary.intersection(b.buffer(TOUCH, quad_segs=1)).length)
 
 
-def zone(o, thickness: float, clear: float):
+def zone(o, thickness: float, clear: float, front: float = 0.0):
     """Where no partition may meet the wall of opening `o`: along its wall `clear` beyond both edges (a shop
-    front: its own width), from just outside the wall's face to just inside its inner face (+ 0.05 m)."""
+    front: its own width), from just outside the wall's face to just inside its inner face (+ 0.05 m); and
+    across the opening's own width `front` m into the room (no partition along the wall just behind it)."""
     if o.wall is None:
         return None
     if o.kind == "shop":
@@ -173,8 +176,13 @@ def zone(o, thickness: float, clear: float):
     c = np.array([o.x, o.y])
     half = o.width / 2 + clear
     a, b = c - d * half, c + d * half
-    return Polygon([a - inward * 0.02, b - inward * 0.02, b + inward * (thickness + 0.05),
-                    a + inward * (thickness + 0.05)])
+    out = Polygon([a - inward * 0.02, b - inward * 0.02, b + inward * (thickness + 0.05),
+                   a + inward * (thickness + 0.05)])
+    if front <= 0.0 or o.kind == "shop":
+        return out
+    a, b = c - d * o.width / 2, c + d * o.width / 2
+    deep = Polygon([a, b, b + inward * (thickness + front), a + inward * (thickness + front)])
+    return shapely.union_all([out, deep])
 
 
 def partition(poly, frame: Frame, axis: int, at: float, half: float):
@@ -251,22 +259,26 @@ def too_small(c: Cell, minimums: dict, piece: float) -> bool:
 
 def trim(cells: list, keep: tuple = (), takes: tuple = (), thin: float = 0.4) -> list:
     """Arms thinner than 2 x `thin` (a strip left along a wall by an irregular lot) leave their room for
-    the neighbour they share more boundary with (a covered court among them)."""
-    for c in [c for c in cells if c.type not in keep]:
-        core = c.poly.buffer(-thin, join_style="mitre").buffer(thin, join_style="mitre").intersection(c.poly)
+    the neighbour they share more boundary with (a covered court among them). A cell of a `keep` type but a
+    skifa (whose strips keep its bend) gives only its hair strips, thinner than 2 x `HAIR`, and any room but a
+    court takes one (47.1/48.1)."""
+    for c in [c for c in cells if c.type not in takes + ("well", "wast_ed_dar", "skifa")]:   # a skifa keeps its bend
+        t = HAIR if c.type in keep else thin
+        core = c.poly.buffer(-t, join_style="mitre").buffer(t, join_style="mitre").intersection(c.poly)
         core_parts = parts(snap(core))
         if not core_parts:
             continue
         body = max(core_parts, key=lambda p: p.area)
         arms = parts(shapely.difference(c.poly, body, grid_size=GRID))
         for arm in sorted(arms, key=lambda p: (-p.area, p.centroid.x, p.centroid.y)):
-            if arm.area < 0.05:
+            if arm.area < 0.005:                      # long hair-thin arms too (a wall would swallow them)
                 continue
             own = shared(arm, body)
             best, length = None, own + 1e-3
+            hair = arm.buffer(-HAIR, join_style="mitre").is_empty
             for o in cells:
-                if o is c or (o.type in keep and o.type not in takes):
-                    continue
+                if o is c or (o.type in keep and o.type not in takes and not (hair and o.type not in VOID_TYPES)):
+                    continue                          # any room but a court takes a hair strip beside it
                 s = shared(arm, o.poly)
                 if s > length:
                     best, length = o, s

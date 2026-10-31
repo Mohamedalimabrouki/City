@@ -36,12 +36,20 @@ class Entry(NamedTuple):
     ny: float
 
 
+def couloir(job) -> float:
+    """The couloir's width: `[interiors.villa] couloir`, in flats `[interiors.flats] couloir` (47.1/48.1)."""
+    width = float(job.cfg.get("villa", {}).get("couloir", 1.1))
+    if job.interior.layout in ("colonial", "slab"):
+        return float(job.cfg.get("flats", {}).get("couloir", width))
+    return width
+
+
 def numbers(job) -> dict:
     """The spine's numbers (`[interiors.villa]`), with defaults."""
     cfg = job.cfg.get("villa", {})
     return {"hall": [float(v) for v in cfg.get("hall", [2.0, 3.0])],
             "hall_width": [float(v) for v in cfg.get("hall_width", [1.8, 2.6])],
-            "couloir": float(cfg.get("couloir", 1.1)), "side": float(cfg.get("side", 2.6)),
+            "couloir": couloir(job), "side": float(cfg.get("side", 2.6)),
             "rhythm": [float(v) for v in cfg.get("rhythm", [3.6, 3.2, 2.8])],
             "variants": int(cfg.get("variants", 24))}
 
@@ -194,7 +202,7 @@ def couloir_frame(job, region, floor: int) -> Frame:
         score[0 if abs(float(along @ fr.u)) >= abs(float(along @ fr.v)) else 1] += o.width
     u0, v0, u1, v1 = fr.bounds(region)
     deep = float(job.cfg.get("villa", {}).get("deep", 6.0))
-    c = float(job.cfg.get("villa", {}).get("couloir", 1.1))
+    c = couloir(job)
     turned_deep = ((u1 - u0) - c) / 2 > deep and ((v1 - v0) - c) / 2 <= deep
     if score[1] > score[0] + 1e-6 and not turned_deep:
         return Frame(fr.c[0], fr.c[1], fr.angle + math.pi / 2)
@@ -780,17 +788,35 @@ def carve_wet(job, spine: dict, cells: list, t: str, floor: int) -> bool:
             for piece_way in contact(host.poly, way):
                 got = slide_wet(job, F, host, way, piece_way, t, w, deep, top, door, zones, ways)
                 if got is not None:
-                    host.poly = got[1]
-                    cells.append(Cell(got[0], t, host.band, host.part))
+                    wet, host.poly = unwrap(job, *got)
+                    cells.append(Cell(wet, t, host.band, host.part))
                     return True
     hall = next((c for c in cells if c.type == "hall"), None)
     if hall is not None:                                # off the hall, in a corner away from the door
         got = hall_corner(job, F, hall, w, max(least_a / w, least_w) + 0.3, door, zones, spine.get("entry"), t)
         if got is not None:
-            hall.poly = got[1]
-            cells.append(Cell(got[0], t, "spine", "wc"))
+            wet, hall.poly = unwrap(job, *got)
+            cells.append(Cell(wet, t, "spine", "wc"))
             return True
     return False
+
+
+def unwrap(job, wet, rest) -> tuple:
+    """(wet room, host) with the host's hair-thin arms round the carved room (narrower than a partition and
+    0.1 m: walls would swallow them and the doors on them) given to the wet room (47.1/48.1)."""
+    from ..city.geo import polygons
+    e = job.half + 0.05
+    core = parts(snap(rest.buffer(-e, join_style="mitre").buffer(e, join_style="mitre").intersection(rest)))
+    if not core:
+        return wet, rest
+    body = max(core, key=lambda p: p.area)
+    for arm in sorted(polygons(shapely.difference(rest, body, grid_size=1e-6)), key=lambda p: (-p.area, p.centroid.x)):
+        if arm.area < 1e-8 or shared(arm, wet) < 0.05:
+            continue
+        grown, left = union(wet, arm), parts(shapely.difference(rest, arm, grid_size=1e-6))
+        if grown is not None and len(left) == 1:
+            wet, rest = grown, left[0]
+    return wet, rest
 
 
 def hall_corner(job, F: Frame, hall, w: float, d: float, door: float, zones: list, entry, t: str = "wc"):
@@ -1033,14 +1059,14 @@ def box_fits(job, box, floors: list) -> bool:
     return True
 
 
-def roof_newel(job, region):
+def roof_newel(job, region, on_walls: bool = False):
     """The newel cell from the top floor to the roof, under the roof's stair room (SPEC 6c `newel`): the
     largest square inside the stair room's square that keeps the rule; None without a stair room or when
-    none fits (then a ladder rises into the stair room, a warning)."""
+    none fits (then a ladder rises into the stair room, a warning); `on_walls`: see `stairs.under_stair_room`."""
     if job.roof is None or job.roof.stair is None:
         return None
     sq = S.under_stair_room(job.roof.stair, region, job.zs([job.interior.floors - 1]), job.half,
-                            float(job.stairs.get("newel_min", 1.9)))
+                            float(job.stairs.get("newel_min", 1.9)), on_walls)
     if sq is None:
         job.interior.warnings.append("the roof stair does not fit under the stair room: a ladder rises into it")
         job.roof_ladder = True

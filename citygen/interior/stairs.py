@@ -45,15 +45,26 @@ def walls_clear(square, region, zones: list, half: float, edge=None) -> bool:
     return True
 
 
+def surely_unclear(squares, region, zones: list, half: float):
+    """A mask of the squares `walls_clear` would refuse for sure (a side well inside an opening's zone),
+    found at once: the search skips them (47.1, speed only: every other square is judged as before)."""
+    if not zones or not len(squares):
+        return np.zeros(len(squares), dtype=bool)
+    deep = shapely.difference(shapely.union_all(zones).buffer(-0.01, join_style="mitre"),
+                              region.boundary.buffer(0.02, quad_segs=1))
+    return shapely.length(shapely.intersection(shapely.boundary(squares), deep)) > 0.02
+
+
 def sizes(top: float, least: float) -> list:
     """Square sides from `top` down to `least` in `STEP`s."""
     n = int(round((top - least) / STEP))
     return [round(top - i * STEP, 3) for i in range(max(n, 0) + 1)]
 
 
-def under_stair_room(room, region, zones: list, half: float, least: float):
+def under_stair_room(room, region, zones: list, half: float, least: float, on_walls: bool = False):
     """The largest square inside the roof's stair room square (and inside `region`) with a side of at
-    least `least` whose walls keep the rule, nearest the stair room's center; None when none fits."""
+    least `least` whose walls keep the rule, nearest the stair room's center; None when none fits.
+    `on_walls` (villas and maisons): when none does, squares flush on the walls are tried (`flush`)."""
     fr = Frame.of(room)
     u0, v0, u1, v1 = fr.bounds(room)
     side = min(u1 - u0, v1 - v0)
@@ -61,17 +72,41 @@ def under_stair_room(room, region, zones: list, half: float, least: float):
     inside = region.buffer(1e-6)
     shapely.prepare(inside)
     edge = region.boundary.buffer(0.01, quad_segs=1)
-    for s in sizes(side, least):
-        slack = (side - s) / 2
-        n = int(slack / STEP + 1e-9)
-        offs = np.array(sorted(((i * STEP, j * STEP) for i in range(-n, n + 1) for j in range(-n, n + 1)),
-                               key=lambda t: (abs(t[0]) + abs(t[1]), t[0], t[1])))
-        us, vs = cu + offs[:, 0], cv + offs[:, 1]
-        squares = fr.rects(us - s / 2, vs - s / 2, us + s / 2, vs + s / 2)
-        for i in np.flatnonzero(shapely.contains(inside, squares)):
-            if squares[i].difference(region).area < 1e-6 and walls_clear(squares[i], region, zones, half, edge):
-                return squares[i]
+    walls = fr.bounds(region.intersection(room)) if region.intersects(room) else None
+    for flushed in (False, True) if on_walls else (False,):   # every size on the grid first, then on the walls
+        for s in sizes(side, least):
+            slack = (side - s) / 2
+            n = int(slack / STEP + 1e-9)
+            offs = [(i * STEP, j * STEP) for i in range(-n, n + 1) for j in range(-n, n + 1)]
+            offs = flush(offs, walls, (cu, cv), s, slack) if flushed else offs
+            if not offs:
+                continue
+            offs = np.array(sorted(offs, key=lambda t: (abs(t[0]) + abs(t[1]), t[0], t[1])))
+            us, vs = cu + offs[:, 0], cv + offs[:, 1]
+            squares = fr.rects(us - s / 2, vs - s / 2, us + s / 2, vs + s / 2)
+            held = shapely.contains(inside, squares)
+            held[held] = ~surely_unclear(squares[held], region, zones, half)
+            for i in np.flatnonzero(held):
+                if squares[i].difference(region).area < 1e-6 and walls_clear(squares[i], region, zones, half, edge):
+                    return squares[i]
     return None
+
+
+def flush(grid: list, walls, center: tuple, s: float, slack: float) -> list:
+    """Offsets that put a square of side `s` flush on the walls the stair room's square reaches over
+    (`walls`: the bounds of the floor under it), tried once the `STEP` grid finds nothing: a cell a sliver
+    off a wall, its partition along a window, stands on the wall instead (lead decision C, 47.1/48.1)."""
+    if walls is None:
+        return []
+    u0, v0, u1, v1 = walls
+    cu, cv = center
+    nudge = (0.0, 0.005, 0.01)                        # inward, within the 0.01 m a wall's face may wander
+    ends = ([u0 + s / 2 - cu + d for d in nudge] + [u1 - s / 2 - cu - d for d in nudge],
+            [v0 + s / 2 - cv + d for d in nudge] + [v1 - s / 2 - cv - d for d in nudge])
+    ends = [[round(e, 6) for e in pair if abs(e) <= slack + 1e-9] for pair in ends]
+    us = sorted({t[0] for t in grid}) + ends[0]
+    vs = sorted({t[1] for t in grid}) + ends[1]
+    return [(a, b) for a in us for b in vs if a in ends[0] or b in ends[1]]
 
 
 def in_corner(corners: list, fr: Frame, region, zones: list, half: float, top: float, least: float,
@@ -89,7 +124,9 @@ def in_corner(corners: list, fr: Frame, region, zones: list, half: float, top: f
             ua, va = u + du * slides[:, 0], v + dv * slides[:, 1]
             ub, vb = ua + du * s, va + dv * s
             squares = fr.rects(np.minimum(ua, ub), np.minimum(va, vb), np.maximum(ua, ub), np.maximum(va, vb))
-            for i in np.flatnonzero(shapely.contains(inside, squares)):
+            held = shapely.contains(inside, squares)
+            held[held] = ~surely_unclear(squares[held], region, zones, half)
+            for i in np.flatnonzero(held):
                 if squares[i].difference(region).area < 1e-6 and walls_clear(squares[i], region, zones, half, edge):
                     return squares[i]
     return None
@@ -153,7 +190,14 @@ def steps(room, door, width: float, rise: float, cfg: dict, warnings: list, ext:
     n = risers(abs(rise), float(cfg.get("riser", 0.18)))
     if n * tread > room_for + 1e-9:
         n = risers(abs(rise), float(cfg.get("riser_steep", 0.22)))
+        least = float(cfg.get("tread_min", 0.2))
+        if room_for < n * least:                      # a shorter landing before treads under `tread_min`
+            room_for = max(room_for, min(n * least, depth - float(cfg.get("turn_min", 0.6))))
         tread = min(tread, room_for / n)
+        if tread < least - 1e-9:                      # too short for a straight run: turned at the door
+            got = turned(room, door, width, rise, cfg, ext)
+            if got is not None:
+                return got
         warnings.append(f"the entry steps are steep: {n} risers of {abs(rise) / n:.2f} m in {room_for:.2f} m")
     w = width + 2 * float(cfg.get("side", 0.1))
     along = np.array([-inward[1], inward[0]])
@@ -165,6 +209,57 @@ def steps(room, door, width: float, rise: float, cfg: dict, warnings: list, ext:
     sign = 1.0 if rise > 0 else -1.0
     yaw = math.atan2(-inward[1], -inward[0])
     return Stair("steps", poly, 0, 0, n, sign * abs(rise) / n, tread, w, (door.x, door.y, yaw), [room.id])
+
+
+def turned(room, door, width: float, rise: float, cfg: dict, ext: float) -> Stair | None:
+    """Entry steps turned 90 degrees (lead decision, 47.1/48.1): a landing at the door's threshold as wide as
+    the door + 2 x `side` and `steps_flight` deep, then a flight `steps_flight` wide along the facade wall
+    toward the side with more room, its treads `tread` (down to `tread_min`) and `turn_min` of floor kept
+    beyond it; None when neither side holds it."""
+    least, turn = float(cfg.get("tread_min", 0.2)), float(cfg.get("turn_min", 0.6))
+    w = width + 2 * float(cfg.get("side", 0.1))
+    yaw = math.atan2(door.ny, door.nx)
+    fr = Frame(door.x, door.y, yaw + math.pi / 2)    # v into the room
+    ray = LineString([fr.world(0.0, ext), fr.world(0.0, ext + 50.0)]).intersection(room.polygon)
+    depth = max((g.length for g in getattr(ray, "geoms", [ray]) if g.geom_type == "LineString"), default=0.0)
+    f = min(float(cfg.get("steps_flight", 0.9)), depth)          # a shallow room: a narrower flight
+    if f < float(cfg.get("steps_flight_min", 0.7)) - 1e-9:
+        return None
+    best = None
+    for s in (1.0, -1.0):
+        start = fr.world(s * w / 2, ext + f / 2)
+        ray = LineString([start, fr.world(s * (w / 2 + 50.0), ext + f / 2)]).intersection(room.polygon)
+        reach = next((g.length for g in getattr(ray, "geoms", [ray]) if g.geom_type == "LineString"
+                      and g.distance(Point(*start)) < 1e-6), 0.0)
+        if best is None or reach > best[0]:
+            best = (reach, s)
+    reach, s = best
+    for riser_max in (float(cfg.get("riser", 0.18)), float(cfg.get("riser_steep", 0.22))):
+        n = risers(abs(rise), riser_max)
+        tread = min(float(cfg.get("tread", 0.3)), (reach - turn) / n)
+        if tread >= least - 1e-9:
+            break
+    else:
+        return None
+    u0, u1 = sorted((-w / 2, s * (w / 2 + n * tread)))
+    landing = fr.rect(-w / 2, ext, w / 2, ext + f)
+    run = fr.rect(u0, ext, u1, ext + f)
+    poly = shapely.union_all([landing, run]).intersection(room.polygon)
+    door_landing = fr.rect(-width / 2, ext, width / 2, ext + f)
+    if poly.geom_type != "Polygon" or door_landing.difference(room.polygon).area > 0.05 * door_landing.area:
+        return None
+    sign = 1.0 if rise > 0 else -1.0
+    return Stair("steps", poly, 0, 0, n, sign * abs(rise) / n, tread, w, (door.x, door.y, yaw), [room.id],
+                 turn=int(s), flight=f)
+
+
+def steps_depth(rise: float, cfg: dict) -> float:
+    """The least depth a room needs from its door for entry steps rising `rise` m with treads of
+    `tread_min` and a landing of `turn_min` (0 when the door needs no steps)."""
+    if abs(rise) <= float(cfg.get("threshold", 0.15)):
+        return 0.0
+    n = risers(abs(rise), float(cfg.get("riser_steep", 0.22)))
+    return n * float(cfg.get("tread_min", 0.2)) + float(cfg.get("turn_min", 0.6))
 
 
 def ladder(region, fr: Frame, near, size: tuple):
@@ -377,6 +472,8 @@ def entry_steps(stair, interior) -> list:
     floor = level(interior, 0)
     door = floor - stair.risers * stair.riser
     out = []
+    if stair.turn:
+        return _turned_steps(stair, fr, v0, floor, door)
     for k in range(1, stair.risers + 1):
         band = fr.rect(-50.0, v0 + (k - 1) * stair.tread, 50.0, v0 + k * stair.tread)
         poly = stair.polygon.intersection(band)
@@ -385,6 +482,37 @@ def entry_steps(stair, interior) -> list:
             continue
         out.append((poly, min(door, floor) - 0.3 if stair.riser > 0 else floor, top))
     return out
+
+
+def _turned_steps(stair, fr: Frame, v0: float, floor: float, door: float) -> list:
+    """`entry_steps` of a turned flight: the door's landing at the threshold, then the treads along the wall."""
+    w, f, t, s = stair.width, stair.flight, stair.tread, stair.turn
+    base = min(door, floor) - 0.3 if stair.riser > 0 else floor
+    out = [(stair.polygon.intersection(fr.rect(-w / 2, v0, w / 2, v0 + f)), base, door)]
+    for k in range(1, stair.risers + 1):
+        a, b = sorted((s * (w / 2 + (k - 1) * t), s * (w / 2 + k * t)))
+        poly = stair.polygon.intersection(fr.rect(a, v0, b, v0 + f))
+        if poly.area >= 1e-4:
+            out.append((poly, base, door + k * stair.riser))
+    return out
+
+
+def turned_line(stair, interior) -> np.ndarray:
+    """The walking line of a turned flight (x, y, z): into the landing, then along the flight's middle."""
+    x, y, yaw = stair.door
+    fr = Frame(x, y, yaw + math.pi / 2)
+    _, v0, _, _ = fr.bounds(stair.polygon)
+    w, f, t, s, n = stair.width, stair.flight, stair.tread, stair.turn, stair.risers
+    floor = level(interior, 0)
+    door = floor - n * stair.riser
+    pts = [(*fr.world(0.0, v), door) for v in np.arange(v0 + ALONG / 2, v0 + f / 2, ALONG)]
+    step = min(ALONG, t / 2)
+    for u in np.arange(step / 2, w / 2 + n * t, step):
+        k = int((u - w / 2) // t) if u > w / 2 else -1
+        p = fr.world(s * u, v0 + f / 2)
+        if stair.polygon.contains(Point(*p)):
+            pts.append((*p, door if k < 0 else floor - (n - 1 - min(k, n - 1)) * stair.riser))
+    return np.array(pts).reshape(-1, 3)
 
 
 def well(stair, f: int, interior, cfg: dict):
@@ -482,6 +610,9 @@ def treads(stair, interior, cfg: dict | None = None) -> list:
         return _newel_runs(stair, interior, cfg)
     if stair.kind == "u":
         return _u_runs(stair, interior)
+    if stair.kind == "steps" and stair.turn:
+        door = level(interior, 0) - stair.risers * stair.riser
+        return [Run(door, level(interior, 0), turned_line(stair, interior))]
     if stair.kind == "steps":
         x, y, yaw = stair.door
         fr = Frame(x, y, yaw + math.pi / 2)

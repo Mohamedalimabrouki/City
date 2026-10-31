@@ -11,6 +11,7 @@ import numpy as np
 import shapely
 
 from . import dar as D
+from . import rooms as R
 from . import spine as P
 from . import stairs as S
 from .cuts import parts, snap
@@ -57,15 +58,15 @@ def plan(interior, outside, style: dict, kind: str) -> None:
     core = place_box(job, entry, list(range(floors))) if floors > 1 and entry is not None else None
     if floors > 1 and core is None:
         interior.warnings.append("no stair fits between the floors: a ladder goes up")
+    core, square = roof_stair(job, entry, core)
     box = core[0] if core else None
     top = floors - 1
-    top_region = interior.storeys[top].polygon if box is None else snap(interior.storeys[top].polygon.difference(box))
-    square = P.roof_newel(job, top_region)
     progs = programs(job, kind)
     halls, droj = [], None
     for st in interior.storeys:
         f = st.floor
         region = st.polygon
+        landing = box
         if box is not None:
             region = shapely_less(region, box)
         if square is not None and f == top:
@@ -74,6 +75,8 @@ def plan(interior, outside, style: dict, kind: str) -> None:
         if e is None:
             e = P.Entry(*region.representative_point().coords[0], 1.0, 0.0)
         cells = P.lay(job, largest(region), e, progs[f], f, (kind, f), hall=f == 0)
+        if landing is not None:
+            landing = to_landing(job, cells, landing, f)
         rest = [Cellish(p) for p in parts(snap(region.difference(largest(region))))] if len(parts(region)) > 1 else []
         for c in rest:
             cells.append(c)
@@ -81,7 +84,7 @@ def plan(interior, outside, style: dict, kind: str) -> None:
         if box is None:
             rooms = P.nooks(job, rooms)
         if box is not None:
-            way = P.add_rooms(job, [P.Cell(box, "palier")], f, "home")[0]
+            way = P.add_rooms(job, [P.Cell(landing, "palier")], f, "home")[0]
             rooms = P.nooks(job, rooms, way)
             P.open_way(job, way, rooms)
             halls.append(way)
@@ -99,6 +102,30 @@ def plan(interior, outside, style: dict, kind: str) -> None:
         D.ladder_up(job)
     P.finish(job)
     focus(job)
+
+
+def to_landing(job, cells: list, landing, f: int):
+    """The palier (`landing`) with the strips of cells beside it thinner than 2 x `cuts.HAIR` (a couloir or
+    room 0.2 m wide along the stair box: walls would swallow it and the doors on it, 47.1/48.1)."""
+    from ..city.geo import polygons
+    from .cuts import GRID, HAIR, clashes, shared, union
+    zones = job.zs([f])
+    for c in cells:
+        least = job.minimums.get(c.type, (0.0, 0.0))[0]
+        opened = c.poly.buffer(-HAIR, join_style="mitre").buffer(HAIR, join_style="mitre")
+        core = parts(snap(opened.intersection(c.poly)))
+        if not core:
+            continue
+        body = max(core, key=lambda p: p.area)
+        for arm in polygons(shapely.difference(c.poly, body, grid_size=GRID)):
+            if (arm.area < 1e-6 or not arm.buffer(-HAIR, join_style="mitre").is_empty
+                    or shared(arm, landing) < 0.3 or clashes(arm, zones)):
+                continue                              # (a strip at a window stays: no partition there)
+            grown, rest = union(landing, arm), parts(shapely.difference(c.poly, arm, grid_size=GRID))
+            if (grown is not None and len(rest) == 1 and rest[0].area >= least     # the room keeps its minimum
+                    and not R.clash_polys(grown, rest[0], zones, 2 * job.half)):    # and no partition at a window
+                landing, c.poly = grown, rest[0]
+    return landing
 
 
 class Cellish(P.Cell):
@@ -120,10 +147,36 @@ def shapely_less(region, box):
     return shapely.union_all(got)
 
 
-def place_box(job, entry, floors: list):
+def roof_stair(job, entry, core) -> tuple:
+    """(core, roof newel square): when the U box takes the floor under the roof's stair room, the box
+    keeps off it where it still fits (the roof newel then stands there; 47.1/48.1)."""
+    interior = job.interior
+    top = interior.floors - 1
+
+    def newel(c):
+        region = interior.storeys[top].polygon if c is None else snap(interior.storeys[top].polygon.difference(c[0]))
+        return P.roof_newel(job, region, on_walls=True)
+
+    square = newel(core)
+    if square is not None or core is None or job.roof is None or job.roof.stair is None:
+        return core, square
+    off = place_box(job, entry, list(range(interior.floors)), off=job.roof.stair)
+    if off is None or off[0].equals(core[0]):
+        return core, square
+    said, job.roof_ladder = list(interior.warnings), False
+    again = newel(off)
+    if again is None:
+        interior.warnings, job.roof_ladder = said, True
+        return core, square
+    interior.warnings = [w for w in said if "the roof stair does not fit" not in w]
+    return off, again
+
+
+def place_box(job, entry, floors: list, off=None):
     """(box, size, x, y, door frame) of the U stair beside the hall: against the door wall beside the door
     (the side with more room first), slid along the wall and inward in 0.25 m steps until it lies inside
-    every storey and its walls keep clear; the narrow box when no full one fits; None when none does."""
+    every storey and its walls keep clear (and off `off`); the narrow box when no full one fits; None when
+    none does."""
     fd = P.door_frame(entry)
     st0 = job.interior.storeys[0].polygon
     x0, _, x1, _ = fd.bounds(st0)
@@ -138,7 +191,7 @@ def place_box(job, entry, floors: list):
             for s in sides:
                 x = s * (half + e + size["across"] / 2)
                 box = S.u_box(fd, x, float(y), size)
-                if P.box_fits(job, box, floors):
+                if (off is None or box.intersection(off).area < 1e-4) and P.box_fits(job, box, floors):
                     return box, size, x, float(y), fd
     return None
 
