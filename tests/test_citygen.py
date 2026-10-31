@@ -4096,6 +4096,27 @@ def test_strip_measures_corridor_arms():
     assert abs(strip(room, 1.6) - 5.0) < 1e-6
 
 
+def test_dark_rooms_counted():
+    """47.1 round 8: `layout.dim` counts a home's chambres, salons, salles a manger and cuisines with no
+    facade window (or court opening) or with a strip arm, the guard on a house's second plans."""
+    from types import SimpleNamespace as NS
+    from shapely.geometry import Polygon
+    from citygen.interior.layout import dim
+    box = Polygon([(0, 0), (4, 0), (4, 4), (0, 4)])
+    arm = Polygon([(0, 0), (4, 0), (4, 4), (1, 4), (1, 9), (0, 9), (0, 4)])     # a 1 x 5 arm: a strip
+    rooms = [NS(id=0, type="chambre", polygon=box), NS(id=1, type="chambre", polygon=box),
+             NS(id=2, type="salon", polygon=arm), NS(id=3, type="couloir", polygon=box)]
+    openings = [NS(kind="window", wall=((0, 0), (1, 0)), rooms=(0, -1)), NS(kind="window", wall=None, rooms=(1, -1)),
+                NS(kind="window", wall=((0, 0), (1, 0)), rooms=(2, -1))]
+    style = {"interiors": {"flats": {"strip": [1.6, 3.0]}}}
+    assert dim(NS(rooms=rooms, openings=openings), style) == 2   # chambre 1 blind, the salon a strip
+    openings[1].kind = "court_window"
+    assert dim(NS(rooms=rooms, openings=openings), style) == 1
+    from citygen.interior.villa import tiny
+    assert tiny(["salon", "cuisine", "chambre", "sdb", "wc", "chambre*"]) == ["salon", "chambre", "cuisine", "sdb",
+                                                                               "chambre*"]
+
+
 def test_flats(new_districts, interior_ctx, plan):
     from citygen.export.lore import plan_json
     from citygen.interior.flats import occupants

@@ -1332,6 +1332,17 @@ along the axes of a frame (the courtyard's or the footprint's `frame`).
   0.005 m2 lost); a door goes only on a piece where both rooms reach half a partition + `probe` behind it
   (`rooms.place(deep=)`; a wet room's narrow door falls back to any piece); a couloir under the hall's least
   area joins the hall or palier (`spine.nooks`); villas and maisons get the entry-steps retry too.
+  Round 8 (the houses): second plans only for houses the plan check still faults, so a passing plan keeps
+  its bytes. A villa or maison: the window bays (`spine.bays`, `[interiors.villa] bay_depth` 0.7 m) are
+  traded on the spine search's best plan when no variant passed (`spine.late_bays`), and a failing house
+  is planned again with the trade inside the search (`layout.early_bays`); a one-floor house with no
+  chambre or salon tries `villa.tiny` (no wc of its own, the chambre before the cuisine). Then every
+  old-town house, villa and maison still faulty is drawn again (`layout.redraw`: the house's streams take
+  the path + ("again", n), `[interiors.dar] redraws` 3, `[interiors.villa] redraws` 2), unless its faults
+  are all ones no redraw cures (facade openings on tile spikes, no room for the U stair, entry steps, a
+  tiny house's missing chambre or salon). Each second plan is kept only when `rooms.check` finds fewer
+  faults and the home has no more dark rooms (`layout.dim`: a chambre, salon, salle a manger or cuisine
+  with no facade window or court opening, or with a strip over `[interiors.flats] strip`).
 - Built (prompt 46). Rules the code settled: every cut, union and difference runs on a 1 micrometer grid
   and pieces under 0.001 m2 are numerical slivers, dropped. Before and after the merges, arms of a room
   thinner than 0.8 m (strips an irregular lot leaves along a wall) move to the neighbour they share more

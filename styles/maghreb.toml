@@ -1870,6 +1870,7 @@ qahwa = [12.0, 2.5]
 most = { hall = 20.0, couloir = 30.0, salon = 60.0, salle_a_manger = 40.0, cuisine = 22.0, chambre = 36.0, sdb = 10.0, wc = 4.5, palier = 40.0, koubba = 110.0, hanout = 30.0, makhzen = 40.0, qahwa = 120.0, matbakh = 14.0, bit_el_ma = 8.0, bit_el_mouna = 8.0 }   # m2: a room over this is absurd (rooms.check)
 
 [interiors.dar]    # courtyard houses (SPEC 6c "Courtyard house")
+redraws = 3              # an old-town house the plan check faults is planned again with fresh draws up to this many times (47.1 round 8)
 skifa = [3.0, 4.5]       # meters along the entry band (stream skifa), longer up to skifa_reach when needed
 skifa_reach = 6.0        # meters: the longest skifa (or L leg) tried before a plainer one
 baffle = 0.6             # share of the band's depth the baffle reaches from the court wall
@@ -1919,6 +1920,8 @@ variants = 18            # spine plans tried per home floor before the best so f
 rhythm = [3.6, 3.2, 2.8, 2.5]   # meters between the cuts across the couloir, tried in turn until the program fits
 dining_area = 110.0      # m2: a villa's floor 0 over this has a salle a manger
 largest = { cuisine = 16.0, sdb = 8.0, wc = 3.0 }   # m2: a bigger cell gives the service its couloir end
+redraws = 2              # a villa or maison the plan check faults is planned again with fresh draws up to this many times (47.1 round 8)
+bay_depth = 0.7          # meters: villas and maisons trade window bays as flats do ([interiors.flats] bay_depth; 0: never)
 
 [interiors.flats]   # flats in colonial blocks and slabs (SPEC 6c "Flats")
 types = [["S+1", 60.0], ["S+2", 100.0], ["S+3", 1e9]]   # flat type by area (m2, under; lead: moyen standing)

@@ -953,6 +953,15 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`, and how the le
   0 of 270 changed, the door faults appear only after `repair`, `connect` and `settle`, and reach before
   `connect` is noise (whole flats "unreached" that pass later). Tiny halls (0.1-0.9 m2) touch only the
   palier and one room: the hall is a program rule, so no merge helps; the search must make a real hall.
+  Round 8 (houses): a repair inside the spine search changes which variant wins first, so passing houses
+  churn and the guard rooms (blind or strip chambres) grow on the very same houses; the same repair only
+  when no variant passed, plus a second plan only for houses the check still faults, changed 0 passing
+  houses. Fresh draws are the cheapest general fix: plan a faulty house again with its streams' path +
+  ("again", n) and keep the plan with fewer faults (11 old-town houses, 1-2 villas); skip faults no draw
+  cures (tile spikes, no U stair, entry steps, a tiny program) or failing houses cost 4x. Guard every
+  second plan with the quality measure (`layout.dim`), not only the fault count: a redraw happily trades a
+  fault for a strip chambre. Compare the guard on the same houses (`guard.py cmp`) and, for newly passing
+  houses, against their failing plans; totals over all passing houses grow with every house won.
 
 ## Known weak spots
 

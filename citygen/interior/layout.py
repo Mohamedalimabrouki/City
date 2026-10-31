@@ -49,6 +49,51 @@ def plan_interior(outside, style: dict) -> Interior:
     interior.warnings = list(outside.warnings)
     reveals(interior, float(walls_cfg.get("reveal", 0.2)), float(walls_cfg.get("reveal_wall", 0.15)))
     before = _held(interior)
+    _stages(interior, outside, style, layout, before)
+    if layout in TRADITIONAL + HOUSES and any(not any(w in f for w in DEAF) for f in check(interior)):
+        redraw(interior, outside, style, layout, before)
+    return interior
+
+
+def redraw(interior: Interior, outside, style: dict, layout: str, before: dict) -> None:
+    """An old-town house, villa or maison the plan check still faults is planned again with fresh draws
+    (`Job.rng`, the shop's stream and `spine.rng` take the purpose path + ("again", n)), up to `[interiors.dar]`
+    or `[interiors.villa] redraws` times; the plan with the fewest faults and no more dark rooms kept (round 8)."""
+    best, faults, dark = _held(interior), len(check(interior)), dim(interior, style)
+    times = style.get("interiors", {}).get("villa" if layout in HOUSES else "dar", {}).get("redraws", 0)
+    times = int(times.get(layout, 0) if isinstance(times, dict) else times)
+    for n in range(1, times + 1):
+        _hold(interior, before)
+        interior.redraw = n
+        interior.bays_early = layout in HOUSES        # a house's redraws trade window bays in the search
+        try:
+            _stages(interior, outside, style, layout, before)
+        finally:
+            del interior.redraw, interior.bays_early
+        got = len(check(interior))
+        if got < faults and dim(interior, style) <= dark:   # never more dark rooms (blind or strips) for a pass
+            best, faults, dark = _held(interior), got, dim(interior, style)
+        if not faults:
+            break
+    _hold(interior, best)
+
+
+def dim(interior: Interior, style: dict) -> int:
+    """The home's dark rooms: chambres, salons, salles a manger and cuisines with no facade window, balcony
+    or court opening, or with over `[interiors.flats] strip` m2 in parts narrower than its width (round 8:
+    a second plan is kept only when it has no more of them)."""
+    from .spine import strip
+    wide, most = (float(v) for v in style.get("interiors", {}).get("flats", {}).get("strip", (1.6, 3.0)))
+    lit = {r for o in interior.openings for r in (o.rooms or ())
+           if (o.kind in LIGHTS and o.wall is not None) or o.kind in ("court_window", "court_door")}
+    return sum(1 for r in interior.rooms if r.type in DIM and (r.id not in lit or strip(r.polygon, wide) > most))
+
+
+DIM = ("chambre", "salon", "salle_a_manger", "cuisine")
+
+
+def _stages(interior: Interior, outside, style: dict, layout: str, before: dict) -> None:
+    """The plan by layout and its retries and repairs (rounds 5-8)."""
     interior.way_used = False
     _plan(interior, outside, style, layout)
     if layout in TRADITIONAL:
@@ -68,6 +113,12 @@ def plan_interior(outside, style: dict) -> Interior:
             if not faults:
                 break
         _hold(interior, best)
+    if layout in HOUSES and not interior.__dict__.get("redraw") and any(
+            not any(w in f for w in SEARCH_DEAF) for f in check(interior)):
+        early_bays(interior, outside, style, layout, before)
+    if layout in HOUSES and interior.floors == 1 and not interior.__dict__.get("redraw") and any(
+            f.endswith(SHORT) for f in check(interior)):
+        again(interior, outside, style, layout, "tiny", before)
     if layout in TRADITIONAL:
         from .program import swap_way
         swap_way(interior, check)                     # services off the way in (round 6)
@@ -76,7 +127,6 @@ def plan_interior(outside, style: dict) -> Interior:
     if layout == "dar":
         bent(interior)
     interior.__dict__.pop("way_used", None)
-    return interior
 
 
 def bent(interior: Interior) -> None:
@@ -117,6 +167,26 @@ def free_way(interior: Interior, outside, style: dict, layout: str, before: dict
         _hold(interior, first)
 
 
+def early_bays(interior: Interior, outside, style: dict, layout: str, before: dict) -> None:
+    """A villa or maison the plan check still faults is planned again with the window bays traded inside
+    the spine's variant search (`spine.bays`, as flats do), the plan with fewer faults kept (round 8)."""
+    again(interior, outside, style, layout, "bays_early", before)
+
+
+def again(interior: Interior, outside, style: dict, layout: str, flag: str, before: dict) -> None:
+    """The house planned again from `before` with `flag` set; the plan with fewer `rooms.check` faults kept
+    (round 8)."""
+    first, faults, dark = _held(interior), len(check(interior)), dim(interior, style)
+    _hold(interior, before)
+    setattr(interior, flag, True)
+    try:
+        _plan(interior, outside, style, layout)
+    finally:
+        delattr(interior, flag)
+    if len(check(interior)) >= faults or dim(interior, style) > dark:
+        _hold(interior, first)
+
+
 def plan_steps(interior: Interior) -> list:
     from .plancheck import _steps
     return _steps(interior, interior.rules.get("plan", {}))
@@ -131,6 +201,10 @@ def sunk(interior: Interior, style: dict) -> None:
         _hold(interior, first)
 
 
+SHORT = ("has no chambre", "has no salon")   # a tiny one-floor house tries again with its wc in the sdb
+DEAF = ("storey crosses", "no U stair", "entry steps", "has no chambre", "has no salon")   # faults no redraw
+# cured (tile spikes, no room for the U stair, a tiny house's program: survey, round 8)
+SEARCH_DEAF = ("has no", "no U stair", "storey crosses", "entry steps")   # faults a second search never cures
 HOUSES = ("villa", "maison")   # modern houses retried for their steps too (47.1 round 7)
 KEEP_MORE = (0.0, 0.3)   # m beyond the steps' least depth kept free on a second and third plan (47.1)
 

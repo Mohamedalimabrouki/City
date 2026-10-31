@@ -46,6 +46,18 @@ def programs(job, kind: str) -> dict:
         else:
             prog = list(cfg.get("upper", UPPER))
         out[f] = [t for t in prog if t != "salle_a_manger" or big]
+        if floors == 1 and job.interior.__dict__.get("tiny"):   # a tiny home's second plan (`layout.again`,
+            out[f] = tiny(out[f])                               # round 8)
+    return out
+
+
+def tiny(prog: list) -> list:
+    """A tiny one-floor home's program: no wc of its own (the sdb holds it) and the chambre placed before
+    the cuisine, so the bedroom gets a cell and the cuisine the smaller one (round 8)."""
+    out = [t for t in prog if t != "wc"]
+    if "chambre" in out and "cuisine" in out:
+        out.remove("chambre")
+        out.insert(out.index("cuisine"), "chambre")
     return out
 
 

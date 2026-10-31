@@ -93,7 +93,8 @@ class Job:
 
     def rng(self, purpose: str):
         i = self.interior
-        return stream(i.seed, "interior", i.city_id, i.building, purpose)
+        n = i.__dict__.get("redraw")                  # a faulty plan drawn again (`layout.redraw`, round 8)
+        return stream(i.seed, "interior", i.city_id, i.building, purpose, *(("again", n) if n else ()))
 
     def zs(self, floors=None, shallow: bool = False) -> list:
         """The opening zones of `floors`; `shallow`: `front_keep` only behind doors (a stair cell standing a

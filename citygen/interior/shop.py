@@ -46,7 +46,8 @@ def depth_in(poly, fr: Frame, at: float = 0.0) -> float:
 
 
 def rng(interior):
-    return stream(interior.seed, "interior", interior.city_id, interior.building, "shop")
+    n = interior.__dict__.get("redraw")               # a faulty plan drawn again (`layout.redraw`, round 8)
+    return stream(interior.seed, "interior", interior.city_id, interior.building, "shop", *(("again", n) if n else ()))
 
 
 def souk(job, poly, court: bool, small: bool = False) -> tuple:

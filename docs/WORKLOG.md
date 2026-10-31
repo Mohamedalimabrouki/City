@@ -22,11 +22,12 @@ Entry format:
 - In progress (31 October): 47.1 + 48.1. Ali's API credit ran out at 12:12 during round 4; Ali then
   asked the lead to finish 47.1 + 48.1 on his plan. Pushed: 2ac52f7 (Open interior first shows the house
   from above, cut at floor 0), 3918228, part 1 rounds 1-4 (4997d82), 5 (sunken entries, ce09078), 6 (the
-  way in, 4ebe082), 7 (wet rooms kept, villas and maisons), flats round 1 (d7cbd67) and flats round 2
-  (colonial 166/270, slab 316/353; see the 47.1 + 48.1 entry). Next: flats round 3 (whole flats judged in
-  `best_lay`: inner doors and reach; a blind salon swaps with a lit chambre; the slab classes), then round 8
-  (compact and shop ways in; villa and maison program limits; B (a): the newel stair open in the entry
-  room for 13 compact ladders).
+  way in, 4ebe082), 7 (wet rooms kept, villas and maisons), flats rounds 1-3 (d7cbd67, 6160ada, 43ef2c3:
+  colonial 167/270, slab 317/353) and round 8 (houses: compact 266 and maison 588 meet their bars, shop
+  129 and villa 169 one short; see the 47.1 + 48.1 entry). Open with Ali: the blind rooms question (a
+  courtyard or light wells for deep colonial blocks and maisons) and the model mix for the next rounds.
+  Next on the houses: B (a), the newel stair open in the entry room for the 13 compact ladders; the last
+  shop and villa.
   Uncommitted changes in the tree are the round in progress (backup branch `wip/47.1-48.1`).
 - Next: 47.1 with 48.1 (50 done 31 October: Open interior on a dwelling's card in `citygen view` and the
   gallery). Then 51. For 47.1 + 48.1:
@@ -536,6 +537,67 @@ Entry format:
   on them), then plans with every chambre, salon and salle a manger on a window, and a check that asks
   for it. Or leave the flats as they are for now (47.1 stays open) and go on. Meanwhile the lead
   finishes the houses (round 8).
+- Round 8 (houses, helper, about 40 minutes; scripts `/tmp/claude-501/h471r8/`: `diff.py` won/lost/changed by
+  rooms.json hash, `guard.py` the blind/strip guard per house, `guard2.py` the same for failing plans):
+  - Baseline (43ef2c3): dar 154, compact 262, small 81, koubba 21, shop 123, villa 165, maison 577 (Ain
+    Chilel); colonial 167, slab 317. Guard (passing villas, maisons): chambres blind 18 and 1411, strip 29
+    and 194. Ladder warnings compact 14, shop 6, dar 1, small 1, villa 3, maison 10.
+  - Fix 1 (window bays for villas and maisons): round 2's `spine.bays`/`give` inside the search, as flats:
+    villa 167, maison 586, but 73 passing houses changed and the guard grew on the same houses (chambres
+    blind 1429 -> 1444, strip 223 -> 235, 26 chambres fewer: an earlier variant now wins). Kept instead:
+    (a) `spine.late_bays`, the trade on the search's best plan only when no variant passed: villa 168, maison
+    583, 0 passing changed; (b) `layout.early_bays`: a house the check still faults (other than "has no",
+    no U stair, storey crosses, entry steps) is planned again with the trade inside the search, kept when
+    it finds less: maison 587 (No. 839, 875, 924, 1011 more).
+  - Fix 2 (redraws): every old-town house, villa and maison still faulty is drawn again with fresh streams
+    (`layout.redraw`; `Job.rng`, `shop.rng` and `spine.rng` take the path + ("again", n)), the plan with the
+    fewest faults kept. Old town (3 draws): compact 262 -> 266 (No. 51, 315, 488, 496), shop 123 -> 129
+    (No. 166, 270, 419, 493, 686, 707), dar 154 -> 155 (No. 703), small and koubba unchanged, 0 passing
+    changed. 8 draws won 2 more (compact 55, dar 227) for 4x the time: not kept. Houses (2 draws, the bay
+    trade inside the search): maison 591, villa 169 (No. 363); 5 draws gave villa 170 (No. 390) at up to 3.5
+    s for failing villas.
+  - Fix 3 (tiny one-floor homes, `villa.tiny`): no wc of its own and the chambre before the cuisine, tried
+    when a one-floor house has no chambre or salon: maison No. 551 passes. The others (villa No. 266, 369,
+    320, maison 526, 642, 726, 985) lose a hall and a couloir of 10-20 m2 out of 41-54 m2: the spine always
+    cuts a hall and couloir, a program limit (choice below).
+  - Guard: the newly passing houses brought their own dark rooms, and a redraw sometimes traded faults for a
+    strip chambre (No. 390). So every second plan is kept only when the home has no more dark rooms
+    (`layout.dim`: chambre, salon, salle a manger or cuisine with no facade window or court opening, or a
+    strip over `[interiors.flats] strip`). This cost villa No. 390 (170 -> 169) and maison No. 839, 875, 985,
+    1011 (591 -> 588).
+  - Final: dar 155 (bar 152), compact 266 (bar 264, met), small 81, koubba 21, shop 129 (bar 130, one
+    short), villa 169 (bar 170, one short), maison 588 (bar 586, met); 0 crashes, 0 passing houses lost or
+    changed in any group (rooms.json hashes); colonial 167, slab 317 byte-identical (0 of 623 changed). Every
+    passing interior: 0 `mesh.faults`, 0 step faults (`h471f_dump.py` with walls). Ladder warnings unchanged
+    (compact 14, shop 6, dar 1, small 1, villa 3, maison 10). Guard (`blind.py`): on the 742 villas and
+    maisons passing before, 0 changed; the 15 newly passing ones have 41 blind chambres, 7 strip chambres and
+    1 strip cuisine where their failing plans at 43ef2c3 had 42, 6 and 3; totals (all passing) chambres blind
+    villa 19, maison 1451, strip 29 and 201 (the new houses' own rooms). Slowest alone: passing plans as
+    before (maison No. 835 0.60 s, villa No. 322 0.37 s, dar No. 90 0.31 s; newly passing maison No. 610
+    0.71 s); failing houses planned again cost more (maison No. 666 0.44 -> 1.57 s, No. 528 1.31 s, compact
+    No. 116 0.19 -> 0.67 s, shop No. 432 0.10 -> 0.40 s). `pytest -q` passes (`test_dark_rooms_counted`
+    new); `build --quick` done; fingerprint `--allow ""`: 282 parts, 0 changed. Plans: output/checks/471-r8.png
+    (compact No. 488: skifa, droj and bit to the court, no longer through the matbakh; shop No. 166: entered
+    through the bit, the matbakh at the far end; villa No. 290: the couloir jogs round a window bay).
+  - Not done: B (a) for the 13 compact ladders (the round went to the bars; it needs a new stair arrangement:
+    the newel open in the entry room, a combined entry flight, rails and a headroom check: a round of its
+    own); compact way in No. 250 (the street door opens into the matbakh strip: 4 cells for skifa, court,
+    stair, bit and matbakh), 334, 574; shop No. 298 and 645 (steps and ladder), 432 (a 1.6 m2 store whose
+    door fits no partition), 449 (the hanout partition at the street door's jamb), 71, 374, 636 (tile
+    spikes); villa No. 380 (an L chambre round the stair), 390, 250, 307 and 388 (a two-floor villa whose
+    upper floor is all couloir), 353; maison No. 666, 1011 (chambre under minimum), 464, 486, 760 (chambres
+    over 36 m2), 863 (arch), the 4 tile spikes and 4 with no U stair.
+  - Choices for Ali/lead: a tiny one-floor house may have its wc in the sdb and its chambre before the
+    cuisine (as a small Tunisian house of 40-55 m2 would); still left: such a house without the spine's hall
+    and couloir (rooms opening off the hall), which needs the spine engine changed. A failing house is
+    planned up to 3-4 times (failing plans up to 1.6 s alone).
+- Lead (after round 8): committed as progress. Read the whole diff: a redraw takes its own purpose path
+  ("again", n) only when a plan still faults, so first plans keep their streams; colonial and slab
+  byte-identical. `pytest -q` 137 passed in 42 s; fingerprint 0 changed. Accepted for Ali: a failing
+  house is planned up to 3-4 times (up to 1.6 s alone; the viewer opens one house at a time). Seen in
+  471-r8.png, for the later plan-quality item: No. 488's way to the wast ed dar crosses the droj and the
+  bit, and its bit el ma is entered through the matbakh; No. 166's bit wraps the hanout and makhzen on
+  three sides. The checks allow both.
 
 ## 2026-10-31 - Prompt 50 H1f Interiors in the viewer
 - Commit: (lead commits) | Model: Opus 5.5, high

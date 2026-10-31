@@ -56,7 +56,8 @@ def numbers(job) -> dict:
 
 def rng(job, *key):
     i = job.interior
-    return stream(i.seed, "interior", i.city_id, i.building, "layout", *key)
+    n = i.__dict__.get("redraw")                      # a faulty plan drawn again (`layout.redraw`, round 8)
+    return stream(i.seed, "interior", i.city_id, i.building, "layout", *key, *(("again", n) if n else ()))
 
 
 def wet_need(job) -> float:
@@ -137,13 +138,14 @@ def search(job, region, entry: Entry, program: list, floor: int, key: tuple, hal
     small = (cfg["hall"][0], cfg["hall_width"][0])      # a variant with the least hall
     hard = 2 if job.interior.layout in ("colonial", "slab") else 1   # flats: a blind cuisine weighs less than
     # a fault `rooms.check` finds (it asks no window of a flat's cuisine; 47.1 flats round 1)
+    early = hard > 1 or job.interior.__dict__.get("bays_early", False)   # a failing house's second plan (round 8)
     for d, w in ((depth, wide), small):
         for cell in cfg["rhythm"]:
             for turn in (False, True):
                 for place in ("auto", "low", "high"):
                     cuts += 1
                     if (len(seen) >= cap or cuts > 3 * cap) and best is not None:
-                        return best[0]                  # time: the best of the first variants
+                        return late_bays(job, best, floor, hall, hard)   # time: the best of the first variants
                     cells, spine = cut_region(job, region, entry, floor, cfg, d, w, cell, hall, turn, place)
                     sig = tuple(sorted(round(c.poly.area, 2) for c in cells))
                     if sig in seen:
@@ -151,13 +153,22 @@ def search(job, region, entry: Entry, program: list, floor: int, key: tuple, hal
                     seen.add(sig)
                     missing = assign(job, cells, spine, program, floor, entry)
                     score = len(missing) * 3 * hard + faults(job, cells, floor, hall, hard)
-                    if score > len(missing) * 3 * hard and hard > 1:   # flats: partitions out of the window bays
+                    if score > len(missing) * 3 * hard and early and bay_depth(job) > 0.0:   # flats: window bays
                         score = len(missing) * 3 * hard + bays(job, cells, floor, hall, hard, score - len(missing) * 3 * hard)
                     if score == 0:
                         return cells
                     if best is None or score < best[1]:
-                        best = (cells, score)
-    return best[0]
+                        best = (cells, score, len(missing))
+    return late_bays(job, best, floor, hall, hard)
+
+
+def late_bays(job, best: tuple, floor: int, hall: bool, hard: int) -> list:
+    """Villas and maisons: the window bays (`bays`) traded on the search's best plan only when no variant
+    passed, so a plan that passes keeps its cells (47.1 round 8)."""
+    cells, score, missing = best
+    if hard == 1 and score > missing * 3 and bay_depth(job) > 0.0 and not job.interior.__dict__.get("bays_early"):
+        bays(job, cells, floor, hall, hard, score - missing * 3)
+    return cells
 
 
 def bay(o, ext: float, clear: float, half: float, depth: float):
@@ -172,11 +183,17 @@ def bay(o, ext: float, clear: float, half: float, depth: float):
                             c + along * t + front * b, c + along * -t + front * b])
 
 
+def bay_depth(job) -> float:
+    """`bays`: how deep a window bay is traded (`[interiors.flats]` or `[interiors.villa] bay_depth`; 0: never)."""
+    part = "flats" if job.interior.layout in ("colonial", "slab") else "villa"
+    return float(job.cfg.get(part, {}).get("bay_depth", 0.0))
+
+
 def bays(job, cells: list, floor: int, hall: bool, hard: int, n: int) -> int:
     """A way (couloir, hall) and a room whose partition ends inside a window's zone: one gives the other
     its piece of the window bay (`[interiors.flats] bay_depth`), the partition then turning along the
     bay's edges, when that leaves the floor with fewer faults (`faults`, `n` before); the faults left."""
-    depth = float(job.cfg.get("flats", {}).get("bay_depth", 0.0))
+    depth = bay_depth(job)
     ops = [o for o in job.interior.openings if o.floor == floor and o.wall is not None and o.kind != "shop"]
     if depth <= 0.0 or not ops:
         return n
