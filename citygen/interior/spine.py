@@ -151,11 +151,73 @@ def search(job, region, entry: Entry, program: list, floor: int, key: tuple, hal
                     seen.add(sig)
                     missing = assign(job, cells, spine, program, floor, entry)
                     score = len(missing) * 3 * hard + faults(job, cells, floor, hall, hard)
+                    if score > len(missing) * 3 * hard and hard > 1:   # flats: partitions out of the window bays
+                        score = len(missing) * 3 * hard + bays(job, cells, floor, hall, hard, score - len(missing) * 3 * hard)
                     if score == 0:
                         return cells
                     if best is None or score < best[1]:
                         best = (cells, score)
     return best[0]
+
+
+def bay(o, ext: float, clear: float, half: float, depth: float):
+    """The window bay of facade opening o: along its wall `clear` + `half` (+ 0.02 m) beyond both edges, from
+    just outside the wall to `depth` m inside its inner face. A partition along the bay's inner and side
+    edges keeps clear of the opening."""
+    from .mesh import frame_of
+    c, front, along = frame_of(o)
+    t = o.width / 2 + clear + half + 0.02
+    a, b = -(ext + depth), 0.05
+    return shapely.Polygon([c + along * -t + front * a, c + along * t + front * a,
+                            c + along * t + front * b, c + along * -t + front * b])
+
+
+def bays(job, cells: list, floor: int, hall: bool, hard: int, n: int) -> int:
+    """A way (couloir, hall) and a room whose partition ends inside a window's zone: one gives the other
+    its piece of the window bay (`[interiors.flats] bay_depth`), the partition then turning along the
+    bay's edges, when that leaves the floor with fewer faults (`faults`, `n` before); the faults left."""
+    depth = float(job.cfg.get("flats", {}).get("bay_depth", 0.0))
+    ops = [o for o in job.interior.openings if o.floor == floor and o.wall is not None and o.kind != "shop"]
+    if depth <= 0.0 or not ops:
+        return n
+    zones = job.zs([floor])
+    rules = job.interior.rules
+    boxes = [bay(o, job.ext, rules["clear"], job.half, depth) for o in ops]
+    for i, a in enumerate(cells):
+        for b in cells[i + 1:]:
+            if not ({a.type, b.type} & {"couloir", "hall"}) or not R.clash_polys(a.poly, b.poly, zones, job.half * 2):
+                continue
+            for box in boxes:
+                if a.poly.distance(box) > 1e-6 or b.poly.distance(box) > 1e-6:
+                    continue
+                n = give(job, a, b, box, cells, floor, hall, hard, n)
+                n = give(job, b, a, box, cells, floor, hall, hard, n)
+                if n == 0:
+                    return n
+    return n
+
+
+def give(job, donor, taker, box, cells: list, floor: int, hall: bool, hard: int, n: int) -> int:
+    """`bays`: the donor cell's piece of a window bay joins the taker when both stay one polygon, the donor
+    keeps a door's width with every cell it touched and the floor has fewer than `n` faults; the faults."""
+    piece = shapely.union_all(parts(shapely.intersection(donor.poly, box, grid_size=1e-6)))
+    if piece.is_empty or piece.area < 0.05:
+        return n
+    rest = parts(snap(shapely.difference(donor.poly, box, grid_size=1e-6)))
+    got = parts(snap(shapely.union(taker.poly, piece, grid_size=1e-6)))
+    if len(rest) != 1 or len(got) != 1 or R.clash_polys(rest[0], got[0], job.zs([floor]), job.half * 2):
+        return n
+    door = need(job)
+    keep = [c for c in cells if c is not donor and c is not taker and shared(donor.poly, c.poly) >= door - 1e-6]
+    if any(shared(rest[0], c.poly) < door - 1e-6 for c in keep):
+        return n
+    old = donor.poly, taker.poly
+    donor.poly, taker.poly = rest[0], got[0]
+    m = faults(job, cells, floor, hall, hard)
+    if m < n:
+        return m
+    donor.poly, taker.poly = old
+    return n
 
 
 def faults(job, cells: list, floor: int, hall: bool = False, hard: int = 1) -> int:
@@ -584,6 +646,7 @@ def assign(job, cells: list, spine: dict, program: list, floor: int, entry: Entr
     light = {id(c): lit(c.poly, sun) for c in free_cells}
     most = job.cfg.get("rooms", {}).get("most", {})
     missing = []
+    flat = job.interior.layout in ("colonial", "slab")
 
     def fits(c, t):
         return job.fits(c.poly, t)
@@ -622,6 +685,8 @@ def assign(job, cells: list, spine: dict, program: list, floor: int, entry: Entr
             key = lambda c: (light[id(c)], c.poly.area > job.largest.get(t, 99.0), c.poly.area)   # noqa: E731
         if cands:
             c = min(cands, key=key)
+            if t == "salle_a_manger" and flat and not fits(c, t):
+                continue                                # a flat's dining room only where a cell holds it
             take(c, t)
             if t == "salon":
                 salon = c
@@ -647,7 +712,8 @@ def assign(job, cells: list, spine: dict, program: list, floor: int, entry: Entr
                 if t == "salon":
                     salon = got
                 continue
-        missing.append(t)
+        if not (t == "salle_a_manger" and flat):       # `rooms.check` asks no dining room of a flat
+            missing.append(t)
     leftovers(job, cells, most, light, program)
     for c in [c for c in cells if c.type == "cuisine" and c.poly.area > job.largest.get("cuisine", 99.0)]:
         rest = split_off(job, spine, c, floor, job.largest["cuisine"] * 0.8)

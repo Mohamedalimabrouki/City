@@ -942,6 +942,11 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`, and how the le
   0.8 m2 hall on the split line. Retries cost time on every floor of a failing building: remember per region
   whether they won anything below. Exact speed-ups that worked: test a partition only against zones across
   its line, remember tried cuts per region and `cuts.cut` per shape (No. 773 17 s -> 7 s, same bytes).
+  Flats round 2: a partition in a window's zone is often geometry, not search luck: a 1.1 m couloir that
+  ends at a 0.8 m window cannot keep both sides 0.3 m clear, so no variant passes. Repairing each variant
+  before it is scored (trade the window bay between the way and the room, keep it only when the faults
+  drop) wins where a repair after the search could not. Score only what the check asks (a flat's
+  salle a manger is not asked).
 
 ## Known weak spots
 

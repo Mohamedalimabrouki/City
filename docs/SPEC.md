@@ -1617,6 +1617,11 @@ its floor landing (`palier`, unit `common`) against the door's wall, the flights
   the door leaves no place outward. A slab stair door whose top stands under floor 0 + `deep_door` (0.3 m)
   opens into its own sunken common couloir (its floor at the door's threshold, the steps in it, an arch to
   the palier). Piers excuse partitions on floor 0 only.
+  Flats round 2: in a flat's variant search, a way (couloir, hall) and a room whose partition ends in a
+  window's zone trade that window's bay (`clear` + half a partition past both edges, `bay_depth` 0.7 m in
+  from the wall), the partition then turning along the bay's edges, when the floor has fewer faults; the
+  couloir thus ends short of the window, the room across its end. A flat's salle a manger is placed only
+  where a cell holds its minimum, and is never counted missing (the check asks none of a flat).
 
 **Stairs** (`[interiors.stairs]`, records prompts 46-47, geometry prompt 49). Rule (tested): every
 point of every tread on the walking line has at least `headroom` (2.0 m) clear above it. Risers: the

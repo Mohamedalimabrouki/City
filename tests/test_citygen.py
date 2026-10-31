@@ -4074,6 +4074,18 @@ def test_flat_door_spot_keeps_off_corners_and_cuts_are_remembered():
     assert [p.area for p in a[0] + a[1]] == [p.area for p in b[0] + b[1]] == [4.5, 7.5]
 
 
+def test_window_bay_keeps_its_edges_clear():
+    """47.1 flats round 2: a window's bay reaches `clear` + half a partition (+ 0.02 m) past both edges along
+    its wall and `depth` m in from the wall's inner face, so a partition along its edges keeps clear."""
+    from types import SimpleNamespace
+    from citygen.interior.spine import bay
+    o = SimpleNamespace(x=2.0, y=0.0, yaw=math.pi, width=0.8)      # a south wall: the room lies north
+    b = bay(o, 0.3, 0.3, 0.1, 0.7)
+    x0, y0, x1, y1 = b.bounds
+    assert abs(x0 - (2.0 - 0.82)) < 1e-9 and abs(x1 - (2.0 + 0.82)) < 1e-9
+    assert abs(y1 - 1.0) < 1e-9 and abs(y0 + 0.05) < 1e-9
+
+
 def test_flats(new_districts, interior_ctx, plan):
     from citygen.export.lore import plan_json
     from citygen.interior.flats import occupants

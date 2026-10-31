@@ -22,11 +22,11 @@ Entry format:
 - In progress (31 October): 47.1 + 48.1. Ali's API credit ran out at 12:12 during round 4; Ali then
   asked the lead to finish 47.1 + 48.1 on his plan. Pushed: 2ac52f7 (Open interior first shows the house
   from above, cut at floor 0), 3918228, part 1 rounds 1-4 (4997d82), 5 (sunken entries, ce09078), 6 (the
-  way in, 4ebe082), 7 (wet rooms kept, villas and maisons) and flats round 1 (colonial 146/270, slab
-  315/353; see the 47.1 + 48.1 entry). Next: flats round 2 (the couloir's end at a window bay, the salle
-  a manger dropped when no cell holds it, slab palier partitions and step treads), then round 8 (compact
-  and shop ways in; villa and maison program limits; B (a): the newel stair open in the entry room for 13
-  compact ladders).
+  way in, 4ebe082), 7 (wet rooms kept, villas and maisons), flats round 1 (d7cbd67) and flats round 2
+  (colonial 166/270, slab 316/353; see the 47.1 + 48.1 entry). Next: flats round 3 (whole flats judged in
+  `best_lay`: inner doors and reach; a blind salon swaps with a lit chambre; the slab classes), then round 8
+  (compact and shop ways in; villa and maison program limits; B (a): the newel stair open in the entry
+  room for 13 compact ladders).
   Uncommitted changes in the tree are the round in progress (backup branch `wip/47.1-48.1`).
 - Next: 47.1 with 48.1 (50 done 31 October: Open interior on a dwelling's card in `citygen view` and the
   gallery). Then 51. For 47.1 + 48.1:
@@ -444,6 +444,43 @@ Entry format:
   key. `pytest -q` 134 passed in 42 s (128 in 36 s at prompt 50); fingerprint 0 changed. Seen in
   471-flats-r1.png: No. 906's flats entered off the split line, each with a real hall; slab No. 1064's
   sunken couloir (2.2 m) at its left core on floor 0.
+- Flats round 2 (helper; scripts `$TMPDIR/h471f2/`, the round 1 survey `h471f_dump.py` reused):
+  - Baseline (d7cbd67, `r1i.json`): colonial 146/270, slab 315/353. The search's own faults over the failing
+    flats' best variants (`h471f_why.py`) showed the window-zone partitions came from the search itself:
+    a couloir 1.1 m wide ending at a facade window cannot keep both its sides 0.3 m off a 0.7-0.8 m window.
+  - Fix 1 (window bays, `spine.bays`/`give`, flats only): before a variant is scored, a way and a room whose
+    partition ends in a window's zone trade that window's bay (`[interiors.flats] bay_depth` 0.7 m in from
+    the wall, `clear` + half a partition past both edges) when the floor then has fewer faults, both cells
+    stay one polygon and the donor keeps a door's length with every cell it touched. Colonial 146 -> 163
+    (19 won, 2 lost: No. 1009 a couloir nobody reaches, No. 849 salon without a window), slab 315 -> 316.
+  - Fix 2 (a flat's salle a manger): placed only where a cell holds its minimum, never counted missing in
+    the search's score (the check asks none of a flat): colonial 163 -> 166 (5 won, 2 lost), slab 316.
+  - Not done: room/room bay trades (the search's zone faults left are 6 cuisine/salon, 3 chambre/salon...
+    over 1087 flat searches: little to win), salon without a window, slab fixes.
+  - Final (flats round 2): colonial 146 -> 166/270 (22 won, 2 lost vs d7cbd67), slab 315 -> 316/353 (No.
+    1066 won), 0 crashes, every passing interior 0 `mesh.faults` and 0 step faults. Slowest alone: colonial
+    No. 773 7.7 s (7.0 s at d7cbd67; 806 6.2 s, 890 6.0 s), slab No. 1169 1.6 s, No. 1066 0.8 s. Part 1
+    byte-identical (dar 154, compact 262, small 81, koubba 21, shop 123, villa 165, maison 577: 0 of 1471
+    rooms.json hashes changed). `pytest -q` 135 passed; `build --quick` done; fingerprint `--allow ""`: 282
+    parts, 0 changed. Plans: output/checks/471-flats-r2.png (colonial No. 1013 and No. 975, slab No. 1066).
+  - Choices for Ali/lead: a couloir that met a window now stops short of it, the room across its end taking
+    the window bay (a jog of 0.7 m in the partition, as an old block's walls turn round a window pier); a
+    flat has a salle a manger only where a room of its size fits.
+  - Left (colonial 104 fails): inner doors crossed by walls 17 + 17 far side (tiny halls, wc doors on a
+    0-length contact), salon without a window 17, chambre over 36 m2 14, chambres or sdb missing 10-11,
+    arches narrowed 10, reach 9, cuisine or salon under minimum 8-9, No. 773 (a 100 m x 1.5 m sliver block:
+    no flat fits, a known fail). Slab 37: unchanged classes (inner door not in its partition, palier
+    partitions near openings, entry steps' treads). The bars (colonial 257, slab 336) are far: the next
+    round should judge whole flats (doors, reach) in `best_lay`, not only the search's faults, and give the
+    salon a lit cell by swapping with a lit chambre.
+- Lead (after flats round 2): committed as progress (colonial 146 -> 166, slab 316; part 1 byte-identical).
+  Read the whole diff (`bays`/`give` change a variant's cells only when the floor's faults drop; the salle a
+  manger rule applies to flats only); `pytest -q` 135 passed in 40 s; fingerprint 0 changed. The helper
+  stopped after 19 minutes of the 75 it had. Seen in 471-flats-r2.png and measured: No. 1013's floor 2
+  salon (26.8 m2) has 11.2 m2 in a strip under 1.6 m wide along the facade, between the couloir and the
+  windows; the same at d7cbd67, so the spine's strip rooms (round 7 note, No. 665), not this round. For
+  the later item on room shapes: `cuts.width` is the largest circle inside a room, so a room with a wide
+  body and a corridor-like arm passes.
 
 ## 2026-10-31 - Prompt 50 H1f Interiors in the viewer
 - Commit: (lead commits) | Model: Opus 5.5, high
