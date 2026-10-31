@@ -1606,6 +1606,17 @@ its floor landing (`palier`, unit `common`) against the door's wall, the flights
   a flat's window (else the cut goes through the core's middle). A windowless colonial floor 0 beside a
   cafe or shop holds that unit's stores, reached from it. A block too thin for any U box gets a common
   ladder well (`[interiors.stairs] ladder_well`, 1.2 m) at the door, a palier on every floor (a warning).
+  Open items 47.1 + 48.1, flats round 1: a flat is entered at the point of its landing edge nearest the
+  landing's middle; when its plan faults (the search's own score over 1: missing rooms, faults the check
+  finds, a hall under its least; a blind cuisine counts least, the check asks no window of it), a colonial
+  flat tries the nearest point that holds a door (never on the box's corner, where the split line meets
+  it), one more place on the edge, then a second hall draw (stream key + "again"), each with
+  `retry_variants` of the variants; the best plan stays (slabs: none, for time). The core keeps the floor
+  of entry steps down from a door above floor 0 too (their own length; up, the steps and a landing). Floor
+  0's couloir to a slid core moves its side inward (keeping the couloir's width) when a shop front beside
+  the door leaves no place outward. A slab stair door whose top stands under floor 0 + `deep_door` (0.3 m)
+  opens into its own sunken common couloir (its floor at the door's threshold, the steps in it, an arch to
+  the palier). Piers excuse partitions on floor 0 only.
 
 **Stairs** (`[interiors.stairs]`, records prompts 46-47, geometry prompt 49). Rule (tested): every
 point of every tread on the walking line has at least `headroom` (2.0 m) clear above it. Risers: the

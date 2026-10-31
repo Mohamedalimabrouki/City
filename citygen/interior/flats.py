@@ -45,9 +45,11 @@ class Core:
     def serves(self, f: int) -> bool:
         return self.bottom <= f <= self.top
 
-    def entry(self, region, palier=None) -> P.Entry | None:
+    def entry(self, region, palier=None, need: float = 0.0) -> P.Entry | None:
         """Where a flat region is entered from this core's floor landing: the point of their shared edge
-        nearest the landing's middle, pointing into the region."""
+        nearest the landing's middle, pointing into the region; with `need` (a door's length of wall), the
+        nearest such point on a straight piece of the edge that holds a door with it at its middle (a door
+        at the box's corner would stand on the split line between two flats, 47.1 flats round 1)."""
         land = self.fd.rect(self.x - self.size["across"] / 2 - 0.01, self.y - 0.01,
                             self.x + self.size["across"] / 2 + 0.01, self.y + self.size["landing"] + 0.01)
         way = palier if palier is not None else self.box
@@ -69,16 +71,92 @@ class Core:
         line = near if (not near.is_empty and near.length > 0.3) else edge
         from shapely.ops import nearest_points
         p = nearest_points(line, mid)[0]
-        c = np.asarray(self.box.centroid.coords[0])
-        q = np.array([p.x, p.y])
-        n = q - c
-        # snap the normal to the box side the point lies on
+        if need and not holds_door(line, p, need):
+            p = door_spot(near, mid, need) or door_spot(edge, mid, need) or p
+        return self.aim(np.array([p.x, p.y]))
+
+    def entries(self, region, palier, need: float, most: int = 1) -> list:
+        """`entry` as before round 1, then its point moved where a door fits (`entry` with `need`), then up to
+        `most` other places on the shared edge that hold a door (the nearest point of each straight piece to
+        the landing's middle, nearer pieces first), for a flat whose first plan faults (47.1 flats round 1)."""
+        first = self.entry(region, palier)
+        if first is None:
+            return []
+        out = [first]
+        spot = self.entry(region, palier, need)
+        if spot is not None and spot != first:
+            out.append(spot)
+        way = palier if palier is not None else self.box
+        edge = region.boundary.intersection(way.buffer(1e-4, quad_segs=1))
+        if palier is not None and region.boundary.intersection(self.box.buffer(1e-4, quad_segs=1)).length < 0.5:
+            return out                                    # a flat on the landing's strip: one place
+        m = self.fd.world(self.x, self.y + self.size["landing"] / 2)
+        pieces = []
+        for a, b, length in segments(edge):
+            if length < need:
+                continue
+            d = (b - a) / length
+            q = a + d * float(np.clip(np.dot(m - a, d), need / 2, length - need / 2))
+            pieces.append((round(float(np.hypot(*(q - m))), 6), q.tolist()))
+        for _, q in sorted(pieces):
+            if len(out) >= 2 + most:
+                break
+            if all(np.hypot(q[0] - e.x, q[1] - e.y) > 1.0 for e in out):
+                out.append(self.aim(np.array(q)))
+        return out
+
+    def aim(self, q) -> P.Entry:
+        """The entry at point q of the box's or palier's edge, its normal snapped to the box side it faces."""
         lu, lv = self.fd.local(q) - np.array([self.x, self.y])
         half, length = self.size["across"] / 2, self.size["length"]
         sides = [(abs(lu + half), -self.fd.u), (abs(lu - half), self.fd.u), (abs(lv), -self.fd.v),
                  (abs(lv - length), self.fd.v)]
         n = min(sides, key=lambda t: t[0])[1]
-        return P.Entry(float(p.x), float(p.y), float(n[0]), float(n[1]))
+        return P.Entry(float(q[0]), float(q[1]), float(n[0]), float(n[1]))
+
+
+def segments(line):
+    """The straight pieces (a, b) of a line or lines, collinear runs merged."""
+    if line.is_empty:
+        return
+    if line.geom_type == "MultiLineString":
+        line = shapely.line_merge(line)
+    for part in getattr(line, "geoms", [line]):
+        if part.is_empty or part.geom_type != "LineString":
+            continue
+        xy = shapely.get_coordinates(part.simplify(1e-4))
+        for a, b in zip(xy[:-1], xy[1:]):
+            length = float(np.hypot(*(b - a)))
+            if length > 1e-9:
+                yield a, b, length
+
+
+def holds_door(line, p, need: float) -> bool:
+    """True when `p` lies on a straight piece of `line` at least `need` / 2 from both its ends."""
+    q = np.array([p.x, p.y])
+    for a, b, length in segments(line):
+        d = (b - a) / length
+        w = q - a
+        t = float(np.dot(w, d))
+        if abs(float(d[0] * w[1] - d[1] * w[0])) < 1e-3 and need / 2 - 1e-6 <= t <= length - need / 2 + 1e-6:
+            return True
+    return False
+
+
+def door_spot(line, mid, need: float):
+    """The point nearest `mid` on the straight pieces of `line` at least `need` long, kept `need` / 2 from
+    their ends; None when no piece is that long."""
+    best = None
+    m = np.array([mid.x, mid.y])
+    for a, b, length in segments(line):
+        if length < need:
+            continue
+        d = (b - a) / length
+        q = a + d * float(np.clip(np.dot(m - a, d), need / 2, length - need / 2))
+        gap = float(np.hypot(*(q - m)))
+        if best is None or gap < best[0] - 1e-9:
+            best = (gap, Point(*q))
+    return None if best is None else best[1]
 
 
 def colonial(interior, outside, style: dict) -> None:
@@ -112,18 +190,19 @@ def slab(interior, outside, style: dict) -> None:
 
 # --- cores -------------------------------------------------------------------------------------------
 def entry_keep(job, spot, entry) -> tuple | None:
-    """(the floor the entry steps up from a door need, its length) when the door's threshold lies more
-    than `threshold` under floor 0 (prompt 49: a stair box standing there cannot be walked); else None.
+    """(the floor the entry steps from a door need, its length) when the door's threshold lies more
+    than `threshold` under or over floor 0 (prompt 49: a stair box standing there cannot be walked); else None.
     The steps' numbers are `stairs.steps`'."""
     rise = job.interior.high - spot.z
     cfg = job.stairs
-    if rise <= float(cfg.get("threshold", 0.15)):
+    if abs(rise) <= float(cfg.get("threshold", 0.15)):
         return None
     door = min((o for o in job.interior.openings if o.kind == "door" and o.floor == 0),
                key=lambda o: (math.hypot(o.x - spot.x, o.y - spot.y), o.id), default=None)
     width = (door.width if door is not None else 1.0) + 2 * float(cfg.get("side", 0.1))
-    length = (S.risers(rise, float(cfg.get("riser", 0.18))) * float(cfg.get("tread", 0.3))
-              + float(cfg.get("turn", 0.9)))            # the steps and the floor kept free beyond them
+    length = S.risers(abs(rise), float(cfg.get("riser", 0.18))) * float(cfg.get("tread", 0.3))
+    if rise > 0:                                          # up: the floor kept free beyond them; down (from a
+        length += float(cfg.get("turn", 0.9))             # door over floor 0, round 1): the steps alone
     fd = P.door_frame(entry)
     return fd.rect(-width / 2, -0.1, width / 2, length), length
 
@@ -152,6 +231,18 @@ def place_core(job, entry, slides, x: float = 0.0, keep=None) -> Core | None:
             if top >= 1 and (best is None or top > best.top):
                 best = Core(box, size, fd, x, float(y), top, None)
     return best
+
+
+def deep_door(job, spot) -> float | None:
+    """The rise from a slab's stair door to floor 0 when the door's top stands less than `[interiors.flats]
+    deep_door` m over floor 0 (no wall of floor 0 could hold it: the room behind it is sunk to its threshold,
+    47.1 flats round 1); else None."""
+    o = D.main_opening(job.interior, spot)
+    if o is None:
+        return None
+    if o.z1 - job.interior.high >= float(job.cfg.get("flats", {}).get("deep_door", 0.3)):
+        return None
+    return job.interior.high - spot.z
 
 
 def ladder_core(job, entry, keep=None) -> Core | None:
@@ -201,6 +292,7 @@ def run(job, cores: list, kind: str) -> None:
     square = P.roof_newel(job, region_top)
     flats = []          # (unit, floor, type)
     droj = None
+    sunk = []           # (room, rise): sunken entry rooms behind slab doors under floor 0
     for st in interior.storeys:
         f = st.floor
         poly = less(st.polygon, boxes[f])
@@ -219,6 +311,13 @@ def run(job, cores: list, kind: str) -> None:
             for c in cores:                               # a core slid in: the palier reaches its door
                 if c.y > 0.05 and f in c.paliers and (f == 0 or c.keep):   # every floor over entry steps (49)
                     gap = clip(poly, c.fd.rect(c.x - c.size["across"] / 2, -1.0, c.x + c.size["across"] / 2, c.y + 1e-6))
+                    rise = deep_door(job, c.spot) if f == 0 and not gap.is_empty else None
+                    if rise is not None:                  # a door under floor 0: its own sunken entry room
+                        room = P.add_rooms(job, [Cell(gap, "couloir")], 0, "common")[0]
+                        P.arch(job, room, c.paliers[0])
+                        sunk.append((room, rise))
+                        poly = solid(shapely.difference(poly, gap, grid_size=1e-6))
+                        continue
                     merged = P.union(c.paliers[f].polygon, gap) if not gap.is_empty else None
                     if merged is not None:
                         c.paliers[f].polygon = merged
@@ -259,10 +358,10 @@ def run(job, cores: list, kind: str) -> None:
             area = region.area
             ftype = type_of(job, area)
             unit = f"flat {n}"
-            e = core.entry(region, core.paliers[f].polygon if f in core.paliers else None) if core is not None else None
-            if e is None:
-                e = P.Entry(*region.representative_point().coords[0], 1.0, 0.0)
-            cells = P.lay(job, region, e, program(job, ftype, area), f, ("flat", place))   # stacked flats repeat
+            es = (core.entries(region, core.paliers[f].polygon if f in core.paliers else None, P.need(job))
+                  if core is not None else [])
+            es = es or [P.Entry(*region.representative_point().coords[0], 1.0, 0.0)]
+            cells = best_lay(job, region, es, program(job, ftype, area), f, ("flat", place))   # stacked flats repeat
             rooms = P.add_rooms(job, cells, f, unit)
             rooms = P.nooks(job, rooms)
             P.doors(job, rooms)
@@ -298,8 +397,47 @@ def run(job, cores: list, kind: str) -> None:
         D.ladder_up(job)
     SH.doors(job)
     P.finish(job, roof_unit="common")
+    for room, rise in sunk:                               # its floor at the door's threshold, the steps in it
+        room.z, room.height = room.z - rise, room.height + rise
     records(job, flats)
     focus(job)
+
+
+def best_lay(job, region, entries: list, prog: list, f: int, key: tuple) -> list:
+    """The flat's cells from its first entry; when that plan faults (`flat_score` over 1), the other
+    entries, then the first with a second hall draw (stream key + "again"), each with `retry_variants` of
+    the variants (by layout; 0: no second tries), the best kept, the first on a tie (47.1 flats round 1). A region no chambre fits in, or
+    one whose second tries on a floor below won nothing, is not tried again (time)."""
+    tries = [(e, key) for e in entries] + [(entries[0], key + ("again",))]
+    memo = job.__dict__.setdefault("retried", {})       # a floor below with this region tried in vain: not again
+    base = (shapely.to_wkb(shapely.set_precision(region, 1e-3)), tuple(entries), tuple(prog), key)
+    best, done = None, 0
+    for i, (e, k) in enumerate(tries):
+        share = float(job.cfg.get("flats", {}).get("retry_variants", {}).get(job.interior.layout, 0.0))
+        if i == 1 and (share <= 0.0 or not job.fits(region, "chambre") or memo.get(base) is False):
+            break
+        job.cap_scale = 1.0 if i == 0 else share
+        try:
+            cells = P.lay(job, region, e, prog, f, k)
+        finally:
+            del job.cap_scale
+        score = flat_score(job, cells, prog, f)
+        first, done = (cells if i == 0 else first), i + 1
+        if best is None or score < best[0]:
+            best = (score, cells)
+        if score <= 1:
+            break
+    if done > 1:
+        memo[base] = memo.get(base, False) or best[1] is not first
+    return best[1]
+
+
+def flat_score(job, cells: list, prog: list, f: int) -> int:
+    """The search's own score of a flat's cells: program rooms missing, then its faults (a blind cuisine 1),
+    and a hall under its least (a door on a corner of the landing leaves a scrap no door fits)."""
+    missing = sum(max(0, prog.count(t) - sum(c.type == t for c in cells)) for t in sorted(set(prog)) if not t.endswith("*"))
+    scrap = sum(c.type == "hall" and not job.fits(c.poly, "hall") for c in cells)
+    return 6 * missing + 2 * scrap + P.faults(job, cells, f, True, 2)
 
 
 def shop_entry(host, region) -> P.Entry | None:
@@ -443,7 +581,8 @@ def ground_floor(job, core: Core, poly) -> tuple:
 
 def gap_sides(job, core: Core, poly) -> tuple:
     """The sides of floor 0's couloir from the door to a slid core: the box's sides, moved out of the
-    openings' zones (a wide door); a side on a pier too narrow to keep clear stands in its middle."""
+    openings' zones (a wide door), else in (a shop front beside the door) as far as the couloir keeps its
+    width; a side on a pier too narrow to keep clear stands in its middle."""
     fd, half = core.fd, core.size["across"] / 2
     strip = clip(poly, fd.rect(-BIG, -1.0, BIG, core.y))
     out = []
@@ -454,6 +593,9 @@ def gap_sides(job, core: Core, poly) -> tuple:
             out.append(pier)
             continue
         got = job.free(strip, fd, 0, x, [0], *sorted((x, x + sgn * 1.2)))
+        if got is None:                                   # outward lies a shop front: inward, the couloir
+            inward = max(0.0, half - P.couloir(job) / 2)  # keeping its width (47.1 flats round 1)
+            got = job.free(strip, fd, 0, x, [0], *sorted((x, x - sgn * inward)))
         out.append(got if got is not None else x)
     return out[0], out[1]
 

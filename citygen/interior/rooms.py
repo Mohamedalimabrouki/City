@@ -196,7 +196,8 @@ def clash(interior, a, b, zones: list) -> bool:
     """True when the partition of rooms a and b (less the openings between them) meets a wall within
     `clear` of an opening (`zones`)."""
     rules = interior.rules
-    gaps = [gap(o, rules) for o in interior.openings if set(o.rooms) == {a.id, b.id}] + list(interior.piers)
+    gaps = [gap(o, rules) for o in interior.openings if set(o.rooms) == {a.id, b.id}]
+    gaps += list(interior.piers) if a.floor == 0 else []   # floor 0's piers (shop front, main door) only
     return clash_polys(a.polygon, b.polygon, zones, rules["partition"], gaps)
 
 

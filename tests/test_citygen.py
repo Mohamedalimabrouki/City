@@ -4056,6 +4056,24 @@ def test_open_samples_are_valid(interior_ctx, world, villas):
             assert rooms.check(interior) == [], ("koubba", interior.building, rooms.check(interior)[:3])
 
 
+def test_flat_door_spot_keeps_off_corners_and_cuts_are_remembered():
+    """47.1 flats round 1: a flat's door point lies on a straight piece that holds the door, `need` / 2 from
+    its ends (never on the box corner where the split line meets it); `cuts.cut` answers the same twice."""
+    from shapely.geometry import LineString, Point, Polygon
+    from citygen.interior import cuts
+    from citygen.interior.flats import door_spot, holds_door
+    edge = LineString([(0.0, 0.0), (-1.15, 0.0), (-1.15, 4.97)])   # the box's front corner, then its side
+    mid = Point(0.0, 0.675)
+    assert not holds_door(edge, Point(0.0, 0.0), 1.3)
+    p = door_spot(edge, mid, 1.3)
+    assert abs(p.x + 1.15) < 1e-9 and abs(p.y - 0.675) < 1e-9
+    assert door_spot(LineString([(0, 0), (1, 0)]), mid, 1.3) is None
+    sq = Polygon([(0, 0), (4, 0), (4, 3), (0, 3)])
+    fr = cuts.Frame(0.0, 0.0, 0.0)
+    a, b = cuts.cut(sq, fr, 0, 1.5), cuts.cut(sq, fr, 0, 1.5)
+    assert [p.area for p in a[0] + a[1]] == [p.area for p in b[0] + b[1]] == [4.5, 7.5]
+
+
 def test_flats(new_districts, interior_ctx, plan):
     from citygen.export.lore import plan_json
     from citygen.interior.flats import occupants

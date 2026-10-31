@@ -133,7 +133,10 @@ def search(job, region, entry: Entry, program: list, floor: int, key: tuple, hal
     seen = set()
     cuts = 0
     cap = max(6, min(cfg["variants"], int(cfg["variants"] * 120.0 / max(region.area, 120.0))))   # big floors: fewer
+    cap = max(6, int(cap * job.__dict__.get("cap_scale", 1.0)))   # a flat's second tries: fewer (`flats.best_lay`)
     small = (cfg["hall"][0], cfg["hall_width"][0])      # a variant with the least hall
+    hard = 2 if job.interior.layout in ("colonial", "slab") else 1   # flats: a blind cuisine weighs less than
+    # a fault `rooms.check` finds (it asks no window of a flat's cuisine; 47.1 flats round 1)
     for d, w in ((depth, wide), small):
         for cell in cfg["rhythm"]:
             for turn in (False, True):
@@ -147,7 +150,7 @@ def search(job, region, entry: Entry, program: list, floor: int, key: tuple, hal
                         continue                        # the same cells as a variant already tried
                     seen.add(sig)
                     missing = assign(job, cells, spine, program, floor, entry)
-                    score = len(missing) * 3 + faults(job, cells, floor, hall)
+                    score = len(missing) * 3 * hard + faults(job, cells, floor, hall, hard)
                     if score == 0:
                         return cells
                     if best is None or score < best[1]:
@@ -155,28 +158,29 @@ def search(job, region, entry: Entry, program: list, floor: int, key: tuple, hal
     return best[0]
 
 
-def faults(job, cells: list, floor: int, hall: bool = False) -> int:
+def faults(job, cells: list, floor: int, hall: bool = False, hard: int = 1) -> int:
     """What `rooms.check` would find in one home's floor before it exists: rooms under their minimum or over
-    their `most`, and partitions meeting a wall within `clear` of an opening."""
+    their `most`, and partitions meeting a wall within `clear` of an opening. Each counts `hard`, a blind
+    cuisine in a lit home 1."""
     most = job.cfg.get("rooms", {}).get("most", {})
     zones = job.zs([floor])
-    n = 0 if not hall or any(c.type == "hall" for c in cells) else 3
+    n = 0 if not hall or any(c.type == "hall" for c in cells) else 3 * hard
     sun = lights(job, floor)
     if any(lit(c.poly, sun) for c in cells):              # a lit home: the salon gets a window, then the cuisine
         for t in ("salon", "cuisine"):
             if any(c.type == t for c in cells) and not any(c.type == t and lit(c.poly, sun) for c in cells):
-                n += 2 if t == "salon" else 1
+                n += 2 * hard if t == "salon" else 1
     for c in cells:
         if c.type in SPINE or c.type in ("droj",):
             if c.type in most and c.poly.area > float(most[c.type]) + 0.01:
-                n += 1
+                n += hard
             continue
         if not job.fits(c.poly, c.type) or c.poly.area > float(most.get(c.type, 1e9)) + 0.01:
-            n += 1
+            n += hard
     for i, a in enumerate(cells):
         for b in cells[i + 1:]:
             if R.clash_polys(a.poly, b.poly, zones, job.half * 2):
-                n += 1
+                n += hard
     return n
 
 
@@ -255,6 +259,8 @@ def free(job, poly, F: Frame, axis: int, at: float, floor: int, lo=-math.inf, hi
         lo_z, hi_z = lo_z - job.half - 0.01, hi_z + job.half + 0.01
     zones = None
     convex = poly.area > 0.995 * poly.convex_hull.area     # a line across it meets every zone on its walls
+    memo = job.__dict__.setdefault("free_memo", {})     # the variants ask the same cuts again (time)
+    seen = memo.setdefault((shapely.to_wkb(poly), *F.c.tolist(), F.angle, axis, floor), {})
     for d in offsets(job.shift, job.step):
         a = at + d
         if not lo <= a <= hi:
@@ -265,15 +271,19 @@ def free(job, poly, F: Frame, axis: int, at: float, floor: int, lo=-math.inf, hi
             return a
         if inside and convex and np.any((lo_z + 0.03 <= a) & (a <= hi_z - 0.03)):
             continue                                    # well inside a zone's span: it clashes
-        strip = partition(poly, F, axis, a, job.half)
-        if strip is None and d == 0.0:
+        key = round(a, 6)
+        if key not in seen:
+            strip = partition(poly, F, axis, a, job.half)
+            if strip is None:
+                seen[key] = None
+            else:
+                if zones is None:
+                    zones = job.zs([floor])
+                near = np.flatnonzero((lo_z <= a) & (a <= hi_z)) if len(pts) else ()   # only zones across
+                seen[key] = clashes(strip, [zones[i] for i in near])   # the line can meet it (time, same answer)
+        if seen[key] is None and d == 0.0:
             return a
-        if strip is None:
-            continue
-        if zones is None:
-            zones = [z for z in job.zs([floor]) if z is not None]
-            zones = [z for z, ok in zip(zones, shapely.dwithin(zones, poly, 0.5)) if ok] if zones else []
-        if not clashes(strip, zones):
+        if seen[key] is False:
             return a
     return None
 

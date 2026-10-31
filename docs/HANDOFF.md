@@ -932,6 +932,16 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`, and how the le
   (`keep_steps`) works for villas and maisons unchanged (3 of 5). Tiny one-floor villas with no chambre
   are a program limit (49 m2 for hall, salon, cuisine, chambre, sdb, wc): reordering the program only
   trades the missing chambre for a missing cuisine.
+  Flats round 1: survey flats in parallel (a spawn pool of 7 processes, each loading the build once:
+  `h471f_dump.py`, 3 min for slab + colonial with walls) and hash each rooms.json, so a speed change is
+  proved byte-identical over the whole city (0 of 623) and a plan change shows its churn (won, lost,
+  passing-but-changed). Run the walls on slabs too: 18 passing slabs had stair doors wholly under floor 0
+  (a slope). Ask the search before the plan: 38 of 42 failing colonial blocks failed already in the spine's
+  best variant, so fixes after the search could not help; its score also counted a blind cuisine the check
+  never asks about. A flat entered on the box's corner (the nearest point to the landing's middle) got a
+  0.8 m2 hall on the split line. Retries cost time on every floor of a failing building: remember per region
+  whether they won anything below. Exact speed-ups that worked: test a partition only against zones across
+  its line, remember tried cuts per region and `cuts.cut` per shape (No. 773 17 s -> 7 s, same bytes).
 
 ## Known weak spots
 

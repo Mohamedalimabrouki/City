@@ -129,11 +129,21 @@ def clip(a, b):
     return solid(shapely.intersection(polygonal(a), polygonal(b), grid_size=GRID))
 
 
+_CUTS: dict = {}
+
+
 def cut(poly, frame: Frame, axis: int, at: float) -> tuple:
-    """(before, after): the polygons of `poly` on both sides of the line {u, v}[axis] = at."""
-    lo = parts(shapely.intersection(poly, frame.side(axis, at, False), grid_size=GRID))
-    hi = parts(shapely.intersection(poly, frame.side(axis, at, True), grid_size=GRID))
-    return lo, hi
+    """(before, after): the polygons of `poly` on both sides of the line {u, v}[axis] = at; remembered per
+    shape and line (the spine's variants cut the same region again, 47.1 flats round 1: time)."""
+    key = (shapely.to_wkb(poly), *frame.c.tolist(), frame.angle, axis, at)
+    got = _CUTS.get(key)
+    if got is None:
+        if len(_CUTS) > 20000:
+            _CUTS.clear()
+        got = (parts(shapely.intersection(poly, frame.side(axis, at, False), grid_size=GRID)),
+               parts(shapely.intersection(poly, frame.side(axis, at, True), grid_size=GRID)))
+        _CUTS[key] = got
+    return list(got[0]), list(got[1])
 
 
 def union(a, b):

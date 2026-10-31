@@ -22,9 +22,11 @@ Entry format:
 - In progress (31 October): 47.1 + 48.1. Ali's API credit ran out at 12:12 during round 4; Ali then
   asked the lead to finish 47.1 + 48.1 on his plan. Pushed: 2ac52f7 (Open interior first shows the house
   from above, cut at floor 0), 3918228, part 1 rounds 1-4 (4997d82), 5 (sunken entries, ce09078), 6 (the
-  way in, 4ebe082) and 7 (wet rooms kept, villas and maisons; see the 47.1 + 48.1 entry). Next: the flats
-  (parts 2 and 3: slabs and colonial blocks), then round 8 (compact and shop ways in; villa and maison
-  program limits; B (a): the newel stair open in the entry room for 13 compact ladders).
+  way in, 4ebe082), 7 (wet rooms kept, villas and maisons) and flats round 1 (colonial 146/270, slab
+  315/353; see the 47.1 + 48.1 entry). Next: flats round 2 (the couloir's end at a window bay, the salle
+  a manger dropped when no cell holds it, slab palier partitions and step treads), then round 8 (compact
+  and shop ways in; villa and maison program limits; B (a): the newel stair open in the entry room for 13
+  compact ladders).
   Uncommitted changes in the tree are the round in progress (backup branch `wip/47.1-48.1`).
 - Next: 47.1 with 48.1 (50 done 31 October: Open interior on a dwelling's card in `citygen view` and the
   gallery). Then 51. For 47.1 + 48.1:
@@ -92,18 +94,17 @@ Entry format:
 - Checks: survey (`tools/interior_survey.py`, the new checks; "before" = today's plans: old town exact,
   Ain Chilel = rooms.check passes less those with wall or step faults):
 
-  | group | before (old check) | before (new checks) | round 1 | round 2 | round 3 | round 4 | round 5 | round 6 | round 7 | bar | slowest before -> after (round 5; round 6) |
-  |---|---|---|---|---|---|---|---|---|---|---|---|
-  | dar (159) | 151 | 84 | 138 | 136 | 141 (89%) | 141 | 146 (92%) | 154 (97%, bar met) | 154 | 152 | 0.07 -> 0.11 s (0.15 s, No. 276; 0.34 s, No. 90 fails) |
-  | compact (277) | 273 | 196 | 258 | 257 | 259 (94%) | 259 | 266 (96%, bar met) | 262 (95%) | 262 | 264 | 0.11 -> 0.14 s (0.12 s; 0.23 s, No. 268 fails) |
-  | small (83) | 81 | 61 | 77 | 77 | 80 (96%, at the bar) | 80 | 81 | 81 | 81 | 79 | 0.07 -> 0.08 s (0.08 s; 0.08 s) |
-  | koubba (22) | 21 | 17 | 19 | 19 | 20 (91%) | 20 | 21 (bar met) | 21 | 21 | 21 | 0.02 -> 0.02 s (0.06 s, No. 501; 0.07 s) |
-  | shop (136) | 135 | 86 | 114 | 120 | 124 (91%) | 124 | 125 | 122 (90%) | 123 | 130 | 0.27 -> 0.29 s (0.30 s; 0.29 s) |
-  | villa (178, Ain Chilel) | 171 | about 58 | 134 | 157 | 157 (88%) | 157 | 157 | 157 | 165 (93%) | 170 | 0.43 -> 0.37 s (0.37 s; 0.39 s) |
-  | maison (616, Ain Chilel) | 589 | about 472 | 508 | 554 | 554 (90%) | 559 (91%) | 559 | 559 | 577 (94%) | 586 | 0.65 -> 0.61 s (0.60 s; 0.67 s) |
-  | slab (353, part 2) | 326 | | 301 | 308 | 308 (87%) | 308 | | | 315 | | 2.03 -> 2.13 s |
-  | colonial (270, part 3) | 117 | | 51 | 83 | 84 (31%) | 84 | | | 86 | | 13.0 -> 16.4 s (No. 773) |
-
+  | group | before (old check) | before (new checks) | round 1 | round 2 | round 3 | round 4 | round 5 | round 6 | round 7 | flats round 1 | bar | slowest before -> after (round 5; round 6; flats round 1) |
+  |---|---|---|---|---|---|---|---|---|---|---|---|---|
+  | dar (159) | 151 | 84 | 138 | 136 | 141 (89%) | 141 | 146 (92%) | 154 (97%, bar met) | 154 | 154 | 152 | 0.07 -> 0.11 s (0.15 s, No. 276; 0.34 s, No. 90 fails) |
+  | compact (277) | 273 | 196 | 258 | 257 | 259 (94%) | 259 | 266 (96%, bar met) | 262 (95%) | 262 | 262 | 264 | 0.11 -> 0.14 s (0.12 s; 0.23 s, No. 268 fails) |
+  | small (83) | 81 | 61 | 77 | 77 | 80 (96%, at the bar) | 80 | 81 | 81 | 81 | 81 | 79 | 0.07 -> 0.08 s (0.08 s; 0.08 s) |
+  | koubba (22) | 21 | 17 | 19 | 19 | 20 (91%) | 20 | 21 (bar met) | 21 | 21 | 21 | 21 | 0.02 -> 0.02 s (0.06 s, No. 501; 0.07 s) |
+  | shop (136) | 135 | 86 | 114 | 120 | 124 (91%) | 124 | 125 | 122 (90%) | 123 | 123 | 130 | 0.27 -> 0.29 s (0.30 s; 0.29 s) |
+  | villa (178, Ain Chilel) | 171 | about 58 | 134 | 157 | 157 (88%) | 157 | 157 | 157 | 165 (93%) | 165 | 170 | 0.43 -> 0.37 s (0.37 s; 0.39 s) |
+  | maison (616, Ain Chilel) | 589 | about 472 | 508 | 554 | 554 (90%) | 559 (91%) | 559 | 559 | 577 (94%) | 577 | 586 | 0.65 -> 0.61 s (0.60 s; 0.67 s) |
+  | slab (353, part 2) | 326 | | 301 | 308 | 308 (87%) | 308 | | | 315 | 315 (89%; 18 passed with wall faults, now honest) | 336 | 2.03 -> 2.13 s (flats round 1: 2.03 s, No. 1066) |
+  | colonial (270, part 3) | 117 | | 51 | 83 | 84 (31%) | 84 | | | 86 | 146 (54%) | 257 | 13.0 -> 16.4 s, No. 773 (flats round 1: 7.0 s No. 773, 7.0 s No. 787, 6.9 s No. 890) |
   0 crashes. Every interior that passes `rooms.check` gives 0 `mesh.faults` and 0 entry-step faults (plan
   + walls + the prompt 49 tread, riser and headroom test on every tread of straight and turned steps, every
   old-town house, villa and maison: `h471_mesh.py`). `pytest -q` 130 passed (`test_turned_entry_steps` new);
@@ -367,6 +368,82 @@ Entry format:
   maison (No. 665: chambres and the s. a manger run the house's width) and a room boxed inside another
   (No. 495: the s. a manger inside the salon). Ali's choice later: give the 61 dwellings that never had a
   wet room (compact 13, shop 47, koubba No. 666) one by the carve.
+- Flats round 1 (parts 2 and 3, helper; scripts `$TMPDIR/h471f/h471f_*.py`, a parallel survey with walls):
+  - Baseline (d6ae540): colonial 86/270 pass (slowest 17.2 s No. 773, then 6.9 s No. 772, 6.5 s No.
+    890); slab 315/353 (slowest 3.9 s No. 1066 under load, 2.15 s alone). New finding: 18 passing slabs
+    fault the walls (`mesh.faults`: a stair door 1.5 m "cut 1.50 / 0.00"): stair doors 2.8-3.2 m under
+    floor 0 (a slope), so the door's whole height lies below the palier's walls and opens on nothing.
+  - Fail classes by building (a building counts once per family): colonial 184 fails: wall faults 92
+    (a wall crosses a window 31, an inner door 31 + 17 far side, a shop front 16, arches narrowed 11),
+    partitions near an opening 78, room sizes 74 (chambre over 36 m2 20, cuisine under minimum 20, salle a
+    manger 12), program 44 (chambres short 18, no sdb 16, no cuisine 14, no wc 13), salon without a window
+    34, entry steps under the U stair 32, reach 22. Alone: size only 20, wall only 14, wall + zone 20,
+    steps only 9, zone only 8, program only 7, light only 6. Slab 38 fails: wall 15 (inner door not in its
+    partition 8), partitions near an opening 21 (palier/hall 7, palier/chambre 5, palier/salon 4), entry
+    steps with short treads 7, program 6. No. 773 is a 100 m x 1.5 m sliver block (7 floors, 151 m2 each):
+    no flat can fit, its 17 s go to the spine's variant search (`free` and `partition`: 21 of 39 s).
+  - Fix 1 (flat doors off the split line): a through-core colonial split entered both flats at the box's
+    front corner, on the split line, so a hall of 0.4-0.8 m2 and doors the walls cross (No. 906, 855, 935,
+    818). `Core.entry` now keeps its point only when a door fits there (`holds_door`), else the nearest
+    point of a straight edge piece that holds one (`door_spot`). Colonial 86 -> 101 (27 won, 12 lost: the
+    spine search lottery), slab 315 (byte-identical).
+  - Fix 2 (steps down): `entry_keep` ignored doors above floor 0, so the core stood on the steps down (all
+    30 "entry steps run under the U stair" checked were 3 risers down); now both ways (in fix 1's numbers).
+  - Fix 3 (speed, byte-identical: 0 of 623 rooms.json hashes changed): `spine.free` tests a partition only
+    against the zones across its line and remembers each cut it tried per region; `cuts.cut` remembers its
+    halves per shape and line. No. 773 17 s -> 7.0 s alone (7.7 s in a 7-process survey); the next slowest
+    No. 849 2.9 s, No. 834 3.1 s alone.
+  - Fix 4 (slab doors under floor 0): the gap before a slid core behind such a door is its own common
+    couloir, sunk to the door's threshold (`deep_door`, `[interiors.flats] deep_door` 0.3 m), the steps
+    in it and an arch to the palier: the 18 slabs pass with 0 `mesh.faults`.
+  - Search check (42 failing colonial blocks, every 4th): 38 already fail in the spine's variant search
+    (its best variant keeps 1-5 faults), 4 later. The colonial remainder is mostly the spine engine itself.
+    Of the search's faults over 871 failing flat searches: 229 a cuisine without a window (which
+    `rooms.check` does not ask of a flat), salon without a window 80, chambre too small 38, cuisine too
+    small 31, partitions near an opening 23 + 20 + 12, missing wc 17.
+  - Fix 5 (flats' search score): in flats a blind cuisine weighs 1, every fault the check finds 2
+    (`spine.faults(hard=2)`; villas and maisons unchanged): colonial 101 -> 105.
+  - Fix 6 (a flat tries again): `flats.best_lay`: when a flat's plan scores over 1 (`flat_score`: missing
+    rooms 6, faults 2, a blind cuisine 1, a hall under its least 2), it tries the door point that holds a
+    door, one more place on the landing's edge, then the first point with a second hall draw (stream key +
+    "again"), each with `retry_variants` 0.5 of the variants; the best kept. The first try is today's entry
+    point (`Core.entry` without `need`), so a flat whose first plan scores 0 or 1 keeps its bytes. Steps
+    down keep only their own length before the core (no landing beyond them: the box's landing is one).
+    Colonial 105 -> 138 (vs baseline 53 won, 1 lost), slab 315 -> 317.
+  - Fix 7 (floor 0 beside a cafe or shop front): the couloir to a slid core kept the box's side 0.1 m inside
+    a 2.6 m cafe front 0.57 m from the door (16 "a wall crosses the shop", 17 qahwa partitions near it);
+    `gap_sides` now moves a side inward when outward lies the front, the couloir keeping its width:
+    colonial 138 -> 146 (8 won, 0 lost). Piers (floor 0 walls beside a shop front) excused partitions on
+    every floor in `rooms.clash`: now floor 0 only (the check found the hall/s. a manger partition in
+    No. 786's window at last; part 1 unchanged).
+  - Fix 6 for slabs costs time (No. 1066 2.1 -> 2.6 s for 2 more passes): `retry_variants = { colonial =
+    0.5, slab = 0.0 }`; second tries that won nothing on a floor below are not repeated (memo).
+  - Final (flats round 1): colonial 86 -> 146/270 (54%), slab 315 -> 315/353 (the 18 with wall faults now
+    pass honestly), 0 crashes, every passing slab and colonial 0 `mesh.faults` and 0 step faults (survey with
+    walls, `h471f_dump.py`). Slowest alone: colonial 7.0 s (No. 773, No. 787), 6.9 s (No. 890); slab 2.03 s
+    (No. 1066, as HEAD 2.12 s). Part 1: dar 154, compact 262, small 81, koubba 21, shop 123, villa 165,
+    maison 577 (unchanged, 0 passing with wall or step faults). `pytest -q` 134 passed; `build --quick`
+    done; fingerprint `--allow ""`: 282 parts, 0 changed. Plans: output/checks/471-flats-r1.png (colonial
+    No. 906: flat doors off the split line; No. 782: the cafe front and the palier beside it; slab No.
+    1064: the sunken couloir behind the deep stair door, floor 0).
+  - Choices for Ali/lead: a flat's second tries (colonial only; slabs none, for the 2.2 s bar); a slab
+    door under floor 0 opens into a sunken common couloir (`deep_door` 0.3 m); steps down keep no landing
+    beyond them.
+  - Left (colonial 124 fails, by building): a wall crossing an upper-floor window 28 (partitions of hall,
+    couloir, cuisine, salon ending inside a window: the spine search's best variant), partitions near an
+    opening (hall/salon 8, couloir/cuisine 8, couloir/salon 15), inner doors crossed 11 + 8 far side, room
+    sizes (cuisine or salle a manger under minimum, chambre over 36 m2), salon without a window, No. 773
+    (a 1.5 m sliver block: no flat fits). Slab 38: inner door not in its partition 10, palier partitions
+    near openings 8, entry steps with short treads + palier partitions 8. Next flats round: the couloir's
+    end at the facade (end it before a window bay, or a room across its end), the salle a manger dropped
+    when no cell holds it (the check does not ask for it), the slab palier strip at the windows, and the
+    slab steps' treads.
+- Lead (after flats round 1): committed as progress (colonial 86 -> 146, the 18 slabs with wall faults now
+  pass honestly, No. 773 17 s -> 7 s). Read the whole diff: the new memos (`cuts.cut`, `spine.free`) are
+  pure in their keys (a job's zones are fixed when it starts), the second tries draw from their own stream
+  key. `pytest -q` 134 passed in 42 s (128 in 36 s at prompt 50); fingerprint 0 changed. Seen in
+  471-flats-r1.png: No. 906's flats entered off the split line, each with a real hall; slab No. 1064's
+  sunken couloir (2.2 m) at its left core on floor 0.
 
 ## 2026-10-31 - Prompt 50 H1f Interiors in the viewer
 - Commit: (lead commits) | Model: Opus 5.5, high

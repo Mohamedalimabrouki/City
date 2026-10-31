@@ -1928,6 +1928,8 @@ couloir = 1.1            # meters wide, the flats' couloir (villas and maisons: 
 wc_area = 70.0           # m2: a flat this big has a wc beside its sdb
 slide = 0.25             # meters: a colonial core slides inward in these steps until every storey holds it
 slide_most = 6.0         # meters: ... at most
+retry_variants = { colonial = 0.5, slab = 0.0 }   # share of the spine's variants a flat's second tries search when its first plan faults (0: none; slabs: time)
+deep_door = 0.3          # meters: a slab stair door whose top stands less than this over floor 0 opens into a sunken entry room
 
 [interiors.shop]   # the hanout and makhzen of a ground floor shop front (SPEC 6c "Shops and cafes")
 depth = [3.0, 4.0]       # meters deep (stream shop), at most half the storey's depth
