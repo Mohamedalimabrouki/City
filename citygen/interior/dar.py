@@ -71,6 +71,12 @@ class Job:
         self.fronts = [inside(o, self.ext) for o in interior.openings
                        if o.kind in ("door", "shop") and o is not self.main and o.floor == 0]
         self.steps_need = S.steps_depth(interior.high - self.spot.z, self.stairs) if self.spot is not None else 0.0
+        more = getattr(interior, "keep_steps", None)
+        if more is not None:                          # a second plan: no partition across the steps (47.1)
+            strip = self.entry_keep(self.steps_need + more)
+            for zones in (self.zones, self.shallow, self.plain):
+                if strip is not None and 0 in zones:
+                    zones[0].append(strip)
         self.thin = float(self.stairs.get("landing_strip", 0.45))   # half the widest strip the droj takes
         self.roof_ladder = False          # the newel could not stand under the stair room
         self.largest = {k: float(v) for k, v in self.dar.get("largest", {}).items()}   # m2 per service
@@ -102,9 +108,9 @@ class Job:
         least = self.minimums.get(type_)
         return least is None or (poly.area >= least[0] and width(poly) >= least[1])
 
-    def entry_keep(self):
+    def entry_keep(self, deep: float | None = None):
         """The floor inside the main door its entry steps and their landing need (None without steps):
-        ladders keep off it (47.1)."""
+        ladders keep off it (47.1); `deep` m from the wall's inner face (default: the steps or a `turn`)."""
         if self.spot is None or self.main is None or self.steps_need <= 0.0:
             return None
         s = self.spot
@@ -112,7 +118,7 @@ class Job:
         along = np.array([-inward[1], inward[0]])
         face = np.array([s.x, s.y]) + inward * self.ext
         w = self.main.width / 2 + float(self.stairs.get("side", 0.1))
-        deep = max(self.steps_need, float(self.stairs.get("turn", 0.9)))
+        deep = max(self.steps_need, float(self.stairs.get("turn", 0.9))) if deep is None else deep
         return Polygon([face - along * w, face + along * w, face + along * w + inward * deep,
                         face - along * w + inward * deep])
 
@@ -944,7 +950,17 @@ def finish(job: Job, ring, square, top: int, doors=None) -> None:
     R.assign(interior)
     for r in interior.rooms:
         r.lit = any(o.lit for o in interior.openings if o.rooms[0] == r.id and o.kind in ("window", "balcony"))
+    upper_stores(job)
     R.renumber(interior)
+
+
+def upper_stores(job: Job) -> None:
+    """An upstairs ghorfa left under its minimum (a corner the gallery cut off) is a store of its size (47.1)."""
+    big = job.largest.get("bit_el_mouna", 8.0)
+    for r in job.interior.rooms:
+        if (r.floor > 0 and r.type == "ghorfa" and not job.fits(r.polygon, "ghorfa")
+                and job.fits(r.polygon, "bit_el_mouna") and r.polygon.area <= big):
+            r.type = "bit_el_mouna"
 
 
 def galleries(job: Job) -> None:
@@ -1374,9 +1390,31 @@ def entry_steps(job: Job) -> None:
         if room is None:
             continue
         rise = interior.high - spot.z
+        said = len(interior.warnings)
         s = S.steps(room, spot, o.width, rise, job.stairs, interior.warnings, job.ext)
+        others = [t.polygon for t in interior.stairs if t.floor == 0 and t.kind != "steps"]
+        if s is not None and any(s.polygon.intersection(p).area > 0.01 for p in others):
+            notes = []
+            short = steps_beside(job, room, spot, o, rise, others, notes)   # short of the other stair (47.1)
+            if short is not None:
+                s, interior.warnings = short, interior.warnings[:said] + notes
         if s is not None:
             interior.stairs.append(s)
+
+
+def steps_beside(job: Job, room, spot, o, rise: float, others: list, notes: list):
+    """Entry steps in the part of `room` the other stairs of floor 0 leave free (None when they would not
+    keep `tread_min`)."""
+    free = room.polygon.difference(shapely.union_all(others))
+    probe = job.probe() if o is job.main else inside(o, job.ext)
+    part = next((p for p in parts(snap(free)) if p.distance(probe) < 0.05), None)
+    if part is None:
+        return None
+    s = S.steps(Room(room.id, room.floor, room.type, part, room.z, room.height), spot, o.width, rise,
+                job.stairs, notes, job.ext)
+    if s is None or s.tread < float(job.stairs.get("tread_min", 0.2)) - 1e-9:
+        return None
+    return s
 
 
 # --- the court ----------------------------------------------------------------------------------------

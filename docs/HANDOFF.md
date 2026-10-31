@@ -905,7 +905,13 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`, and how the le
   moved 0.25 m onto the floor under the stair room; give the search flush positions after the grid (so
   passing plans keep their squares) and place the box off the stair room only when the newel then fits.
   A couloir 1.1 m wide leaves 0.95 m clear, under the 1.0 m run an end arch needs: 1.15 m fixed 5, 1.2 m
-  broke more (rooms under their minimum).
+  broke more (rooms under their minimum). Round 5: retry rather than reserve: planning every house with the
+  steps' strip among the opening zones would move cuts in passing houses; planning again only the faulty
+  ones (and keeping the new plan only when `rooms.check` finds less) fixed 6 of 7 with no pass lost. A
+  room on a lower level needed few changes because the mesh already draws each room's faces from `room.z`
+  (raise `height` with it to keep the ceiling); the floor cap, the passage's threshold and its head (keep
+  it over floor 0, or the next room has no face for its hole) were the only drawing changes. Print the
+  depth that failed before changing a rule: the ladder's 0.05 m buffer took 0.6 mm under `steps_need`.
 
 ## Known weak spots
 

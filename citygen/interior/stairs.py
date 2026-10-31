@@ -551,6 +551,8 @@ def rails(stair, interior, cfg: dict, fl: dict) -> list:
             start = u0 if f == stair.top else u0 + w
             if u1 - w - start > 0.05:
                 out.append([(*fr.world(start, landing), z), (*fr.world(u1 - w, landing), z)])
+    elif stair.kind == "steps" and stair.sunk >= 0 and not stair.turn:
+        out += _sunk_rails(stair, interior, h)
     elif stair.kind == "newel" and stair.top < interior.floors:
         c, side, pier, a, _ = _newel_frame(stair, cfg)
         z = level(interior, stair.top) + h
@@ -560,6 +562,24 @@ def rails(stair, interior, cfg: dict, fl: dict) -> list:
             if not edge.is_empty and edge.length > 0.05:
                 pts = shapely.get_coordinates(edge)
                 out.append([(*pts[0], z), (*pts[-1], z)])
+    return out
+
+
+def _sunk_rails(stair, interior, h: float) -> list:
+    """The railings of steps rising from a sunken entry: along each side of the flight that no wall of its
+    room holds, at hand height over floor 0 (the floor's edge over the steps' hole)."""
+    room = next((r for r in interior.rooms if r.id == stair.rooms[0]), None)
+    if room is None:
+        return []
+    x, y, yaw = stair.door
+    fr = Frame(x, y, yaw + math.pi / 2)
+    u0, v0, u1, v1 = fr.bounds(stair.polygon)
+    z = level(interior, 0) + h
+    out = []
+    for u in (u0, u1):
+        edge = LineString([fr.world(u, v0), fr.world(u, v1)])
+        if room.polygon.exterior.distance(edge.interpolate(0.5, normalized=True)) > 0.05:
+            out.append([(*fr.world(u, v0), z), (*fr.world(u, v1), z)])
     return out
 
 

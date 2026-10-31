@@ -335,25 +335,27 @@ def _passage_span(floor, c, front, along, d0: float, d1: float, half: float) -> 
 
 def _steps(interior, cfg: dict) -> list:
     """Entry steps: treads of at least `tread_min`, all inside their room, no other stair over them."""
-    least = float(cfg.get("tread_min", 0.2))
     others = [s for s in interior.stairs if s.kind != "steps" and s.floor == 0]
+    return [f for s in interior.stairs if s.kind == "steps" for f in step_faults(s, others, cfg)]
+
+
+def step_faults(s, others: list, cfg: dict) -> list:
+    """The faults of one flight of entry steps (`_steps`); `others`: the stairs of floor 0."""
+    least = float(cfg.get("tread_min", 0.2))
     out = []
-    for s in interior.stairs:
-        if s.kind != "steps":
-            continue
-        if s.tread < least - 1e-6:
-            out.append(f"the entry steps have treads of {s.tread:.2f} m")
-        x, y, yaw = s.door
-        fr = Frame(x, y, yaw + math.pi / 2)
-        _, v0, _, _ = fr.bounds(s.polygon)
-        if s.turn:                                    # along the wall, past the door's landing
-            pts = [Point(*fr.world(s.turn * (s.width / 2 + (k + 0.5) * s.tread), v0 + s.flight / 2))
-                   for k in range(s.risers)]
-        else:
-            pts = [Point(*fr.world(0.0, v0 + (k + 0.5) * s.tread)) for k in range(s.risers)]
-        if not all(s.polygon.covers(p) for p in pts):
-            out.append("the entry steps are clipped by their room")
-        for o in others:
-            if s.polygon.intersection(o.polygon).area > 0.01:
-                out.append(f"the entry steps run under the {o.kind} stair")
+    if s.tread < least - 1e-6:
+        out.append(f"the entry steps have treads of {s.tread:.2f} m")
+    x, y, yaw = s.door
+    fr = Frame(x, y, yaw + math.pi / 2)
+    _, v0, _, _ = fr.bounds(s.polygon)
+    if s.turn:                                        # along the wall, past the door's landing
+        pts = [Point(*fr.world(s.turn * (s.width / 2 + (k + 0.5) * s.tread), v0 + s.flight / 2))
+               for k in range(s.risers)]
+    else:
+        pts = [Point(*fr.world(0.0, v0 + (k + 0.5) * s.tread)) for k in range(s.risers)]
+    if not all(s.polygon.covers(p) for p in pts):
+        out.append("the entry steps are clipped by their room")
+    for o in others:
+        if s.polygon.intersection(o.polygon).area > 0.01:
+            out.append(f"the entry steps run under the {o.kind} stair")
     return out

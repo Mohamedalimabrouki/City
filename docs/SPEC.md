@@ -1297,7 +1297,18 @@ along the axes of a frame (the courtyard's or the footprint's `frame`).
   down to `steps_flight_min` 0.7 m in a shallow room), then turn 90 degrees and climb along the facade wall
   toward the side with more room, treads `tread` down to `tread_min`, `turn_min` of floor kept beyond
   (`Stair.turn` +1 or -1 along the wall, `Stair.flight`; rooms.json gets `turn` and `flight` only for them);
-  `stairs.parts`, `treads` and `well` draw and check them like straight steps.
+  `stairs.parts`, `treads` and `well` draw and check them like straight steps. Round 5 (lead decisions):
+  steps that still fault where the storey behind the door is deep enough plan the house again with the
+  steps' strip (door + 2 x `side` wide, `steps_depth`, then + 0.3 m deep) among floor 0's opening zones, so
+  no partition crosses it (`layout.short_steps`, kept only when `rooms.check` finds less); steps a ladder or
+  newel stands on are built again in the room less that stair (`dar.steps_beside`). The sunken entry
+  (`interior/sunken.py`): where the storey is too shallow behind the door, the entry room's floor stays at
+  the threshold (its `z` lower, its height grown to floor 0's ceiling), its inner passages drop with it
+  (head at least `sunken_head` 1.0 m over floor 0, a threshold drawn in the partition) and the steps rise
+  from each passage into the next room (`Stair.sunk` = the sunken room's id, in rooms.json only for them;
+  railings at floor 0 + `rail` along the flight's sides no wall holds); a one-room floor 0 sinks whole and
+  needs no steps; not when a stair stands in the entry room or a passage leads into the court. The floor
+  of a sunken room is drawn at its own `z`; an upstairs ghorfa a gallery left under its minimum is a store.
 - Built (prompt 46). Rules the code settled: every cut, union and difference runs on a 1 micrometer grid
   and pieces under 0.001 m2 are numerical slivers, dropped. Before and after the merges, arms of a room
   thinner than 0.8 m (strips an irregular lot leaves along a wall) move to the neighbour they share more

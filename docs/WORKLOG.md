@@ -21,11 +21,10 @@ Entry format:
   says (for example "Do prompt 49." or "continue the playbook").
 - In progress (31 October): 47.1 + 48.1. Ali's API credit ran out at 12:12 during round 4; Ali then
   asked the lead to finish 47.1 + 48.1 on his plan. Pushed: 2ac52f7 (Open interior first shows the house
-  from above, cut at floor 0), 3918228, and part 1 rounds 1-4 (plan checks for the old town, shops, villas
-  and maisons; turned entry steps; flush stair cells; still under the bar: see the 47.1 + 48.1 entry).
-  Next: round 5 (old-town entry steps: a deeper skifa for 7 houses, a sunken entry for 8; the classes
-  that keep dar, compact, koubba, shop under the bar), round 6 (villa and maison doors; B (a): the newel
-  stair open in the entry room for the 13 compact ladders), then part 2 (slabs), part 3 (colonial flats).
+  from above, cut at floor 0), 3918228, part 1 rounds 1-4 (4997d82) and round 5 (sunken entries; see the
+  47.1 + 48.1 entry). Next: round 6 (old town: sunken flights out of wet rooms, ways in through wet rooms,
+  courts seen from the street door, shop classes), round 7 (villa and maison doors; B (a): the newel stair
+  open in the entry room for the 13 compact ladders), then part 2 (slabs), part 3 (colonial flats).
   Uncommitted changes in the tree are the round in progress (backup branch `wip/47.1-48.1`).
 - Next: 47.1 with 48.1 (50 done 31 October: Open interior on a dwelling's card in `citygen view` and the
   gallery). Then 51. For 47.1 + 48.1:
@@ -93,17 +92,17 @@ Entry format:
 - Checks: survey (`tools/interior_survey.py`, the new checks; "before" = today's plans: old town exact,
   Ain Chilel = rooms.check passes less those with wall or step faults):
 
-  | group | before (old check) | before (new checks) | round 1 | round 2 | round 3 | round 4 | bar | slowest before -> after |
-  |---|---|---|---|---|---|---|---|---|
-  | dar (159) | 151 | 84 | 138 | 136 | 141 (89%) | 141 | 152 | 0.07 -> 0.11 s |
-  | compact (277) | 273 | 196 | 258 | 257 | 259 (94%) | 259 | 264 | 0.11 -> 0.14 s |
-  | small (83) | 81 | 61 | 77 | 77 | 80 (96%, at the bar) | 80 | 79 | 0.07 -> 0.08 s |
-  | koubba (22) | 21 | 17 | 19 | 19 | 20 (91%) | 20 | 21 | 0.02 -> 0.02 s |
-  | shop (136) | 135 | 86 | 114 | 120 | 124 (91%) | 124 | 130 | 0.27 -> 0.29 s |
-  | villa (178, Ain Chilel) | 171 | about 58 | 134 | 157 | 157 (88%) | 157 | 170 | 0.43 -> 0.37 s |
-  | maison (616, Ain Chilel) | 589 | about 472 | 508 | 554 | 554 (90%) | 559 (91%) | 586 | 0.65 -> 0.61 s |
-  | slab (353, part 2) | 326 | | 301 | 308 | 308 (87%) | 308 | | 2.03 -> 2.13 s |
-  | colonial (270, part 3) | 117 | | 51 | 83 | 84 (31%) | 84 | | 13.0 -> 16.4 s (No. 773) |
+  | group | before (old check) | before (new checks) | round 1 | round 2 | round 3 | round 4 | round 5 | bar | slowest before -> after (round 5) |
+  |---|---|---|---|---|---|---|---|---|---|
+  | dar (159) | 151 | 84 | 138 | 136 | 141 (89%) | 141 | 146 (92%) | 152 | 0.07 -> 0.11 s (0.15 s, No. 276) |
+  | compact (277) | 273 | 196 | 258 | 257 | 259 (94%) | 259 | 266 (96%, bar met) | 264 | 0.11 -> 0.14 s (0.12 s) |
+  | small (83) | 81 | 61 | 77 | 77 | 80 (96%, at the bar) | 80 | 81 | 79 | 0.07 -> 0.08 s (0.08 s) |
+  | koubba (22) | 21 | 17 | 19 | 19 | 20 (91%) | 20 | 21 (bar met) | 21 | 0.02 -> 0.02 s (0.06 s, No. 501) |
+  | shop (136) | 135 | 86 | 114 | 120 | 124 (91%) | 124 | 125 | 130 | 0.27 -> 0.29 s (0.30 s) |
+  | villa (178, Ain Chilel) | 171 | about 58 | 134 | 157 | 157 (88%) | 157 | 157 | 170 | 0.43 -> 0.37 s (0.37 s) |
+  | maison (616, Ain Chilel) | 589 | about 472 | 508 | 554 | 554 (90%) | 559 (91%) | 559 | 586 | 0.65 -> 0.61 s (0.60 s) |
+  | slab (353, part 2) | 326 | | 301 | 308 | 308 (87%) | 308 | | | 2.03 -> 2.13 s |
+  | colonial (270, part 3) | 117 | | 51 | 83 | 84 (31%) | 84 | | | 13.0 -> 16.4 s (No. 773) |
 
   0 crashes. Every interior that passes `rooms.check` gives 0 `mesh.faults` and 0 entry-step faults (plan
   + walls + the prompt 49 tread, riser and headroom test on every tread of straight and turned steps, every
@@ -202,6 +201,57 @@ Entry format:
   behind the street door). Choices for Ali: B (a), the newel stair open in the entry room, for the 13
   compact ladders (round 6); item 4: a deeper skifa for the 7 houses whose storey has room, a sunken entry
   for the 8 whose storey is too shallow behind the door (the common old-town answer; round 5).
+- Round 5 (helper, from 4997d82; survey at the start = the round 4 column exactly).
+  - Item 4, deep storeys (in progress): when entry steps fault the plan check but the storey behind the
+    door is deep enough (`layout.short_steps`), the house is planned again with the steps' strip (door + 2 x
+    `side` wide, `steps_need`, then + 0.3 m deep) kept free of partitions (`Job` adds it to floor 0's opening
+    zones, `interior.keep_steps`); the new plan is kept only when `rooms.check` finds less. Fixed No. 78,
+    175, 209, 276, 591, 687 (dar 141 -> 143, compact 259 -> 262, shop 124 -> 125, no pass lost); No. 501
+    (koubba with a shop) went to the sunken entry below.
+  - Item 4, shallow storeys: the sunken entry (new `interior/sunken.py`, after the plans, kept only when
+    `rooms.check` finds less): the entry room's floor stays at the street door's threshold (`Room.z` lower,
+    its height grows: floor 0's ceiling kept), its inner passages drop with it (head at least `sunken_head`
+    1.0 m over floor 0) and get a threshold, and the steps rise from each inner passage into the next room
+    (`Stair.sunk` = the sunken room's id, in rooms.json; railings on the flight's sides no wall holds); a
+    one-room floor 0 sinks whole (no steps). The floor cap of the room is drawn at its own z. Fixed No. 248,
+    255, 284, 353, 501 (and 542's steps; 542 still fails "the storey crosses the door": a footprint spike).
+    Entry-step tread faults 15 -> 2: No. 55 (the door on a 0.38 m arm of the storey; the next rooms are the
+    droj and the court) and No. 645 (the house's newel stands in the entry room). `OPEN_STEPS` emptied.
+    Survey after item 4: dar 145, compact 263, small 81, koubba 21 (bar met), shop 125; no pass lost.
+  - Item 2, classes (in progress): entry steps a ladder stands on (No. 171: the ladder kept off
+    `steps_need`, the comfortable steps ran 0.15 m further) are built again in the room less the other
+    stairs (`dar.steps_beside`, shorter treads, kept only at `tread_min` or more); an upstairs ghorfa a
+    gallery cut under its minimum is a store of its size (`dar.upper_stores`: No. 392, 575, 608). Survey:
+    dar 146, compact 266 (bar met), small 81, koubba 21, shop 125.
+  - What keeps groups under the bar (classes, `h471c_*.py` in /tmp/claude-501/h471c): dar 13 fails = 8
+    courts seen from the street door (decision D accepts 8, so dar cannot reach 152 without them: at most
+    151), No. 245 and 272 (an upstairs inner door off its partition), 227 (court door past a court corner),
+    674 (a wall crosses the street door), 703 (skifa partition near an opening). Shop 11 = 3 "storey crosses"
+    facade openings on footprint spikes (No. 71, 374, 636: tile geometry), 2 skifas with a hair arm round the
+    hanout to the court (No. 344, 419: the arch narrowed; the next class to fix, in `shop.souk`), 298 (the
+    roof stair room over a skifa too small for both its ladder and the steps), 645 (steps), 270, 432, 449,
+    686 (one each). Compact 11 = 5 "storey crosses" (spikes), 51 and 496 (wall crosses an inner door), 55,
+    116, 290, 315. Koubba No. 570: its annex strip (unchanged).
+  - Round 5 checks: survey above; 0 crashes; every passing interior: 0 `mesh.faults`, 0 step faults
+    (`h471_mesh.py`, old town); ladder warnings dar 1, compact 14, small 1, shop 6 (as round 4); villa 157 and
+    maison 559, ladders 3 and 10 (unchanged). `pytest -q` 131 passed (`test_sunken_entry` new), slow 5 + 1
+    xfail; `build --quick` done; fingerprint `--allow ""`: 282 parts, 0 changed. Picture:
+    output/checks/471-r5-old.png (No. 255: sunken skifa, -1.0 m, two flights up into the bit and the matbakh;
+    No. 353: sunken skifa, steps up into the bit el ma; No. 276: the skifa deep enough for straight steps;
+    No. 392: the corner the gallery cut off is a store). The plan tool marks a sunken room "-1.0 m".
+  - Choices for Ali: the sunken entry's inner passage keeps its head at least 1.0 m over floor 0
+    (`sunken_head`: with a 2.36 m rise, No. 248, the door would otherwise end under the next room's floor);
+    a small upstairs corner room is a store, not a ghorfa; the strip retry keeps a new plan only when it has
+    fewer faults (never trades one fault for another).
+  - Weak spots: dar's slowest plan 0.11 -> 0.15 s (No. 276 is planned twice: over the 20% bar for that one
+    house); No. 353 is entered through its bit el ma (the plan of 46; now with the steps in it); the sunken
+    room has not been looked at in 3D (no browser this round: Ali or the lead should open No. 255 with "Open
+    interior"); the steps of No. 171 have a 0.15 m notch where the ladder stands on their last tread.
+- Lead (after round 5): committed as progress. Seen in 471-r5-old.png: No. 353's sunken steps fill its bit
+  el ma, which is also the skifa's only way in (skifa, bit el ma, bit, court); No. 255's flights land in a
+  bit and the matbakh, and its skifa does not touch the court. Round 6: flights never in a wet room, a way
+  in that reaches the court or a hall without crossing a wet room, the 8 courts seen from the street door,
+  shop classes. Accepted: dar No. 276 planned twice (slowest dar 0.15 s, still tiny).
 
 ## 2026-10-31 - Prompt 50 H1f Interiors in the viewer
 - Commit: (lead commits) | Model: Opus 5.5, high

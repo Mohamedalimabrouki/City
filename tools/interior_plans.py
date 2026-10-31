@@ -184,6 +184,9 @@ def panel(pen, interior, outside, floor: int, at, scale: float, label_font) -> N
         text = LABELS.get(r.type, r.type.replace("_", " "))
         if r.unit.startswith("flat "):
             text += " " + r.unit[5:]                       # the flat's number
+        st = next((s for s in interior.storeys if s.floor == r.floor), None)
+        if st is not None and r.z < st.z - 0.05:
+            text += f" -{st.z - r.z:.1f} m"                # a sunken entry room (47.1)
         box = pen.textbbox((0, 0), text, font=label_font)
         pen.text((cx - (box[2] - box[0]) / 2, cy - (box[3] - box[1]) / 2), text, fill=(30, 30, 30), font=label_font)
 

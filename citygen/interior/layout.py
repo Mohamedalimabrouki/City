@@ -48,6 +48,47 @@ def plan_interior(outside, style: dict) -> Interior:
     interior.openings = [replace(o) for o in outside.openings]
     interior.warnings = list(outside.warnings)
     reveals(interior, float(walls_cfg.get("reveal", 0.2)), float(walls_cfg.get("reveal_wall", 0.15)))
+    before = _held(interior)
+    _plan(interior, outside, style, layout)
+    if layout in TRADITIONAL and short_steps(interior, style):     # the entry room too short for its steps (47.1)
+        best, faults = _held(interior), len(check(interior))
+        for more in KEEP_MORE:                        # the plan keeps the steps' strip free of partitions
+            _hold(interior, before)
+            interior.keep_steps = more
+            try:
+                _plan(interior, outside, style, layout)
+            finally:
+                del interior.keep_steps
+            got = len(check(interior))
+            if got < faults:                          # kept only when the plan check finds less
+                best, faults = _held(interior), got
+            if not faults:
+                break
+        _hold(interior, best)
+    if layout in TRADITIONAL and any("entry steps" in f for f in plan_steps(interior)):
+        sunk(interior, style)
+    return interior
+
+
+def plan_steps(interior: Interior) -> list:
+    from .plancheck import _steps
+    return _steps(interior, interior.rules.get("plan", {}))
+
+
+def sunk(interior: Interior, style: dict) -> None:
+    """The sunken entry where the steps still fault (`sunken.sink`), kept when `rooms.check` finds less."""
+    from .sunken import sink
+    first, faults = _held(interior), len(check(interior))
+    sink(interior, style)
+    if len(check(interior)) >= faults:
+        _hold(interior, first)
+
+
+KEEP_MORE = (0.0, 0.3)   # m beyond the steps' least depth kept free on a second and third plan (47.1)
+
+
+def _plan(interior: Interior, outside, style: dict, layout: str) -> None:
+    """Rooms by layout (a shop front first), then hair strips trimmed and inner openings settled."""
     if layout in SOUK and any(o.kind == "shop" and o.floor == 0 for o in interior.openings):
         with_shop(interior, outside, style, layout)
     else:
@@ -55,7 +96,53 @@ def plan_interior(outside, style: dict) -> Interior:
     from .plancheck import settle, trim
     trim(interior)
     settle(interior)
-    return interior
+
+
+HELD = ("layout", "storeys", "rooms", "openings", "stairs", "flats", "features", "warnings", "rules", "focus",
+        "entry", "piers")
+
+
+def _held(interior: Interior) -> dict:
+    import copy
+    return {k: copy.deepcopy(getattr(interior, k)) for k in HELD}
+
+
+def _hold(interior: Interior, state: dict) -> None:
+    import copy
+    for k, v in state.items():
+        setattr(interior, k, copy.deepcopy(v))
+
+
+def check(interior: Interior) -> list:
+    from .rooms import check as rooms_check
+    return rooms_check(interior)
+
+
+def short_steps(interior: Interior, style: dict) -> bool:
+    """True when entry steps fault the plan check (treads under `tread_min`, clipped) although the storey
+    behind their door is deep enough for them (`stairs.steps_depth`)."""
+    import math
+
+    import numpy as np
+    from shapely.geometry import LineString
+
+    from .plancheck import _steps
+    from .stairs import steps_depth
+    if not any("entry steps" in f and "stair" not in f for f in _steps(interior, interior.rules.get("plan", {}))):
+        return False
+    cfg = style.get("interiors", {}).get("stairs", {})
+    st0, ext = interior.storeys[0].polygon.buffer(1e-6), interior.walls["exterior"]
+    for s in interior.stairs:
+        if s.kind != "steps":
+            continue
+        x, y, yaw = s.door
+        inward = -np.array([math.cos(yaw), math.sin(yaw)])     # the steps' yaw points out of the door
+        face = np.array([x, y]) + inward * ext
+        ray = LineString([face, face + inward * 50.0]).intersection(st0)
+        deep = max((g.length for g in getattr(ray, "geoms", [ray]) if g.geom_type == "LineString"), default=0.0)
+        if deep >= steps_depth(s.risers * s.riser, cfg):
+            return True
+    return False
 
 
 def with_shop(interior: Interior, outside, style: dict, layout: str) -> None:

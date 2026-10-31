@@ -93,6 +93,7 @@ class Stair:
     rooms: list = field(default_factory=list)   # its room on each floor it serves
     turn: int = 0     # entry steps turned at the door's landing: +1 / -1 along the wall (47.1/48.1), 0 straight
     flight: float = 0.0   # a turned flight's width (and its door landing's depth)
+    sunk: int = -1    # steps from a sunken entry room (its id, 47.1/48.1): they rise from its inner opening
 
     def to_json(self) -> dict:
         door = None if self.door is None else [_r(self.door[0]), _r(self.door[1]), round(float(self.door[2]), 5)]
@@ -101,6 +102,8 @@ class Stair:
                "door": door, "rooms": list(self.rooms)}
         if self.turn:
             out.update(turn=self.turn, flight=_r(self.flight))
+        if self.sunk >= 0:
+            out.update(sunk=self.sunk)
         return out
 
 

@@ -230,8 +230,9 @@ def floors_mesh(mb, interior, outside, style: dict) -> None:
         for room, parts, _ in frees:
             if room.type == "well" or R.is_court(room):
                 continue
+            zf = room.z if room.z < z - TOL else z        # a sunken entry room (47.1) lies under floor 0
             for p in polygons(unary_union(parts).intersection(region)) if parts else []:
-                add_cap(mb, p, z, mat)
+                add_cap(mb, p, zf, mat)
         if f > 0:
             edges(mb, region, base(interior, f), faced(interior, f - 1, half), z - thick, z)
         for room, poly, zc in ceilings(interior, f, style, outside):

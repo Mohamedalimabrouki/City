@@ -363,7 +363,8 @@ def dress(mb, interior, o, hole: Hole, ops: dict) -> None:
         return
     shape, _ = outline_of(o, ops)
     pts = np.asarray(shape.exterior.coords)[:-1]
-    sill = not (o.wall is None and o.kind not in FACADE and o.z0 <= floor_z + GAP)   # a partition's floor shows
+    sill = not (o.wall is None and o.kind not in FACADE and floor_z - GAP <= o.z0 <= floor_z + GAP)   # a
+    # partition's floor shows, a sunken entry's opening (47.1) has its own threshold
     reveal(mb, c, front, along, d0, d1, pts, sill)
     if o.kind in FACADE and o.z0 < floor_z - GAP:     # a door below its floor: the step up inside
         h = o.width / 2

@@ -3822,6 +3822,39 @@ def test_turned_entry_steps(old_town, interior_ctx):
         assert (abs(z[1:] - z[:-1]) <= S.riser_max(s, cfg) + 1e-9).all() and z[-1] == S.level(interior, 0)
 
 
+def test_sunken_entry(interior_ctx):
+    """Where the storey is too shallow behind the street door for its steps, the entry room sinks to the
+    door's threshold and the steps rise from its inner openings into the next rooms (47.1/48.1): the plan
+    check passes, the room keeps floor 0's ceiling, the openings start on its floor, open sides get rails."""
+    from citygen.interior import rooms
+    from citygen.interior import stairs as S
+    from citygen.interior.context import city_plan
+    from citygen.interior.layout import plan_interior
+    from citygen.interior.outside import Outside
+    plan = city_plan(interior_ctx)
+    style = interior_ctx.world.style
+    cfg = style["interiors"]["stairs"]
+    for k in (353, 255, 284):                         # compact, dar (two flights), a one-room small house
+        interior = plan_interior(Outside(interior_ctx, plan, k), style)
+        assert rooms.check(interior) == [], (k, rooms.check(interior)[:3])
+        st = interior.storeys[0]
+        low = [r for r in interior.rooms if r.floor == 0 and r.z < st.z - 0.05]
+        assert len(low) == 1, k
+        room = low[0]
+        assert abs(room.z + room.height - (st.z + st.height)) < 1e-6
+        flights = [s for s in interior.stairs if s.kind == "steps"]
+        assert all(s.sunk == room.id for s in flights)
+        for s in flights:
+            assert s.tread >= cfg["tread_min"] - 1e-9
+            o = next(o for o in interior.openings if room.id in o.rooms and o.kind == "inner")
+            assert abs(o.z0 - room.z) < 1e-6
+            z = S.treads(s, interior, cfg)[0].pts[:, 2]
+            assert z[-1] == S.level(interior, 0) and S.treads(s, interior, cfg)[0].z_from == room.z
+        assert len(flights) == {353: 1, 255: 2, 284: 0}[k]
+        assert all(len(S.rails(s, interior, cfg, {})) == (0 if k == 353 else 2) for s in flights)   # 353:
+        # the steps span the bit el ma wall to wall
+
+
 def rooms_pieces(interior, a, b) -> list:
     from citygen.interior.rooms import pieces_between
     return pieces_between(interior, a, b)
@@ -3959,8 +3992,7 @@ def test_new_district_sample_is_valid(new_districts):
 
 
 OPEN_47 = ("colonial", "slab")   # open item 47.1: flats not yet at the bar (WORKLOG)
-OPEN_STEPS = {501: 0.15}   # open (47.1/48.1, WORKLOG): a domed house whose annex is too short even for
-                                      # turned entry steps (a 1.32 m rise, 1.16 m along the wall)
+OPEN_STEPS: dict = {}   # open (47.1/48.1, WORKLOG): entry steps under `tread_min` (501 got a sunken entry)
 OPEN_PALIER = {"villa": (363,), "maison": (852, 863, 864)}   # open (47.1/48.1, WORKLOG): a couloir squeezed
 # between a U stair's palier and a wall narrows its arch or doors (the new wall checks see them)
 OPEN_47_HOUSES = {"koubba": (570,)}   # open item 47.1: No. 570's annex is a strip round the koubba, too narrow

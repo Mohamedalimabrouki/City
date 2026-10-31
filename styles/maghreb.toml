@@ -1963,6 +1963,7 @@ turn_min = 0.6           # meters: the shortest landing beyond them where the ro
 tread_min = 0.2          # meters, the shortest tread of entry steps (plans give the entry room the depth)
 steps_flight = 0.9       # meters: entry steps too long for a straight run turn at the door's landing (lead, 47.1)
 steps_flight_min = 0.7   # meters: ... in a shallower room the flight narrows down to this
+sunken_head = 1.0        # meters: a sunken entry room's inner opening keeps its head at least this over floor 0 (47.1)
 u_width = 1.0            # meters, a flight of a villa's or maison's U stair
 core_width = 1.1         # meters, a flight of a block's stair core
 u_tread = 0.28           # meters
