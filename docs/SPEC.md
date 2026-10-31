@@ -1718,7 +1718,9 @@ and a qahwa's on `shop`.
   the plan is made again), the next 0.15 s. The answer's folder is checked against the same pattern.
 - The card of a dwelling (`HOUSING`: house, domed, apartments, villa) gets "Open interior" when
   `api/interior` answers ok; a click opens a tab at once (a tab opened after the wait would be stopped as
-  a pop-up), shows "making the interior..." and sends that tab to `?folder=...&view=interior`; a refusal
+  a pop-up), shows "making the interior..." and sends that tab to `?folder=...&cut=0` (the overview
+  from above, cut open at the ground floor: the whole plan first, not the interior spot, which can face a
+  plain wall); a refusal
   shows its message on the card. Without a server the card says "Interiors: open this city with python
   -m citygen view on the computer" (the phone page of `tools/make_artifact.py` sets `SERVER_API = false`
   and asks no server).

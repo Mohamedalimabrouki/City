@@ -1424,7 +1424,8 @@ async function openInterior(cityName, k, button) {
     const res = await fetch(`api/interior?city=${encodeURIComponent(cityName)}&building=${k}`, { cache: 'no-store' });
     const answer = await res.json().catch(() => ({}));
     if (!res.ok || !FOLDER_RE.test(answer.folder || '')) throw new Error(answer.error || `the server answered ${res.status}`);
-    const url = new URL(`?folder=${answer.folder}&view=interior`, location.href).href;
+    // the whole plan first: the overview from above, cut open at the ground floor
+    const url = new URL(`?folder=${answer.folder}&cut=0`, location.href).href;
     if (tab) tab.location.href = url;
     else if (!window.open(url, '_blank')) {
       const link = Object.assign(document.createElement('a'), { href: url, target: '_blank', textContent: 'Open the interior' });
