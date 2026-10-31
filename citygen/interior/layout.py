@@ -33,7 +33,10 @@ def plan_interior(outside, style: dict) -> Interior:
     layout = layout_of(plan, b, style)
     walls_cfg = style.get("interiors", {}).get("walls", {})
     partition = walls_cfg.get("partition", 0.2) if layout in TRADITIONAL else walls_cfg.get("partition_modern", 0.15)
-    walls = {"exterior": exterior_wall(style, outside.district), "court": float(walls_cfg.get("court", 0.3)),
+    court = float(walls_cfg.get("court", 0.3))
+    if layout not in TRADITIONAL and b.footprint.interiors:   # a colonial block's or maison's courts (47.2):
+        court = exterior_wall(style, outside.district)         # walls as thick as the street's, with facade windows
+    walls = {"exterior": exterior_wall(style, outside.district), "court": court,
              "partition": float(partition),
              "roof": float(style.get("interiors", {}).get("floors", {}).get("roof_wall", 0.2))}   # roof rooms (49)
     home = next((h for h in getattr(plan, "households", ()) if h.building == k), None)

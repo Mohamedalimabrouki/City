@@ -67,7 +67,8 @@ config.load_config()          defaults.toml + worlds/*.toml + CLI overrides
       buildings               per-district building rules, mosques, parks, cemetery
       life                    a household behind every house door, a trade for every souk
       massing                 rows, cut corners, domes, set-back top floors, stepped slabs, villa
-                              L's, roof machinery and roof rooms (never adds or moves a building)
+                              L's, roof machinery and roof rooms, courts of deep colonial blocks
+                              and maisons (never adds or moves a building)
       greenery                street trees on arterials, courtyard trees, villa fruit trees
                               (last, after the road paint; only appends to `trees`)
       port                    quays along the port districts' coast, a breakwater and its lighthouse
@@ -255,6 +256,18 @@ block on `rng("impasse", block)`: lot line jitter, widths, covered share and len
   (`l_share`): the hip-roofed part across one end (`l_main` of the length), a flat terrace wing one
   floor lower (`l_wing` of the depth, `terrace_roof`). Old-town courtyard houses get a menzah with
   chance `menzah`.
+  Courts (47.2, `city/courts.py`, last step of the massing, no random draw, `[courts]`): a colonial block
+  (`apartments` in a colonial district) or maison (`house` outside medina and village) whose footprint
+  lies farther than `reach` m from every windowed wall (a street wall, as the dresser finds its street,
+  or a wall facing open ground, `open_walls`; walls under 1.5 m and party walls hold none) gets courts
+  cut as holes, open to the sky from floor 0. Each is a rectangle along the footprint's `frame`, on a
+  `grid` m search grid, at least `front` m from a windowed wall, `party` m from a party wall and `between`
+  m from another court, of sides `sizes` (`court` 4-10 m, `well` 2.4-3.5 m, `patio` 3-7 m), tried in the
+  order `plan` gives (a colonial block: a main court, then up to four light wells; a maison: one
+  patio): the smallest that lights every dark point wins, else the one lighting the most. Footprints
+  less dark than `min_dark` m2 keep none. The outer ring stays exactly as it was; a set-back top floor
+  gets the same holes (the court stays open); a corner dome or turret keeps 1 m clear. Quick capital:
+  241 of 270 colonial blocks (224 main courts, 22 light wells); Ain Chilel: 293 of 616 maisons.
   Fortification fields (prompt 30, `city/kasbah.py`): `battlement` ({"chains", "breast", "merlon",
   "depth"}: a breastwork with merlons along each chain of the roof edge, the building's inside on the
   left; such a building gets no parapet from `roof_layout`) and `arches` ([(x, y, yaw, width, height,
@@ -1011,6 +1024,11 @@ shaders (which ignore the image and the tint) and takes their palette color from
   width, `[dressing] window_half` m each side), so none floats above a lower step or on a set-back
   terrace's edge; staircase windows stop below their part's roof. Walls of a set-back floor or of a
   villa's main part facing their terrace get windows on every floor above it (`terrace` stream).
+  Court walls of colonial blocks and maisons (47.2, `Dresser._court_windows`, `[dressing.courts]`, own
+  stream `rng("court", k)`): a column every `spacing` m of each wall of `wall` m or more (at least one),
+  a window on every floor in the household's color (`style`: shutters or grilles); a court narrower than
+  `well_side` m is a light well and its windows are `well_scale` the size. The interiors read them as
+  facade openings (`outside.wall_segments` holds the court rings, normals into the court).
   Props stand on the main roof (`main_mass`), off the stair room, menzah, machinery and a corner dome
   (`RoofLayout.rooms`); tank stands are the `tank_stand` piece (110 triangles) where massing put them.
   A door's climber and a span's height read the wall height there (`wall_height`).

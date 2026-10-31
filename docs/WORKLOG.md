@@ -31,7 +31,9 @@ Entry format:
   cuisine); round 11: villa 167/170, maison 585/586 under it, colonial 66 and slab 215. Ali then chose
   the redesign (47.2 in docs/ROADMAP.md, design in the 47.1 + 48.1 entry: courtyards and light wells for
   deep colonial blocks and maisons, every chambre, salon, salle a manger and cuisine with a window), and
-  left the models to the lead (helpers Opus high from round A). Next: 47.2 round A, the courts in the city.
+  left the models to the lead (helpers Opus high from round A). 47.2 round A done (courts in the city:
+  241 colonial blocks, 293 maisons; interiors not yet planned around them: colonial 13, maison 569).
+  Next: 47.2 round B, the interiors lit by the courts and the window check.
   Uncommitted changes in the tree are the round in progress (backup branch `wip/47.1-48.1`).
 - Next: 47.1 with 48.1 (50 done 31 October: Open interior on a dwelling's card in `citygen view` and the
   gallery). Then 51. For 47.1 + 48.1:
@@ -812,6 +814,88 @@ Entry format:
   - Bars, with every check (way home included): colonial 257/270, slab 336/353, maison 586/616, villa
     170/178, the old town unchanged. The fingerprint changes only in the parts that hold changed
     buildings (listed exactly); `tools/make_blend.py` refreshes Blender when tiles change.
+- 47.2 round A (courts in the city; helper, Opus 5.5; the lead commits):
+  - Changed: citygen/city/courts.py (new: `courts_for`, a pure function of a footprint, which walls hold
+    windows and the numbers; `apply_courts`, `cut`; 0.7 s on the quick capital), citygen/city/massing.py
+    (courts as the last massing step, no draws), citygen/city/dressing.py (`_court_windows`, own stream
+    `rng("court", k)`), citygen/interior/outside.py (`wall_segments` holds the court rings, after the old
+    ones), citygen/interior/layout.py (court walls of a modern home with courts as thick as its street walls),
+    styles/maghreb.toml (`[courts]`, `[dressing.courts]`), tests (`test_court_rule` new, 0.1 s; `OPEN_472`:
+    colonial No. 825, maisons No. 848, 990), SPEC (massing, dressing), HANDOFF, ROADMAP (47.2: round A noted,
+    not ticked).
+  - Counted first (outer rings, quick capital and Ain Chilel): 245 of 270 colonial blocks and 486 of 616
+    maisons lie deeper than 6.5 m from their windowed walls (street walls and walls facing open ground, the
+    dresser's own rule; party walls hold none). Villas and slabs: untouched by design.
+  - The rule (`city/courts.py`, `[courts]`): the dark part is the footprint less a `reach` 6.5 m buffer of the
+    windowed walls (exact polygon). Courts are rectangles along the footprint's frame, searched on a 0.5 m
+    grid, at least `front` 4.0 m from a windowed wall, `party` 2.4 m from a party wall, `between` 3.0 m from
+    another court, sides from `sizes`: colonial `court` 4-10 m then up to four `well`s 2.4-3.5 m; maison one
+    `patio` 3-7 m. Per kind in turn: the smallest court lighting the whole dark part (every corner of its
+    convex hull within `reach`), the one nearest its middle; else the one lighting the most dark cells. A
+    footprint less dark than `min_dark` 1 m2 keeps none. The outer ring keeps its exact coordinates (street
+    draws unchanged); a set-back top floor gets the same holes (court open to the sky; it must contain the
+    court with 0.5 m to spare); a corner dome keeps 1 m clear. Roof stair rooms, terraces and roof props
+    already keep to `RoofLayout.inner`, which the parapet round each court leaves out.
+  - Result: quick capital 241 colonial blocks with courts (224 main courts, mean 5.6 x 4.3 m; 22 light wells,
+    2.5 x 2.5 m); 18 blocks stay partly dark (no room for a court or well by the rule, farthest point 6.7-9.3
+    m). Ain Chilel 293 maisons with a patio (mean 3.2 x 3.0 m); 193 deep maisons get none: their lots are 7-9
+    m wide, too narrow for a 3 m patio with 2.4 m rooms beside it (measured options: a 2.4 m light well when
+    no patio fits 149 still dark; side rooms 2.0 m 155; both 112).
+  - Court walls: a column every `spacing` 2.8 m (at least one on a wall of `wall` 1.8 m), a window on every
+    floor from the ground, shutters 65% or grilles 35% in the household's door color, a light well's 0.75 the
+    size (`[dressing.courts]`). `Outside` hands them over as facade openings on their court wall.
+  - Nothing else moved (per-building proof, HEAD copy against the tree, capital and Ain Chilel): every
+    building without a court has the same footprint, fields, household and dresser placements (1,427 in the
+    capital, 739 in Ain Chilel); the 241 + 293 courted ones change footprint and placements only. In the five
+    changed tiles every triangle and placement outside the courted buildings is the same, except 5 more people
+    in two tiles: the crowd's figures take a byte share of the whole tile, which grew. Interiors (survey with
+    walls): every house without a court has a byte-identical rooms.json (slab 353, villa 178, colonial 29,
+    maison 323).
+  - Fingerprint `--allow "plan/goumosbane/buildings,maps/goumosbane.png,tiles/index,tiles/tile_12_23.glb,
+    tiles/tile_12_23_lod1.glb,tiles/tile_13_23.glb,tiles/tile_13_23_lod1.glb,tiles/tile_13_24.glb,
+    tiles/tile_13_24_lod1.glb,tiles/tile_14_23.glb,tiles/tile_14_23_lod1.glb,tiles/tile_14_24.glb,
+    tiles/tile_14_24_lod1.glb"`: 282 parts, 13 changed, all allowed (the tiles holding colonial blocks, the
+    plan's buildings, the city map, the index's byte count). Tile bytes: 13_24 +12% (1.47 -> 1.65 MB), 14_24
+    +6%, 13_23 +3.5% (4.69 -> 4.85 MB), 12_23 +3%, 14_23 +2.6%.
+  - Interiors (no crash anywhere; the planners do not use the courts yet): colonial 66 -> 13 of 270 (55 lost,
+    2 won: mostly "only through a chambre, bath or cuisine", the flats' spine does not route round a court),
+    slab 215 = 215, maison 585 -> 569 of 616 (21 lost, 5 won), villa 167 = 167. Blind rooms in every plan,
+    passing or not (`blind.py` without its pass filter, HEAD copy against the tree): colonial chambres 4,358
+    -> 2,415 of about 5,500 (78% -> 44%), cuisines 442 -> 101, salles a manger 840 -> 477, salons 24 -> 9,
+    blocks with 3+ blind chambres 258 -> 236; maison chambres 1,492 -> 623 of 3,410 (44% -> 18%), cuisines 186
+    -> 74, salles a manger 343 -> 224, salons 60 -> 35, houses with 3+ 190 -> 76. The lead's `blind.py`
+    (passing plans only): colonial 66 passing, chambres 884/1,218 blind -> 13 passing, 99/247; maison 585
+    passing, 1,424/3,245 -> 569 passing, 576/3,087; slab and villa unchanged (848/9,671, 17/600).
+  - Tests: `test_court_rule` (rectangles: a 12 x 24 block gets a court, a 10 x 16 maison one patio, a 14 x 9
+    house none, a 7 x 16 lot none and stays dark). The sample colonial block No. 825 of the interior fixture
+    got a court: its street door now opens into flat 0's hall and a partition crosses that door, so
+    `test_flats` skips it and `test_interior_holes_match_the_facade` allows exactly that door's fault
+    (`OPEN_472`, round B); its court windows' holes are still checked. The slow
+    `test_new_district_plans_are_valid` skips maisons No. 848 and 990, which got a patio and now fail
+    (`OPEN_472`). `pytest -q` 141 passed; `pytest -q -m slow` 5 passed, 1 xfailed (as before).
+  - Pictures: output/checks/472-a.png (quick capital colonial blocks from above: courts with windows on every
+    floor), output/checks/472-a2.png (Ain Chilel maisons with patios; built with `--build-args "--area
+    'city-center:Ain Chilel' --out output/ain472"`), output/checks/472-a-plans.png (colonial No. 971 court,
+    No. 940 court and light well, maison No. 882 patio). Blender: output/bodjantouna-42/goumosbane.blend
+    refreshed.
+  - Choices for Ali: courts are rectangles along the building (as built blocks have them); a main court is as
+    small as lights the block (about 5.5 x 4.3 m, rooms 4-6.5 m deep round it), light wells 2.5 m; court
+    windows on every floor including the ground floor, plain shutters or grilles; the maison patio 3 x 3 m in
+    most houses. Narrow maisons (7-9 m) keep a dark back: a patio against a party wall (as many real narrow
+    town houses do) would be a notch in the footprint and could change the neighbours.
+  - Left for round B: the flats and maison planners use the courts (rooms round them, the spine routed round a
+    court, services on light wells), the window check, No. 825 (`OPEN_472`); the 193 narrow maisons and 18
+    blocks still partly dark (a rule for them); round C the bars.
+- Lead (after 47.2 round A): committed as progress. Read the whole diff: the courts take no draws, their
+  windows have their own stream ("court", k); every other building, household and name unchanged (the
+  helper's building-by-building compare); the lead re-surveyed the old town: 677 of 677 rooms.json
+  identical (old-town courts also enter `outside.wall_segments` now, with no effect). Fingerprint: the 13
+  parts the helper named, nothing else. `pytest -q` 141 passed in 45.5 s (41.5 s at 901a5d6: round B
+  should win the 4 s back); the lead moved `[dressing.courts]` above the open-walls comment it had split
+  from its table. Seen in 472-a.png and 472-a2.png: courts and light wells with windows on every floor in
+  the colonial quarter, small patios in Ain Chilel's maisons; in 472-a-plans.png No. 971's flats ring
+  their court, No. 940's floor-1 and floor-2 salons wrap the court as long L strips and its light well
+  loses its walls on floor 3 (round B). goumosbane.blend refreshed by the helper.
 
 ## 2026-10-31 - Prompt 50 H1f Interiors in the viewer
 - Commit: (lead commits) | Model: Opus 5.5, high

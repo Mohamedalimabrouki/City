@@ -16,7 +16,7 @@ from dataclasses import dataclass
 
 import numpy as np
 import shapely
-from shapely.geometry import LineString, Point
+from shapely.geometry import LineString, Point, Polygon
 from shapely.geometry.polygon import orient
 from shapely.strtree import STRtree
 
@@ -220,6 +220,7 @@ class Dresser:
         self._machines(b, high, out)
         out += arcade + iron
         self._terrace_windows(k, b, high, out)
+        self._court_windows(k, b, high, out)
         if self.every_home:
             boxes = self._boxes(walls, front, street + iron, shadow)
             spots = self._entrances(k, b, walls, front, boxes)
@@ -641,6 +642,41 @@ class Dresser:
                     role = self._window_role(tint, False, False, floor, rng.random())
                     if role:
                         self.put(out, role, rng, p, high + floor * fh + sill, yaw, on_ground=False)
+
+    def _court_windows(self, k: int, b, high: float, out: list) -> None:
+        """Windows on the court walls of a colonial block or maison (47.2, city/courts.py): one column every
+        `spacing` m of each court wall, a window on every floor (the courts are open from the ground), in
+        the household's color; a light well's smaller. Own stream `rng("court", k)`, no other draw moves."""
+        cfg = self.cfg.get("courts", {})
+        if not cfg or not b.footprint.interiors or b.kind not in ("apartments", "house") \
+                or self.kinds[b.district] in TRADITIONAL:
+            return
+        home = self.homes.get(k)
+        tint = (home.door if home else "door_blue")[5:]
+        rng = self.rng("court", k)
+        floors = max(1, int(b.floors))
+        fh = b.height / floors
+        sill = float(self.cfg.get("window_sill", 0.95))
+        spacing, least = float(cfg.get("spacing", 2.8)), float(cfg.get("wall", 1.8))
+        well, scale = float(cfg.get("well_side", 4.0)), float(cfg.get("well_scale", 0.75))
+        styles = cfg.get("style", [["shutter", 1.0]])
+        for hole in orient(b.footprint, 1.0).interiors:
+            ring = np.asarray(hole.coords)[:-1, :2]
+            size = scale if frame(Polygon(ring))[3] < well - 1e-6 else 1.0
+            for a, c in zip(ring, np.roll(ring, -1, axis=0)):
+                length = float(np.hypot(*(c - a)))
+                if length < least:
+                    continue
+                u = (c - a) / length
+                yaw = yaw_of(np.array([u[1], -u[0]]))       # a court ring runs clockwise: out into the court
+                count = max(1, int(length // spacing))
+                for i in range(count):
+                    p = a + u * (i + 0.5) * length / count
+                    for floor in range(floors):
+                        kind = weighted(rng, styles)
+                        role = next((r for r in (f"window_{kind}_{tint}", f"window_grille_{tint}") if self.has(r)), None)
+                        if role:
+                            self.put(out, role, rng, p, high + floor * fh + sill, yaw, on_ground=False, scale=size)
 
     # --- colonial arcades and iron balconies (prompt 22) ----------------------------------------
     def _colonial(self, b, k: int, walls: Walls, high: float, street: list, slots: list) -> tuple:

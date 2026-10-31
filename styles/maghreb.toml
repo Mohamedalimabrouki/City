@@ -903,6 +903,20 @@ edge_clear = 1.5           # meters from the lot edges (the hedges)
 tree_clear = 3.0           # meters from any other tree
 
 # --- roofs -------------------------------------------------------------------------
+# Courts of the new districts (47.2, city/courts.py): a colonial block or maison whose footprint lies
+# deeper than `reach` from its windowed walls (street walls, walls facing open ground; party walls hold
+# none) gets courts cut as holes, open to the sky from the ground floor, as Tunis and Algiers blocks of
+# 1900-1950 and Tunisian town houses have them. Every court is a rectangle along the footprint's frame.
+[courts]
+reach = 6.5                # meters: farthest a room may lie from a windowed wall or a court (4.5-5 m room + couloir)
+front = 4.0                # meters of rooms kept between a windowed wall and a court
+party = 2.4                # meters between a court and a party wall: a kitchen or bath beside it
+between = 3.0              # meters between two courts of one building
+grid = 0.5                 # meters: the search grid
+min_dark = 1.0             # m2: a footprint less dark than this gets no court
+sizes = { court = [4.0, 10.0], well = [2.4, 3.5], patio = [3.0, 7.0] }   # meters, smallest and largest side
+plan = { colonial = ["court", "well", "well", "well", "well"], maison = ["patio"] }   # courts tried in turn
+
 # Flat roofs get a low wall around the edge (a parapet) and some of them a stair room,
 # a small room with a door that opens on the roof. Heights and shares by district kind.
 [roofs]
@@ -1214,6 +1228,13 @@ lantern = 0.8              # chance of a lantern hanging from each inner arch
 chain = 0.4
 lower = { lamp = 2.2, souk_awning = 1.8 }   # roles lowered under a roof instead of dropped, while their
                            # bottom stays this many meters above the street (others that would pierce it go)
+
+[dressing.courts]          # windows on the court walls of colonial blocks and maisons (47.2, Dresser._court_windows)
+spacing = 2.8              # meters of court wall per window column (at least one on a wall of `wall` m)
+wall = 1.8                 # meters: shorter court walls stay blank
+style = [["shutter", 0.65], ["grille", 0.35]]   # plain courtyard windows in the household's color
+well_side = 4.0            # meters: a court narrower than this is a light well ...
+well_scale = 0.75          # ... and its windows are this much smaller
 
 # Walls facing open ground (no building within `clear` m in front of them) get windows too, by district.
 [dressing.open_walls]

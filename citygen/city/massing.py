@@ -12,6 +12,8 @@ its own random stream `ctx.rng("massing", feature, k)`; the numbers live in `[di
             and water tanks on stands stand on their roofs
   suburb    villas as an L: a hip-roofed part and a flat terrace wing one floor lower
   medina    a few courtyard houses get a menzah, a small roof room (placed by roofs.roof_layout)
+  courts    deep colonial blocks and maisons get courts cut from their footprint (city/courts.py, 47.2):
+            a main courtyard and light wells, or a maison's patio, kept by the set-back top floor
 
 `masses(b)` turns the fields into the volumes the tile mesher draws and the dresser dresses; every
 reader of a building's height or floors goes through it (`floors_at`, `wall_height`).
@@ -29,6 +31,7 @@ from shapely.strtree import STRtree
 
 from ..mesh.builder import rectangle
 from ..rng import weighted
+from .courts import apply_courts
 from .geo import frame, largest, polygons
 from .openings import wall_arrays
 
@@ -213,6 +216,8 @@ def apply_massing(ctx, plan) -> None:
         elif b.kind == "house" and kind in ("medina", "village") and b.footprint.interiors:
             if ctx.rng("massing", "menzah", k).random() < float(style[kind].get("menzah", 0.0)):
                 b.menzah = True
+    if tree is not None:                       # courts of deep colonial blocks and maisons (47.2), no draws
+        apply_courts(ctx, plan, kinds, lambda b: street_of(tree, probes(b, *wall_arrays(b.footprint)[:3])))
 
 
 def street_of(tree, pts: np.ndarray) -> np.ndarray:

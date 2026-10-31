@@ -4046,6 +4046,8 @@ def test_new_district_plans_are_valid(interior_ctx, world, villas):
                 continue                                  # open item 47.1: test_open_samples_are_valid
             if interior.building in OPEN_PALIER.get(group, ()):
                 continue                                  # open (47.1/48.1): slivers round a U stair's palier
+            if interior.building in OPEN_472.get(group, ()):
+                continue                                  # open (47.2 round B): plans round a court
             want = [f"the entry steps have treads of {OPEN_STEPS[interior.building]:.2f} m"] \
                 if interior.building in OPEN_STEPS else []
             assert rooms.check(interior) == want, (group, interior.building, rooms.check(interior)[:3])
@@ -4068,6 +4070,9 @@ OPEN_STEPS: dict = {}   # open (47.1/48.1, WORKLOG): entry steps under `tread_mi
 OPEN_PALIER = {"villa": (363,), "maison": (863,)}   # open (47.1/48.1, WORKLOG): a couloir squeezed
 # between a U stair's palier and a wall narrows its arch or doors (the new wall checks see them)
 OPEN_47_HOUSES = {"koubba": (570,)}   # open item 47.1: No. 570's annex is a strip round the koubba, too narrow
+OPEN_472 = {"colonial": (825,), "maison": (848, 990)}   # open (47.2 round B): the sample block got a court;
+# its street door opens into flat 0's hall, not the palier, and a partition crosses that door; maisons No. 848 and
+# 990 got a patio (848: a couloir only through a chambre; 990: a partition meets the palier near a window)
 
 
 @pytest.mark.slow
@@ -4154,6 +4159,8 @@ def test_flats(new_districts, interior_ctx, plan):
     for interior, outside in new_districts["slab"] + new_districts["colonial"]:
         if interior.layout == "colonial" and any("ladder goes up" in w for w in interior.warnings):
             continue                                      # open (prompt 47): a block no stair fits, WORKLOG
+        if interior.building in OPEN_472.get(interior.layout, ()):
+            continue                                      # open (47.2 round B): flats round a court
         assert interior.flats
         by_id = {r.id: r for r in interior.rooms}
         types = interior.rules["flat_types"]
@@ -4264,7 +4271,12 @@ def test_interior_holes_match_the_facade(interior_ctx, old_town, new_districts):
         found = M.faults(interior, list(holes.values()), style)
         if interior.layout in OPEN_47:                # open item 47.1: partitions near windows in flats
             found = [f for f in found if not f.startswith("a partition crosses")]
-        assert found == OPEN_48.get(interior.building, []), interior.building
+        crossed = set()
+        if interior.building in OPEN_472.get(interior.layout, ()):     # open (47.2 round B): flats round a court
+            crossed = {int(f.split("opening ")[1].split()[0]) for f in found if "opening " in f}
+            assert crossed == {0}, (interior.building, found)          # its street door only
+        else:
+            assert found == OPEN_48.get(interior.building, []), interior.building
         facade = [o for o in interior.openings if o.piece]
         pieces = _facade_pieces(outside)
         assert [o.piece for o in facade] == [p.piece for p in pieces]
@@ -4280,7 +4292,8 @@ def test_interior_holes_match_the_facade(interior_ctx, old_town, new_districts):
             off = (h.x - cx) * math.cos(p.yaw) + (h.y - cy) * math.sin(p.yaw)
             got = (off, h.width - (x1 - x0) * along, h.z0 - (p.z + y0 * p.scale), h.z1 - (p.z + y1 * p.scale))
             assert max(abs(v) for v in got) < 0.02, (interior.building, p.piece, got)
-            assert abs(h.back - h.width) < 0.02, (interior.building, p.piece, h.back)   # cut through to the room
+            if o.id not in crossed:
+                assert abs(h.back - h.width) < 0.02, (interior.building, p.piece, h.back)   # cut through to the room
 
 
 def test_interior_budget(interior_build, interior_ctx, tmp_path):
@@ -4438,3 +4451,45 @@ def test_carve_band():
     beside = band(chambre, ((2.0, 0.0), (6.0, 0.0)), box(6, 0, 7, 4), 1.15, 0.1, 8.0)   # a goal along it
     assert beside and abs(beside[0].bounds[2] - 6.0) < 1e-6 and abs(beside[0].area - 4 * 1.15) < 1e-6
     assert band(chambre, ((2.0, 0.0), (6.0, 0.0)), box(10, 0, 11, 4), 1.15, 0.1, 8.0) == []
+
+
+def test_court_rule():
+    """Courts of deep colonial blocks and maisons (47.2): a footprint deeper than `reach` from its windowed
+    walls gets courts that light every point of it, `front` m or more behind the windowed walls, `party` m or
+    more from the party walls; a shallow one, or one too narrow for a court clear of its party walls, none.
+    Hand-made rectangles (the first wall of `wall_arrays` runs along y = 0, the street)."""
+    from shapely.geometry import box
+
+    from citygen.city.courts import courts_for, darkest
+    from citygen.city.geo import frame
+    from citygen.city.openings import wall_arrays
+    cfg = {"reach": 6.5, "front": 4.0, "party": 2.4, "between": 3.0, "grid": 0.5, "min_dark": 1.0,
+           "sizes": {"court": [4.0, 10.0], "well": [2.4, 3.5], "patio": [3.0, 7.0]}}
+
+    def street_side(fp):                                   # the wall along y = 0 holds windows
+        p, q, _n, _length = wall_arrays(fp)
+        return (np.abs(p[:, 1]) < 1e-9) & (np.abs(q[:, 1]) < 1e-9)
+
+    def check(fp, got, lo):
+        lit = street_side(fp)
+        p, q, _n, _length = wall_arrays(fp)
+        party = shapely.MultiLineString([[a, b] for a, b, w in zip(p, q, lit) if not w])
+        street = shapely.MultiLineString([[a, b] for a, b, w in zip(p, q, lit) if w])
+        assert darkest(fp, lit, [c for _, c in got]) <= cfg["reach"] + 0.1
+        for _kind, c in got:
+            assert fp.contains(c) and c.distance(street) >= cfg["front"] - 1e-6
+            assert c.distance(party) >= cfg["party"] - 1e-6
+            assert frame(c)[3] >= lo - 1e-6
+
+    block = box(0, 0, 12, 24)                              # a colonial block 24 m deep, street on its 12 m side
+    got = courts_for(block, street_side(block), cfg, ["court", "well", "well"])
+    assert [k for k, _ in got][:1] == ["court"]
+    check(block, got, 2.4)
+    house = box(0, 0, 10, 16)                              # a maison 16 m deep: one patio
+    got = courts_for(house, street_side(house), cfg, ["patio"])
+    assert len(got) == 1 and got[0][0] == "patio"
+    check(house, got, 3.0)
+    assert courts_for(box(0, 0, 14, 9), street_side(box(0, 0, 14, 9)), cfg, ["patio"]) == []   # 9 m: all lit
+    narrow = box(0, 0, 7, 16)                              # 7 m wide: no 3 m patio clear of both party walls
+    assert courts_for(narrow, street_side(narrow), cfg, ["patio"]) == []
+    assert darkest(narrow, street_side(narrow), []) > cfg["reach"]

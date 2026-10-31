@@ -93,11 +93,13 @@ def hole(kit, name: str, frame: float) -> tuple:
 
 
 def wall_segments(b) -> tuple:
-    """(starts, ends, outward normals, lengths) of the footprint's exterior ring, then of every mass outline."""
+    """(starts, ends, outward normals, lengths) of the footprint's exterior ring, then of every mass outline,
+    then of the footprint's court rings (a court wall's outward normal points into the court, 47.2)."""
     polys = [b.footprint] + ([m.polygon for m in masses(b)] if massed(b) else [])
+    rings = [orient(poly, 1.0).exterior for poly in polys] + list(orient(b.footprint, 1.0).interiors)
     a, c = [], []
-    for poly in polys:
-        ring = np.asarray(orient(poly, 1.0).exterior.coords)[:, :2]
+    for ring in rings:
+        ring = np.asarray(ring.coords)[:, :2]
         a.append(ring[:-1])
         c.append(ring[1:])
     a, c = np.concatenate(a), np.concatenate(c)

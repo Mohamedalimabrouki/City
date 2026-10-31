@@ -996,6 +996,20 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`, and how the le
   times; a pass found by a cheap repair should spare the expensive redraws, but compare its dark rooms with
   what the redraws find, or the guard grows (No. 580). A memo of `spine.cut_region` across second plans hit
   only 22%: not kept.
+- **Courts in an existing city** (47.2 round A, `city/courts.py`): cut them as the last massing step and
+  build the new footprint as `Polygon(old.exterior.coords, holes)`: a `difference` restarts the ring
+  elsewhere and the street walls' draws on `rng("b", k)` would move. A court must stay clear of every
+  party wall (else it is a notch, not a hole, and a neighbour's open-wall probe may see open ground).
+  Prove "only the courted buildings changed" per building (footprint, fields, household, the dresser's
+  placements) in HEAD and the tree, then the changed tiles' triangles and placements outside them: the
+  only other change is the crowd, whose figures take a byte share of the whole tile (5 more people in two
+  tiles). Search courts on a grid but test coverage on the exact dark polygon (footprint less the lit walls'
+  `reach` buffer, its convex hull): grid cells missed corners (27 blocks still dark instead of 18). A
+  half-diagonal cell margin cost a third of the maison patios; walls run along the frame, half a cell is
+  enough. The narrow maison lots (7-9 m) leave no 3 m patio clear of both party walls: 193 of 486 deep
+  maisons keep their dark back (a 2.4 m well or 2.0 m side rooms would still leave 112). Facade openings
+  are cut through `walls["exterior"]` (`mesh.depths`): court walls of modern homes take that thickness
+  (`plan_interior`), or every colonial court window read "the floor reaches into the wall".
 
 ## Known weak spots
 
