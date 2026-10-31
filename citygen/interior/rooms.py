@@ -229,7 +229,7 @@ def unclash(interior) -> None:
     gone = set()
     for f in range(interior.floors):
         rooms = [r for r in interior.rooms if r.floor == f and not is_court(r)]
-        mine = [(o, zone(o, rules["court"], rules["clear"])) for o in interior.openings
+        mine = [(o, zone(o, rules["court"], rules["clear"], rules.get("front_keep", 0.0))) for o in interior.openings
                 if o.floor == f and o.kind in ("court_door", "court_window")]
         if not mine:
             continue
@@ -417,7 +417,7 @@ def zones_of(interior, floor: int) -> list:
         if o.floor != floor or o.wall is None:
             continue
         t = rules["court"] if o.kind in ("court_door", "court_window") else rules["exterior"]
-        z = zone(o, t, rules["clear"])
+        z = zone(o, t, rules["clear"], rules.get("front_keep", 0.0))
         if z is not None:
             out.append(z)
     return out
@@ -473,8 +473,9 @@ def check(interior) -> list:
     out += _headroom(interior)
     if interior.layout == "dar" and sees_court(interior):
         out.append("the court can be seen from the street door")
+    from .plancheck import faults
     from .program import problems
-    return out + problems(interior)
+    return out + faults(interior) + problems(interior)
 
 
 def _coverage(interior, st) -> list:

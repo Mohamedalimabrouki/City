@@ -1797,6 +1797,9 @@ partition = 0.2           # meters, inner walls of traditional houses
 partition_modern = 0.15   # meters, inner walls of flats, villas and maisons
 cut_shift = 1.2           # meters a cut may move to keep `clear` from every opening (else it is dropped)
 cut_step = 0.05           # meters between the positions a cut tries, nearer first
+reveal = 0.2              # meters of floor a reveal gives behind a facade opening the next wall crosses (47.1/48.1)
+reveal_wall = 0.15        # meters: ... as long as that wall stays this thick
+front_keep = 0.5          # meters behind an opening (its own width) where no partition runs along the wall (47.1/48.1)
 dado = 1.2                # meters, the zellige dado of traditional living rooms (prompt 48)
 dado_rooms = ["bit", "maqsura", "skifa", "ghorfa", "koubba"]   # in dar, compact, small and koubba houses
 balustrade = 0.95         # meters, the low wall between a covered court's light well and its gallery
@@ -1936,6 +1939,10 @@ depth = [5.0, 8.0]       # meters deep (stream shop), at most half the storey's 
 wc = [1.4, 1.6]          # meters, its wc (along the back wall, deep)
 makhzen = 2.0            # meters wide, its makhzen beside the wc
 
+[interiors.checks]  # plan checks of what the walls and entry steps will show (`plancheck`, open items 47.1 + 48.1)
+probe = 0.1        # meters beside an opening's wall where the room's free floor must reach across its width
+passage_min = 0.8  # meters: a passage the walls narrow keeps at least this clear width (else it moves)
+
 [interiors.stairs]
 newel = 2.4              # meters, a newel cell's side when it fits
 newel_min = 1.9          # meters, its least side
@@ -1951,6 +1958,10 @@ riser_steep = 0.22       # meters, entry steps where the room is short (a warnin
 tread = 0.3              # meters, entry steps
 side = 0.1               # meters each side beyond the door opening
 turn = 0.9               # meters kept free beyond the entry steps
+turn_min = 0.6           # meters: the shortest landing beyond them where the room is short (lead: room to stand and open a door)
+tread_min = 0.2          # meters, the shortest tread of entry steps (plans give the entry room the depth)
+steps_flight = 0.9       # meters: entry steps too long for a straight run turn at the door's landing (lead, 47.1)
+steps_flight_min = 0.7   # meters: ... in a shallower room the flight narrows down to this
 u_width = 1.0            # meters, a flight of a villa's or maison's U stair
 core_width = 1.1         # meters, a flight of a block's stair core
 u_tread = 0.28           # meters

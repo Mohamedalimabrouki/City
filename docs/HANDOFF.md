@@ -877,6 +877,27 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`, and how the le
   stale: until `build --quick` runs again, the server's first interior plans the city again (3.3 s and a
   warning; 1.1 s after the build, then 0.15 s each). Scripts run outside the sandbox (browser checks) see
   another TMPDIR: keep them in `/tmp/claude-501`, not `$TMPDIR`.
+- **Plan faults the walls reveal** (open items 47.1 + 48.1, `interior/plancheck.py`): ask the plan the
+  walls' own question (`mesh.free`, the room less its walled neighbours grown by half a partition) instead of
+  inventing rules: a strip 0.1 m deep beside each opening must lie in that free floor. Check the check first:
+  survey `rooms.check` against `mesh.faults` over the whole city (script `h471_mesh.py`), then count both
+  ways: "passes the plan check but the walls fault it" must be 0, "the plan check faults it but the walls do
+  not" must be real (passages span whole edges, so only their run faced on both sides counts; `mesh.faults`
+  tolerates slivers up to 0.15 m that are still plan faults). Most faults were hairlines: cell arms under the
+  old 0.05 m2 trim threshold, a host wrapping a carved wc with a 5 mm wedge that "shared" 1.9 m with the
+  couloir, so the door went onto the wedge. Fixes that looked general broke more than they fixed: a room-level
+  arm trim after the plan (villa 115 -> 93: moved partitions into window zones) and letting the droj take
+  every arm (whole ghorfas became landing): keep fixes where the geometry is made. A deeper opening zone
+  (`front_keep`) fixed stair cells a sliver off a wall but put stair cells in front of street doors in a
+  corner with a ladder (compact ladder warnings 1 -> 14): stair searches use it behind doors only. Slower
+  searches: `stairs.surely_unclear` rejects hopeless squares at once, proved byte-identical by hashing every
+  third house's rooms.json with and without it (a first version with a round buffer was not). Rounds 2-3:
+  classify the failing doors by geometry before fixing (script `h471_cls.py`: palier, thin room, room arm,
+  short piece): most were hair strips (0.2 m) of rooms along a U stair box or round a carved wc, and whole
+  store rooms a hair wide; a skifa must not give away its strips (the bent entry broke, No. 203). A dar's
+  plan can fail the court rule for reasons far from the skifa: replan it without the steps' room rather than
+  patch the skifa planner. Relaxing an opening zone for stair placement (`zs(shallow=True)`) cut ladders but
+  lost more passes than it won every time it was tried for villas and maisons.
 
 ## Known weak spots
 

@@ -156,10 +156,10 @@ def small_plan(job: D.Job) -> None:
         served = list(range(min(top, interior.floors - 1) + 1))
         region = polygonal(shapely.intersection_all([ring.rings[f] for f in served]))
         if job.roof is not None and job.roof.stair is not None:
-            square = S.under_stair_room(job.roof.stair, region, job.zs(served), job.half,
+            square = S.under_stair_room(job.roof.stair, region, job.zs(served, shallow=True), job.half,
                                         float(job.stairs.get("newel_min", 1.9)))
         if square is None:
-            square = S.in_corner(D.corners(job, ring), fr, region, job.zs(served), job.half,
+            square = S.in_corner(D.corners(job, ring), fr, region, job.zs(served, shallow=True), job.half,
                                  float(job.stairs.get("newel", 2.4)), float(job.stairs.get("newel_min", 1.9)))
     served = min(top, interior.floors - 1) if square is not None else -1
     split = {f: (D.without(p, square, job.thin, job.zs([f]), job.half) if f <= served else (p, None))
@@ -197,7 +197,7 @@ def small_ground(job: D.Job, fr: Frame, poly) -> list:
     ax = 0 if abs(n[0]) >= abs(n[1]) else 1          # the axis across the door's wall
     sign = 1.0 if n[ax] > 0 else -1.0                # the door's wall is at the `sign` end of that axis
     t0, t1 = fr.bounds(poly)[ax], fr.bounds(poly)[ax + 2]
-    depth = float(job.compact.get("small_entry", 1.6))
+    depth = max(float(job.compact.get("small_entry", 1.6)), job.steps_need + job.half)   # room for entry steps
     bit_w = job.minimums.get("bit", (7.0, 2.0))[1]
     probe = job.probe()
     if t1 - t0 >= depth + bit_w:
