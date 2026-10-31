@@ -11,6 +11,7 @@ import numpy as np
 import shapely
 
 from . import dar as D
+from . import rooms as R
 from . import spine as P
 from . import stairs as S
 from .cuts import parts, snap
@@ -66,6 +67,7 @@ def plan(interior, outside, style: dict, kind: str) -> None:
     for st in interior.storeys:
         f = st.floor
         region = st.polygon
+        landing = box
         if box is not None:
             region = shapely_less(region, box)
         if square is not None and f == top:
@@ -74,6 +76,8 @@ def plan(interior, outside, style: dict, kind: str) -> None:
         if e is None:
             e = P.Entry(*region.representative_point().coords[0], 1.0, 0.0)
         cells = P.lay(job, largest(region), e, progs[f], f, (kind, f), hall=f == 0)
+        if landing is not None:
+            landing = to_landing(job, cells, landing, f)
         rest = [Cellish(p) for p in parts(snap(region.difference(largest(region))))] if len(parts(region)) > 1 else []
         for c in rest:
             cells.append(c)
@@ -81,7 +85,7 @@ def plan(interior, outside, style: dict, kind: str) -> None:
         if box is None:
             rooms = P.nooks(job, rooms)
         if box is not None:
-            way = P.add_rooms(job, [P.Cell(box, "palier")], f, "home")[0]
+            way = P.add_rooms(job, [P.Cell(landing, "palier")], f, "home")[0]
             rooms = P.nooks(job, rooms, way)
             P.open_way(job, way, rooms)
             halls.append(way)
@@ -99,6 +103,30 @@ def plan(interior, outside, style: dict, kind: str) -> None:
         D.ladder_up(job)
     P.finish(job)
     focus(job)
+
+
+def to_landing(job, cells: list, landing, f: int):
+    """The palier (`landing`) with the strips of cells beside it thinner than 2 x `cuts.HAIR` (a couloir or
+    room 0.2 m wide along the stair box: walls would swallow it and the doors on it, 47.1/48.1)."""
+    from ..city.geo import polygons
+    from .cuts import GRID, HAIR, clashes, shared, union
+    zones = job.zs([f])
+    for c in cells:
+        least = job.minimums.get(c.type, (0.0, 0.0))[0]
+        opened = c.poly.buffer(-HAIR, join_style="mitre").buffer(HAIR, join_style="mitre")
+        core = parts(snap(opened.intersection(c.poly)))
+        if not core:
+            continue
+        body = max(core, key=lambda p: p.area)
+        for arm in polygons(shapely.difference(c.poly, body, grid_size=GRID)):
+            if (arm.area < 1e-6 or not arm.buffer(-HAIR, join_style="mitre").is_empty
+                    or shared(arm, landing) < 0.3 or clashes(arm, zones)):
+                continue                              # (a strip at a window stays: no partition there)
+            grown, rest = union(landing, arm), parts(shapely.difference(c.poly, arm, grid_size=GRID))
+            if (grown is not None and len(rest) == 1 and rest[0].area >= least     # the room keeps its minimum
+                    and not R.clash_polys(grown, rest[0], zones, 2 * job.half)):    # and no partition at a window
+                landing, c.poly = grown, rest[0]
+    return landing
 
 
 class Cellish(P.Cell):

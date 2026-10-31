@@ -45,6 +45,16 @@ def walls_clear(square, region, zones: list, half: float, edge=None) -> bool:
     return True
 
 
+def surely_unclear(squares, region, zones: list, half: float):
+    """A mask of the squares `walls_clear` would refuse for sure (a side well inside an opening's zone),
+    found at once: the search skips them (47.1, speed only: every other square is judged as before)."""
+    if not zones or not len(squares):
+        return np.zeros(len(squares), dtype=bool)
+    deep = shapely.difference(shapely.union_all(zones).buffer(-0.01, join_style="mitre"),
+                              region.boundary.buffer(0.02, quad_segs=1))
+    return shapely.length(shapely.intersection(shapely.boundary(squares), deep)) > 0.02
+
+
 def sizes(top: float, least: float) -> list:
     """Square sides from `top` down to `least` in `STEP`s."""
     n = int(round((top - least) / STEP))
@@ -68,7 +78,9 @@ def under_stair_room(room, region, zones: list, half: float, least: float):
                                key=lambda t: (abs(t[0]) + abs(t[1]), t[0], t[1])))
         us, vs = cu + offs[:, 0], cv + offs[:, 1]
         squares = fr.rects(us - s / 2, vs - s / 2, us + s / 2, vs + s / 2)
-        for i in np.flatnonzero(shapely.contains(inside, squares)):
+        held = shapely.contains(inside, squares)
+        held[held] = ~surely_unclear(squares[held], region, zones, half)
+        for i in np.flatnonzero(held):
             if squares[i].difference(region).area < 1e-6 and walls_clear(squares[i], region, zones, half, edge):
                 return squares[i]
     return None
@@ -89,7 +101,9 @@ def in_corner(corners: list, fr: Frame, region, zones: list, half: float, top: f
             ua, va = u + du * slides[:, 0], v + dv * slides[:, 1]
             ub, vb = ua + du * s, va + dv * s
             squares = fr.rects(np.minimum(ua, ub), np.minimum(va, vb), np.maximum(ua, ub), np.maximum(va, vb))
-            for i in np.flatnonzero(shapely.contains(inside, squares)):
+            held = shapely.contains(inside, squares)
+            held[held] = ~surely_unclear(squares[held], region, zones, half)
+            for i in np.flatnonzero(held):
                 if squares[i].difference(region).area < 1e-6 and walls_clear(squares[i], region, zones, half, edge):
                     return squares[i]
     return None
@@ -153,6 +167,9 @@ def steps(room, door, width: float, rise: float, cfg: dict, warnings: list, ext:
     n = risers(abs(rise), float(cfg.get("riser", 0.18)))
     if n * tread > room_for + 1e-9:
         n = risers(abs(rise), float(cfg.get("riser_steep", 0.22)))
+        least = float(cfg.get("tread_min", 0.2))
+        if room_for < n * least:                      # a shorter landing before treads under `tread_min`
+            room_for = max(room_for, min(n * least, depth - float(cfg.get("turn_min", 0.6))))
         tread = min(tread, room_for / n)
         warnings.append(f"the entry steps are steep: {n} risers of {abs(rise) / n:.2f} m in {room_for:.2f} m")
     w = width + 2 * float(cfg.get("side", 0.1))
@@ -165,6 +182,15 @@ def steps(room, door, width: float, rise: float, cfg: dict, warnings: list, ext:
     sign = 1.0 if rise > 0 else -1.0
     yaw = math.atan2(-inward[1], -inward[0])
     return Stair("steps", poly, 0, 0, n, sign * abs(rise) / n, tread, w, (door.x, door.y, yaw), [room.id])
+
+
+def steps_depth(rise: float, cfg: dict) -> float:
+    """The least depth a room needs from its door for entry steps rising `rise` m with treads of
+    `tread_min` and a landing of `turn_min` (0 when the door needs no steps)."""
+    if abs(rise) <= float(cfg.get("threshold", 0.15)):
+        return 0.0
+    n = risers(abs(rise), float(cfg.get("riser_steep", 0.22)))
+    return n * float(cfg.get("tread_min", 0.2)) + float(cfg.get("turn_min", 0.6))
 
 
 def ladder(region, fr: Frame, near, size: tuple):

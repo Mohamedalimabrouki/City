@@ -18,7 +18,8 @@ from ..rng import stream
 from . import rooms as R
 from . import program as P
 from . import stairs as S
-from .cuts import REACH, Cell, Frame, absorb, contact, cut, lines_of, parts, polygonal, shared, snap, straight, union, width, zone
+from .cuts import (REACH, Cell, Frame, absorb, clashes, contact, cut, lines_of, partition, parts, polygonal, shared,
+                   snap, straight, union, width, zone)
 from .cuts import free_cut as _free_cut
 from .model import Opening, Room
 
@@ -55,19 +56,29 @@ class Job:
                           "slab": float(floors.get("slab", 0.25)),
                           "roof_ceiling": float(floors.get("roof_room_ceiling", 0.15)),
                           "stair_height": float(style.get("roofs", {}).get("stair_height", 2.4))}
-        self.zones = {st.floor: [zone(o, self.ext, self.clear) for o in interior.openings
+        keep = interior.rules["front_keep"] = float(walls.get("front_keep", 0.0))
+        self.zones = {st.floor: [zone(o, self.ext, self.clear, keep) for o in interior.openings
                                  if o.floor == st.floor and o.wall is not None] for st in interior.storeys}
+        self.plain = {st.floor: [zone(o, self.ext, self.clear) for o in interior.openings
+                                 if o.floor == st.floor and o.wall is not None] for st in interior.storeys}
+        self.shallow = {st.floor: [zone(o, self.ext, self.clear, keep if o.kind == "door" else 0.0)
+                                   for o in interior.openings if o.floor == st.floor and o.wall is not None]
+                        for st in interior.storeys}
         self.roof = next((lay for m, lay in outside.roofs if m.main), None)
         self.spot = outside.doors[0] if outside.doors else None
         self.main = main_opening(interior, self.spot)
         self.wealth = float((interior.household or {}).get("wealth", 0.0))
         self.fronts = [inside(o, self.ext) for o in interior.openings
                        if o.kind in ("door", "shop") and o is not self.main and o.floor == 0]
+        self.steps_need = S.steps_depth(interior.high - self.spot.z, self.stairs) if self.spot is not None else 0.0
         self.thin = float(self.stairs.get("landing_strip", 0.45))   # half the widest strip the droj takes
         self.roof_ladder = False          # the newel could not stand under the stair room
         self.largest = {k: float(v) for k, v in self.dar.get("largest", {}).items()}   # m2 per service
         interior.rules["largest"] = dict(self.largest)
         interior.rules["most"] = {k: float(v) for k, v in rooms.get("most", {}).items()}
+        interior.rules["plan"] = {**cfg.get("checks", {}), "casing": float(op.get("casing", 0.05)),
+                                  "tread_min": float(self.stairs.get("tread_min", 0.2)),
+                                  "railings": tuple(op.get("railings", ()))}   # `plancheck`'s numbers
         self.court = self.rng("court")    # one stream per house: court windows, then the majel, in that order
         self.wells: dict = {}             # floor -> the light well room of a covered court
         self.made: dict = {}              # id(cell) -> (cell, room)
@@ -77,9 +88,12 @@ class Job:
         i = self.interior
         return stream(i.seed, "interior", i.city_id, i.building, purpose)
 
-    def zs(self, floors=None) -> list:
-        keys = sorted(self.zones) if floors is None else floors
-        return [z for f in keys for z in self.zones.get(f, []) if z is not None]
+    def zs(self, floors=None, shallow: bool = False) -> list:
+        """The opening zones of `floors`; `shallow`: `front_keep` only behind doors (a stair cell standing a
+        sliver off a window's wall is judged with its strip, which joins the droj: `without`)."""
+        zones = self.shallow if shallow else self.zones
+        keys = sorted(zones) if floors is None else floors
+        return [z for f in keys for z in zones.get(f, []) if z is not None]
 
     def free(self, poly, fr: Frame, axis: int, at: float, floors=None, lo=-math.inf, hi=math.inf):
         return _free_cut(poly, fr, axis, at, self.zs(floors), self.half, self.shift, self.step, lo, hi)
@@ -87,6 +101,20 @@ class Job:
     def fits(self, poly, type_: str) -> bool:
         least = self.minimums.get(type_)
         return least is None or (poly.area >= least[0] and width(poly) >= least[1])
+
+    def entry_keep(self):
+        """The floor inside the main door its entry steps and their landing need (None without steps):
+        ladders keep off it (47.1)."""
+        if self.spot is None or self.main is None or self.steps_need <= 0.0:
+            return None
+        s = self.spot
+        inward = -np.array([s.nx, s.ny])
+        along = np.array([-inward[1], inward[0]])
+        face = np.array([s.x, s.y]) + inward * self.ext
+        w = self.main.width / 2 + float(self.stairs.get("side", 0.1))
+        deep = max(self.steps_need, float(self.stairs.get("turn", 0.9)))
+        return Polygon([face - along * w, face + along * w, face + along * w + inward * deep,
+                        face - along * w + inward * deep])
 
     def probe(self, inward: float = 0.15):
         """A point just inside the main door."""
@@ -289,7 +317,22 @@ def screen(job: Job, ring, band: str, skifa, t_d: float) -> dict | None:
     strip = float(job.dar.get("screen_strip", 1.0))
     if face - court < 2 * strip + 2 * job.half:
         return None
-    halves = cut(skifa, fr, 1, (face + court) / 2)
+    first = min((face + court) / 2, face - job.half - job.steps_need)   # the street strip holds the entry steps
+    fallback = None
+    for at in np.arange(first, court + strip + job.half - 1e-9, -0.1):   # deeper while the court shows
+        got = screen_at(job, ring, band, skifa, t_d, float(at))
+        if got is not None and got["hidden"]:
+            return got
+        fallback = fallback or got
+    return fallback
+
+
+def screen_at(job: Job, ring, band: str, skifa, t_d: float, at: float) -> dict | None:
+    """The skifa of `screen` with its screen wall at `at` (None when it does not fit)."""
+    fr = ring.frames[band]
+    if clashes(partition(skifa, fr, 1, at, job.half), job.zs([0])):
+        return None                                   # the screen stays off the door (a slanted facade)
+    halves = cut(skifa, fr, 1, at)
     probe = job.probe()
     outer = [p for p in halves[1] if p.distance(probe) < 1e-6]
     inner = halves[0]
@@ -305,7 +348,7 @@ def screen(job: Job, ring, band: str, skifa, t_d: float) -> dict | None:
         t = min(max(t_d, ta + keep), tb - keep)
         if best is None or abs(t - t_d) < abs(best[0] - t_d):
             best = (t, np.asarray(p0), np.asarray(p1))
-    seg = shapely.intersection(fr.line(1, (face + court) / 2), skifa)
+    seg = shapely.intersection(fr.line(1, at), skifa)
     if best is None or seg.geom_type != "LineString":
         return None
     if skifa.area > job.largest.get("skifa", 99.0):
@@ -393,8 +436,9 @@ def bent(job: Job, ring, band: str, poly, start: float, sgn: float, length: floa
     gap_needed = (0.9 + job.half) if end_door else (job.main.width / 2 + job.clear + job.half)
     plain["door"] = (door_at, w_c, -fr.v)
     plain["hidden"] = skifa_hidden(job, ring, plain)
-    if sgn * (t_bf - (start if end_door else t_d)) < gap_needed:
-        return plain                                  # no room for a baffle: one skifa
+    if sgn * (t_bf - (start if end_door else t_d)) < gap_needed or clashes(partition(skifa, fr, 0, t_bf, job.half),
+                                                                         job.zs([0])):
+        return plain                                  # no room for a baffle (off the door): one skifa
     halves = cut(skifa, fr, 0, t_bf)
     outer = [p for p in halves[0] + halves[1] if p.distance(probe) < 1e-6]
     inner = [p for p in halves[0] + halves[1] if p.distance(probe) >= 1e-6]
@@ -764,12 +808,38 @@ def plan(interior, outside, style: dict) -> None:
     if not holes or face is None:
         compact.plan(interior, outside, style)
         return
-    job = Job(interior, outside, style)
     court = holes[0]
-    ring = Ring(face, court, {st.floor: snap(st.polygon) for st in interior.storeys}, "open")
-    court_room = Room(-1, 0, R.COURT, court, st0.z, outside.b.height, open=True)
-    build(job, ring, court_room)
-    features(job, court)
+    before = _state(interior)
+    first = None
+    for room_for_steps in (True, False):              # the bent entry before the steps' room (47.1/48.1)
+        if not room_for_steps:
+            first = _state(interior)
+            _restore(interior, before)
+        job = Job(interior, outside, style)
+        if not room_for_steps:
+            job.steps_need = 0.0
+        ring = Ring(face, court, {st.floor: snap(st.polygon) for st in interior.storeys}, "open")
+        court_room = Room(-1, 0, R.COURT, court, st0.z, outside.b.height, open=True)
+        build(job, ring, court_room)
+        features(job, court)
+        if not R.sees_court(interior) or job.steps_need <= 0.0 and room_for_steps:
+            break
+        if not room_for_steps:
+            _restore(interior, first)                 # the court shows either way: keep the steps' room
+
+
+STATE = ("rooms", "openings", "stairs", "features", "warnings", "piers", "flats", "focus", "rules", "entry")
+
+
+def _state(interior) -> dict:
+    import copy
+    return {k: copy.deepcopy(getattr(interior, k)) for k in STATE if hasattr(interior, k)}
+
+
+def _restore(interior, state: dict) -> None:
+    import copy
+    for k, v in state.items():
+        setattr(interior, k, copy.deepcopy(v))
 
 
 def build(job: Job, ring, court_room, wells=None) -> None:
@@ -969,7 +1039,7 @@ def newel_square(job: Job, ring):
     region = polygonal(shapely.intersection_all(served))
     if ring.kind == "covered":
         region = region.difference(ring.court)
-    zones = job.zs(list(range(min(top, interior.floors - 1) + 1)))
+    zones = job.zs(list(range(min(top, interior.floors - 1) + 1)), shallow=True)
     big = float(job.stairs.get("newel", 2.4))
     least = float(job.stairs.get("newel_min", 1.9))
     if job.roof is not None and job.roof.stair is not None:
@@ -1032,7 +1102,9 @@ def ladder_up(job: Job) -> None:
         return
     fr = Frame.of(region)
     w, d = (float(v) for v in job.stairs.get("ladder", [0.6, 1.2]))
-    spot = S.ladder(region, fr, region.centroid.coords[0], (w, d))
+    keep = job.entry_keep()
+    spot = S.ladder(region.difference(keep), fr, region.centroid.coords[0], (w, d)) if keep is not None else None
+    spot = spot or S.ladder(region, fr, region.centroid.coords[0], (w, d))
     interior.warnings.append("no newel stair fits: a ladder goes up")
     if spot is None:
         return
@@ -1249,7 +1321,13 @@ def stair_ladder(job: Job, droj) -> None:
     top = interior.storeys[-1]
     w, d = (float(v) for v in job.stairs.get("ladder", [0.6, 1.2]))
     region = droj.polygon.intersection(top.polygon).buffer(-0.05, join_style="mitre")
-    spot = S.ladder(region, Frame.of(droj.polygon), droj.polygon.centroid.coords[0], (w, d)) if not region.is_empty else None
+    keep = job.entry_keep() if top.floor == 0 else None
+    spot = None
+    for area in ([region.difference(keep)] if keep is not None else []) + [region]:   # off the entry steps first
+        near = droj.polygon.centroid.coords[0]
+        spot = None if area.is_empty else S.ladder(area, Frame.of(droj.polygon), near, (w, d))
+        if spot is not None:
+            break
     below = max((r for r in interior.rooms if r.floor == top.floor and spot is not None and r.type != "well"),
                 key=lambda r: (r.polygon.intersection(spot).area, -r.id), default=None)
     if spot is None or below is None:

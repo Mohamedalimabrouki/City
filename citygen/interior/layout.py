@@ -24,6 +24,7 @@ from .model import Interior, Room, Storey
 TRADITIONAL = ("dar", "compact", "small", "koubba")   # layouts with traditional partitions, beams and tiles
 SOUK = ("dar", "compact", "small", "koubba", "maison")   # layouts whose shop front gets a hanout
 LIGHTS = ("window", "balcony")                         # facade openings that light a room
+CLOSE = 1e-4                                           # meters: masses this near are one (rounding on shared edges)
 
 
 def plan_interior(outside, style: dict) -> Interior:
@@ -46,10 +47,14 @@ def plan_interior(outside, style: dict) -> Interior:
                             f"({walls['exterior']} m thick) leave no floor.")
     interior.openings = [replace(o) for o in outside.openings]
     interior.warnings = list(outside.warnings)
+    reveals(interior, float(walls_cfg.get("reveal", 0.2)), float(walls_cfg.get("reveal_wall", 0.15)))
     if layout in SOUK and any(o.kind == "shop" and o.floor == 0 for o in interior.openings):
         with_shop(interior, outside, style, layout)
     else:
         PLANS.get(layout, placeholder)(interior, outside, style)
+    from .plancheck import settle, trim
+    trim(interior)
+    settle(interior)
     return interior
 
 
@@ -75,6 +80,7 @@ def with_shop(interior: Interior, outside, style: dict, layout: str) -> None:
         fresh()
         job = Job(interior, outside, style)
         job.keep_free = stair
+        job.zones = job.plain                         # the shop's lines run across the facade (no front_keep)
         rooms, rest = shop.souk(job, full, layout == "dar", small)
         interior.rules, interior.entry = {}, None
         if not rooms:
@@ -141,7 +147,8 @@ def storeys(outside, thickness: float, court: float | None = None) -> list:
         mid = (f + 0.5) * fh
         standing = [m.polygon for m in ms if m.base <= mid < m.top]
         parts = []
-        for part in polygons(unary_union(standing)) if standing else []:
+        whole = unary_union([m.buffer(CLOSE, join_style="mitre") for m in standing]).buffer(-CLOSE, join_style="mitre")
+        for part in polygons(whole) if standing else []:     # steps sharing an edge are one floor (47.1)
             inner = Polygon(part.exterior).buffer(-thickness, join_style="mitre")
             holes = [Polygon(h).buffer(court, join_style="mitre") for h in part.interiors]
             parts += polygons(inner.difference(unary_union(holes)) if holes else inner)
@@ -149,6 +156,30 @@ def storeys(outside, thickness: float, court: float | None = None) -> list:
             poly = set_precision(orient(max(parts, key=lambda p: p.area), 1.0), GRID)
             out.append(Storey(f, high + f * fh, fh, orient(poly, 1.0)))
     return out
+
+
+def reveals(interior: Interior, deep: float, least: float) -> None:
+    """Where a facade opening stands so near a corner that the next wall's inner face crosses the floor
+    behind it, the storey takes a reveal in that wall (`deep` m of floor behind the opening across its
+    width), as long as the wall keeps `least` m to the outside (47.1/48.1)."""
+    from .plancheck import FACADE, GAP, depths, frame_of, rect
+    ext = interior.walls["exterior"]
+    for i, st in enumerate(interior.storeys):
+        outline = Polygon(st.polygon.exterior).buffer(ext, join_style="mitre").buffer(-least, join_style="mitre")
+        notches = []
+        mine = [o for o in interior.openings if o.floor == st.floor and o.kind in FACADE]
+        held = unary_union([rect(*frame_of(o), -o.width / 2, o.width / 2, depths(interior, o)[0], 0.0) for o in mine])
+        for o in mine:                                    # (a reveal never cuts into another opening's wall)
+            c, front, along = frame_of(o)
+            d0 = depths(interior, o)[0]
+            near = rect(c, front, along, -o.width / 2, o.width / 2, d0 - deep, d0 - GAP)
+            if near.difference(st.polygon).area > 1e-4:
+                notch = rect(c, front, along, -o.width / 2 - GAP, o.width / 2 + GAP, d0 - deep, d0)   # flush with
+                notches.append(notch.intersection(outline).difference(held))                  # the wall's face
+        if notches:
+            poly = unary_union([st.polygon] + notches)
+            if poly.geom_type == "Polygon":
+                interior.storeys[i] = replace(st, polygon=orient(set_precision(poly, GRID), 1.0))
 
 
 def placeholder(interior: Interior, outside, style: dict) -> None:

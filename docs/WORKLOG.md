@@ -56,6 +56,74 @@ Entry format:
   limit. It does not pay for Claude Code, so `tools/run_on_credit.py` runs a prompt through the Agent SDK
   instead (a billing test passed); how to use it: `docs/LEAD.md`, section 4.
 
+## 2026-10-31 - Open items 47.1 + 48.1 Plan faults and colonial flats
+- Commit: (lead commits) | Model: Opus 5.5 | Part 1 of 3 (48.1, old town, shops, villas, maisons), after the
+  lead's round 2; parts 2 (slabs) and 3 (colonial flats) follow.
+- Changed: new citygen/interior/plancheck.py (`faults`: wall and entry-step checks in the plan, called by
+  `rooms.check`; `trim`: hair strips of finished rooms, and rooms all hair strip, join a neighbour of their
+  unit; `settle`: inner openings slide to a place the walls accept, a passage narrows to the run both rooms
+  face, court openings that fit nowhere go); layout.py (`trim` and `settle` after every plan, `reveals`,
+  masses sharing an edge are one storey, the shop's lines without `front_keep`); dar.py (`Job.steps_need`,
+  `entry_keep`, `zs(shallow=)`, `rules["plan"]`, a dar is planned again without the steps' room when that
+  room leaves the court in sight, the screen leaves the steps room, baffle and screen off the door, ladders
+  off the entry steps); cuts.py (`zone(front=)`; `trim`: arms from 0.005 m2, hair strips of skifas and stair
+  cells too, any room but a court takes a hair strip); stairs.py (`steps` shortens the landing to `turn_min`
+  before treads go under `tread_min`, `steps_depth`, `surely_unclear` for speed); compact.py (small house
+  entry strip); spine.py (`unwrap`: the host's hair arm round a carved sdb or wc joins it); villa.py
+  (`to_landing`: hair strips of rooms along the U stair box join the palier); rooms.py (zones with
+  `front_keep`); styles/maghreb.toml (`[interiors.checks]` probe, passage_min; walls `front_keep`, `reveal`,
+  `reveal_wall`; stairs `turn_min` 0.6, `tread_min`); tests (1 new; `OPEN_48` empty; named open lists, see
+  below); SPEC 6c, HANDOFF.
+- Checks: survey (`tools/interior_survey.py`, the new checks; "before" = today's plans: old town exact,
+  Ain Chilel = rooms.check passes less those with wall or step faults):
+
+  | group | before (old check) | before (new checks) | after | bar | slowest before -> after |
+  |---|---|---|---|---|---|
+  | dar (159) | 151 | 84 | 136 (86%) | 152 | 0.07 -> 0.11 s |
+  | compact (277) | 273 | 196 | 257 (93%) | 264 | 0.11 -> 0.14 s |
+  | small (83) | 81 | 61 | 77 (93%) | 79 | 0.07 -> 0.08 s |
+  | koubba (22) | 21 | 17 | 19 (86%) | 21 | 0.02 -> 0.02 s |
+  | shop (136) | 135 | 86 | 120 (88%) | 130 | 0.27 -> 0.29 s |
+  | villa (178, Ain Chilel) | 171 | about 58 | 157 (88%) | 170 | 0.43 -> 0.37 s |
+  | maison (616, Ain Chilel) | 589 | about 472 | 554 (90%) | 586 | 0.65 -> 0.68 s |
+  | slab (353, part 2) | 326 | | 308 (87%) | | 2.03 -> 2.13 s |
+  | colonial (270, part 3) | 117 | | 83 (31%) | | 13.0 -> 16.4 s (No. 773) |
+
+  0 crashes. Every interior that passes `rooms.check` gives 0 `mesh.faults` and 0 entry-step faults (plan
+  + walls + the prompt 49 tread, riser and headroom test, every old-town house, villa and maison:
+  `h471_mesh.py`). `pytest -q` 129 passed; slow tests pass (`test_open_samples_are_valid` xfail); `build
+  --quick` done; fingerprint `--allow ""`: 282 parts, 0 changed. Court seen from the street door: 9 dars
+  (8 before). Ladder warnings: compact 1 -> 14, villa 2 -> 5, maison 31 -> 46 (open, below).
+- Bar NOT met. Classes left, by count: old town: 28 entry steps a shallow skifa band, annex or entry strip
+  cannot hold with treads of 0.2 m and a 0.6 m landing (rises 0.6-2.4 m; a turned flight is needed, a new
+  stair form not built here); 9 courts seen (one more than before); 9 openings on footprint spikes
+  narrower than two walls (lot shape); villas and maisons (classified with `h471_cls.py`): 13 + 2 arches a
+  couloir squeezed between the U stair's palier and a wall narrows below 0.8 m, 7 doors with no valid
+  place, 7 + 4 windows and partitions at a palier, the program rest (no chambre, chambre over the most, U
+  stair not reaching every floor) as before.
+- Ladders (lead point 1), cause found, not fixed: compact's 13 new ladders are houses whose roof stair room
+  stands over the street door; the newel had to stand under it, a sliver off the door wall (every one of
+  them a wall fault: a partition across the street door, 5 also on the entry steps). With a cell kept off
+  the door the newel goes to a corner and a ladder rises to the roof (1-floor houses: only that ladder).
+  Villa and maison: the U stair box may no longer stand a sliver off a window wall; letting it (front_keep
+  behind doors only) brings the ladders back to 2/34 but passes fall to 119/378. A real fix needs the
+  street door opening into the stair cell, or turned entry steps: a choice for the lead. So
+  `test_old_town_stairs` still accepts the stair room's ladder.
+- Look: output/checks/471-old.png (dar No. 525: the screen skifa gives the steps 1.5 m; dar No. 213: the
+  hair-thin ghorfa arm round the droj gone; compact No. 104: the stair room over the street door, a ladder
+  in the skifa beside the steps), output/checks/471-villa.png (villa No. 230: wc and sdb with their own
+  doors; villa No. 232: the one-storey wing is part of floor 0).
+- Choices (for Ali): entry steps keep at least 0.6 m of floor past the top tread (`turn_min`, lead) before
+  their treads go under 0.2 m; a court window or door the walls cannot hold is dropped (the doors pass
+  places what is still needed); a narrowed passage keeps at least 0.8 m (`passage_min`); hair strips (under
+  0.3 m) join a neighbour (a palier, a skifa, a stair cell may take them); a dar keeps its bent entry before
+  room for its steps; reveals cut up to 0.2 m into the next wall where it stays 0.15 m thick.
+- Named open lists in the tests: `OPEN_OLD` {211: a 1.12 m rise in a 1.36 m skifa band}, `OPEN_STEPS`
+  {482, 501: domed houses whose annex is too shallow for 1.0-1.3 m rises}, `OPEN_PALIER` {villa 363, maison
+  852, 863, 864: a couloir squeezed between the palier and a wall}; the stair test's ladder case (above).
+- Doubts: colonial No. 773 got slower (13 -> 16 s, deeper zones); domed house No. 570 still fails (its
+  annex strip, 47.1 list).
+
 ## 2026-10-31 - Prompt 50 H1f Interiors in the viewer
 - Commit: (lead commits) | Model: Opus 5.5, high
 - Changed: citygen/view.py (`api/interior` in `citygen view` and under `/b/<key>/` in the gallery,
