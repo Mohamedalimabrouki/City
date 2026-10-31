@@ -139,12 +139,17 @@ def search(job, region, entry: Entry, program: list, floor: int, key: tuple, hal
     hard = 2 if job.interior.layout in ("colonial", "slab") else 1   # flats: a blind cuisine weighs less than
     # a fault `rooms.check` finds (it asks no window of a flat's cuisine; 47.1 flats round 1)
     early = hard > 1 or job.interior.__dict__.get("bays_early", False)   # a failing house's second plan (round 8)
+    way = job.interior.__dict__.get("bays_early", False)   # a failing house's second plan: day rooms off the
+    # way score too, and of variants as good the fewest dark rooms (round 10)
+    first = None        # an upper floor's first faultless variant whose couloir misses the landing (round 10)
     for d, w in ((depth, wide), small):
         for cell in cfg["rhythm"]:
             for turn in (False, True):
                 for place in ("auto", "low", "high"):
                     cuts += 1
                     if (len(seen) >= cap or cuts > 3 * cap) and best is not None:
+                        if first is not None:
+                            return first[0]
                         return late_bays(job, best, floor, hall, hard)   # time: the best of the first variants
                     cells, spine = cut_region(job, region, entry, floor, cfg, d, w, cell, hall, turn, place)
                     sig = tuple(sorted(round(c.poly.area, 2) for c in cells))
@@ -155,11 +160,56 @@ def search(job, region, entry: Entry, program: list, floor: int, key: tuple, hal
                     score = len(missing) * 3 * hard + faults(job, cells, floor, hall, hard)
                     if score > len(missing) * 3 * hard and early and bay_depth(job) > 0.0:   # flats: window bays
                         score = len(missing) * 3 * hard + bays(job, cells, floor, hall, hard, score - len(missing) * 3 * hard)
+                    if way:
+                        score += hard * astray(job, cells, entry) + dark(job, cells, floor) / 100.0
+                    elif (score == 0 and not hall and not job.interior.__dict__.get("way_plain")
+                          and (first is not None or astray(job, cells, entry))):
+                        if astray(job, cells, entry) == 0 and dark(job, cells, floor) <= first[1]:
+                            job.interior.way_moved = True   # `layout.way_moved` weighs it against the first
+                            return cells                # a later variant reaches the landing, no darker
+                        first = first or (cells, dark(job, cells, floor))
+                        continue
                     if score == 0:
                         return cells
                     if best is None or score < best[1]:
                         best = (cells, score, len(missing))
+    if first is not None:
+        return first[0]
     return late_bays(job, best, floor, hall, hard)
+
+
+def dark(job, cells: list, floor: int) -> int:
+    """The chambres, salons, salles a manger and cuisines among a floor's cells with no window or with a strip
+    over `[interiors.flats] strip` (`layout.dim`)."""
+    sun = lights(job, floor)
+    wide, most = (float(v) for v in job.cfg.get("flats", {}).get("strip", (1.6, 3.0)))
+    return sum(1 for c in cells if c.type in LIVING and (not lit(c.poly, sun) or strip(c.poly, wide) > most))
+
+
+def astray(job, cells: list, entry: Entry) -> int:
+    """The day rooms (salon, salle a manger, cuisine) of a floor's cells no door can join to its way in: the
+    hall or couloir the entry opens into, or a salon or salle a manger joined to it (a shared edge of
+    `need`), plus one when no hall or couloir reaches the entry (a house's stair box: room for an arch on any side;
+    47.1 + 48.1 round 10)."""
+    door = Point(entry.x, entry.y)
+    ways = [c for c in cells if c.type in ("hall", "couloir")]
+    if not ways:
+        return 0
+    box = job.__dict__.get("landing")                 # a house's stair box: a way opens on it
+    if box is not None:
+        n = 0 if any(shared(c.poly, box) >= ARCH + 0.05 for c in ways) else 1   # the palier's arch (`arch`)
+    else:
+        n = 0 if any(c.poly.distance(door) < 0.3 for c in ways) else 1
+    day = [c for c in cells if c.type in ("salon", "salle_a_manger", "cuisine")]
+    got, todo = list(ways), list(ways)
+    while todo:
+        a = todo.pop()
+        for c in day:
+            if all(c is not g for g in got) and shared(a.poly, c.poly) >= need(job):
+                got.append(c)
+                if c.type != "cuisine":
+                    todo.append(c)
+    return n + sum(1 for c in day if all(c is not g for g in got))
 
 
 def late_bays(job, best: tuple, floor: int, hall: bool, hard: int) -> list:
@@ -442,6 +492,8 @@ def cut_region(job, region, entry: Entry, floor: int, cfg: dict, depth: float, w
         stub = None
         if bridge is not None and hall:
             stub = rect(back - sgn * c, back, *bridge)
+        elif bridge is not None and job.interior.__dict__.get("bays_early"):   # a failing house's upper floor:
+            stub = rect(wall, wall + sgn * c, *bridge)  # its couloir reaches the landing too (round 10)
         hu = (min(wall, back), max(wall, back))
     else:
         low = n[1] > 0
@@ -538,6 +590,9 @@ def cut_region(job, region, entry: Entry, floor: int, cfg: dict, depth: float, w
             cells += [Cell(q, "", "end", "end") for q in outer]
         touching = [p for p in on if H is None or p.distance(H) < 1e-4 or any(p.distance(s) < 1e-4 for s in S)]
         main = max(touching, key=lambda p: p.area) if touching else (max(on, key=lambda p: p.area) if on else None)
+        if H is None and on and job.interior.__dict__.get("bays_early"):   # a failing house's upper floor: the
+            door_at = Point(entry.x, entry.y)          # couloir is the piece at the landing (round 10)
+            main = min(on, key=lambda p: (round(p.distance(door_at), 1), -p.area))
         for p in on:
             cells.append(Cell(p, "couloir" if p is main else "", "spine" if p is main else "end", "couloir"))
     for p in S:
@@ -1106,11 +1161,14 @@ def doors(job, rooms: list) -> None:
                     break
 
 
+ARCH = 0.8      # m: the shortest open passage between two ways
+
+
 def arch(job, a, b) -> bool:
     """An open passage between two rooms on their longest shared piece (at most 2 m); False when no piece
     is 0.8 m long."""
     pieces = sorted(R.pieces_between(job.interior, a, b), key=lambda p: -math.dist(*p))
-    if not pieces or math.dist(*pieces[0]) - 0.02 < 0.8:
+    if not pieces or math.dist(*pieces[0]) - 0.02 < ARCH:
         return False
     piece = pieces[0]
     w = min(math.dist(*piece) - 0.02, 2.0)

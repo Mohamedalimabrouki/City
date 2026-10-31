@@ -1921,6 +1921,7 @@ rhythm = [3.6, 3.2, 2.8, 2.5]   # meters between the cuts across the couloir, tr
 dining_area = 110.0      # m2: a villa's floor 0 over this has a salle a manger
 largest = { cuisine = 16.0, sdb = 8.0, wc = 3.0 }   # m2: a bigger cell gives the service its couloir end
 redraws = 2              # a villa or maison the plan check faults is planned again with fresh draws up to this many times (47.1 round 8)
+way_swaps = 6            # a home whose day rooms lie off its way in trades a day room with a chambre on it, up to this many tries (47.1 + 48.1 round 10)
 bay_depth = 0.7          # meters: villas and maisons trade window bays as flats do ([interiors.flats] bay_depth; 0: never)
 
 [interiors.flats]   # flats in colonial blocks and slabs (SPEC 6c "Flats")
@@ -1934,6 +1935,7 @@ slide_most = 6.0         # meters: ... at most
 retry_variants = { colonial = 0.5, slab = 0.0 }   # share of the spine's variants a flat's second tries search when its first plan faults (0: none; slabs: time)
 bay_depth = 0.7          # meters: a way and a room whose partition ends in a window's zone trade the window bay this deep (0: never)
 strip = [1.6, 3.0]       # a flat's room cut in two (over its most): neither part has more than this m2 (2nd) in parts narrower than this (m, 1st)
+way_swaps = 0            # a flat whose day rooms lie off its way in trades a day room with a chambre on it, up to this many tries (47.1 + 48.1 round 10; 0: the door rule only, as each try checks the whole block)
 deep_door = 0.3          # meters: a slab stair door whose top stands less than this over floor 0 opens into a sunken entry room
 
 [interiors.shop]   # the hanout and makhzen of a ground floor shop front (SPEC 6c "Shops and cafes")

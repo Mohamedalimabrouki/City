@@ -72,6 +72,7 @@ def plan(interior, outside, style: dict, kind: str) -> None:
         interior.warnings.append("no stair fits between the floors: a ladder goes up")
     core, square = roof_stair(job, entry, core)
     box = core[0] if core else None
+    job.landing = box                                 # the search's way score asks a way on it (round 10)
     top = floors - 1
     progs = programs(job, kind)
     halls, droj = [], None

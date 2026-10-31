@@ -4394,3 +4394,31 @@ def test_court_and_roof(interior_ctx, old_town, new_districts):
             assert not any(F.crosses(interior, o, p.poly, p.z1, p.z1 - p.z0, fl, st) for p in plates), \
                 (interior.building, o.id, o.kind)
     assert trees and doors
+
+
+def test_way_home():
+    """A modern home's salon, salle a manger, cuisine and couloir are reached from its entry without crossing
+    a chambre, bath or cuisine; an en suite bath is fine while one bath room is on the way (47.1/48.1 round
+    10). Hand-made one-floor villa: hall | salon | chambre (+ sdb en suite), and a wc off the hall."""
+    from shapely.geometry import box
+
+    from citygen.interior.model import Interior, Opening, Room
+    from citygen.interior.plancheck import astray, way_home
+
+    def villa(salon_off_hall: bool):
+        it = Interior(1, "x", 1, 1, "villa", "villa", "villa", 0.0, 3.0, None, {})
+        cells = [("hall", box(0, 0, 3, 4)), ("salon", box(3, 0, 8, 4)), ("chambre", box(0, 4, 4, 8)),
+                 ("sdb", box(4, 4, 6, 8)), ("wc", box(6, 4, 8, 8))]
+        it.rooms = [Room(i, 0, t, p, 0.0, 3.0) for i, (t, p) in enumerate(cells)]
+        pairs = [(0, -1, "door"), (0, 2, "inner"), (2, 3, "inner"), (0, 4, "inner")]
+        pairs.append((0, 1, "arch") if salon_off_hall else (2, 1, "inner"))
+        it.openings = [Opening(n, k, 0.0, 0.0, 0.0, 0.9, 0.0, 2.1, 0, (a, b)) for n, (a, b, k) in enumerate(pairs)]
+        it.entry = it.openings[0]
+        return it
+
+    assert way_home(villa(True)) == [] and astray(villa(True)) == 0
+    bad = villa(False)
+    assert way_home(bad) == ["the home: the salon only through a chambre, bath or cuisine"] and astray(bad) == 1
+    bad.openings = [o for o in bad.openings if o.rooms != (0, 4)]      # the wc only through the chambre too
+    bad.openings.append(Opening(9, "inner", 0.0, 0.0, 0.0, 0.7, 0.0, 2.1, 0, (2, 4)))
+    assert way_home(bad)[-1] == "the home: every bath room only through a chambre" and astray(bad) == 2

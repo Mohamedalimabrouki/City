@@ -96,12 +96,14 @@ def _stages(interior: Interior, outside, style: dict, layout: str, before: dict)
     """The plan by layout and its retries and repairs (rounds 5-8)."""
     interior.way_used = False
     _plan(interior, outside, style, layout)
+    if interior.__dict__.pop("way_moved", False):
+        way_moved(interior, outside, style, layout, before)
     if layout in TRADITIONAL and interior.floors > 1 and any(w.endswith(ROOF_LADDER) for w in interior.warnings):
         newel_up(interior, outside, style, layout, before)
     if layout in TRADITIONAL:
         free_way(interior, outside, style, layout, before)
     if layout in TRADITIONAL + HOUSES and short_steps(interior, style):   # the entry room too short for its steps
-        best, faults = _held(interior), len(check(interior))
+        best, faults = _held(interior), len(plain(interior))
         for more in KEEP_MORE:                        # the plan keeps the steps' strip free of partitions
             _hold(interior, before)
             interior.keep_steps = more
@@ -109,7 +111,7 @@ def _stages(interior: Interior, outside, style: dict, layout: str, before: dict)
                 _plan(interior, outside, style, layout)
             finally:
                 del interior.keep_steps
-            got = len(check(interior))
+            got = len(plain(interior))
             if got < faults:                          # kept only when the plan check finds less
                 best, faults = _held(interior), got
             if not faults:
@@ -120,7 +122,7 @@ def _stages(interior: Interior, outside, style: dict, layout: str, before: dict)
         early_bays(interior, outside, style, layout, before)
     if layout in HOUSES and interior.floors == 1 and not interior.__dict__.get("redraw") and any(
             f.endswith(SHORT) for f in check(interior)):
-        again(interior, outside, style, layout, "tiny", before)
+        again(interior, outside, style, layout, "tiny", before, plain)
     if layout in TRADITIONAL:
         from .program import swap_way
         swap_way(interior, check)                     # services off the way in (round 6)
@@ -188,23 +190,49 @@ def free_way(interior: Interior, outside, style: dict, layout: str, before: dict
         _hold(interior, first)
 
 
+def way_moved(interior: Interior, outside, style: dict, layout: str, before: dict) -> None:
+    """An upper floor whose first faultless variant missed the landing took a later one that reaches it
+    (`spine.search`, round 10): kept only when the plan check then finds fewer faults and the home has no
+    more dark rooms than the plan without that choice."""
+    moved, faults = _held(interior), len(check(interior))
+    _hold(interior, before)
+    interior.way_plain = True
+    try:
+        _plan(interior, outside, style, layout)
+    finally:
+        del interior.way_plain
+    interior.__dict__.pop("way_moved", None)
+    if faults < len(check(interior)) and dim(interior, style) >= dim_of(moved, interior, style):
+        _hold(interior, moved)
+
+
+def dim_of(state: dict, interior: Interior, style: dict) -> int:
+    """`dim` of a held plan (the interior keeps its own)."""
+    now = _held(interior)
+    _hold(interior, state)
+    n = dim(interior, style)
+    _hold(interior, now)
+    return n
+
+
 def early_bays(interior: Interior, outside, style: dict, layout: str, before: dict) -> None:
     """A villa or maison the plan check still faults is planned again with the window bays traded inside
     the spine's variant search (`spine.bays`, as flats do), the plan with fewer faults kept (round 8)."""
     again(interior, outside, style, layout, "bays_early", before)
 
 
-def again(interior: Interior, outside, style: dict, layout: str, flag: str, before: dict) -> None:
-    """The house planned again from `before` with `flag` set; the plan with fewer `rooms.check` faults kept
-    (round 8)."""
-    first, faults, dark = _held(interior), len(check(interior)), dim(interior, style)
+def again(interior: Interior, outside, style: dict, layout: str, flag: str, before: dict, count=None) -> None:
+    """The house planned again from `before` with `flag` set; the plan with fewer `rooms.check` faults (or
+    `count`'s) kept (round 8)."""
+    count = count or check
+    first, faults, dark = _held(interior), len(count(interior)), dim(interior, style)
     _hold(interior, before)
     setattr(interior, flag, True)
     try:
         _plan(interior, outside, style, layout)
     finally:
         delattr(interior, flag)
-    if len(check(interior)) >= faults or dim(interior, style) > dark:
+    if len(count(interior)) >= faults or dim(interior, style) > dark:
         _hold(interior, first)
 
 
@@ -216,9 +244,9 @@ def plan_steps(interior: Interior) -> list:
 def sunk(interior: Interior, style: dict) -> None:
     """The sunken entry where the steps still fault (`sunken.sink`), kept when `rooms.check` finds less."""
     from .sunken import sink
-    first, faults = _held(interior), len(check(interior))
+    first, faults = _held(interior), len(plain(interior))
     sink(interior, style)
-    if len(check(interior)) >= faults:
+    if len(plain(interior)) >= faults:
         _hold(interior, first)
 
 
@@ -236,9 +264,85 @@ def _plan(interior: Interior, outside, style: dict, layout: str) -> None:
         with_shop(interior, outside, style, layout)
     else:
         PLANS.get(layout, placeholder)(interior, outside, style)
-    from .plancheck import settle, trim
+    from .plancheck import MODERN, settle, trim
     trim(interior)
     settle(interior)
+    if layout in MODERN:
+        way_home(interior, style)
+
+
+def way_home(interior: Interior, style: dict) -> None:
+    """A villa, maison or flat whose day rooms its entry reaches only through a chambre, bath or cuisine gets
+    doors on its own way (`plancheck.way_doors`), then a house trades a day room's type with a chambre on
+    that way (`plancheck.way_swaps`, `[interiors.villa] way_swaps` tries, two rounds, the best trade of each
+    kept); each kept when `rooms.check` then finds no new fault of another kind and fewer faults (or as many,
+    with fewer rooms off the way) and the home no more dark rooms. A block of flats judges its doors by the
+    wall checks of the floors they stand on (`flat_doors`: a whole block's check takes up to 0.8 s; round
+    10)."""
+    from .plancheck import settle, way_doors, way_swaps
+    from .plancheck import way_home as faulted
+    if not faulted(interior):
+        return
+    if interior.flats:
+        flat_doors(interior)
+        return
+    bad, dark = check(interior), dim(interior, style)
+    best = _score(interior, bad)
+
+    def judge():
+        got = check(interior)
+        ok = (sum(not f.endswith(WAY) for f in got) <= sum(not f.endswith(WAY) for f in bad)
+              and _score(interior, got) < best and dim(interior, style) <= dark)
+        return got if ok else None
+
+    first = _held(interior)
+    if way_doors(interior):
+        settle(interior)
+        got = judge()
+        if got is None:
+            _hold(interior, first)
+        else:
+            bad, best = got, _score(interior, got)
+    tries = int(style.get("interiors", {}).get("villa", {}).get("way_swaps", 0))
+    for _ in range(2):                                # two rounds: the best trade of each kept
+        start, won = _held(interior), None
+        for a, b in (way_swaps(interior) if any(f.endswith(WAY) for f in bad) else [])[:tries]:
+            ra, rb = (next(r for r in interior.rooms if r.id == i) for i in (a, b))
+            ra.type, rb.type = rb.type, ra.type
+            if way_doors(interior):
+                settle(interior)
+            got = judge()
+            if got is not None:
+                bad, best, won = got, _score(interior, got), _held(interior)
+            _hold(interior, start)
+        if won is None:
+            return
+        _hold(interior, won)
+
+
+def _score(interior: Interior, bad: list) -> tuple:
+    from .plancheck import astray
+    return len(bad), astray(interior)
+
+
+def flat_doors(interior: Interior) -> None:
+    """`way_home` for a block of flats: the doors kept when the wall checks of their floors (`plancheck`) find
+    no more faults and fewer rooms lie off the way."""
+    from .plancheck import _walls, astray, settle, way_doors
+    first, off = _held(interior), astray(interior)
+    floors = way_doors(interior)
+    if not floors:
+        return
+    settle(interior)
+    cfg = interior.rules.get("plan", {})
+    walls = lambda: sum(len(_walls(interior, f, cfg)) for f in sorted(floors))   # noqa: E731
+    got, now, moved = walls(), astray(interior), _held(interior)
+    _hold(interior, first)
+    if got <= walls() and now < off:
+        _hold(interior, moved)
+
+
+WAY = ("only through a chambre, bath or cuisine", "every bath room only through a chambre")
 
 
 HELD = ("layout", "storeys", "rooms", "openings", "stairs", "flats", "features", "warnings", "rules", "focus",
@@ -259,6 +363,12 @@ def _hold(interior: Interior, state: dict) -> None:
 def check(interior: Interior) -> list:
     from .rooms import check as rooms_check
     return rooms_check(interior)
+
+
+def plain(interior: Interior) -> list:
+    """`check` without the way-home faults: the steps' and tiny houses' retries choose as before them (47.1 +
+    48.1 round 10; only the redraws and the way's own repairs count them)."""
+    return [f for f in check(interior) if not f.endswith(WAY)]
 
 
 def short_steps(interior: Interior, style: dict) -> bool:

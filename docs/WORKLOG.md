@@ -26,8 +26,10 @@ Entry format:
   colonial 167/270, slab 317/353) and round 8 (houses: compact 266 and maison 588 meet their bars, shop
   129 and villa 169 one short) and round 9 (every house group at its bar; ladders compact 11, shop 5; see
   the 47.1 + 48.1 entry). Open with Ali: the blind rooms question (a courtyard or light wells for deep
-  colonial blocks and maisons) and the model mix for the next rounds. Next: round 10, the way in for
-  modern homes (a salon reached only through a chambre, sdb, wc or cuisine: a new check and the doors).
+  colonial blocks and maisons) and the model mix for the next rounds. Round 10 added the way-home check
+  for modern homes (no salon, salle a manger, cuisine or couloir reached only through a chambre, bath or
+  cuisine): villa 165/170 and maison 578/586 under it, colonial 66 and slab 215. Next: round 11, villas
+  and maisons back to their bars under that check, and the failing houses' plan time (up to 2.5 s).
   Uncommitted changes in the tree are the round in progress (backup branch `wip/47.1-48.1`).
 - Next: 47.1 with 48.1 (50 done 31 October: Open interior on a dwelling's card in `citygen view` and the
   gallery). Then 51. For 47.1 + 48.1:
@@ -660,6 +662,68 @@ Entry format:
   (colonial) and 1065 of 4637 (slab; No. 1064 flat 11: the salon only through a chambre). Round 6's way
   in covers old-town houses only. Lead's decision: round 10 adds the check for modern homes and fixes the
   doors, so the bars count honest plans.
+- Round 10 (the way in for modern homes, helper, about 55 minutes; scripts and results
+  `/tmp/claude-501/h471r10/`: `one.py` a home's links and pieces, `cls.py` classes, `guard.py` + `gcmp.py`
+  passes and `layout.dim` per home against a full `git archive HEAD` tree, `alone.py` single-process times):
+  - The check, `plancheck.way_home` (in `rooms.check`; villas, maisons, colonial and slab flats): from the
+    entry (a house: the front door's room; a flat: its rooms on the common palier) the salon, salle a manger,
+    cuisine and every couloir are reached without crossing a chambre, sdb, wc or cuisine (a cuisine is
+    reached, never walked through); chambres en enfilade and en suite baths allowed, but one sdb or wc must
+    be on the way. Old town untouched (`way_in` as round 6). Test `test_way_home` (hand-made villa, 0.01 s).
+  - Baseline (5333337 plus the check): villa 121, maison 461 (Ain Chilel); colonial 40, slab 102. The
+    check is stricter than the lead's probe (it also asks the cuisine, the salle a manger, every couloir
+    and a bath on the way). Classes: maison "the couloir only through a chambre" 65 (upper floors: the
+    palier opens only into a chambre), cuisine off the way 22, no bath on the way 15, salon 12; villa
+    cuisine 12, bath 12, salon 8, all of them 9 (hall in an acute corner).
+  - Fix 1, doors (`plancheck.way_doors`, `layout.way_home`): from the reached rooms to each day room,
+    couloir, hall or palier off the way (No. 235: the salon opens on the palier), a bath's when none is
+    reached; full door with `inner_clear`, else narrow; kept when the check finds fewer faults, none of a
+    new kind, no more dark rooms. Villa 121 -> 133, maison 461 -> 485.
+  - Fix 2, the search (second plans only, `early_bays` and redraws): `spine.astray` scores day rooms no
+    door joins to the hall or couloir and a way that misses the stair box; upper floors get a stub couloir
+    to the landing and take the couloir piece at the landing. Villa 144, maison 517.
+  - Fix 3, type trades (`plancheck.way_swaps`, `[interiors.villa] way_swaps` 6): a day room off the way
+    trades with a chambre on it, two rounds, the best trade of each. Villa 163, maison 539.
+  - Fix 4, upper floors: a way meets the box on an arch's length (0.85 m, not a door's 1.19 m), and of
+    variants as good the second plans take the fewest dark rooms (`spine.dark`: no window or a strip, as
+    `layout.dim`). The first plan of an upper floor whose first faultless variant misses the box takes a
+    later one that reaches it, no darker, weighed against the whole house planned without that choice
+    (`layout.way_moved`). Maison 578.
+  - Guard: the steps', tiny-house and sunken-hall retries now choose without the way faults
+    (`layout.plain`), else the check alone moved plans (230 and others). With a full HEAD tree (a tree of
+    only `citygen` + `styles` plans other houses: 168/583 there): `layout.dim` grew on 0 passing villas and
+    0 passing maisons; passing totals villa 90 (HEAD 97), maison 2172 (HEAD 2255).
+  - Flats: the doors only (`layout.flat_doors`, judged by the wall checks of the floors they stand on: a
+    slab's whole check is up to 0.8 s; `[interiors.flats] way_swaps` 0: trades judged by whole checks won
+    7 slabs and 8 colonial blocks more but took slabs to 12 s). Colonial 40 -> 66, slab 102 -> 215 (old
+    check: colonial 167 -> 170, slab 317 unchanged; bars 257 and 336 open with Ali). Doors only, so no
+    room changes and no dark rooms added.
+  - Final (survey with walls): villa 165 (bar 170), maison 578 (bar 586), dar 155, compact 266, small 81,
+    koubba 21, shop 130 (old town: rooms.json hashes all identical); colonial 66, slab 215. 0 crashes;
+    every passing interior 0 `mesh.faults`, 0 step faults. Lost against round 9 (old pass, now fails):
+    villa No. 250, 254, 298 (acute-corner halls into a chambre), 330, 332; maison No. 481, 490, 551, 608,
+    610, 628, 673, 725, 754, 776, 785, 845, 892, 908, 1003; won maison No. 482, 625, 640, 839, 1011.
+    Times alone: passing plans as before (maison No. 835 0.63 s, villa No. 322 0.42 s; slab No. 1169 0.99
+    -> 1.61 s, colonial No. 773 7.5 s unchanged); failing houses slower (maison No. 528 1.32 -> 2.51 s,
+    No. 666 1.58 -> 2.27 s, No. 961 0.61 -> 2.34 s: second plans now scan their variants for the fewest
+    dark rooms; an earlier stop lost 10 maisons). `pytest -q` 139 passed; `build --quick` done;
+    fingerprint `--allow ""`: 282 parts, 0 changed. Picture: output/checks/471-r10.png (villa No. 235: the
+    salon opens on the palier, the cuisine on the salon; slab No. 1064 floor 2, enlarged: flat 11's salon
+    opens on its couloir).
+  - Choices for Ali: a day room may open on the stair's palier (a villa's floor 0, No. 235) as a real
+    villa's living room often does; the old door through a chambre stays as a second door. A flat keeps
+    its types (no salon/chambre trade) for speed. A narrow door (0.7 m) may join a couloir or palier.
+  - Left: the bars (villa 5 short, maison 8 short): upper floors whose way to the box makes a dark chambre
+    (the guard refuses: No. 608, 725, 754, 892), halls in acute corners (No. 250, 254, 298), cuisines behind
+    chambres with no trade that keeps the sizes; failing houses' times; the flats still failing (slab 138,
+    colonial 204 blocks, way faults and others) belong to the open flats redesign.
+- Lead (after round 10): committed as progress: the way-home check makes the counts honest (with it, before
+  the fixes: villa 121, maison 461, colonial 40, slab 102; after: 165, 578, 66, 215), so villas and maisons
+  are under their bars again. Read the whole diff (no new draws; the way's doors, the type trades and the
+  upper-floor variant are each kept only with fewer faults and no more dark rooms). `pytest -q` 139
+  passed; fingerprint 0 changed. Seen in 471-r10.png: villa No. 235 is now hall, palier, salon; its salon
+  keeps an arm along the cuisine (already there at 5333337) and its door beside the flight wants a look in
+  3D. Failing houses take up to 2.5 s alone (round 9: 1.6 s): for round 11.
 
 ## 2026-10-31 - Prompt 50 H1f Interiors in the viewer
 - Commit: (lead commits) | Model: Opus 5.5, high

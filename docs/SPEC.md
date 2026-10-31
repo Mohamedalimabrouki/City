@@ -1356,6 +1356,26 @@ along the axes of a frame (the courtyard's or the footprint's `frame`).
   door, was measured and not built: its last quarter over the door is only 2.05 m over floor 0, under the
   2.09-2.71 m heads of the street doors, and where the stair room's door faces the street or the back its
   middle quarter (0.85-1.85 m up) stands over the door.
+  Round 10 (the way in for modern homes): `plancheck.way_home` (in `rooms.check`, villas, maisons, colonial
+  and slab flats): from a home's entry (a house: the room its front door opens into; a flat: its rooms that
+  open on the common parts) the salon, salle a manger, cuisine and every couloir are reached without
+  crossing a chambre, sdb, wc or cuisine (a cuisine may be reached, not walked through); a chambre through
+  another (en enfilade) and an en suite bath stay allowed, but one sdb or wc is reached without crossing a
+  chambre. Old-town houses keep round 6's `way_in`. The door rule: after every modern plan a home the check
+  faults gets doors from the rooms its entry reaches that way (hall, couloir, palier, salon, salle a manger)
+  to the day rooms, couloirs, halls and paliers it misses, then a bath room's when none is on the way
+  (`plancheck.way_doors`: the longest piece that holds a door with `inner_clear`, else a narrow one); then a
+  house's day room off the way trades its type with a chambre on it (`plancheck.way_swaps`, `[interiors.villa]
+  way_swaps` tries, two rounds, the best trade of each); each kept only when `rooms.check` finds fewer faults
+  (or as many with fewer rooms off the way), none of a new kind, and the home no more dark rooms
+  (`layout.way_home`). A block of flats keeps its doors when the wall checks of their floors find no more
+  faults and fewer rooms lie off the way (`layout.flat_doors`; `[interiors.flats] way_swaps` 0). A villa's or maison's upper floor whose first faultless variant leaves the couloir off
+  the stair box takes a later one where a hall or couloir meets the box on an arch's length, no darker
+  (`spine.astray`, `spine.dark`), kept only when the whole house then checks better and is no darker than
+  the plan without that choice (`layout.way_moved`). A house's second plans (`early_bays`, redraws) score
+  the day rooms off the way and a way missing the stair box as faults and, of variants as good, take the
+  fewest dark rooms; their upper floors join the couloir to the landing by a stub and take the couloir
+  piece at the landing. The steps', tiny houses' and sunken entries' retries choose without the way faults.
 - Built (prompt 46). Rules the code settled: every cut, union and difference runs on a 1 micrometer grid
   and pieces under 0.001 m2 are numerical slivers, dropped. Before and after the merges, arms of a room
   thinner than 0.8 m (strips an irregular lot leaves along a wall) move to the neighbour they share more

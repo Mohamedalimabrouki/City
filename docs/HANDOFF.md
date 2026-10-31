@@ -970,6 +970,18 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`, and how the le
   a second newel from the top floor under the stair room (as villas do), won 4 of the 5 two-floor ladder
   houses at once. A keyword argument named like a local variable (`along`) is silently shadowed: the
   survey's hash diff caught 5 houses changed for no reason; always diff hashes, not only counts.
+  Round 10 (the way in for modern homes): a new check also changes every retry that counts faults (the
+  steps' retry, the tiny house, the sunken hall), so plans move for reasons far from the check; let those
+  retries count without the new faults (`layout.plain`) and only the redraws and the check's own repairs
+  count them. To compare against HEAD, extract the whole repository (`git archive HEAD | tar -x`), not
+  only `citygen` and `styles`: a partial tree plans other houses (it read 168/583 passes for 170/588) and
+  shows false guard growth on most houses. Doors first (a door from the reached rooms to the day room is
+  enough for most villas), then type trades with a chambre on the way judged by the best of each round
+  (taking the first improvement led into dead ends); upper floors failed because the search's first
+  faultless variant put the couloir away from the stair box, and the variants that reach it are often
+  darker: score the box (an arch's length on any side), break ties by dark rooms, and weigh a moved floor
+  against the whole house planned without that choice. A whole block's `rooms.check` takes up to 0.8 s:
+  judge a flat's doors by the wall checks of the floors they stand on.
 
 ## Known weak spots
 

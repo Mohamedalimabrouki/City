@@ -36,7 +36,7 @@ def faults(interior) -> list:
     for f in range(interior.floors):
         out += _walls(interior, f, cfg)
     out += _steps(interior, cfg)
-    return out + way_in(interior)
+    return out + way_in(interior) + way_home(interior)
 
 
 def rect(c, front, along, t0: float, t1: float, d0: float, d1: float) -> Polygon:
@@ -448,3 +448,133 @@ def _path(interior, rooms: dict, start: list, goal: set) -> list:
         for j in sorted(graph[i] - done):
             heapq.heappush(todo, (c + cost(j), j, way + (j,)))
     return []
+
+
+PRIVATE = ("chambre", "sdb", "wc", "cuisine")        # rooms a modern home's way in never crosses (round 10)
+SHARED = ("salon", "salle_a_manger", "cuisine", "couloir")   # rooms reached from the entry without crossing one
+BATHS = ("sdb", "wc")
+MODERN = ("villa", "maison", "colonial", "slab")
+
+
+def way_home(interior) -> list:
+    """A villa's, maison's or flat's day rooms (`SHARED`) are reached from its entry (a house: the room its
+    front door opens into; a flat: the rooms that open on the common parts) without crossing a chambre, sdb,
+    wc or cuisine; a far chambre through another (en enfilade) and an en suite bath stay allowed, but one bath
+    room is reached without crossing a chambre (open items 47.1 + 48.1, round 10)."""
+    out = []
+    for unit, rooms, seen, near, mine in homes(interior):
+        name = "the home" if unit == "home" else unit
+        far = sorted({rooms[i].type for i in mine - near if rooms[i].type in SHARED})
+        if far:
+            out.append(f"{name}: the {' and the '.join(far)} only through a chambre, bath or cuisine")
+        if any(rooms[i].type in BATHS for i in mine) and not any(rooms[i].type in BATHS for i in near):
+            out.append(f"{name}: every bath room only through a chambre")
+    return out
+
+
+def astray(interior) -> int:
+    """How many day rooms `way_home` finds off the way, and homes with no bath room on it."""
+    n = 0
+    for _, rooms, seen, near, mine in homes(interior):
+        n += sum(1 for i in mine - near if rooms[i].type in SHARED)
+        n += any(rooms[i].type in BATHS for i in mine) and not any(rooms[i].type in BATHS for i in near)
+    return n
+
+
+def homes(interior) -> list:
+    """(unit, rooms by id, seen, near, mine) of each modern home: `seen` the rooms its entry reaches without
+    crossing a chambre, bath or cuisine, `near` those and the rooms they open into (and the entry rooms)."""
+    if interior.layout not in MODERN:
+        return []
+    rooms = {r.id: r for r in interior.rooms}
+    graph = _walk_graph(interior, rooms)
+    out = []
+    for unit in sorted({r.unit for r in interior.rooms if r.unit == "home" or r.unit.startswith("flat")}):
+        mine = {i for i, r in rooms.items() if r.unit == unit}
+        start = _entries(interior, rooms, graph, mine)
+        seen = {i for i in start if rooms[i].type not in PRIVATE}
+        todo = sorted(seen)
+        while todo:
+            for j in sorted(graph[todo.pop()] & mine):
+                if j not in seen and rooms[j].type not in PRIVATE:
+                    seen.add(j)
+                    todo.append(j)
+        near = seen | {j for i in seen for j in graph[i] & mine} | set(start)
+        out.append((unit, rooms, seen, near, mine))
+    return out
+
+
+def _walk_graph(interior, rooms: dict) -> dict:
+    """Room id -> the room ids a person reaches in one step (doors, arches, stairs; `rooms.links`)."""
+    graph = {i: set() for i in rooms}
+    for o in interior.openings:
+        a, b = o.rooms
+        if o.kind in WALK and a in rooms and b in rooms:
+            graph[a].add(b)
+            graph[b].add(a)
+    for s in interior.stairs:
+        if s.kind != "steps":
+            for a, b in zip(s.rooms[:-1], s.rooms[1:]):
+                if a in rooms and b in rooms and a != b:
+                    graph[a].add(b)
+                    graph[b].add(a)
+    return graph
+
+
+def _entries(interior, rooms: dict, graph: dict, mine: set) -> list:
+    """The rooms of a home a person enters first: the front door's room, or those opening off other units."""
+    door = interior.entry
+    if not interior.flats and door is not None and door in interior.openings:
+        return sorted(i for i in door.rooms if i in mine)
+    return sorted(i for i in mine if graph[i] - mine)
+
+
+def way_doors(interior) -> bool:
+    """A home `way_home` faults gets doors from the rooms its entry reaches without crossing a chambre, bath or
+    cuisine to the day rooms, couloirs, halls and paliers it does not (then from those on), and, when no bath
+    room is reached, from a bath room to them: each new door on the longest piece that holds one with
+    `inner_clear` and both rooms deep enough behind it, else a narrow one (`narrow`, `narrow_clear`); a
+    flat's rooms only among themselves (round 10). The floors that got one."""
+    from . import rooms as R
+    if not way_home(interior):
+        return set()
+    rules = interior.rules
+    deep = rules["partition"] / 2 + float(rules.get("plan", {}).get("probe", 0.1)) + 0.02
+    wide = [(rules["door"], rules.get("inner_clear", rules["clear"])),
+            (rules.get("narrow", 0.7), rules.get("narrow_clear", 0.05))]
+    floors = set()
+    for _ in range(len(interior.rooms)):
+        f = _way_door(interior, R, wide, deep)
+        if f is None:
+            break
+        floors.add(f)
+    return floors
+
+
+def _way_door(interior, R, wide: list, deep: float):
+    """One door of `way_doors`: the floor it stands on, None when none was placed."""
+    for unit, rooms, seen, near, mine in homes(interior):
+        want = [i for i in sorted(mine - near) if rooms[i].type in SHARED + ("hall", "palier")]
+        if not any(rooms[i].type in BATHS for i in near):
+            want += [i for i in sorted(mine) if rooms[i].type in BATHS]
+        for i in want:
+            r = rooms[i]
+            hosts = sorted(((s, n) for s, n in R.neighbours(interior, r) if n.id in seen),
+                           key=lambda t: (t[1].type not in ("hall", "couloir", "palier"), -t[0], t[1].id))
+            for width, clear in wide:
+                for _, n in hosts:
+                    if R.place(interior, r, n, "inner", width, interior.rules["door_height"], clear=clear,
+                               deep=deep) is not None:
+                        return r.floor
+    return None
+
+
+def way_swaps(interior) -> list:
+    """(day room, chambre) id pairs whose types a home `way_home` faults may trade: a salon, salle a manger or
+    cuisine off its way, and a chambre of its floor that opens on the way (the largest first; round 10)."""
+    out = []
+    for unit, rooms, seen, near, mine in homes(interior):
+        for i in [i for i in sorted(mine - near) if rooms[i].type in ("salon", "salle_a_manger", "cuisine")]:
+            ok = [j for j in near - seen if rooms[j].type == "chambre" and rooms[j].floor == rooms[i].floor]
+            out += [(i, j) for j in sorted(ok, key=lambda j: (-rooms[j].polygon.area, j))]
+    return out
