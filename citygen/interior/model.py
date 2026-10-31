@@ -91,12 +91,17 @@ class Stair:
     width: float
     door: tuple | None = None   # (x, y, yaw) of a newel cell's door side
     rooms: list = field(default_factory=list)   # its room on each floor it serves
+    turn: int = 0     # entry steps turned at the door's landing: +1 / -1 along the wall (47.1/48.1), 0 straight
+    flight: float = 0.0   # a turned flight's width (and its door landing's depth)
 
     def to_json(self) -> dict:
         door = None if self.door is None else [_r(self.door[0]), _r(self.door[1]), round(float(self.door[2]), 5)]
-        return {"kind": self.kind, "polygon": rings(self.polygon), "floor": self.floor, "top": self.top,
-                "risers": self.risers, "riser": _r(self.riser), "tread": _r(self.tread), "width": _r(self.width),
-                "door": door, "rooms": list(self.rooms)}
+        out = {"kind": self.kind, "polygon": rings(self.polygon), "floor": self.floor, "top": self.top,
+               "risers": self.risers, "riser": _r(self.riser), "tread": _r(self.tread), "width": _r(self.width),
+               "door": door, "rooms": list(self.rooms)}
+        if self.turn:
+            out.update(turn=self.turn, flight=_r(self.flight))
+        return out
 
 
 @dataclass

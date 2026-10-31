@@ -780,17 +780,35 @@ def carve_wet(job, spine: dict, cells: list, t: str, floor: int) -> bool:
             for piece_way in contact(host.poly, way):
                 got = slide_wet(job, F, host, way, piece_way, t, w, deep, top, door, zones, ways)
                 if got is not None:
-                    host.poly = got[1]
-                    cells.append(Cell(got[0], t, host.band, host.part))
+                    wet, host.poly = unwrap(job, *got)
+                    cells.append(Cell(wet, t, host.band, host.part))
                     return True
     hall = next((c for c in cells if c.type == "hall"), None)
     if hall is not None:                                # off the hall, in a corner away from the door
         got = hall_corner(job, F, hall, w, max(least_a / w, least_w) + 0.3, door, zones, spine.get("entry"), t)
         if got is not None:
-            hall.poly = got[1]
-            cells.append(Cell(got[0], t, "spine", "wc"))
+            wet, hall.poly = unwrap(job, *got)
+            cells.append(Cell(wet, t, "spine", "wc"))
             return True
     return False
+
+
+def unwrap(job, wet, rest) -> tuple:
+    """(wet room, host) with the host's hair-thin arms round the carved room (narrower than a partition and
+    0.1 m: walls would swallow them and the doors on them) given to the wet room (47.1/48.1)."""
+    from ..city.geo import polygons
+    e = job.half + 0.05
+    core = parts(snap(rest.buffer(-e, join_style="mitre").buffer(e, join_style="mitre").intersection(rest)))
+    if not core:
+        return wet, rest
+    body = max(core, key=lambda p: p.area)
+    for arm in sorted(polygons(shapely.difference(rest, body, grid_size=1e-6)), key=lambda p: (-p.area, p.centroid.x)):
+        if arm.area < 1e-8 or shared(arm, wet) < 0.05:
+            continue
+        grown, left = union(wet, arm), parts(shapely.difference(rest, arm, grid_size=1e-6))
+        if grown is not None and len(left) == 1:
+            wet, rest = grown, left[0]
+    return wet, rest
 
 
 def hall_corner(job, F: Frame, hall, w: float, d: float, door: float, zones: list, entry, t: str = "wc"):

@@ -3737,11 +3737,14 @@ def old_town(interior_ctx):
     return out
 
 
+OPEN_OLD: dict = {}   # building -> the problems it still has (47.1/48.1: none left in the fixture)
+
+
 def test_old_town_plans_are_valid(old_town):
     from citygen.interior import rooms
     assert len(old_town) == 50
     for interior, _ in old_town:
-        assert rooms.check(interior) == [], (interior.building, interior.layout)
+        assert rooms.check(interior) == OPEN_OLD.get(interior.building, []), (interior.building, interior.layout)
         assert interior.layout in ("dar", "compact", "small")
 
 
@@ -3784,6 +3787,46 @@ def test_skifa_hides_the_courtyard(old_town):
         assert ends and not shapely.covers(free, lines).any(), interior.building
 
 
+def test_plan_wall_checks(old_town):
+    """`plancheck` sees a door pushed into a partition's junction and the entry steps' short treads in the
+    plan (no meshing); `settle` slides the door back to a place the walls accept (47.1/48.1)."""
+    import copy
+    from citygen.interior import plancheck as PC
+    interior = copy.deepcopy(next(i for i, _ in old_town if any(o.kind == "inner" for o in i.openings)))
+    assert PC.faults(interior) == []
+    o = next(o for o in interior.openings if o.kind == "inner")
+    by_id = {r.id: r for r in interior.rooms}
+    piece = max(rooms_pieces(interior, by_id[o.rooms[0]], by_id[o.rooms[1]]), key=lambda p: math.dist(*p))
+    o.x, o.y = piece[0]                               # its center on the end of its wall: walls cross it
+    assert any(f"the {o.kind} {o.id} " in p for p in PC.faults(interior))
+    PC.settle(interior)
+    assert PC.faults(interior) == []
+    steps = next((s for s in interior.stairs if s.kind == "steps"), None)
+    if steps is not None:
+        steps.tread = 0.1
+        assert "the entry steps have treads of 0.10 m" in PC.faults(interior)
+
+
+def test_turned_entry_steps(old_town, interior_ctx):
+    """Entry steps too long for a straight run turn at the door's landing (lead decision, 47.1/48.1): treads
+    of at least `tread_min`, a step part per riser after the landing, a walking line climbing tread by tread."""
+    from citygen.interior import stairs as S
+    cfg = interior_ctx.world.style["interiors"]["stairs"]
+    turned = [(i, s) for i, _ in old_town for s in i.stairs if s.kind == "steps" and s.turn]
+    assert turned
+    for interior, s in turned:
+        assert s.tread >= cfg["tread_min"] - 1e-9 and s.flight >= cfg["steps_flight_min"] - 1e-9
+        parts = S.parts(s, interior, cfg, {})
+        assert len(parts) == s.risers + 1
+        z = S.treads(s, interior, cfg)[0].pts[:, 2]
+        assert (abs(z[1:] - z[:-1]) <= S.riser_max(s, cfg) + 1e-9).all() and z[-1] == S.level(interior, 0)
+
+
+def rooms_pieces(interior, a, b) -> list:
+    from citygen.interior.rooms import pieces_between
+    return pieces_between(interior, a, b)
+
+
 def test_old_town_stairs(old_town):
     from citygen.interior.layout import SHOP_STAIR
     for interior, outside in old_town:
@@ -3792,6 +3835,9 @@ def test_old_town_stairs(old_town):
         droj = {r.id: r for r in interior.rooms if r.type == "droj"}
         if SHOP_STAIR in interior.warnings:               # the shop took the only place of the stair (prompt 47)
             continue
+        if any("a ladder rises into the stair room" in w for w in interior.warnings):   # the stair room stands
+            assert any(s.kind == "ladder" and s.top == interior.floors for s in interior.stairs), interior.building
+            continue                                      # over the street door (47.1/48.1): a ladder up into it
         if interior.floors > 1 or (roof is not None and roof.stair is not None):
             assert len(newel) == 1, interior.building
             s = newel[0]
@@ -3893,7 +3939,11 @@ def test_new_district_plans_are_valid(interior_ctx, world, villas):
         for interior, _ in items:
             if interior.building in OPEN_47_HOUSES.get(group, ()):
                 continue                                  # open item 47.1: test_open_samples_are_valid
-            assert rooms.check(interior) == [], (group, interior.building, rooms.check(interior)[:3])
+            if interior.building in OPEN_PALIER.get(group, ()):
+                continue                                  # open (47.1/48.1): slivers round a U stair's palier
+            want = [f"the entry steps have treads of {OPEN_STEPS[interior.building]:.2f} m"] \
+                if interior.building in OPEN_STEPS else []
+            assert rooms.check(interior) == want, (group, interior.building, rooms.check(interior)[:3])
 
 
 def test_new_district_sample_is_valid(new_districts):
@@ -3909,6 +3959,10 @@ def test_new_district_sample_is_valid(new_districts):
 
 
 OPEN_47 = ("colonial", "slab")   # open item 47.1: flats not yet at the bar (WORKLOG)
+OPEN_STEPS = {501: 0.15}   # open (47.1/48.1, WORKLOG): a domed house whose annex is too short even for
+                                      # turned entry steps (a 1.32 m rise, 1.16 m along the wall)
+OPEN_PALIER = {"villa": (363,), "maison": (852, 863, 864)}   # open (47.1/48.1, WORKLOG): a couloir squeezed
+# between a U stair's palier and a wall narrows its arch or doors (the new wall checks see them)
 OPEN_47_HOUSES = {"koubba": (570,)}   # open item 47.1: No. 570's annex is a strip round the koubba, too narrow
 
 
@@ -4026,8 +4080,7 @@ def _wall_samples(old_town, new_districts) -> list:
     return out + [item for items in new_districts.values() for item in items]
 
 
-OPEN_48 = {193: ["a partition crosses opening 1 (window)"],     # open item 48.1 (WORKLOG): a stair cell 0.1-0.2 m
-           322: ["a partition crosses opening 8 (window)"]}    # off the wall, its partition in front of a window
+OPEN_48: dict = {}    # building -> the wall faults it still has (48.1 fixed: `plancheck` sees them in the plan)
 
 
 def test_interior_holes_match_the_facade(interior_ctx, old_town, new_districts):

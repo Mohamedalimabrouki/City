@@ -1269,6 +1269,35 @@ along the axes of a frame (the courtyard's or the footprint's `frame`).
 - Types follow light: living rooms take cells with a facade window or a court wall, stores, washrooms,
   corridors and stairs the blind ones.
 - Every check of the tests lives in `rooms.check(interior) -> [problems]`, so tools and tests share it.
+- Wall and step checks in the plan (open items 47.1 + 48.1, `interior/plancheck.py`, called by `rooms.check`,
+  no meshing): the walls draw each room's free floor (the room less every walled neighbour grown by half a
+  partition, `mesh.free`), so beside every opening that free floor must reach its wall across the opening's
+  width for `[interiors.checks] probe` (0.1 m): no partition, sliver room or storey edge there (a footprint
+  part no storey covers, a corner the next wall crosses); an inner door or passage stands inside its
+  partition with free floor on both sides (a passage counts only the run both rooms face, less 0.1 m a side,
+  and must keep its width less a partition); a court opening has the court across its width (not past a
+  corner); no two openings of a floor share wall; entry steps have treads of `[interiors.stairs] tread_min`
+  (0.2 m), every tread inside their room, and no other stair over them. A plan passing these gives no
+  `mesh.faults` (checked over the quick capital and Ain Chilel). Plans keep them by: `settle` at the end of
+  every plan (inner doors, inner windows, passages and court openings slide along their wall to the nearest
+  place that passes; a door tries the narrow door; a court opening that fits nowhere goes and `connect`
+  places what is still needed); `[interiors.walls] front_keep` (0.5 m: no partition runs along a wall just
+  behind an opening, across its width; stair cells use it behind doors only, so a cell a sliver off a
+  window's wall takes the strip as its landing); reveals (`reveal`, `reveal_wall`: a facade opening whose
+  next wall crosses the floor behind it gets 0.2 m of floor cut into that wall when the wall keeps 0.15 m);
+  masses sharing an edge make one storey; the skifa's screen or the small house's entry strip leave the
+  entry steps `stairs.steps_depth` (treads of `tread_min`, a landing of `turn_min` 0.6 m, which the steps
+  also use before going under `tread_min`), and a dar whose steps' room leaves the court in sight is planned
+  again without it; the baffle and screen stay off the door; ladders keep off the entry steps; hair strips
+  (thinner than 2 x `cuts.HAIR`, 0.3 m) of cells, of finished rooms (`plancheck.trim`), of a host round a
+  carved sdb or wc and of rooms along a U stair box (`villa.to_landing`) join a neighbour (a palier, skifa
+  or stair cell may take them); a passage the walls narrow keeps at least `passage_min` (0.8 m). Turned
+  entry steps (lead decision): steps that cannot keep `tread_min` and the 0.6 m landing in a straight run
+  start with a landing at the door's threshold (the door's width + 2 x `side`, `steps_flight` 0.9 m deep,
+  down to `steps_flight_min` 0.7 m in a shallow room), then turn 90 degrees and climb along the facade wall
+  toward the side with more room, treads `tread` down to `tread_min`, `turn_min` of floor kept beyond
+  (`Stair.turn` +1 or -1 along the wall, `Stair.flight`; rooms.json gets `turn` and `flight` only for them);
+  `stairs.parts`, `treads` and `well` draw and check them like straight steps.
 - Built (prompt 46). Rules the code settled: every cut, union and difference runs on a 1 micrometer grid
   and pieces under 0.001 m2 are numerical slivers, dropped. Before and after the merges, arms of a room
   thinner than 0.8 m (strips an irregular lot leaves along a wall) move to the neighbour they share more
