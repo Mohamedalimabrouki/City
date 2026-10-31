@@ -4026,3 +4026,97 @@ def test_interior_budget(interior_build, interior_ctx, tmp_path):
         assert {"plaster_inner", "door_leaf", "door_frame"} <= names, layout
         if layout == "dar":
             assert "zellige" in names
+
+
+# --- floors, ceilings, stairs and the roof terrace (prompt 49, SPEC 6c "Stairs", "Floors and ceilings") -----
+def _stair_samples(old_town, new_districts) -> list:
+    """(interior, outside): five old-town houses of each layout with a stair, one of every other group."""
+    out, seen = [], collections.Counter()
+    for interior, outside in old_town:
+        if seen[interior.layout] < 5 and any(s.kind != "steps" for s in interior.stairs):
+            seen[interior.layout] += 1
+            out.append((interior, outside))
+    return out + [item for items in new_districts.values() for item in items]
+
+
+def _levels(interior) -> list:
+    """The z of each floor and of the roof (its rooms' floor, else one floor height over the top storey)."""
+    roof = [r.z for r in interior.rooms if r.floor == interior.floors]
+    return [s.z for s in interior.storeys] + [roof[0] if roof else interior.high + interior.floors * interior.fh]
+
+
+def test_stairs_connect_floors_with_headroom(interior_ctx, old_town, new_districts):
+    from citygen.interior import floors as F
+    from citygen.interior import stairs as S
+    style = interior_ctx.world.style
+    st = style["interiors"]["stairs"]
+    headroom = float(st["headroom"])
+    samples = _stair_samples(old_town, new_districts)
+    kinds = collections.Counter()
+    for interior, outside in samples:
+        levels = _levels(interior)
+        over = [(p.poly.buffer(-0.005), p.z0, p.z1) for p in F.overheads(interior, style, outside)]
+        for s in interior.stairs:
+            kinds[s.kind] += 1
+            for run in S.treads(s, interior, st):
+                z = run.pts[:, 2]
+                if s.kind == "steps":
+                    door = min(outside.doors, key=lambda d: math.hypot(d.x - s.door[0], d.y - s.door[1]))
+                    want = (door.z, levels[0])
+                elif s.kind == "ladder":
+                    want = (run.z_from, levels[s.top])
+                else:
+                    f = int(round((run.z_from - interior.high) / interior.fh))
+                    want = (levels[f], levels[f + 1])
+                assert len(z) and abs(run.z_from - want[0]) < 0.01 and abs(run.z_to - want[1]) < 0.01, \
+                    (interior.building, s.kind, run.z_from, run.z_to, want)
+                if s.kind != "ladder":                # the first leaves its floor, the last reaches the next
+                    rise = np.diff(np.concatenate([[run.z_from], z, [run.z_to]]))
+                    sign = 1.0 if run.z_to >= run.z_from else -1.0
+                    assert (sign * rise > -1e-6).all() and abs(z[0] - run.z_from) > 1e-6, (interior.building, s.kind)
+                    assert np.abs(rise).max() <= S.riser_max(s, st) + 1e-6, (interior.building, s.kind)
+                for poly, z0, z1 in over:             # 2 m clear over every tread point
+                    if poly.is_empty:
+                        continue
+                    inside = shapely.contains_xy(poly, run.pts[:, 0], run.pts[:, 1]) & (z1 > z + 0.01)
+                    assert (z0 - z[inside] >= headroom - 1e-6).all(), (interior.building, s.kind, float((z0 - z[inside]).min()))
+    assert kinds["newel"] and kinds["u"] and kinds["steps"]
+    roofs = [s for i, _ in samples for s in i.stairs if s.kind == "newel" and s.top == i.floors]
+    assert roofs                                       # the roof stair room's ceiling was among the overheads
+
+
+def test_court_and_roof(interior_ctx, old_town, new_districts):
+    from citygen.interior import floors as F
+    from citygen.interior import mesh as M
+    from citygen.interior.export import court_trees
+    from citygen.mesh.builder import MeshBuilder
+    style = interior_ctx.world.style
+    fl, st, _ = F.settings(style)
+    samples = _stair_samples(old_town, new_districts)
+    fountains = trees = doors = 0
+    for interior, outside in samples:
+        mb = MeshBuilder()
+        holes = {h.id: h for h in M.walls_mesh(mb, interior, outside, style)}
+        F.floors_mesh(mb, interior, outside, style)
+        M.stairs_mesh(mb, interior, style)
+        names = set(mb.gltf_parts())
+        assert "water" not in names                   # inland water is water_pool (the Blender scripts hide water)
+        if any(f["type"] == "fesqiya" for f in interior.features):
+            fountains += 1
+            assert "water_pool" in names
+        for p in court_trees(interior, outside, mb):  # on the paving, not the ground
+            trees += 1
+            assert abs(p.z - F.paving_z(interior, fl)) < 1e-6, interior.building
+        roof = next((lay for m, lay in outside.roofs if m.main), None)
+        droj = next((r for r in interior.rooms if r.type == "droj" and r.floor == interior.floors), None)
+        if roof is not None and roof.stair is not None and droj is not None:
+            o = next(o for o in interior.openings if o.floor == interior.floors and droj.id in o.rooms
+                     and o.kind == "inner")
+            h = holes[o.id]
+            assert math.hypot(h.x - roof.door[0], h.y - roof.door[1]) < 0.02, interior.building
+            doors += 1
+        plates = [p for p in F.plates(interior, style, outside) if p.kind in ("slab", "landing")]
+        for o in interior.openings:                    # no slab or landing behind an opening
+            assert not any(F.crosses(interior, o, p.poly, p.z1, p.z1 - p.z0, fl, st) for p in plates), \
+                (interior.building, o.id, o.kind)
+    assert trees and doors

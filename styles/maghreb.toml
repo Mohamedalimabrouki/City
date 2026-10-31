@@ -1829,8 +1829,19 @@ door_frame = { color = "#5E4029", roughness = 0.6 }
 glass_inner = { color = "#DCE8EC", roughness = 0.05, alpha = 0.18, double_sided = true }   # the casement's panes, seen through
 casement_wood = { color = "#6B4A2E", roughness = 0.6 }      # casements of traditional houses
 casement_white = { color = "#ECEAE4", roughness = 0.5 }     # casements of flats, villas and maisons
+floor_tiles = { color = "#FFFFFF", roughness = 0.45, texture = "tiles", texture_size = [1.2, 1.2] }   # traditional floors (prompt 49): the image holds the colors
+terrazzo = { color = "#FFFFFF", roughness = 0.35, texture = "terrazzo", texture_size = [1.5, 1.5] }    # floors and stairs of flats, villas and maisons
+step_stone = { color = "#D2C3A6", roughness = 0.8, texture = "stone", texture_size = [1.2, 0.8] }    # newel and entry steps of traditional houses, the majel's curb
+court_paving = { color = "#E2DACB", roughness = 0.5, texture = "paving", texture_size = [2.4, 2.4] }   # the court: pale marble slabs
+ceiling_boards = { color = "#A97F55", roughness = 0.75 }    # the boards between painted beams
+beam_blue = { color = "#3E6A8C", roughness = 0.7 }          # painted beams (stream beams)
+beam_green = { color = "#4C7A5A", roughness = 0.7 }
+beam_red = { color = "#9A3F33", roughness = 0.7 }
+beam_ochre = { color = "#B88A3E", roughness = 0.7 }
 
 [interiors.textures]  # images only interiors use (mesh/textures.py makes them; the build never writes them)
+terrazzo = { pixels = 256, chips = 1400, grain = 0.5, mottle = 0.4, field = "#D9D3C7", chip_1 = "#8E877B", chip_2 = "#4F4A44", chip_3 = "#B9A687", chip_4 = "#F1EDE6", chip_5 = "#9A6B55" }
+tiles = { pixels = 256, cells = 4, grain = 0.6, mottle = 0.4, grout_width = 0.03, glaze = "#E9E1D0", glaze_2 = "#7C3B2E", grout = "#9C9286" }
 zellige = { pixels = 256, cells = 2, star = 0.35, heart = 0.08, grout_width = 0.018, grain = 0.5, mottle = 0.5, glaze = "#1E4F8F", glaze_2 = "#2B7A55", field = "#EEE7D6", heart_glaze = "#D9A632", grout = "#4E4A44" }
 
 [interiors.rooms]  # [least area m2, least width m] (width: twice the largest inscribed circle's radius)
@@ -1948,6 +1959,25 @@ u_narrow = 0.8           # meters, the narrow U stair tried before a ladder
 u_narrow_tread = 0.24    # meters
 ladder_well = 1.2        # meters square: the common well of a ladder in a block too thin for any stair
 
-[interiors.floors]
-slab = 0.25              # meters, a floor slab (prompt 49 lays it)
-roof_room_ceiling = 0.15 # meters, the stair room's ceiling over the roof landing
+[interiors.floors]  # floors, ceilings, stairs' solids, the roof deck and the court (prompt 49)
+slab = 0.25              # meters, a floor slab, its top at the floor's z (the roof deck too)
+roof_room_ceiling = 0.15 # meters, the ceiling of a roof room (the stair room's over the roof landing)
+roof_wall = 0.2          # meters, the walls of the roof rooms (stair room, menzah)
+slot = 0.3               # meters a slab or landing stops short of a wall where it would cross an opening
+court_step = 0.15        # meters, the court's paving under floor 0
+landing = 0.2            # meters, a U stair's half landing
+waist = 0.15             # meters of stair under the nosing line (steps' undersides)
+stringer = 0.05          # meters, the board along a U flight's open side (and over its nosings)
+rail = 0.9               # meters, an iron railing's height over the nosings or the landing
+baluster = 0.12          # meters between a railing's bars
+beam = [0.1, 0.12]       # meters, a painted beam's width and depth
+beam_step = 0.45         # meters between beams, across the shorter span
+beam_rooms = ["bit", "maqsura", "ghorfa", "skifa", "matbakh", "bit_el_ma", "bit_el_mouna", "bortal", "hanout", "makhzen"]
+beam_colors = ["beam_blue", "beam_green", "beam_red", "beam_ochre"]   # [interiors.palette] entries (stream beams)
+finish = { traditional = "floor_tiles", modern = "terrazzo" }   # floors (dar, compact, small, koubba: traditional)
+steps = { traditional = "step_stone", modern = "terrazzo" }
+court = "court_paving"
+majel = [0.6, 0.4]       # meters, the cistern mouth's curb across and high
+fesqiya = 1.4            # meters across, the octagonal basin
+dome_wall = 0.25         # meters, a koubba's drum and dome seen from inside
+skylight_curb = 0.2      # meters, the curb under a skylight's glass

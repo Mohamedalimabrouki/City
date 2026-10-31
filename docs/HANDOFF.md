@@ -848,6 +848,20 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`, and how the le
   already invisible from inside. Snapshot an inside view
   with a copy of the folder whose index.json `interior` view is moved into a room: the dar's own view
   stands in its court, often behind the court tree.
+- **Floors, stairs and roof** (prompt 49, `interior/floors.py`, `stairs.py` geometry, `mesh.stairs_mesh`): make
+  the stairs' geometry one set of objects (`stairs.parts`, `well`, `treads`, `rails`) that the mesh draws and
+  the tests and surveys check; `floors.overheads` and `floors.slab` are the same functions the drawing uses,
+  so a headroom or crossing check measures what Blender shows. The walking line alone hides faults: the
+  first survey passed every slab while 154 of 156 quick-capital slab cores (59 of 89 colonial) stood on the
+  entry steps of their own door (the steps' 1.7 m width ran under the flights, the centre line between
+  them); check the sides of wide steps too. Steep entry steps can have treads of 6 cm: sample every tread,
+  not every 0.1 m. A survey copy of HEAD needs the whole tree (`git archive HEAD`, kits included), or the
+  facade pieces differ and every "before" number is wrong. Flat roofs: pass a drawer to
+  `building_tops(flat=...)` rather than copying `roof_mesh`; the roof rooms' walls join the walls' faces so
+  their doors get holes, frames and leaves for free (`depths` of a roof opening: `walls["roof"]`). Slab edges
+  must skip the lines where the floor below draws a wall face, or they z-fight with it. Open (plans of 46,
+  not touched): old-town entry steps with treads under 0.2 m, steps clipped by a short or bent skifa, a few
+  doors whose steps run into the newel cell (WORKLOG prompt 49).
 
 ## Known weak spots
 

@@ -33,7 +33,8 @@ def plan_interior(outside, style: dict) -> Interior:
     walls_cfg = style.get("interiors", {}).get("walls", {})
     partition = walls_cfg.get("partition", 0.2) if layout in TRADITIONAL else walls_cfg.get("partition_modern", 0.15)
     walls = {"exterior": exterior_wall(style, outside.district), "court": float(walls_cfg.get("court", 0.3)),
-             "partition": float(partition)}
+             "partition": float(partition),
+             "roof": float(style.get("interiors", {}).get("floors", {}).get("roof_wall", 0.2))}   # roof rooms (49)
     home = next((h for h in getattr(plan, "households", ()) if h.building == k), None)
     household = None if home is None else {"building": home.building, "family": home.family, "trade": home.trade,
                                            "wealth": home.wealth, "door": home.door, "members": home.members}

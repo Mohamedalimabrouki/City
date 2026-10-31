@@ -15,14 +15,14 @@ import numpy as np
 from shapely.ops import polylabel
 
 from ..city.massing import main_mass
-from ..mesh.builder import MeshBuilder, add_cap
+from ..mesh.builder import MeshBuilder
 from ..mesh.gltf import write_glb
 from ..mesh.textures import DEFAULTS, encoded, image_names, spec_for
 from ..mesh.props import tree_mesh
 from ..mesh.tile import building_tops, instance_groups, ring_heights
-from .mesh import walls_mesh
+from .floors import floors_mesh, paving_z, roof_drawer, settings
+from .mesh import stairs_mesh, walls_mesh
 
-FLOOR = "paving"            # placeholder floor caps (prompt 49 lays real floors)
 HOMES = ("house", "domed", "villa")   # "Dar <family>", as the viewer's card names them
 
 
@@ -35,11 +35,12 @@ def write_folder(interior, outside, out) -> Path:
     minx, miny, maxx, maxy = b.footprint.bounds
     x0, y0 = math.floor(minx - margin), math.floor(miny - margin)
     mb = MeshBuilder(origin=(x0, y0))
-    walls_mesh(mb, interior, outside, world.style)        # the shell: walls with holes, then the tile's roofs
+    walls_mesh(mb, interior, outside, world.style)        # the shell: walls with holes, then the roofs
     high = float(ring_heights(outside.ctx.ground, [b])[0].max())    # as the tile's building_walls reads it
-    building_tops(mb, b, outside.ctx.ground.height, high, roofs=outside.roofs)
-    for st in interior.storeys:                           # placeholder floors until prompt 49
-        add_cap(mb, st.polygon, st.z, FLOOR)
+    building_tops(mb, b, outside.ctx.ground.height, high, roofs=outside.roofs,
+                  flat=roof_drawer(interior, outside, world.style))
+    floors_mesh(mb, interior, outside, world.style)       # slabs, ceilings, the court (prompt 49)
+    stairs_mesh(mb, interior, world.style)
     instances = instance_groups(outside, outside.placements + court_trees(interior, outside, mb), x0, y0)
     for g in instances:
         if outside.kit.pieces[g["name"]].category in SEEN_THROUGH:
@@ -85,15 +86,15 @@ def seen_from_inside(parts: dict) -> dict:
 
 
 def court_trees(interior, outside, mb) -> list:
-    """The plan's trees standing in the court, as the tile draws them: kit pieces (`Dresser.tree`, on the
-    tree's own stream) or, without a tree piece, the generator's mesh."""
+    """The plan's trees standing in the court, as the tile draws them but on the court's paving: kit pieces
+    (`Dresser.tree`, on the tree's own stream) or, without a tree piece, the generator's mesh."""
     out = []
     dresser = outside.ctx.dresser(outside.plan)
+    z = paving_z(interior, settings(outside.ctx.world.style)[0])
     for f in interior.features:
         if f["type"] != "tree":
             continue
         t = outside.plan.trees[f["tree"]]
-        z = float(outside.ctx.ground.surface(t.x, t.y))
         got = dresser.tree(f["tree"], t, z)
         if got is not None:
             out.append(got)

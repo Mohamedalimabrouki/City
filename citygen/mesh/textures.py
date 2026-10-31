@@ -565,6 +565,43 @@ def _zellige(rng, n: int, s: dict) -> np.ndarray:
     return out
 
 
+def _terrazzo(rng, n: int, s: dict) -> np.ndarray:
+    """Terrazzo (prompt 49, interiors only): `chips` chips of marble in the colors `chip_1`, `chip_2`, ...
+    set in a pale cement (`field`), ground flat and polished. Colored, like zellige."""
+    field = _hex(str(s.get("field", "#D8D2C6")))
+    out = np.ones((n, n, 3)) * field
+    out = out * (1.0 + 0.05 * s["mottle"] * (_noise(rng, n, 6, 3) - 0.5) * 2.0)[:, :, None]
+    colors = [_hex(str(s[k])) for k in sorted(s) if k.startswith("chip_")] or [_hex("#8C8579"), _hex("#4F4A44")]
+    k = n / 256.0
+    for color in colors:
+        canvas = _WrapCanvas(n)
+        for _ in range(int(s.get("chips", 900)) // max(len(colors), 1)):
+            x, y = rng.uniform(0.0, n, 2)
+            r = rng.uniform(0.6, 2.4) * k
+            canvas.ellipse(x, y, r, r * rng.uniform(0.5, 1.0), 255)
+        m = canvas.mask()[:, :, None]
+        out = out * (1.0 - m) + color * m * (1.0 + 0.06 * s["grain"] * rng.uniform(-1.0, 1.0))
+    return out
+
+
+def _tiles(rng, n: int, s: dict) -> np.ndarray:
+    """Glazed floor tiles (prompt 49, interiors only): `cells` square tiles a side in two glazes on a
+    checkerboard (`glaze`, `glaze_2`), each a little different in tone, thin `grout` lines. Colored."""
+    cells = int(s.get("cells", 4))
+    unit = n / cells
+    y, x = np.mgrid[0:n, 0:n] + 0.5
+    i, j = (x // unit).astype(np.int64), (y // unit).astype(np.int64)
+    glaze, glaze_2, grout = (_hex(str(s.get(k, "#808080"))) for k in ("glaze", "glaze_2", "grout"))
+    out = np.where(((i + j) % 2 == 1)[:, :, None], glaze_2, glaze)
+    tone = 1.0 + s["grain"] * 0.08 * rng.uniform(-1.0, 1.0, (cells, cells))
+    out = out * tone[j % cells, i % cells][:, :, None]
+    out = out * (1.0 + 0.04 * s["mottle"] * (_noise(rng, n, 8, 2) - 0.5) * 2.0)[:, :, None]
+    line = float(s.get("grout_width", 0.02)) * unit
+    du, dv = x % unit, y % unit
+    edge = (np.minimum(du, unit - du) < line / 2) | (np.minimum(dv, unit - dv) < line / 2)
+    return np.where(edge[:, :, None], grout, out)
+
+
 _MAKERS = {
     "plaster": _plaster, "render": _render, "render_cream": _render_cream,
     "stone": _stone, "concrete": _concrete,
@@ -572,6 +609,7 @@ _MAKERS = {
     "paving": _paving, "asphalt": _asphalt, "earth": _earth, "sand": _sand,
     "grass": _grass, "rock": _rock, "scrub": _scrub, "ballast": _ballast,
     "zellige": _zellige,     # interiors only ([interiors.palette], [interiors.textures]), not in NAMES
+    "terrazzo": _terrazzo, "tiles": _tiles,   # interiors only (prompt 49)
 }
 
 
@@ -590,7 +628,7 @@ def texture(name: str, seed: int, spec: dict | None = None) -> Image.Image:
     rng = stream(seed, "texture", name)
     value = np.clip(_MAKERS[name](rng, size, values), 0.0, 1.0)
     if value.ndim == 2:
-        value = np.repeat(value[:, :, None], 3, axis=2)       # grey; only zellige is colored
+        value = np.repeat(value[:, :, None], 3, axis=2)       # grey; only interior textures are colored
     rgb = (value * 255.0 + 0.5).astype(np.uint8)
     return Image.fromarray(rgb, "RGB")
 

@@ -16,11 +16,10 @@ Entry format:
 ```
 
 ## 2026-10-29 - Resume here (paused after prompt 47)
-- State: prompts 1-48 are done (branch `claude/procedural-city-generator-xop72h`; CP4, prompt 43, on 25
+- State: prompts 1-49 are done (branch `claude/procedural-city-generator-xop72h`; CP4, prompt 43, on 25
   October; the interiors 44-47 on 29 October, 48 (walls and openings) on 30-31 October). Continue when Ali
   says (for example "Do prompt 49." or "continue the playbook").
-- Next: 49 H1e floors, stairs and roof terrace, 50 H1f interiors in the
-  viewer. Ali most wants to walk inside the houses (sad not to see them in 3D yet): do 49-50 first, then
+- Next: 50 H1f interiors in the viewer (49 done 31 October). Ali most wants to walk inside the houses (sad not to see them in 3D yet): do 49-50 first, then
   47.1 together with 48.1 (the plan faults the walls reveal, prompt 48 entry) (colonial flats pass `rooms.check` for 39%, the slowest colonial block takes 14 s, slabs 93%,
   domed house No. 570, colonial floor-0 stores as a few rooms) unless Ali says otherwise; its plan is in
   the prompt 47 entry.
@@ -55,6 +54,58 @@ Entry format:
 - 30 October: Ali wants his promotional API credit ($86.51, expires 14 November) spent before his weekly
   limit. It does not pay for Claude Code, so `tools/run_on_credit.py` runs a prompt through the Agent SDK
   instead (a billing test passed); how to use it: `docs/LEAD.md`, section 4.
+
+## 2026-10-31 - Prompt 49 H1e Floors, ceilings, stairs and roof terrace
+- Commit: (lead commits) | Model: Opus 5.5, high
+- Changed: new citygen/interior/floors.py (slabs with wells and light slots, floor finishes, ceilings and
+  painted beams, slab edges, koubba dome from inside, court paving, majel, fesqiya, the roof drawer: deck
+  with wells, coping, roof room caps and ceilings, skylight; `overheads`, `crosses`); interior/stairs.py
+  (geometry: `Part`, `Run`, `level`, `parts`, `well`, `rails`, `stringers`, `treads`, `ladder_line`,
+  `riser_max`); interior/mesh.py (`stairs_mesh`, `overheads`, roof room faces and openings walled in);
+  export.py (floors, stairs, roofs through `building_tops(flat=)`, court trees on the paving); flats.py (cores
+  kept off the entry steps, `entry_keep`, `Core.keep`); layout.py (`walls["roof"]`); mesh/tile.py
+  (`building_tops`/`_masses_roofs` `flat` hook, tiles byte-identical); mesh/builder.py (`add_dome(inside=)`);
+  mesh/textures.py (`terrazzo`, `tiles`, interiors only); styles/maghreb.toml (`[interiors.floors]`, palette,
+  textures); tests (2 new); SPEC 6c, HANDOFF, ROADMAP.
+- Checks: `pytest -q` 126 passed in 36 s (the 2 new tests about 1.2 s on the shared fixtures); slow interior
+  tests pass (open samples xfail as before); `build --quick` done; fingerprint `--allow ""`: 282 parts, 0
+  changed. Budget (largest of the test): slab No. 1169 42,426 -> 55,710 triangles, 3.64 -> 4.67 MB, 1.8 ->
+  2.6 s in the command; dar No. 68 4,204 -> 7,764, 0.50 -> 0.85 MB (about 0.3 MB are the new textures).
+  pick:dar:2 (No. 599) 5,222 -> 7,697, 0.56 -> 0.82 MB; pick:slab (No. 1264) 13,123 -> 17,416, 1.26 -> 1.58 MB.
+- Plan fix (a stair could not be built): every slab core but two stood on its door's entry steps (154 of 156
+  quick-capital slab doors have steps up, up to 18 risers; 59 of 89 colonial cores), so the steps ran under
+  the flights. Cores now keep the steps and `turn` free (`flats.entry_keep`); a slab core slides in past them
+  and its palier reaches the door on every floor (the stair windows light it). Interior survey (rooms.check):
+  slab 327 -> 326/353 pass, colonial 105 -> 117/270; ladder warnings slab 56 -> 36, colonial 27 -> 24;
+  slowest slab 2.75 -> 2.03 s, colonial 13.3 -> 12.9 s (No. 773).
+- Whole-city stair survey (h49 scripts: every old-town house, every 2nd slab, villa and maison, every 3rd
+  colonial block; quick capital and Ain Chilel; plan, walls, floors, roof and stairs meshed): 0 crashes;
+  every newel, U and ladder connects its levels within 0.01 m, risers within `riser_max`, 2 m headroom
+  over the walking line (and over both sides of wide entry steps) against slabs, landings, steps, the roof
+  rooms' ceilings and beams; no slab or landing crosses an opening. Slowest plan + mesh: colonial No. 771
+  5.4 s, slab No. 1169 1.8 s, old-town houses under 0.35 s, villas 0.45 s, maisons 0.6 s.
+  Plan faults left (prompt 46's entry steps, plans untouched, for 47.1/48.1): steep entry steps with
+  treads under 0.2 m (quick capital: dar 55/210 e.g. 31, 49, 75; compact 47/324 e.g. 46, 55; small 13/121;
+  koubba 3/22; slab 5/177 e.g. 1065; Ain Chilel dar 10/71, maison 4/308, villa 2/89); entry steps clipped by
+  a short or bent skifa, so treads are missing and the risers jump (compact 21, e.g. 34, 44, 65; dar 3, e.g.
+  171; colonial 4, e.g. 771; slab 2: 1211, 1295; Ain Chilel 11); a house door whose steps run into the
+  newel cell (small 230, compact 290 and 298, Ain Chilel small 65: no headroom under the newel). Colonial
+  down steps (2-3 risers) on a core's floor landing are harmless (the flights start past them).
+- Look: output/checks/49.png - from the court: the paved court (pale slabs under floor 0), the majel with its
+  lid, the court tree on the paving, a red and white tiled floor through the bit's door. Extra:
+  output/checks/49-stair.png (a copy of the folder, camera in ghorfa 16): tiled floor, zellige dado, the open
+  door into the newel cell, its floor-level landing and the stone steps turning up. Interiors made on the
+  quick build: output/bodjantouna-42/interiors/goumosbane-599 (pick:dar:2) and goumosbane-1264 (pick:slab).
+  Blender: goumosbane-599/dar-labidi.blend and goumosbane-1264/the-ben-ghanem-family.blend (lead, make_blend).
+- Lead review: read the whole diff (own streams: `beams` per room; no draws on old streams; numbers in
+  `[interiors.floors]`); tests 126 passed; `build --quick` then fingerprint `--allow ""`: 282 parts, 0 changed;
+  no em dash. Remade both interiors and drew a plan of their slabs, wells, stair parts and walking lines
+  (levels 0, 1 and roof): newel and U wells under their flights, the slab core clear of the entry steps, the
+  court a hole in every slab (0 m2 overlap), the dar's deck holed for the stair room; the slab has no roof
+  room (plan of 47), so its deck is closed. No follow-up.
+- Doubts and questions for Ali: the light slots (0.3 m gaps in a landing by a stair window, as SPEC asks)
+  have no railing; ceilings and floors are not checked visually inside the slab (only in the two pictures);
+  slab cores slid in by up to about 6 m take that strip from the flats on every floor.
 
 ## 2026-10-30 - Prompt 48 H1d Interior walls and openings
 - Commit: (lead commits) | Model: Opus 5.5, high

@@ -7,7 +7,11 @@ partitions round it (`free`: the room less every walled neighbour grown by half 
 inner faces of exterior walls, court walls and partitions are drawn alike, each seen from its own room,
 and partitions meet with clean mitres and never z-fight. Every opening cuts the faces of its wall on both
 sides and gets its jambs, sill and head (`reveal`); inner and court doors get a wooden frame and leaves
-(stream `doors`), a bortal's court arches a horseshoe head and a stone band.
+(stream `doors`), a bortal's court arches a horseshoe head and a stone band. The roof rooms' walls (stair
+room, menzah) are faces too, so their doors and windows are cut alike (prompt 49).
+
+Prompt 49 adds the stairs (`stairs_mesh`: the solids, rails and ladders of `stairs.parts`) and `overheads`,
+what a person on a stair may hit; the slabs, ceilings, roof deck and court are `floors.py`'s.
 """
 from __future__ import annotations
 
@@ -92,7 +96,8 @@ def walls_mesh(mb, interior, outside, style: dict) -> list:
     the `Hole`s cut. The facade pieces stay instances, standing in their holes."""
     cfg = style.get("interiors", {})
     walls_cfg, ops = cfg.get("walls", {}), cfg.get("openings", {})
-    faces = outer_faces(interior, outside, style) + inner_faces(interior, walls_cfg)
+    from .floors import roof_faces
+    faces = outer_faces(interior, outside, style) + inner_faces(interior, walls_cfg) + roof_faces(interior, outside, style)
     index = _FaceIndex(faces)
     holes = []
     for o in interior.openings:
@@ -109,10 +114,9 @@ def walls_mesh(mb, interior, outside, style: dict) -> list:
 
 
 def walled_in(interior, o, ops: dict) -> bool:
-    """True for an opening the walls cut: not a skylight, not on the roof (prompt 49), not an iron balcony
-    (`railings`: a railing in front of the windows, on a solid wall)."""
-    return (o.kind != "skylight" and o.floor < interior.floors
-            and not (o.kind == "balcony" and o.piece in ops.get("railings", ())))
+    """True for an opening the walls cut: not a skylight, not an iron balcony (`railings`: a railing in
+    front of the windows, on a solid wall). A roof room's door and windows are (prompt 49)."""
+    return o.kind != "skylight" and not (o.kind == "balcony" and o.piece in ops.get("railings", ()))
 
 
 # --- faces ------------------------------------------------------------------------------------------
@@ -236,6 +240,8 @@ def frame_of(o) -> tuple:
 def depths(interior, o) -> tuple:
     """The two faces of the opening's wall, meters from its center along its front: an exterior wall from
     its inner face to the footprint ring, a court wall from the room to the court, a partition both ways."""
+    if o.floor >= interior.floors:                     # a roof room's wall (prompt 49), from its outer face
+        return -interior.walls.get("roof", 0.2), 0.0
     if o.kind in FACADE:
         return -interior.walls["exterior"], 0.0
     if o.wall is not None:
@@ -350,7 +356,7 @@ def dress(mb, interior, o, hole: Hole, ops: dict) -> None:
     a bortal's arch gets its stone band on the court side."""
     c, front, along = frame_of(o)
     d0, d1 = hole.depth
-    floor_z = interior.storeys[o.floor].z
+    floor_z = interior.high + o.floor * interior.fh
     if o.kind in CASED:
         casing(mb, o, c, front, along, d0, d1, ops)
         leaves(mb, interior, o, c, front, along, d0, d1, ops)
@@ -521,6 +527,8 @@ def faults(interior, holes: list, style: dict) -> list:
         least = 2 * half - (interior.walls["partition"] if passage(o) else 0.0) - 0.02
         if (h.width < least or h.width > 2 * half + 0.02 or abs(h.back - h.width) > 0.02):
             out.append(f"opening {o.id} ({o.kind}) cut {h.width:.2f} / {h.back:.2f} m of {2 * half:.2f}")
+        if h.floor >= interior.floors:              # roof rooms have no partitions
+            continue
         if h.floor not in parts:
             parts[h.floor] = partitions(interior, h.floor)
         p = parts[h.floor]
@@ -538,3 +546,33 @@ def faults(interior, holes: list, style: dict) -> list:
         elif p.intersection(inside).area > 1e-4:
             out.append(f"a partition crosses opening {o.id} ({o.kind})")
     return out
+
+
+# --- stairs and overheads (prompt 49) -------------------------------------------------------------------
+def stairs_mesh(mb, interior, style: dict) -> None:
+    """Every stair: its steps, landings and pier (`stairs.parts`; a U flight's open side gets a stringer),
+    its iron railings and its ladders."""
+    from . import floors as F
+    from . import stairs as S
+    fl, st, _ = F.settings(style)
+    steps = F.finish(interior, fl, "steps")
+    h, step = float(fl.get("rail", 0.9)), float(fl.get("baluster", 0.12))
+    for s in interior.stairs:
+        for part in S.parts(s, interior, st, fl):
+            mat = "plaster_inner" if part.kind == "pier" else steps
+            for p in polygons(part.poly):
+                extrude(mb, p, part.z0, part.z1, mat, mat, z_ref=part.z0)
+                add_cap(mb, p, part.z0, mat, up=False)
+        if s.kind == "u":
+            for a, b, deep in S.stringers(s, interior, fl):
+                F.bar(mb, a, b, float(fl.get("stringer", 0.05)), steps, deep)
+        for line in S.rails(s, interior, st, fl):
+            F.railing(mb, line, h, step)
+    F.ladders(mb, interior, fl)
+
+
+def overheads(interior, style: dict, outside=None) -> list:
+    """What may stand over a stair's treads, as `stairs.Part`s (polygon, bottom z, top z): every slab with
+    its wells, every landing and flight, the roof rooms' ceilings and the beams (`floors.overheads`)."""
+    from .floors import overheads as over
+    return over(interior, style, outside)

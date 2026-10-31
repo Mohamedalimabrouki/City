@@ -40,6 +40,7 @@ class Core:
         self.box, self.size, self.fd, self.x, self.y, self.top, self.spot = box, size, fd, x, y, top, spot
         self.bottom = bottom                              # a ladder well over a core that stops low
         self.paliers: dict = {}
+        self.keep = False                                 # slid in past entry steps (prompt 49)
 
     def serves(self, f: int) -> bool:
         return self.bottom <= f <= self.top
@@ -84,9 +85,10 @@ def colonial(interior, outside, style: dict) -> None:
     interior.layout = "colonial"
     job = P.modern_job(interior, outside, style)
     entry = P.door_entry(job)
-    core = colonial_core(job, entry) if entry is not None else None
+    keep = entry_keep(job, job.spot, entry) if entry is not None else None
+    core = colonial_core(job, entry, keep) if entry is not None else None
     if (core is None or core.top < interior.floors - 1) and entry is not None:
-        core = ladder_core(job, entry) or core          # a block too thin for any stair: a ladder well
+        core = ladder_core(job, entry, keep) or core    # a block too thin for any stair: a ladder well
     run(job, [core] if core is not None else [], "colonial")
 
 
@@ -96,19 +98,40 @@ def slab(interior, outside, style: dict) -> None:
     cores = []
     for spot in outside.doors:
         e = P.door_entry(job, spot)
-        c = place_core(job, e, list(np.arange(0.0, 2.01, 0.25))) if e is not None else None   # slid in when needed
+        keep = entry_keep(job, spot, e) if e is not None else None
+        first = 0.0 if keep is None else math.ceil(keep[1] / 0.25 - 1e-9) * 0.25   # beyond the entry steps
+        c = (place_core(job, e, list(np.arange(first, first + 2.01, 0.25)), keep=keep[0] if keep else None)
+             if e is not None else None)                  # slid in when needed
         if c is None and e is not None:
-            c = ladder_core(job, e)                       # no U box at all: a ladder well
+            c = ladder_core(job, e, keep)                 # no U box at all: a ladder well
         if c is not None:
-            c.spot = spot
+            c.spot, c.keep = spot, keep is not None
             cores.append(c)
     run(job, cores, "slab")
 
 
 # --- cores -------------------------------------------------------------------------------------------
-def place_core(job, entry, slides, x: float = 0.0) -> Core | None:
+def entry_keep(job, spot, entry) -> tuple | None:
+    """(the floor the entry steps up from a door need, its length) when the door's threshold lies more
+    than `threshold` under floor 0 (prompt 49: a stair box standing there cannot be walked); else None.
+    The steps' numbers are `stairs.steps`'."""
+    rise = job.interior.high - spot.z
+    cfg = job.stairs
+    if rise <= float(cfg.get("threshold", 0.15)):
+        return None
+    door = min((o for o in job.interior.openings if o.kind == "door" and o.floor == 0),
+               key=lambda o: (math.hypot(o.x - spot.x, o.y - spot.y), o.id), default=None)
+    width = (door.width if door is not None else 1.0) + 2 * float(cfg.get("side", 0.1))
+    length = (S.risers(rise, float(cfg.get("riser", 0.18))) * float(cfg.get("tread", 0.3))
+              + float(cfg.get("turn", 0.9)))            # the steps and the floor kept free beyond them
+    fd = P.door_frame(entry)
+    return fd.rect(-width / 2, -0.1, width / 2, length), length
+
+
+def place_core(job, entry, slides, x: float = 0.0, keep=None) -> Core | None:
     """The core box at a door, centered on it and slid inward through `slides` until it lies inside every
-    storey (else as many floors from the ground as hold it); the narrow box when no full one fits."""
+    storey (else as many floors from the ground as hold it); the narrow box when no full one fits. A box
+    on `keep` (the entry steps' floor) is never taken."""
     fd = P.door_frame(entry)
     floors = job.interior.floors
     best = None
@@ -117,6 +140,8 @@ def place_core(job, entry, slides, x: float = 0.0) -> Core | None:
         size["across"] += extra                           # wider than its flights: clear of a wide stair window
         for y in slides:
             box = S.u_box(fd, x, float(y), size)
+            if keep is not None and box.intersection(keep).area > 1e-3:
+                continue
             top = -1
             for f in range(floors):
                 if not P.box_fits(job, box, [f]):
@@ -129,9 +154,9 @@ def place_core(job, entry, slides, x: float = 0.0) -> Core | None:
     return best
 
 
-def ladder_core(job, entry) -> Core | None:
+def ladder_core(job, entry, keep=None) -> Core | None:
     """A block too thin for a U stair: a common well `[interiors.stairs] ladder_well` m square at the door,
-    slid inward until every storey holds it, a ladder in it (each floor's palier)."""
+    slid inward until every storey holds it, a ladder in it (each floor's palier), off the entry steps."""
     side = float(job.stairs.get("ladder_well", 1.2))
     fd = P.door_frame(entry)
     size = {"across": side, "landing": side, "length": side, "ladder": True}
@@ -139,13 +164,15 @@ def ladder_core(job, entry) -> Core | None:
     for y in np.arange(0.0, float(job.cfg.get("flats", {}).get("slide_most", 6.0)) + 1e-9, 0.25):
         for x in [0.0] + [s * d for d in np.arange(0.5, 3.01, 0.5) for s in (1.0, -1.0)]:
             box = fd.rect(x - side / 2, float(y), x + side / 2, float(y) + side)
+            if keep is not None and box.intersection(keep[0]).area > 1e-3:
+                continue
             if P.box_fits(job, box, floors):
                 c = Core(box, size, fd, x, float(y), len(floors) - 1, job.spot)
                 return c
     return None
 
 
-def colonial_core(job, entry) -> Core | None:
+def colonial_core(job, entry, keep=None) -> Core | None:
     """The core centered on the main door, slid inward; when no slide lets every storey hold it, slid along
     the door wall too (0.5 m steps, nearer first), else the one serving most floors."""
     cfg = job.cfg.get("flats", {})
@@ -153,7 +180,7 @@ def colonial_core(job, entry) -> Core | None:
     slides = list(np.arange(0.0, most + 1e-9, step))
     c = None
     for x in [0.0] + [s * d for d in np.arange(0.5, 3.01, 0.5) for s in (1.0, -1.0)]:
-        got = place_core(job, entry, slides, x)
+        got = place_core(job, entry, slides, x, keep[0] if keep else None)
         if got is not None and (c is None or got.top > c.top):
             c = got
         if c is not None and c.top == job.interior.floors - 1:
@@ -188,13 +215,13 @@ def run(job, cores: list, kind: str) -> None:
         if f == 0 and kind == "colonial" and cores:
             poly, extra = ground_floor(job, cores[0], poly)
             common += extra
-        if f == 0 and kind == "slab":
+        if kind == "slab":
             for c in cores:                               # a core slid in: the palier reaches its door
-                if c.y > 0.05 and 0 in c.paliers:
+                if c.y > 0.05 and f in c.paliers and (f == 0 or c.keep):   # every floor over entry steps (49)
                     gap = clip(poly, c.fd.rect(c.x - c.size["across"] / 2, -1.0, c.x + c.size["across"] / 2, c.y + 1e-6))
-                    merged = P.union(c.paliers[0].polygon, gap) if not gap.is_empty else None
+                    merged = P.union(c.paliers[f].polygon, gap) if not gap.is_empty else None
                     if merged is not None:
-                        c.paliers[0].polygon = merged
+                        c.paliers[f].polygon = merged
                         poly = solid(shapely.difference(poly, gap, grid_size=1e-6))
         if cell is not None:
             droj = P.add_rooms(job, [Cell(cell, "droj")], f, "common")[0]
@@ -659,6 +686,8 @@ def splits(job, fb: Frame, length: float, seg: float, count: int, cores: list) -
         bu0, bv0, bu1, bv1 = fb.bounds(core.box)
         mid = (bu0 + bu1) / 2
         door_low = abs(bv0 - fb.bounds(job.outside.b.footprint)[1]) < abs(bv1 - fb.bounds(job.outside.b.footprint)[3])
+        if core.keep:                                     # slid in past entry steps: the door's side decides
+            door_low = float(np.dot(core.fd.v, fb.v)) > 0.0
         far = (bv1, BIG) if door_low else (-BIG, bv0)
         s = line_at(job, fb, storeys, mid, ts, far, j)
         near = (-BIG, bv1) if door_low else (bv0, BIG)

@@ -516,8 +516,8 @@ def add_arch(mb: MeshBuilder, x: float, y: float, z: float, yaw: float, width: f
     mb.add(frame_material, pos, np.tile([n[0], n[1], 0.0], (len(pos), 1)), np.column_stack([both[:, 0], -both[:, 1]]), tris)
 
 def add_dome(mb: MeshBuilder, cx: float, cy: float, z: float, radius: float, material: str,
-             height: float | None = None, segments: int = 12, rings: int = 4) -> None:
-    """Smooth half-ellipsoid sitting on z."""
+             height: float | None = None, segments: int = 12, rings: int = 4, inside: bool = False) -> None:
+    """Smooth half-ellipsoid sitting on z (`inside`: seen from under it, as in an interior)."""
     h = radius if height is None else height
     phi = np.linspace(0.0, math.pi / 2, rings + 1)[:, None]
     theta = np.linspace(0.0, 2 * math.pi, segments + 1)[None, :]
@@ -531,6 +531,8 @@ def add_dome(mb: MeshBuilder, cx: float, cy: float, z: float, radius: float, mat
     v00 = (i * cols + j).ravel()
     v01, v11, v10 = v00 + 1, v00 + cols + 1, v00 + cols
     tris = np.concatenate([np.stack([v00, v01, v11], 1), np.stack([v00, v11, v10], 1)])
+    if inside:
+        nrm, tris = -nrm, tris[:, ::-1]
     mb.add(material, pos.reshape(-1, 3), nrm.reshape(-1, 3), uv.reshape(-1, 2), tris)
 
 

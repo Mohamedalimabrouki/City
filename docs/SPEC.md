@@ -1049,7 +1049,8 @@ the House without a courtyard, the stairs `newel`, `steps` and `ladder`, Enterin
 `dar`, `compact`, `small`). Prompt 47: Shops and cafes, the Domed house, Villas and houses of the new districts
 (the spine engine), Flats, the stair `u` and the roof `newel` of other layouts; every dwelling now has a real
 plan and `rooms.check` also tests each layout's program (see each section). Prompt 48: the walls as meshes
-(Walls, `interior/mesh.py`) and the shell of Output. Measured (prompt 47, final,
+(Walls, `interior/mesh.py`) and the shell of Output. Prompt 49: the stairs' geometry, Floors and ceilings,
+the roof deck and roof rooms, the court (`interior/floors.py`, `stairs.py`, `mesh.stairs_mesh`). Measured (prompt 47, final,
 `rooms.check` with the programs): quick capital slabs 327 of 353, colonial blocks 105 of 270, domed houses 21 of
 22, houses with a shop 135 of 136; Ain Chilel villas 171 of 178, maisons 589 of 616; full capital sample 277 of
 300; no crash; slowest slab 2.7 s, colonial 14 s (No. 773, 100 m long, no floor repeats). Open item 47.1:
@@ -1245,8 +1246,10 @@ double sided; `alpha` in a palette entry writes `alphaMode` BLEND, which no tile
 interior's window and balcony pieces drop their faces turned toward the wall at or behind its face
 (`export.seen_from_inside`): the legacy `window()` pieces model the stone surround as a solid box whose back
 face, 0.02 m inside the wall, closed the hole seen from the room (with the back of the glass box); the
-tiles keep the whole pieces. The roof's
-rooms (stair room, menzah) and skylights are prompt 49's. `mesh.faults(interior, holes, style)` (tests,
+tiles keep the whole pieces. Prompt 49: the roof rooms (stair room, menzah) are faces too (`floors.roof_faces`:
+the outer face where the tile's solid box stands, in the building's wall material, the inner face
+`[interiors.floors] roof_wall` (0.2 m, `Interior.walls["roof"]`) in, up to its ceiling), so their doors get
+a hole, frame and leaf and the menzah's windows a casement, like every other opening. `mesh.faults(interior, holes, style)` (tests,
 surveys) lists an opening without a hole, a hole not cut full width on both faces, a partition within
 0.1 m of the room side of an exterior or court hole, an inner door or passage outside its partition or
 crossed by another.
@@ -1589,13 +1592,57 @@ smallest count with riser at most `riser_max` (traditional 0.21 m, modern 0.18 m
   strips) and opens into the room it touches most on the stair room door's side (a palier first); without a
   fit a ladder rises into the stair room (a warning). Roof rooms of flats are `common`.
 - Terraces of set-back floors and villa wings are roofs, not rooms: their walls carry windows, no door.
+- Geometry (prompt 49, `stairs.parts`, `rails`, `well`, `treads`; `mesh.stairs_mesh` draws them, the tests
+  and surveys check the same objects). Every stair climbs from `level(f)` = high + f x fh to the next
+  level (the roof deck for f = floors). `newel`: per floor climbed the landing quarter in front of the door
+  (the slab of each floor: the cell less that quarter is the slab's well), then n steps of 270/n degrees
+  counter-clockwise, the n-th flush with the next landing; each step a prism from its top down `waist`
+  (0.15 m) under its riser; the pier from the bottom floor to the ceiling over the last landing (the roof
+  stair room's); a stair ending below the roof gets an iron railing along its last landing's two edges.
+  Walking line: the square 0.45 m inside the cell. `u`: flight 1 on the box's -u side (u along the
+  landing's end, from the door), the half landing (`landing` 0.2 m thick) across the far end, flight 2
+  back on the +u side to the next floor's landing (the slab: the box less the floor landing is the well);
+  a stringer board (`stringer` 0.05 m) on each flight's open side, iron railings (`rail` 0.9 m, a bar every
+  `baluster` 0.12 m) over the nosing lines, across the half landing's gap and along each upper landing's
+  edge (the whole edge over flight 1's well at the top floor). Walking line: the middle of each flight and
+  across the half landing. `steps`: one prism per riser from the door's threshold (up steps from 0.3 m
+  under it, in a hole of floor 0's slab; down steps on the floor), the last flush with floor 0; walking line
+  the middle, a point every tread (steep steps have treads under 0.1 m). `ladder`: two wooden rails
+  leaning along the footprint's long side from the floor (the court's paving in a court) to 1 m over the
+  level it reaches, a rung per riser; it stands in its wells. `riser_max`: traditional for newels, modern
+  for U stairs, `riser_steep` for entry steps; ladders aside.
+- Cores at a door with entry steps up (prompt 49, `flats.entry_keep`): the steps (`riser`, `tread`) and
+  `turn` m beyond them are kept free of the U box or ladder well (the box used to stand on the steps:
+  154 of 156 quick-capital slab cores, 59 of 89 colonial cores); a slab core slides in past them and its
+  palier reaches the door on every floor (`Core.keep`; the split's door side then comes from the door).
 
-**Floors and ceilings** (prompt 49, `[interiors.floors]`): slab 0.25 m with its top at the floor's z;
+**Floors and ceilings** (prompt 49, built, `[interiors.floors]`, `interior/floors.py`): slab 0.25 m with its top at the floor's z;
 ceilings at the next floor's z - slab; traditional rooms (dar, compact, small, koubba) get painted wooden
 beams (stream `beams`), modern rooms a flat plaster ceiling; floor tiles in traditional houses, terrazzo
 in flats; the court paved `court_step` (0.15 m) under floor 0; inland water is `water_pool`, never
 `water` (the Blender scripts hide it for the sea). A slab or landing never crosses an opening: where it
 would, it stops `slot` (0.3 m) short of that wall over the opening's width + 0.2 m (a light slot).
+Built (prompt 49). The slab of level f spans the storey under it and the storey on it (the deck: the top
+storey), less its wells (`floors.wells`: the stairs' `well`s, a covered court's light well less its walls
+and balustrades, in the deck the skylight's and a koubba's dome), less the slots: a slab or landing
+crosses an opening when it passes through the 0.1 m inside the opening's wall over its width between sill
+and head, a door's own floor aside when it stands at most `threshold` over the sill (the step inside a
+door). Each room draws its floor finish over its free floor (`mesh.free`) on the slab (`finish`:
+`floor_tiles`, a generated `tiles` texture, in traditional houses; `terrazzo` in flats, villas and
+maisons), and its ceiling under the next slab (open rooms none, a light well its ring under the skylight):
+traditional rooms of `beam_rooms` get `ceiling_boards` and beams (`beam` 0.1 x 0.12 m) across the shorter
+span every `beam_step` (0.45 m), one `beam_colors` color per room on stream `beams` keyed by the room id;
+other rooms plaster. Slab edges are drawn round holes where no wall face of the floor below runs. A koubba
+on the top floor sees its dome: the deck has a 12-sided hole `dome_wall` (0.25 m) inside the tile's drum,
+the drum's inner face rises from the ceiling to the dome's spring and a dome is drawn from inside. The flat
+roofs replace the tile's `roof_mesh` (`building_tops(flat=floors.roof_drawer(...))`, the tiles unchanged):
+the deck less its wells with their edges, the tile's coping (`_coping`), each roof room's cap and its
+ceiling `roof_room_ceiling` under it, a skylight's curb (`skylight_curb` 0.2 m) and `glass_inner` panel. The
+court: `court_paving` `court_step` under floor 0, the majel (curb `majel` 0.6 m across, 0.4 m high, in
+`step_stone`, a `door_leaf` lid), the fesqiya (octagonal `marble` basin `fesqiya` 1.4 m across, still
+`water_pool`, a small jet), the court trees on the paving (`export.court_trees`). Stairs: `steps`
+(`step_stone` traditional, `terrazzo` modern). `mesh.overheads(interior, style, outside)`: every slab with
+its wells and slots, every landing and step, the roof rooms' ceilings and the beams, as `stairs.Part`s.
 
 **Entering and light.** Every dwelling is entered by its `DoorSpot`s (prompts 20.1 and 20.2 give each
 one): the main door leads into the skifa, the hall, a core's palier or the koubba; a slab has one door per
@@ -1608,8 +1655,8 @@ one of its windows or balconies is.
 
 **Output** (prompt 45, built, `interior/export.py`), a folder like a build, every file written as `.part` and
 renamed (the index last). The mesh (prompt 48) is the walls of `walls_mesh` plus the tile's roofs
-(`building_tops`: `roof_mesh` for flat roofs, `add_hip_roof`, `add_dome`, roof things), and a `paving` cap
-per storey until prompt 49 lays the floors. Prompt 45 measured (the tile's shell only): dar No. 190 671
+(`building_tops`: `roof_mesh` for flat roofs, `add_hip_roof`, `add_dome`, roof things); prompt 49 adds the
+floors, ceilings, stairs and court and draws flat roofs with their wells (Floors and ceilings). Prompt 45 measured (the tile's shell only): dar No. 190 671
 triangles, 210 KB; slab No. 1264 585, 247 KB. Prompt 48 (walls): see the Walls paragraph and HANDOFF.
 - `tiles/interior.glb`: float positions (no quantization), textures embedded (only the images its
   materials use, `mesh/textures.encoded`; an interior-only image such as `zellige` takes its numbers
@@ -1618,8 +1665,8 @@ triangles, 210 KB; slab No. 1264 585, 247 KB. Prompt 48 (walls): see the Walls p
   since prompt 48; interior-only materials live
   there, so `[palette]` and the build key never change for them), the bridge's placements
   as instances (`mesh.tile.instance_groups`, which reads only `.kit`), and from prompt 46 the court's
-  trees as instances (`Dresser.tree`, or the tile's tree mesh without a kit tree; on the ground surface
-  until prompt 49 lays the court paving). The `interior` view uses the layout's `focus` (prompt 46).
+  trees as instances (`Dresser.tree`, or the tile's tree mesh without a kit tree; on the court's paving
+  since prompt 49). The `interior` view uses the layout's `focus` (prompt 46).
 - `tiles/index.json`: `citygen-tiles/1` with `world_name` "<city> No. <k> (<layout>)", `seed`,
   `tile_size` (the footprint's larger extent + 4 m, whole meters), `parapets: true`, `focus` (footprint
   centroid, z = high, name "Dar <family>", "The <family> family" or "No. <k>"), `views`, `interior`
@@ -1639,7 +1686,8 @@ triangles, 210 KB; slab No. 1264 585, 247 KB. Prompt 48 (walls): see the Walls p
 **Random streams.** Every choice draws from `stream(seed, "interior", city id, k, <purpose>, ...)`, one
 purpose per kind of choice: `layout` (band roles and lengths), `skifa`, `kbou`, `court` (court windows,
 majel, fesqiya), `doors` (prompt 48, one stream per opening id: whether its leaves stand open, by how much, the hinge side), `shop`,
-`flat` with its number (occupants; with `names` for the namer), `beams` (prompt 49). The bridge only
+`flat` with its number (occupants; with `names` for the namer), `beams` (prompt 49, built: keyed by the
+room id, one color per room). The bridge only
 replays existing streams, so no draw is added to any. Built (prompt 47): the spine draws its hall depth and
 width on `layout` with the home's key (`villa`|`maison`, floor; `flat`, n; `stores`, 0), a souk shop's depth
 and a qahwa's on `shop`.

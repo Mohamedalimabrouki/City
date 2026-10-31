@@ -386,13 +386,15 @@ def building_walls(mb: MeshBuilder, b, height_fn, roof: RoofLayout | None = None
 
 
 def building_tops(mb: MeshBuilder, b, height_fn, high: float, roof: RoofLayout | None = None,
-                  roofs: list | None = None) -> None:
+                  roofs: list | None = None, flat=None) -> None:
     """Everything of `building_mesh` above its outer walls: roofs, parapet copings, roof rooms, domes,
-    roof machines, battlements and arched doors."""
+    roof machines, battlements and arched doors. `flat` draws each flat roof instead of `roof_mesh` (the
+    interiors' roofs, prompt 49: the deck with its wells and hollow roof rooms)."""
     fp = orient(b.footprint, sign=1.0)
     z1 = high + b.height
+    flat = roof_mesh if flat is None else flat
     if roofs is not None and massed(b):
-        _masses_roofs(mb, b, roofs, high)
+        _masses_roofs(mb, b, roofs, high, flat)
         _roof_things(mb, b, high, next(m for m, _ in roofs if m.main).top + high)
         return
     if roofs is not None:
@@ -404,7 +406,7 @@ def building_tops(mb: MeshBuilder, b, height_fn, high: float, roof: RoofLayout |
     else:
         if (roof is None or roof.band is None) and b.roof:
             add_cap(mb, fp, z1, b.roof)
-        roof_mesh(mb, b, roof, z1)
+        flat(mb, b, roof, z1)
     for x, y, r, mat in b.domes:
         extrude(mb, regular_polygon(x, y, r, 12), z1, z1 + 0.18 * r, b.wall, None, z_ref=high)
         add_dome(mb, x, y, z1 + 0.18 * r, r, mat)
@@ -478,8 +480,9 @@ def _masses_walls(mb: MeshBuilder, b, roofs: list, z0: float, high: float, plint
         add_walls(mb, mring, high + lo, high + hi, b.wall, high, only=mask)
 
 
-def _masses_roofs(mb: MeshBuilder, b, roofs: list, high: float) -> None:
+def _masses_roofs(mb: MeshBuilder, b, roofs: list, high: float, flat=None) -> None:
     """Every roof of a massed building: hip, or the deck, parapet and rooms of a flat one (`roof_mesh`)."""
+    flat = roof_mesh if flat is None else flat
     for m, lay in roofs:
         z = high + m.top
         if m.shape == "hip":
@@ -487,7 +490,7 @@ def _masses_roofs(mb: MeshBuilder, b, roofs: list, high: float) -> None:
             corners = np.asarray(rectangle(cx, cy, length, width, angle).exterior.coords)[:4]
             add_hip_roof(mb, corners, z, 0.32 * width, m.roof)
         elif lay.band is not None:
-            roof_mesh(mb, b, lay, z, m.roof)
+            flat(mb, b, lay, z, m.roof)
         else:
             add_cap(mb, m.polygon, z, m.roof)
 
