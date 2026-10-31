@@ -947,6 +947,12 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`, and how the le
   before it is scored (trade the window bay between the way and the room, keep it only when the faults
   drop) wins where a repair after the search could not. Score only what the check asks (a flat's
   salle a manger is not asked).
+  Flats round 3: a repair inside the search (`assign`) also changes which variant wins first, so passing
+  flats churn (17 changed, strip rooms +14); the same repair after the search on the chosen plan changed
+  no passing flat. Judging doors before `finish` (rooms and doors made, counted, taken away) told nothing:
+  0 of 270 changed, the door faults appear only after `repair`, `connect` and `settle`, and reach before
+  `connect` is noise (whole flats "unreached" that pass later). Tiny halls (0.1-0.9 m2) touch only the
+  palier and one room: the hall is a program rule, so no merge helps; the search must make a real hall.
 
 ## Known weak spots
 

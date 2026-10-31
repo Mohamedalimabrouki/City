@@ -362,6 +362,7 @@ def run(job, cores: list, kind: str) -> None:
                   if core is not None else [])
             es = es or [P.Entry(*region.representative_point().coords[0], 1.0, 0.0)]
             cells = best_lay(job, region, es, program(job, ftype, area), f, ("flat", place))   # stacked flats repeat
+            halved(job, region, cells, f)
             rooms = P.add_rooms(job, cells, f, unit)
             rooms = P.nooks(job, rooms)
             P.doors(job, rooms)
@@ -430,6 +431,18 @@ def best_lay(job, region, entries: list, prog: list, f: int, key: tuple) -> list
     if done > 1:
         memo[base] = memo.get(base, False) or best[1] is not first
     return best[1]
+
+
+def halved(job, region, cells: list, f: int) -> None:
+    """The flat's chambres, salle a manger and salon over their `most` cut in two (`spine.halve`), after the
+    search: a flat whose plan has none keeps it (47.1 flats round 3)."""
+    most = job.cfg.get("rooms", {}).get("most", {})
+    big = [c for c in cells if c.type in ("chambre", "salle_a_manger", "salon") and c.poly.area > float(most.get(c.type, 1e9))]
+    if not big:
+        return
+    spine = {"F": P.couloir_frame(job, region, f), "ways": [c.poly for c in cells if c.type in ("couloir", "hall")]}
+    for c in big:
+        P.halve(job, spine, cells, c, f)
 
 
 def flat_score(job, cells: list, prog: list, f: int) -> int:

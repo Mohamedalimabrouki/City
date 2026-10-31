@@ -481,6 +481,61 @@ Entry format:
   windows; the same at d7cbd67, so the spine's strip rooms (round 7 note, No. 665), not this round. For
   the later item on room shapes: `cuts.width` is the largest circle inside a room, so a room with a wide
   body and a corridor-like arm passes.
+- Flats round 3 (helper, about 62 minutes; scripts `$TMPDIR/h471f3/`, `h471f_dump.py` now also counts the
+  quality guard: habitable rooms of passing flats with over 3 m2 in parts under 1.6 m wide):
+  - Baseline (6160ada, `base.json`, same hashes as round 2's `fin.json`): colonial 166/270, slab 316/353;
+    guard 472 rooms (colonial), 1611 (slab).
+  - Tried, not kept: (a) judging whole flats in `best_lay` (rooms, nooks, doors and the front door made,
+    the door faults no slide along their wall cures counted, then taken away): with reach counted, 166 ->
+    147 (91 passing flats changed: before `connect` whole flats look unreached); doors only, 0 changed (the
+    door faults appear after `finish`), and +1-2 s on the slowest. (b) A hall scrap merged into its couloir
+    (none of the tiny halls touches one; into the salon: "flat has no hall"). (c) hall scrap weight 3 in
+    `flat_score`: 166 -> 162. (d) The roof newel's door to the next room when the walls fault it on the
+    palier: no room but the palier lies on its door line. (e) A blind salon re-cut with a windowed cuisine
+    or chambre beside it, else a type swap: 0 won, 1 lost (the lit cells of those flats are the hall,
+    couloir or a small cuisine not touching the salon).
+  - Fix (kept): a flat's chambre, salle a manger or salon over its `most` is cut in two after the search
+    (`flats.halved`, `spine.halve`): the room keeps its minimum and a way in, the new chambre has a way in
+    or a door's length on the room (en enfilade), both windowed when the room was, neither with over
+    `[interiors.flats] strip` [1.6, 3.0] (3 m2 in parts under 1.6 m). Inside `assign` it won 2 but churned
+    17 passing flats (+14 guard); after the search: colonial 166 -> 167 (No. 1032), slab 316 -> 317 (No.
+    1133), 0 lost, 0 passing flats changed. Guard 475 (+3) and 1615 (+4): the two new passing blocks' own
+    rooms, no passing flat gained one.
+  - Final (flats round 3): colonial 167/270, slab 317/353, 0 crashes, every passing interior 0
+    `mesh.faults` and 0 step faults. Slowest alone: colonial No. 773 7.8-8.0 s (HEAD 7.75 s; halving costs
+    16 ms there), No. 806 6.3 s; slab No. 1169 1.6 s. Part 1: dar 154, compact 262, small 81, koubba 21,
+    shop 123 (`interior_survey.py`), villa 165, maison 577 (0 of 794 rooms.json hashes changed). `pytest
+    -q` 136 passed (new `test_strip_measures_corridor_arms`); `build --quick` done; fingerprint `--allow
+    ""`: 282 parts, 0 changed. Plans: output/checks/471-flats-r3.png (colonial No. 1032, the only colonial
+    won; slab No. 1133).
+  - Choice for Ali/lead: an oversized room becomes two, the far one a chambre entered through the near room
+    when it has no wall on the couloir (en enfilade, as in old colonial flats of Tunis and Algiers).
+  - Left (colonial 103): tiny halls (0.1-0.9 m2, the palier and one room around them: 16 blocks of door
+    faults), roof newel and front doors crowding the top palier (6), salon without a window (14: the
+    flat's lit cells are its hall, couloir or a small cuisine), chambre over 36 m2 (blind deep strips the
+    halving cannot cut with a way in), reach and missing rooms (No. 772, 823, 857, 904). Slab 36: inner door
+    "not in its partition" on 1.4-1.5 m cuisine/hall and sdb/cuisine pieces (6 blocks), entry treads (7),
+    palier partitions near windows. The bars (257, 336) need the spine search itself to change: a hall
+    that is a real room (score a hall under its least as a missing room, or carve the hall before the
+    couloir), and the salon placed first on the window wall when a flat has one short window front.
+- Lead (after flats round 3): committed as progress (colonial 167, slab 317; part 1 and every passing flat
+  byte-identical). `pytest -q` 136 passed in 41 s; fingerprint 0 changed. Seen in 471-flats-r3.png: No.
+  1032's floor 0 is one flat with ten chambres, most of them deep inside with no window. Measured over
+  every passing flat (`/tmp/claude-501/lead/blind.py`: a room is blind when no facade window or balcony
+  opens into it): colonial 2642 of 3407 chambres blind (78%), salle a manger 541 of 587, cuisine 236 of
+  1104, 162 of the 167 blocks with 3 or more blind chambres; slab 1279 of 14225 chambres (9%), salle a
+  manger 344 of 2653, cuisine 6 of 4637. Maisons (Ain Chilel, 577 passing) too: 1411 of 3212 chambres
+  blind (44%), all 340 salles a manger, 178 cuisines and 55 salons, 182 houses with 3 or more blind
+  chambres; villas 18 of 599 chambres (3%). No court windows in either (counted too). Only a flat's
+  salon must have a facade window (`program.py`); no check asks one of a chambre, nor of a maison's rooms.
+  Rounds 1-3 took colonial 86 -> 146 -> 166 -> 167: the small fixes have stalled.
+- Question for Ali (lead, 31 October): real colonial blocks and deep town houses light their inner rooms
+  from a courtyard or light wells (courettes); ours have windows on the street fronts only, so a deep
+  block or maison fills with blind rooms, and the pass bars count them as good. Proposal: a design step
+  that gives deep colonial blocks and maisons a courtyard or light wells (seen from above, with windows
+  on them), then plans with every chambre, salon and salle a manger on a window, and a check that asks
+  for it. Or leave the flats as they are for now (47.1 stays open) and go on. Meanwhile the lead
+  finishes the houses (round 8).
 
 ## 2026-10-31 - Prompt 50 H1f Interiors in the viewer
 - Commit: (lead commits) | Model: Opus 5.5, high

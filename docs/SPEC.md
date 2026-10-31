@@ -1622,6 +1622,10 @@ its floor landing (`palier`, unit `common`) against the door's wall, the flights
   from the wall), the partition then turning along the bay's edges, when the floor has fewer faults; the
   couloir thus ends short of the window, the room across its end. A flat's salle a manger is placed only
   where a cell holds its minimum, and is never counted missing (the check asks none of a flat).
+  Flats round 3: after the search, a flat's chambre, salle a manger or salon over its `most` is cut in two
+  (`spine.halve`): the room keeps its minimum and a door's length on a way in, the new part is a chambre
+  with a door's length on a way in or on the room (en enfilade), both windowed when the room was, neither
+  with more than `strip` 3 m2 in parts under 1.6 m wide. A flat with no such room keeps its plan.
 
 **Stairs** (`[interiors.stairs]`, records prompts 46-47, geometry prompt 49). Rule (tested): every
 point of every tread on the walking line has at least `headroom` (2.0 m) clear above it. Risers: the

@@ -4086,6 +4086,16 @@ def test_window_bay_keeps_its_edges_clear():
     assert abs(y1 - 1.0) < 1e-9 and abs(y0 + 0.05) < 1e-9
 
 
+def test_strip_measures_corridor_arms():
+    """47.1 flats round 3: `spine.strip` is the m2 of a room in parts narrower than `wide` (a rectangle has
+    none; an L with a 1 m arm has the arm), the guard on a big room cut in two."""
+    from shapely.geometry import Polygon
+    from citygen.interior.spine import strip
+    assert strip(Polygon([(0, 0), (5, 0), (5, 4), (0, 4)]), 1.6) < 1e-9
+    room = Polygon([(0, 0), (4, 0), (4, 4), (1, 4), (1, 9), (0, 9), (0, 4)][::-1])   # 4 x 4 and a 1 x 5 arm
+    assert abs(strip(room, 1.6) - 5.0) < 1e-6
+
+
 def test_flats(new_districts, interior_ctx, plan):
     from citygen.export.lore import plan_json
     from citygen.interior.flats import occupants

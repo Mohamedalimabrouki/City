@@ -1930,6 +1930,7 @@ slide = 0.25             # meters: a colonial core slides inward in these steps 
 slide_most = 6.0         # meters: ... at most
 retry_variants = { colonial = 0.5, slab = 0.0 }   # share of the spine's variants a flat's second tries search when its first plan faults (0: none; slabs: time)
 bay_depth = 0.7          # meters: a way and a room whose partition ends in a window's zone trade the window bay this deep (0: never)
+strip = [1.6, 3.0]       # a flat's room cut in two (over its most): neither part has more than this m2 (2nd) in parts narrower than this (m, 1st)
 deep_door = 0.3          # meters: a slab stair door whose top stands less than this over floor 0 opens into a sunken entry room
 
 [interiors.shop]   # the hanout and makhzen of a ground floor shop front (SPEC 6c "Shops and cafes")

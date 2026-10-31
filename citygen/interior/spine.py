@@ -723,6 +723,50 @@ def assign(job, cells: list, spine: dict, program: list, floor: int, entry: Entr
     return missing
 
 
+def strip(poly, wide: float) -> float:
+    """m2 of `poly` in parts narrower than `wide` (what an opening by half of `wide` leaves out)."""
+    h = wide / 2
+    return float(poly.difference(poly.buffer(-h, join_style="mitre").buffer(h, join_style="mitre")).area)
+
+
+def halve(job, spine: dict, cells: list, c, floor: int):
+    """A flat's chambre, salle a manger or salon over its `most` (a hall no family would live in) cut in two:
+    the room, keeping its minimum and a door's length on a way in, and a new chambre with a door's length on
+    a way in or on the room (en enfilade, as in old town flats), both windowed when the room was (47.1
+    flats round 3); the new cell, or None when no cut keeps that."""
+    F = spine["F"]
+    ways = spine.get("ways") or []
+    sun = lights(job, floor)
+    least = job.minimums.get("chambre", (8.0, 2.4))
+    windowed = lit(c.poly, sun)
+    wide, most_strip = (float(v) for v in job.cfg.get("flats", {}).get("strip", (1.6, 3.0)))
+    for axis in (0, 1):
+        a, p, b, q = F.bounds(c.poly)
+        lo, hi = (a, b) if axis == 0 else (p, q)
+        for frac in (0.5, 0.45, 0.55, 0.4, 0.6, 0.35, 0.65):
+            pos = free(job, c.poly, F, axis, lo + frac * (hi - lo), floor, lo + least[1], hi - least[1])
+            if pos is None:
+                continue
+            one, two = cut(c.poly, F, axis, pos)
+            if len(one) != 1 or len(two) != 1:
+                continue
+            for mine, rest in ((one[0], two[0]), (two[0], one[0])):
+                if not (job.fits(mine, "chambre") and job.fits(rest, c.type)):
+                    continue
+                if windowed and not (lit(mine, sun) and lit(rest, sun)):
+                    continue
+                if any(strip(x, wide) > most_strip for x in (mine, rest)):
+                    continue                            # no corridor-like arm a room's area hides
+                on = [max((shared(x, w) for w in ways), default=0.0) >= need(job) for x in (mine, rest)]
+                if not on[1] or not on[0] and shared(mine, rest) < need(job):
+                    continue                            # the far chambre entered through the near room (enfilade)
+                c.poly = rest
+                new = Cell(mine, "chambre", c.band, c.part)
+                cells.append(new)
+                return new
+    return None
+
+
 def candidates(job, t: str, cells: list, free_cells: list, light: dict, most: dict) -> list:
     """The cells that may hold room type t, best kind first: a sdb or wc any cell up to 1.6 x its largest;
     the salon, salle a manger and cuisine a windowed cell, two windowed cells joined, a windowed cell of
