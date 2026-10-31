@@ -19,7 +19,7 @@ from shapely.geometry import Point
 from ..rng import stream
 from . import rooms as R
 from . import stairs as S
-from .cuts import Cell, Frame, absorb, clashes, clip, contact, cut, offsets, partition, parts, shared, snap, solid, union, width
+from .cuts import Cell, Frame, absorb, clashes, clip, contact, cut, despike, offsets, partition, parts, shared, snap, solid, union, width
 
 LIVING = ("salon", "salle_a_manger", "cuisine", "chambre")   # want a facade window
 WET = ("sdb", "wc")
@@ -69,6 +69,11 @@ def inner(job) -> float:
     """How far an inner door of a modern home keeps from the partitions beside it (`inner_clear`, lead
     decision for prompt 47: a door frame needs about 0.12 m); the facade rule `clear` stays for openings."""
     return float(job.interior.rules.get("inner_clear", job.clear))
+
+
+def deep(job) -> float:
+    """How far both rooms reach behind a door the plan check accepts: half a partition and its `probe`."""
+    return job.half + float(job.interior.rules.get("plan", {}).get("probe", 0.1)) + 0.02
 
 
 def need(job) -> float:
@@ -808,7 +813,7 @@ def unwrap(job, wet, rest) -> tuple:
     e = job.half + 0.05
     core = parts(snap(rest.buffer(-e, join_style="mitre").buffer(e, join_style="mitre").intersection(rest)))
     if not core:
-        return wet, rest
+        return despike(wet), despike(rest)
     body = max(core, key=lambda p: p.area)
     for arm in sorted(polygons(shapely.difference(rest, body, grid_size=1e-6)), key=lambda p: (-p.area, p.centroid.x)):
         if arm.area < 1e-8 or shared(arm, wet) < 0.05:
@@ -816,7 +821,7 @@ def unwrap(job, wet, rest) -> tuple:
         grown, left = union(wet, arm), parts(shapely.difference(rest, arm, grid_size=1e-6))
         if grown is not None and len(left) == 1:
             wet, rest = grown, left[0]
-    return wet, rest
+    return despike(wet), despike(rest)
 
 
 def hall_corner(job, F: Frame, hall, w: float, d: float, door: float, zones: list, entry, t: str = "wc"):
@@ -949,18 +954,18 @@ def doors(job, rooms: list) -> None:
         done = False
         for w in sorted(ways, key=lambda w: -max((math.dist(*p) for p in R.pieces_between(interior, r, w)), default=0)):
             width = 1.4 if r.type == "salon" and w is hall else job.door
-            if R.place(interior, r, w, "inner", width, job.door_height, clear=inner(job)) is not None:
+            if R.place(interior, r, w, "inner", width, job.door_height, clear=inner(job), deep=deep(job)) is not None:
                 done = True
                 break
             if width != job.door and R.place(interior, r, w, "inner", job.door, job.door_height,
-                                             clear=inner(job)) is not None:
+                                             clear=inner(job), deep=deep(job)) is not None:
                 done = True
                 break
         if not done and r.type in WET:                # a bath room's narrow door
             rules = interior.rules
-            for w in ways:
+            for d, w in [(d, w) for d in (deep(job), 0.0) for w in ways]:   # a hair arm only when nothing else
                 if R.place(interior, r, w, "inner", rules.get("narrow", 0.7), job.door_height,
-                           clear=rules.get("narrow_clear", 0.05)) is not None:
+                           clear=rules.get("narrow_clear", 0.05), deep=d) is not None:
                     break
 
 
@@ -996,6 +1001,9 @@ def nooks(job, rooms: list, palier=None) -> list:
     interior = job.interior
     for r in list(rooms):
         least = job.minimums.get(r.type, (0.0, 0.0))[0]
+        if r.type == "couloir" and r.polygon.area < job.minimums.get("hall", (2.5, 1.1))[0]:
+            if _scrap_way(interior, r, rooms, palier):    # a couloir scrap between the hall and the palier
+                continue
         if r.type in SPINE or r.type in WET or job.fits(r.polygon, r.type) or r.polygon.area >= least:
             continue                                      # only a scrap under its type's least area
         hosts = ([palier] if palier is not None and shared(r.polygon, palier.polygon) >= 1.0 else [])
@@ -1012,6 +1020,20 @@ def nooks(job, rooms: list, palier=None) -> list:
 
 
 # --- shared by villas, maisons and flats ---------------------------------------------------------------
+def _scrap_way(interior, r, rooms: list, palier) -> bool:
+    """A couloir under the hall's least area joins the hall or palier it shares most with (no arch then
+    squeezes into it, 47.1 round 7); True when it did."""
+    ways = [o for o in rooms if o is not r and o.type in ("hall", "couloir")] + ([palier] if palier is not None else [])
+    for host in sorted(ways, key=lambda o: (-shared(r.polygon, o.polygon), o.id)):
+        merged = union(host.polygon, r.polygon) if shared(r.polygon, host.polygon) > 0.3 else None
+        if merged is not None:
+            host.polygon = merged
+            interior.rooms.remove(r)
+            rooms.remove(r)
+            return True
+    return False
+
+
 def modern_job(interior, outside, style: dict):
     """A `dar.Job` with the services' `largest` of modern homes (`[interiors.villa] largest`)."""
     from .dar import Job
@@ -1131,7 +1153,7 @@ def add_rooms(job, cells: list, floor: int, unit: str) -> list:
     st = interior.storeys[floor]
     out = []
     for c in cells:
-        room = Room(R.next_id(interior), floor, c.type or "chambre", c.poly, st.z, st.height, unit=unit)
+        room = Room(R.next_id(interior), floor, c.type or "chambre", despike(c.poly), st.z, st.height, unit=unit)
         interior.rooms.append(room)
         out.append(room)
     return out

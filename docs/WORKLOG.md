@@ -21,10 +21,10 @@ Entry format:
   says (for example "Do prompt 49." or "continue the playbook").
 - In progress (31 October): 47.1 + 48.1. Ali's API credit ran out at 12:12 during round 4; Ali then
   asked the lead to finish 47.1 + 48.1 on his plan. Pushed: 2ac52f7 (Open interior first shows the house
-  from above, cut at floor 0), 3918228, part 1 rounds 1-4 (4997d82), round 5 (sunken entries, ce09078) and
-  round 6 (the way in, bent entries; see the 47.1 + 48.1 entry). Next: round 7 (every house keeps a wet
-  room; villa and maison doors and arches), part 3 (colonial flats), part 2 (slabs), then round 8 (old
-  town: compact and shop ways in; B (a): the newel stair open in the entry room for 13 compact ladders).
+  from above, cut at floor 0), 3918228, part 1 rounds 1-4 (4997d82), 5 (sunken entries, ce09078), 6 (the
+  way in, 4ebe082) and 7 (wet rooms kept, villas and maisons; see the 47.1 + 48.1 entry). Next: the flats
+  (parts 2 and 3: slabs and colonial blocks), then round 8 (compact and shop ways in; villa and maison
+  program limits; B (a): the newel stair open in the entry room for 13 compact ladders).
   Uncommitted changes in the tree are the round in progress (backup branch `wip/47.1-48.1`).
 - Next: 47.1 with 48.1 (50 done 31 October: Open interior on a dwelling's card in `citygen view` and the
   gallery). Then 51. For 47.1 + 48.1:
@@ -92,17 +92,17 @@ Entry format:
 - Checks: survey (`tools/interior_survey.py`, the new checks; "before" = today's plans: old town exact,
   Ain Chilel = rooms.check passes less those with wall or step faults):
 
-  | group | before (old check) | before (new checks) | round 1 | round 2 | round 3 | round 4 | round 5 | round 6 | bar | slowest before -> after (round 5; round 6) |
-  |---|---|---|---|---|---|---|---|---|---|---|
-  | dar (159) | 151 | 84 | 138 | 136 | 141 (89%) | 141 | 146 (92%) | 154 (97%, bar met) | 152 | 0.07 -> 0.11 s (0.15 s, No. 276; 0.34 s, No. 90 fails) |
-  | compact (277) | 273 | 196 | 258 | 257 | 259 (94%) | 259 | 266 (96%, bar met) | 262 (95%) | 264 | 0.11 -> 0.14 s (0.12 s; 0.23 s, No. 268 fails) |
-  | small (83) | 81 | 61 | 77 | 77 | 80 (96%, at the bar) | 80 | 81 | 81 | 79 | 0.07 -> 0.08 s (0.08 s; 0.08 s) |
-  | koubba (22) | 21 | 17 | 19 | 19 | 20 (91%) | 20 | 21 (bar met) | 21 | 21 | 0.02 -> 0.02 s (0.06 s, No. 501; 0.07 s) |
-  | shop (136) | 135 | 86 | 114 | 120 | 124 (91%) | 124 | 125 | 122 (90%) | 130 | 0.27 -> 0.29 s (0.30 s; 0.29 s) |
-  | villa (178, Ain Chilel) | 171 | about 58 | 134 | 157 | 157 (88%) | 157 | 157 | 157 | 170 | 0.43 -> 0.37 s (0.37 s; 0.39 s) |
-  | maison (616, Ain Chilel) | 589 | about 472 | 508 | 554 | 554 (90%) | 559 (91%) | 559 | 559 | 586 | 0.65 -> 0.61 s (0.60 s; 0.67 s) |
-  | slab (353, part 2) | 326 | | 301 | 308 | 308 (87%) | 308 | | | | 2.03 -> 2.13 s |
-  | colonial (270, part 3) | 117 | | 51 | 83 | 84 (31%) | 84 | | | | 13.0 -> 16.4 s (No. 773) |
+  | group | before (old check) | before (new checks) | round 1 | round 2 | round 3 | round 4 | round 5 | round 6 | round 7 | bar | slowest before -> after (round 5; round 6) |
+  |---|---|---|---|---|---|---|---|---|---|---|---|
+  | dar (159) | 151 | 84 | 138 | 136 | 141 (89%) | 141 | 146 (92%) | 154 (97%, bar met) | 154 | 152 | 0.07 -> 0.11 s (0.15 s, No. 276; 0.34 s, No. 90 fails) |
+  | compact (277) | 273 | 196 | 258 | 257 | 259 (94%) | 259 | 266 (96%, bar met) | 262 (95%) | 262 | 264 | 0.11 -> 0.14 s (0.12 s; 0.23 s, No. 268 fails) |
+  | small (83) | 81 | 61 | 77 | 77 | 80 (96%, at the bar) | 80 | 81 | 81 | 81 | 79 | 0.07 -> 0.08 s (0.08 s; 0.08 s) |
+  | koubba (22) | 21 | 17 | 19 | 19 | 20 (91%) | 20 | 21 (bar met) | 21 | 21 | 21 | 0.02 -> 0.02 s (0.06 s, No. 501; 0.07 s) |
+  | shop (136) | 135 | 86 | 114 | 120 | 124 (91%) | 124 | 125 | 122 (90%) | 123 | 130 | 0.27 -> 0.29 s (0.30 s; 0.29 s) |
+  | villa (178, Ain Chilel) | 171 | about 58 | 134 | 157 | 157 (88%) | 157 | 157 | 157 | 165 (93%) | 170 | 0.43 -> 0.37 s (0.37 s; 0.39 s) |
+  | maison (616, Ain Chilel) | 589 | about 472 | 508 | 554 | 554 (90%) | 559 (91%) | 559 | 559 | 577 (94%) | 586 | 0.65 -> 0.61 s (0.60 s; 0.67 s) |
+  | slab (353, part 2) | 326 | | 301 | 308 | 308 (87%) | 308 | | | 315 | | 2.03 -> 2.13 s |
+  | colonial (270, part 3) | 117 | | 51 | 83 | 84 (31%) | 84 | | | 86 | | 13.0 -> 16.4 s (No. 773) |
 
   0 crashes. Every interior that passes `rooms.check` gives 0 `mesh.faults` and 0 entry-step faults (plan
   + walls + the prompt 49 tread, riser and headroom test on every tread of straight and turned steps, every
@@ -311,6 +311,62 @@ Entry format:
   the sunken floor, steps and rails show. To fix next: a bit el ma that becomes a store can leave a house
   with no wet room (round 7 counts and fixes). Accepted for Ali: the way in may cross a bit or a store;
   sunken steps in a bit (No. 248, 255) or a store (353, 501); the slowest failing plans take 0.2-0.34 s.
+- Round 7 (helper, from 4ebe082; survey at the start = the round 6 column exactly).
+  - Item 1, wet rooms (`h471e_wet.py`: dwellings whose home has no bit el ma, wc or sdb on any floor).
+    ce09078 (before round 6): compact 13, shop 47, koubba 1 (No. 666), small 83 (the small program has
+    none, SPEC 6c), dar, villa, maison 0. Round 6 added 9, all its store trade: compact No. 116, 185, 574,
+    shop No. 205, 419, 494, 588, 629, 662. New program check (`program.old_problems`): "the house has no wet
+    room: its bit el ma became a store on the way in". Fix (`program.carve_wet`, in `swap_way` before the
+    store): the bit el ma takes an end of another room of the home, cut across its long axis at
+    `[interiors.dar] wet_carve` 2.0-5.0 m2 (a store, maqsura, bit or matbakh of floor 0 off the way first,
+    then on it, then an upstairs ghorfa), with a door on the court or that room; the host keeps its minimum
+    and its doors (they slide off the new partition, `plancheck.settle`); kept only when the check finds
+    fewer faults and none of a new kind. After: the 9 have a wet room again (No. 662 upstairs, carved from a
+    ghorfa); the counts equal ce09078's exactly. Survey: dar 154, compact 262, small 81, koubba 21, shop 123
+    (No. 622 now passes), no pass lost.
+  - Item 2, villas and maisons (`h471e_fails.py`, every failing house with its faults). At the start 21 villa
+    and 57 maison fails. Found by geometry: needle tips (zero-width spikes, a cut along a wall a hair off
+    the plan's axis) on room polygons: the sdb wrapped round a wc carries a 1 m needle along the couloir and
+    its door lands on it (villa No. 292, 333, 350, 358, 377); a palier's needle along the sdb puts the
+    palier's arch over the sdb door (maison No. 495, 520, 951: "the arch and the inner overlap"; 483, 919
+    two arches) or narrows it (No. 568, 776, 901, and `OPEN_PALIER` 852, 864). New `cuts.despike` (a corner
+    under 1 degree goes while under 0.005 m2 is lost) on every room the spine engine makes
+    (`spine.add_rooms`, `spine.unwrap`). Doors on a hair arm (a wc given the hall's hair arm, No. 295, 352):
+    `rooms.place(deep=)` takes a piece only where both rooms reach half a partition + `probe` behind the
+    door (modern doors in `spine.doors`; a wet room's narrow door falls back to the old rule). Survey after:
+    villa 157 -> 164, maison 559 -> 573, ladders 3 and 10, no pass lost.
+    Then: a couloir scrap under the hall's least area (0.27 m2 between hall and palier, two arches squeezed
+    into it: villa No. 300, maison 817) joins the hall or palier (`spine._scrap_way` in `nooks`); the
+    entry-steps retry (`keep_steps`, round 5) runs for villas and maisons too (maison No. 665, 835, 945).
+    Survey: villa 165/178, maison 577/616, ladders 3 and 10 (unchanged), no pass lost. `OPEN_PALIER` now
+    villa 363 and maison 863 (852 and 864 pass).
+  - Left (villa 13, maison 39), by class: old program limits (no chambre in tiny one-floor homes: villa No.
+    266, 307, 369, 388, maison 526, 551, 642, 726, 985; reordering the program only trades it for a missing
+    cuisine, tried); no U stair (villa 353, maison 408, 429, 476, 1015, as at HEAD); partitions meeting a
+    wall by a window (villa 290, 325, 275, maison 590, 644, 976, 830, 924, 500, 749, 420, 431: not needles,
+    the next class); chambre under its minimum or over its most (6); arches narrowed (363, 863, 875); entry
+    steps on a door in an acute corner (villa 250, maison 961); "storey crosses" windows on footprint
+    spikes (maison 442, 443, 451, 521: the tile's, counted); villa 320 no salon, 390 a wc's door on its arm.
+    The bars (170, 586) need the program limits fixed: the new-check faults left are 5 villas, 14 maisons.
+  - Item 3 (villa ladders 3 -> 2): not reached.
+  - Round 7 checks: survey in the table; 0 crashes; every passing interior (old town, villas, maisons): 0
+    `mesh.faults`, 0 step faults (`h471_mesh.py`); ladder warnings as round 6. Slab 308 -> 315, colonial 84
+    -> 86 (counts only; slowest 2.15 s and 17.3 s, No. 773, as before). Slowest villa 0.49 s (No. 388,
+    failing), maison 0.67 s. `pytest -q` 133 passed (`test_wet_room_kept` new, 1.7 s with its fixture),
+    slow 5 + 1 xfail; `build --quick` done; fingerprint `--allow ""`: 282 parts, 0 changed. Plans:
+    output/checks/471-r7-villa.png (villa No. 333: the sdb without its needle, its door on the couloir; No.
+    300: the couloir scrap joined, hall to palier; maison No. 495: floor 1's sdb door and palier arch apart;
+    No. 665: the steps kept free in the hall, the sdb beside it).
+  - Choices for Ali/lead: a bit el ma may stand upstairs (No. 662) or open off the matbakh when no other
+    room can give it an end; the pre-round-6 houses without a wet room (compact 13, shop 47, koubba No. 666)
+    and every small house (by its program) stay so: `carve_wet` could give them one (a program change, not
+    done). Weak spots: the despike and door-depth rules also act on colonial and slab plans (counts rose,
+    not checked house by house); No. 205's bit el ma opens off its matbakh.
+- Lead (after round 7): committed as progress (no house loses its wet room; villa 165, maison 577). Seen in
+  471-r7-villa.png, for a later item (the checks pass them): long strip rooms across a wide one-floor
+  maison (No. 665: chambres and the s. a manger run the house's width) and a room boxed inside another
+  (No. 495: the s. a manger inside the salon). Ali's choice later: give the 61 dwellings that never had a
+  wet room (compact 13, shop 47, koubba No. 666) one by the carve.
 
 ## 2026-10-31 - Prompt 50 H1f Interiors in the viewer
 - Commit: (lead commits) | Model: Opus 5.5, high

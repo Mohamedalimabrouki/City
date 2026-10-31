@@ -125,10 +125,11 @@ def front_toward(a, b, piece) -> np.ndarray:
 
 
 def place(interior, a, b, kind: str, width: float, height: float, on=None, sill: float = 0.0,
-          at=None, clear: float | None = None) -> Opening | None:
+          at=None, clear: float | None = None, deep: float = 0.0) -> Opening | None:
     """A door or window of `width` between rooms a and b: in the middle of the longest straight piece of
     their shared boundary that holds width + 2 x (clear + half a partition) (only pieces along `on` when
-    given), or at the point `at` on it. None when no piece holds it."""
+    given, with both rooms reaching `deep` m behind the door when given: never on a hair arm, 47.1), or at
+    the point `at` on it. None when no piece holds it."""
     rules = interior.rules
     clear = rules["clear"] if clear is None else clear
     side = rules["partition"] if kind.startswith("court") else rules["partition"] / 2   # an oblique partition's face
@@ -146,7 +147,8 @@ def place(interior, a, b, kind: str, width: float, height: float, on=None, sill:
                 best = (length, piece)
                 break
             continue
-        if length >= need - 1e-9 and (best is None or length > best[0] + 1e-9):
+        if length >= need - 1e-9 and (best is None or length > best[0] + 1e-9) and (
+                not deep or behind(a, b, piece, width, deep)):
             best = (length, piece)
     if best is None:
         return None
@@ -154,6 +156,22 @@ def place(interior, a, b, kind: str, width: float, height: float, on=None, sill:
     center = np.asarray(at, dtype=float) if at is not None else (np.asarray(piece[0]) + np.asarray(piece[1])) / 2
     z = a.z
     return opening(interior, a, b, kind, center, front_toward(a, b, piece), width, z + sill, z + sill + height)
+
+
+def behind(a, b, piece, width: float, deep: float) -> bool:
+    """True when rooms a and b both hold the `width` x `deep` strip on their side of the middle of `piece`."""
+    p0, p1 = np.asarray(piece[0], dtype=float), np.asarray(piece[1], dtype=float)
+    d = (p1 - p0) / max(math.dist(p0, p1), 1e-9)
+    m = (p0 + p1) / 2
+    n = np.array([-d[1], d[0]])
+    if a.polygon.distance(Point(*(m + n * 0.01))) > b.polygon.distance(Point(*(m + n * 0.01))):
+        n = -n                                        # n points into a
+    for room, side in ((a, n), (b, -n)):
+        e0, e1 = m - d * width / 2, m + d * width / 2
+        strip = Polygon([e0, e1, e1 + side * deep, e0 + side * deep])
+        if strip.difference(room.polygon).area > 0.01 * width * deep:
+            return False
+    return True
 
 
 def assign(interior) -> None:

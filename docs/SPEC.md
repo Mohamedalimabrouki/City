@@ -1322,6 +1322,16 @@ along the axes of a frame (the courtyard's or the footprint's `frame`).
   steps only when the skifa has no other dry way on. A dar whose court shows from the street door slides
   its entry openings until it does not (`plancheck.bend`, the bent entry); a bent skifa's half all hair
   strip joins the covered court.
+  Round 7: a house keeps its wet room. `rooms.check` adds "the house has no wet room: its bit el ma became
+  a store on the way in"; the bit el ma `swap_way` cannot move off the way takes an end of another room of
+  the home instead (`program.carve_wet`: a store, maqsura, bit or matbakh of floor 0 off the way first, then
+  on it, then an upstairs ghorfa; cut across its long axis at `[interiors.dar] wet_carve` m2, within
+  `largest`, the host keeping its minimum and its doors, which slide off the new partition; a door on the
+  court or the host), kept only when the check finds fewer faults and none of a new kind. Modern plans
+  (spine engine): every room polygon loses its needle tips (`cuts.despike`: corners under 1 degree, under
+  0.005 m2 lost); a door goes only on a piece where both rooms reach half a partition + `probe` behind it
+  (`rooms.place(deep=)`; a wet room's narrow door falls back to any piece); a couloir under the hall's least
+  area joins the hall or palier (`spine.nooks`); villas and maisons get the entry-steps retry too.
 - Built (prompt 46). Rules the code settled: every cut, union and difference runs on a 1 micrometer grid
   and pieces under 0.001 m2 are numerical slivers, dropped. Before and after the merges, arms of a room
   thinner than 0.8 m (strips an irregular lot leaves along a wall) move to the neighbour they share more

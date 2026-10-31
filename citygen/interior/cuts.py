@@ -86,6 +86,28 @@ def snap(geom):
     return shapely.set_precision(geom, GRID)
 
 
+def despike(poly, most: float = 1.0, area: float = 0.005):
+    """`poly` without needle tips: a vertex whose corner is under `most` degrees goes while the area lost
+    stays under `area` m2 (a cut along a wall a hair off its axis leaves one; doors on it fail, 47.1)."""
+    if poly.geom_type != "Polygon" or poly.interiors:
+        return poly
+    pts = [tuple(p) for p in poly.exterior.coords[:-1]]
+    changed = True
+    while changed and len(pts) > 3:
+        changed = False
+        for i in range(len(pts)):
+            a, b, c = np.array(pts[i - 1]), np.array(pts[i]), np.array(pts[(i + 1) % len(pts)])
+            u, v = a - b, c - b
+            nu, nv = np.linalg.norm(u), np.linalg.norm(v)
+            if nu < 1e-9 or nv < 1e-9 or math.degrees(math.acos(max(-1.0, min(1.0, u @ v / (nu * nv))))) < most:
+                trial = Polygon(pts[:i] + pts[i + 1:])
+                if trial.is_valid and abs(trial.area - poly.area) < area:
+                    pts = pts[:i] + pts[i + 1:]
+                    changed = True
+                    break
+    return poly if len(pts) == len(poly.exterior.coords) - 1 else Polygon(pts)
+
+
 def parts(geom) -> list:
     """The polygons of a geometry larger than `EMPTY`."""
     return [p for p in polygons(geom) if p.area > EMPTY]

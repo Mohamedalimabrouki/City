@@ -922,6 +922,16 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`, and how the le
   the street door was cheapest as a slide of the existing openings (`plancheck.bend`, the settle machinery)
   rather than a new skifa plan: 7 of 7. A viewer camera set through `window.citygen` must not call
   `controls.update()` itself, or the frame loop sees no change and draws nothing new.
+  Round 7: a fix that removes a fault can remove a thing: the round 6 store trade left 9 houses with no wet
+  room at all, which no check saw; count what a dwelling must keep (a wet room) across commits, add the check,
+  then move the room (carve an end of another room after the plan, `program.carve_wet`) instead of dropping
+  it. Print the polygon a failing door stands on: most villa/maison door and arch faults left were needle
+  tips (a zero-width spike, area under 1e-6 m2, so area-based hair trims never see it) along a couloir; a
+  corner-angle test (`cuts.despike`) on every spine room fixed 21 houses at once. Doors also need both rooms
+  to reach behind them (`rooms.place(deep=)`), not only a long enough shared piece. The entry-steps retry
+  (`keep_steps`) works for villas and maisons unchanged (3 of 5). Tiny one-floor villas with no chambre
+  are a program limit (49 m2 for hall, salon, cuisine, chambre, sdb, wc): reordering the program only
+  trades the missing chambre for a missing cuisine.
 
 ## Known weak spots
 

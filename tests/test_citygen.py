@@ -3876,6 +3876,28 @@ def test_way_in(interior_ctx):
         assert not any(types[s.rooms[0]] in WET + KITCHENS for s in interior.stairs if s.kind == "steps"), k
 
 
+def test_wet_room_kept(interior_ctx):
+    """A bit el ma the way in would cross moves off it and never just becomes a store (47.1/48.1 round 7):
+    No. 205 carves it from the matbakh, No. 662 from an upstairs ghorfa; needle tips leave room polygons."""
+    from shapely.geometry import Polygon
+
+    from citygen.interior import rooms
+    from citygen.interior.context import city_plan
+    from citygen.interior.cuts import despike
+    from citygen.interior.layout import plan_interior
+    from citygen.interior.outside import Outside
+    from citygen.interior.plancheck import way_rooms
+    plan = city_plan(interior_ctx)
+    style = interior_ctx.world.style
+    for k in (205, 662):
+        interior = plan_interior(Outside(interior_ctx, plan, k), style)
+        assert rooms.check(interior) == [], (k, rooms.check(interior)[:3])
+        wet = [r for r in interior.rooms if r.unit == "home" and r.type == "bit_el_ma"]
+        assert wet and not {r.id for r in wet} & set(way_rooms(interior)), k
+    needle = Polygon([(0, 0), (4, 0), (4, 3), (0, 3), (0, 1.5000002), (-1, 1.5000001), (0, 1.5)])
+    assert abs(despike(needle).area - 12.0) < 1e-6 and len(despike(needle).exterior.coords) < len(needle.exterior.coords)
+
+
 def rooms_pieces(interior, a, b) -> list:
     from citygen.interior.rooms import pieces_between
     return pieces_between(interior, a, b)
@@ -4014,7 +4036,7 @@ def test_new_district_sample_is_valid(new_districts):
 
 OPEN_47 = ("colonial", "slab")   # open item 47.1: flats not yet at the bar (WORKLOG)
 OPEN_STEPS: dict = {}   # open (47.1/48.1, WORKLOG): entry steps under `tread_min` (501 got a sunken entry)
-OPEN_PALIER = {"villa": (363,), "maison": (852, 863, 864)}   # open (47.1/48.1, WORKLOG): a couloir squeezed
+OPEN_PALIER = {"villa": (363,), "maison": (863,)}   # open (47.1/48.1, WORKLOG): a couloir squeezed
 # between a U stair's palier and a wall narrows its arch or doors (the new wall checks see them)
 OPEN_47_HOUSES = {"koubba": (570,)}   # open item 47.1: No. 570's annex is a strip round the koubba, too narrow
 

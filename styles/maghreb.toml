@@ -1888,6 +1888,7 @@ kbou_depth = 1.0         # meters
 bit_max = 6.0            # meters: a longer bit (or ghorfa) is split
 short_split = 4.4        # meters: a longer short band holds two rooms
 largest = { matbakh = 14.0, bit_el_ma = 8.0, bit_el_mouna = 8.0, skifa = 18.0 }   # m2: a bigger cell gives a service one end; the skifa's rooms together
+wet_carve = [2.0, 2.5, 3.5, 5.0]   # m2 tried in turn: a bit el ma moved off the way in takes this end of another room (47.1 round 7)
 bortal = 1.8             # meters deep, the gallery of arches of a rich house
 bortal_wealth = 0.75     # household wealth above which a deep enough band gets a bortal
 arch = 1.6               # meters, one arch of a bortal

@@ -251,6 +251,10 @@ def old_problems(interior) -> list:
                  and width(r.polygon) >= least[1] and r.id not in way]
         if "bit_el_ma" not in types and spare:
             out.append("floor 0 has no bit el ma but a store or maqsura that should have given way")
+        elif "bit_el_ma" not in types and not wet(interior) and any(
+                r.type == "bit_el_mouna" and r.id in way and r.polygon.area >= least[0] and width(r.polygon) >= least[1]
+                for r in floor0):                     # round 7: the store round 6 made of it
+            out.append("the house has no wet room: its bit el ma became a store on the way in")
     for r in interior.rooms:
         if r.type in SERVICES and r.type in big and r.polygon.area > big[r.type] + 0.01:
             out.append(f"the {r.type} {r.id} has {r.polygon.area:.1f} m2, over its largest {big[r.type]}")
@@ -258,6 +262,11 @@ def old_problems(interior) -> list:
                                            for o in interior.rooms):
             out.append(f"the maqsura {r.id} stands beside no bit")
     return out
+
+
+def wet(interior) -> list:
+    """The home's wet rooms (bit el ma, wc, sdb) on any floor."""
+    return [r for r in interior.rooms if r.unit == "home" and r.type in ("bit_el_ma", "wc", "sdb")]
 
 
 def modern_problems(interior) -> list:
@@ -381,8 +390,8 @@ def flat_problems(interior) -> list:
 def swap_way(interior, check, tries: int = 12) -> None:
     """A wet room or matbakh the way in still crosses trades its type with a room of floor 0 off that way
     (a bit, maqsura or store); a trade is kept when `check` then finds no new fault of another kind and
-    fewer faults, or as many with fewer such rooms on the way; a bit el ma no trade moves becomes a store,
-    the program's last service to give way (round 6)."""
+    fewer faults, or as many with fewer such rooms on the way; a bit el ma no trade moves takes an end of
+    another room (`carve_wet`, round 7), else becomes a store, the program's last service to give way."""
     from .plancheck import KITCHENS, WET, way_rooms
 
     def score():                                      # (other faults, all faults, rooms crossed)
@@ -412,10 +421,103 @@ def swap_way(interior, check, tries: int = 12) -> None:
                 break
             a.type, b.type = b.type, a.type
         else:
-            if a.type == "bit_el_ma":                 # the bit el ma gives way (the program's order)
+            if a.type == "bit_el_ma":                 # the bit el ma moves off the way, else gives way
                 a.type = "bit_el_mouna"
+                if carve_wet(interior, way, score, best):
+                    return                            # rooms renumbered: the way's ids are stale
                 got = score()
                 if got[0] <= best[0] and got[1:] < best[1:]:
                     best = got
                 else:
                     a.type = "bit_el_ma"
+
+
+def carve_wet(interior, way: list, score, best: tuple) -> bool:
+    """The bit el ma that leaves the way in takes one end of another room of the home (a store, maqsura,
+    bit or matbakh of floor 0, then an upstairs ghorfa), cut across the room's long axis and opening on
+    the court or that room, when `score` then beats `best` as in `swap_way`; True when it did (round 7:
+    a house never loses its wet room to the way in)."""
+    from . import rooms as R
+    order = {"bit_el_mouna": 0, "maqsura": 1, "bit": 2, "matbakh": 3, "ghorfa": 4}
+    hosts = [r for r in interior.rooms if r.unit == "home" and r.type in order and (r.floor == 0) == (r.type != "ghorfa")]
+    hosts.sort(key=lambda r: (r.floor, r.id in way, order[r.type], -r.polygon.area, r.id))
+    for host in hosts:
+        for mine, rest in _ends(interior, host):
+            undo = _split(interior, host, mine, rest)
+            if undo is None:
+                continue
+            got = score()
+            if got[0] <= best[0] and got[1:] < best[1:]:
+                R.renumber(interior)
+                return True
+            undo()
+    return False
+
+
+def _ends(interior, host):
+    """(end, rest) cuts of `host` across each axis, the long one first: the end holds a bit el ma at about
+    `wet_carve` m2 and stays within `largest`, the rest keeps its own minimum and stays one piece."""
+    rules = interior.rules
+    least, keep = rules["minimums"]["bit_el_ma"], rules["minimums"].get(host.type, (0.0, 0.0))
+    big = rules.get("largest", {}).get("bit_el_ma", 8.0)
+    if host.alcove is not None:                       # never the T room's kbou
+        return
+    fr = Frame.of(host.polygon)
+    b = fr.bounds(host.polygon)
+    for axis in sorted((0, 1), key=lambda a: -(b[a + 2] - b[a])):
+        t0, t1 = b[axis], b[axis + 2]
+        for target in rules.get("wet_carve", ()):
+            for end, sgn in ((t0, 1.0), (t1, -1.0)):
+                lo, hi = cut(host.polygon, fr, axis, end + sgn * (t1 - t0) * target / host.polygon.area)
+                mine, rest = (lo, hi) if sgn > 0 else (hi, lo)
+                if len(mine) != 1 or len(rest) != 1:
+                    continue
+                m, r = mine[0], rest[0]
+                if m.area < least[0] or width(m) < least[1] or m.area > big or r.area < keep[0] or width(r) < keep[1]:
+                    continue
+                yield m, r
+
+
+def _split(interior, host, mine, rest):
+    """`host` keeps `rest`, a new bit el ma takes `mine` with a door on the court or the host (the host's
+    doors near the new partition slide, `plancheck.settle`); doors and stairs over `mine` refuse it, windows
+    over it follow it. The undo, or None when it cannot."""
+    from dataclasses import replace
+    from shapely.geometry import Point
+    from . import rooms as R
+    from .plancheck import settle
+    if any(s.polygon.intersection(mine).area > 1e-3 for s in interior.stairs if s.floor <= host.floor <= s.top):
+        return None
+    pt = lambda o: Point(o.x, o.y)
+    ops = [o for o in interior.openings if host.id in o.rooms and o.floor == host.floor]
+    mine_ops = [o for o in ops if mine.distance(pt(o)) < rest.distance(pt(o))]
+    if any(o.kind in R.PASS for o in mine_ops):
+        return None
+    room = replace(host, id=R.next_id(interior), type="bit_el_ma", polygon=mine, alcove=None, lit=False)
+    old_poly, openings = host.polygon, list(interior.openings)
+    fields = [(o, (o.x, o.y, o.s, o.width, o.rooms)) for o in openings]
+
+    def undo():
+        host.polygon = old_poly
+        interior.rooms.remove(room)
+        interior.openings = list(openings)
+        for o, (x, y, at, w, rooms) in fields:
+            o.x, o.y, o.s, o.width, o.rooms = x, y, at, w, rooms
+
+    host.polygon = rest
+    interior.rooms.insert(interior.rooms.index(host) + 1, room)
+    for o in mine_ops:
+        o.rooms = tuple(room.id if i == host.id else i for i in o.rooms)
+    rules = interior.rules
+    clear = rules["clear"] + interior.walls["partition"]
+    if any(o.kind in R.PASS and mine.distance(pt(o)) < o.width / 2 + clear for o in ops):
+        settle(interior, again=False)                 # the host's doors slide off the new partition
+    court = R.court_room(interior) if host.floor == 0 else None
+    for other in [court, host] if court is not None else [host]:
+        kind = "court_door" if other is court else "inner"
+        for w, c in ((rules["door"], rules.get("inner_clear", rules["clear"])),
+                     (rules.get("narrow", 0.7), rules.get("narrow_clear", 0.05))):
+            if R.place(interior, room, other, kind, w, rules["door_height"], clear=c) is not None:
+                return undo
+    undo()
+    return None

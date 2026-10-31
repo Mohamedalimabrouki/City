@@ -53,7 +53,7 @@ def plan_interior(outside, style: dict) -> Interior:
     _plan(interior, outside, style, layout)
     if layout in TRADITIONAL:
         free_way(interior, outside, style, layout, before)
-    if layout in TRADITIONAL and short_steps(interior, style):     # the entry room too short for its steps (47.1)
+    if layout in TRADITIONAL + HOUSES and short_steps(interior, style):   # the entry room too short for its steps
         best, faults = _held(interior), len(check(interior))
         for more in KEEP_MORE:                        # the plan keeps the steps' strip free of partitions
             _hold(interior, before)
@@ -131,6 +131,7 @@ def sunk(interior: Interior, style: dict) -> None:
         _hold(interior, first)
 
 
+HOUSES = ("villa", "maison")   # modern houses retried for their steps too (47.1 round 7)
 KEEP_MORE = (0.0, 0.3)   # m beyond the steps' least depth kept free on a second and third plan (47.1)
 
 

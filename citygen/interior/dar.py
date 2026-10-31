@@ -81,6 +81,7 @@ class Job:
         self.roof_ladder = False          # the newel could not stand under the stair room
         self.largest = {k: float(v) for k, v in self.dar.get("largest", {}).items()}   # m2 per service
         interior.rules["largest"] = dict(self.largest)
+        interior.rules["wet_carve"] = [float(a) for a in self.dar.get("wet_carve", [2.5])]   # m2 (47.1 round 7)
         interior.rules["most"] = {k: float(v) for k, v in rooms.get("most", {}).items()}
         interior.rules["plan"] = {**cfg.get("checks", {}), "casing": float(op.get("casing", 0.05)),
                                   "tread_min": float(self.stairs.get("tread_min", 0.2)),
