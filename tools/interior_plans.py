@@ -157,6 +157,12 @@ def panel(pen, interior, outside, floor: int, at, scale: float, label_font) -> N
     part = max(1, int(round(interior.walls["partition"] * scale)))
     for r in rooms:
         fill(pen, r.polygon, at, COLORS.get(r.type, OTHER))
+    if floor < interior.floors:                       # a room round a court or light well: its walls and
+        from shapely.geometry import Polygon          # the open air show through its hole (47.2 round B)
+        for r in rooms:
+            for hole in r.polygon.interiors:
+                fill(pen, Polygon(hole), at, WALL)
+                fill(pen, Polygon(hole).difference(outside.b.footprint), at, (255, 255, 255))
     for r in rooms:
         if not (r.type == "wast_ed_dar" and r.open):
             pen.line(ring(r.polygon, at), fill=PARTITION, width=part)

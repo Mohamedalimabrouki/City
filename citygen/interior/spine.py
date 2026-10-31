@@ -142,6 +142,8 @@ def search(job, region, entry: Entry, program: list, floor: int, key: tuple, hal
     way = job.interior.__dict__.get("bays_early", False)   # a failing house's second plan: day rooms off the
     # way score too, and of variants as good the fewest dark rooms (round 10)
     first = None        # an upper floor's first faultless variant whose couloir misses the landing (round 10)
+    sun = lights(job, floor)
+    blind_cap = int(job.cfg.get("flats", {}).get("blind_cap", {}).get(job.interior.layout, 10 ** 6))
     for d, w in ((depth, wide), small):
         for cell in cfg["rhythm"]:
             for turn in (False, True):
@@ -173,6 +175,8 @@ def search(job, region, entry: Entry, program: list, floor: int, key: tuple, hal
                         return cells
                     if best is None or score < best[1]:
                         best = (cells, score, len(missing))
+                    if len(seen) >= blind_cap and best[1] <= hard * blind(job, best[0], sun):
+                        return late_bays(job, best, floor, hall, hard)   # only blind rooms left: time (47.2 B)
     if first is not None:
         return first[0]
     return late_bays(job, best, floor, hall, hard)
@@ -290,7 +294,8 @@ def give(job, donor, taker, box, cells: list, floor: int, hall: bool, hard: int,
 def faults(job, cells: list, floor: int, hall: bool = False, hard: int = 1) -> int:
     """What `rooms.check` would find in one home's floor before it exists: rooms under their minimum or over
     their `most`, and partitions meeting a wall within `clear` of an opening. Each counts `hard`, a blind
-    cuisine in a lit home 1."""
+    cuisine in a lit home 1; with `[interiors.flats] blind_faults` a blind chambre or salle a manger `hard`
+    (the window check, 47.2 round B)."""
     most = job.cfg.get("rooms", {}).get("most", {})
     zones = job.zs([floor])
     n = 0 if not hall or any(c.type == "hall" for c in cells) else 3 * hard
@@ -299,6 +304,7 @@ def faults(job, cells: list, floor: int, hall: bool = False, hard: int = 1) -> i
         for t in ("salon", "cuisine"):
             if any(c.type == t for c in cells) and not any(c.type == t and lit(c.poly, sun) for c in cells):
                 n += 2 * hard if t == "salon" else 1
+        n += hard * blind(job, cells, sun)
     for c in cells:
         if c.type in SPINE or c.type in ("droj",):
             if c.type in most and c.poly.area > float(most[c.type]) + 0.01:
@@ -311,6 +317,14 @@ def faults(job, cells: list, floor: int, hall: bool = False, hard: int = 1) -> i
             if R.clash_polys(a.poly, b.poly, zones, job.half * 2):
                 n += hard
     return n
+
+
+def blind(job, cells: list, sun: list) -> int:
+    """With `[interiors.flats] blind_faults` (by layout), the blind chambres and salles a manger of a floor's
+    cells (the window check, 47.2 round B); else 0."""
+    if not job.cfg.get("flats", {}).get("blind_faults", {}).get(job.interior.layout):
+        return 0
+    return sum(1 for c in cells if c.type in ("chambre", "salle_a_manger") and not lit(c.poly, sun))
 
 
 # --- cutting -------------------------------------------------------------------------------------------
@@ -547,7 +561,7 @@ def cut_region(job, region, entry: Entry, floor: int, cfg: dict, depth: float, w
     for name, poly in bands:
         b0, _, b1, _ = F.bounds(poly)
         k = max(1, int(round((b1 - b0) / cell)))
-        cuts_at = []
+        cuts_at = court_cuts(job, poly, F, floor, b0, b1)   # no room wraps a court's corner (47.2 round B)
         for i in range(1, k):
             at = b0 + i * (b1 - b0) / k
             got = free(job, poly, F, 0, at, floor, b0 + 1.2, b1 - 1.2)
@@ -606,6 +620,33 @@ def cut_region(job, region, entry: Entry, floor: int, cfg: dict, depth: float, w
     spine = {"F": F, "couloir": main, "entry": entry, "hall": next((c.poly for c in cells if c.type == "hall"), None),
              "ways": [c.poly for c in cells if c.type in ("couloir", "hall")]}
     return cells, spine
+
+
+def courts(job, floor: int) -> list:
+    """The courts and light wells of a floor as the storey sees them (its holes: the court walls' inner faces)."""
+    st = next((s for s in job.interior.storeys if s.floor == floor), None)
+    return [shapely.Polygon(h) for h in st.polygon.interiors] if st is not None else []
+
+
+def court_cuts(job, poly, F: Frame, floor: int, b0: float, b1: float) -> list:
+    """The cuts across a band at the ends of every court or light well it wraps, each nearest the court's edge
+    line where its partition keeps clear of the openings, 1.2 m from the band's ends and from one another: the
+    piece beside the court then reaches from the street wall to the court wall and no room wraps a corner
+    (`[interiors.flats] court_cuts` by layout; 47.2 round B)."""
+    out: list = []
+    if not job.cfg.get("flats", {}).get("court_cuts", {}).get(job.interior.layout, False):
+        return out
+    for court in courts(job, floor):
+        if poly.distance(court) > 0.05:
+            continue
+        c0, _, c1, _ = F.bounds(court)
+        for at in (c0, c1):
+            if not b0 + 1.2 < at < b1 - 1.2:
+                continue
+            got = free(job, poly, F, 0, at, floor, at - 0.6, at + 0.6)
+            if got is not None and b0 + 1.2 <= got <= b1 - 1.2 and all(abs(got - x) > 1.2 for x in out):
+                out.append(got)
+    return out
 
 
 def trim_hall(job, cells: list, F: Frame, entry: Entry, floor: int) -> None:
@@ -1092,10 +1133,14 @@ def trim_wet(job, spine: dict, c, cells: list, floor: int) -> bool:
 
 def leftovers(job, cells: list, most: dict, light: dict | None = None, program=()) -> None:
     """Untyped cells: each joins the room it shares most with when that keeps the room within its
-    `largest` and `most`; else it is a room itself (a windowed one a chambre, a blind one on a floor with a
+    `largest` and `most` (a room-sized one only when blind in a lit home, `[interiors.flats] blind_join`,
+    47.2 round B); else it is a room itself (a windowed one a chambre, a blind one on a floor with a
     salon its salle a manger, else a chambre); a sliver joins the couloir or hall."""
     light = light or {}
     living = "salon" in program
+    join = job.cfg.get("flats", {}).get("blind_join", {}).get(job.interior.layout, False)
+    dark = join and bool(light) and any(light.values())   # a lit home's blind cells join rooms (47.2 round B)
+    wide, thin = (float(v) for v in job.cfg.get("flats", {}).get("strip", (1.6, 3.0)))
     for _ in range(len(cells) + 1):
         todo = sorted([c for c in cells if not c.type], key=lambda c: c.poly.area)
         if not todo:
@@ -1104,9 +1149,10 @@ def leftovers(job, cells: list, most: dict, light: dict | None = None, program=(
         ranked = sorted(((shared(c.poly, o.poly), o) for o in cells if o is not c and o.type and o.type != "palier"),
                         key=lambda t: (t[1].type in SPINE, -t[0]))
         room = job.fits(c.poly, "chambre")
+        unlit = room and dark and not light.get(id(c))   # a blind one may join a room or way within its most
         done = False
         for capped, ways in ((True, False), (True, True), (False, False), (False, True)):
-            if done or (room and (not capped or ways)):   # a room-sized cell stays a room
+            if done or (room and (not capped or (ways and not unlit))):   # a room-sized cell stays a room
                 break
             for s, o in ranked:                         # a scrap grows a room past its most only as a last resort
                 grown = o.poly.area + c.poly.area
@@ -1115,6 +1161,8 @@ def leftovers(job, cells: list, most: dict, light: dict | None = None, program=(
                 if (o.type in SPINE) != ways or (ways and grown > float(most.get(o.type, 1e9))):
                     continue                            # a couloir or hall never grows past its most
                 merged = union(o.poly, c.poly)
+                if merged is not None and unlit and o.type in LIVING and strip(merged, wide) > thin:
+                    continue                            # no L strip for a blind cell (the dark-room guard)
                 if merged is not None:
                     o.poly = merged
                     done = True

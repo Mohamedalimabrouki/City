@@ -32,8 +32,9 @@ Entry format:
   the redesign (47.2 in docs/ROADMAP.md, design in the 47.1 + 48.1 entry: courtyards and light wells for
   deep colonial blocks and maisons, every chambre, salon, salle a manger and cuisine with a window), and
   left the models to the lead (helpers Opus high from round A). 47.2 round A done (courts in the city:
-  241 colonial blocks, 293 maisons; interiors not yet planned around them: colonial 13, maison 569).
-  Next: 47.2 round B, the interiors lit by the courts and the window check.
+  241 colonial blocks, 293 maisons) and round B (the window check; with every check: villa 165/178,
+  maison 390/616, slab 139/353, colonial 1/270). Next: 47.2 round C, colonial flats planned round their
+  courts (wings), then the narrow maisons, the dark cuisines and the slab plan time.
   Uncommitted changes in the tree are the round in progress (backup branch `wip/47.1-48.1`).
 - Next: 47.1 with 48.1 (50 done 31 October: Open interior on a dwelling's card in `citygen view` and the
   gallery). Then 51. For 47.1 + 48.1:
@@ -896,6 +897,77 @@ Entry format:
   the colonial quarter, small patios in Ain Chilel's maisons; in 472-a-plans.png No. 971's flats ring
   their court, No. 940's floor-1 and floor-2 salons wrap the court as long L strips and its light well
   loses its walls on floor 3 (round B). goumosbane.blend refreshed by the helper.
+- 47.2 round B (rooms around the courts; helper, Opus 5.5; the lead commits; partly done, about 75 minutes):
+  - The window check (`plancheck.windows`, in `rooms.check`): every chambre, salon, salle a manger and cuisine of
+    a villa, maison or flat has a window (street, court or light well window, or a balcony door; `layout.dim`'s
+    rule); an sdb or wc may stay blind. Worded "flat 3: the chambre 12 on floor 1 has no window" ("the home"
+    for a house). The steps', tiny houses' and sunken entries' retries choose without it (`layout.plain`), the
+    redraws and carves count it. Test `test_windows` (hand-made maison and flat, 0.1 s).
+  - Baseline (HEAD plans, the window check applied; survey with walls, `/tmp/claude-501/h472b/dump.py`, HEAD
+    extracted whole): colonial 0 of 270 (13 without it), slab 125 of 353 (215), maison 208 of 616 (569),
+    villa 143 of 178 (167). Blind rooms in every plan: colonial chambres 2,415, salles a manger 477; slab
+    chambres 1,380, salles a manger 360; maison chambres 623, salles a manger 224 of 232, cuisines 74; villa
+    chambres 17. Most blind rooms are the spine's leftover cells (`leftovers`: a blind room-sized cell became a
+    chambre or salle a manger) and variants the search took first because it never counted them.
+  - Fix 1, the search scores what the check asks (`spine.blind`, `[interiors.flats] blind_faults` by layout):
+    a blind chambre or salle a manger counts as a fault. Fix 2, a blind leftover cell big enough for a chambre
+    joins a neighbouring room, else the hall or couloir, within its `most` (`blind_join`; first version also
+    past `most`: 79 maisons got a chambre over its most, so capped only; then no join that leaves an L strip
+    over `strip`, the guard: maison 396 -> 390, strips per passing maison 0.67 -> 0.64). With both: villa 165,
+    maison 396, slab 185, colonial 1, but slab plans 3.4 times slower (survey's slowest 8.2 s, HEAD 2.4 s): a
+    floor that cannot be all lit tries every variant. Fix 3, `blind_cap`: a flat's search stops after that many
+    variants when only blind rooms keep its best from passing: slab cap 8 158 passes (slowest 6.7 s), cap 4
+    139 (4.0 s); kept 4 for slabs and colonial blocks (time bar first).
+  - Fix 4, court cuts (`spine.court_cuts`, `court_cuts` by layout): the spine cuts its bands at the ends of every
+    court or light well they wrap, so a room beside a court reaches from the street wall to the court wall and
+    no room rings a light well (No. 940's floor-3 chambre had a hole round its well; the plan tool also painted
+    that hole white over the walls: `interior_plans.py` now draws a room's hole as wall and open air). Colonial
+    strips: chambres 815 -> 709, cuisines 197 -> 128, salons 382 -> 341; blind chambres 1,259 -> 1,346; passes
+    unchanged. In maisons the cuts left the cells beyond a 3 m patio blind (patio maisons passing 211 -> 189):
+    colonial only. Tried and removed: a couloir along the court's side as the search's first variants (colonial
+    passes 1 = 1, blind chambres 1,491 -> 1,620, blind salons 10 -> 1).
+  - Final (with every check, window check included; HEAD -> now): villa 143 -> 165 of 178 (22 won, 0 lost, the
+    143 byte-identical), maison 208 -> 390 of 616 (183 won, lost No. 639: the couloir only through a chambre;
+    186 identical, 21 changed; the guard grew on No. 771 and 766, one strip room each where HEAD's redraw found
+    a plan without), slab 125 -> 139 of 353 (14 won, 0 lost, 124 identical, 1 changed, guard unchanged),
+    colonial 0 -> 1 of 270. Every passing interior 0 `mesh.faults`, 0 step faults. Old town (dar 159, compact
+    277, small 83, koubba 22, shop 136, as the survey groups them): 677 of 677 rooms.json identical. Blind rooms
+    in every plan: colonial chambres 2,415 -> 1,491, salles a manger 477 -> 214, cuisines 101 -> 116, salons 9 ->
+    10; slab chambres 1,380 -> 1,045, salles a manger 360 -> 223; maison chambres 623 -> 138, salles a manger 224
+    -> 46, cuisines 74 -> 73, salons 35 -> 31; villa chambres 17 -> 1.
+  - Times (one process, while the slow tests ran): colonial No. 958 7.6 s (HEAD 5.6 s), slab No. 1324 2.5 s
+    (HEAD 1.2 s, the bar 2.2 s: over), maison No. 923 2.8 s (HEAD 0.45 s: it now fails the window check and is
+    planned again), villa No. 363 1.0 s. `pytest -q` 142 passed in 47.5 s (45.5 s: not won back); `-m slow` 5
+    passed, 1 xfailed, after `OPEN_472` took maisons No. 851, 853 and 864 of the sample (all three fail the window
+    check in HEAD's plans: 4, 1 and 7 blind rooms; now 851 trades them for 2 chambres over their most, 853 and 864
+    keep 1 and 2). Fingerprint 282 parts, 0 changed (no city change: no Blender refresh, no look picture).
+  - Narrow maisons (goal 3, measured, not built): of 323 maisons without a patio 182 pass, 115 fail the window
+    check (the 7-9 m lots' dark backs), 26 other faults. Left for round C: a patio or light well against one
+    party wall (a notch, the neighbour's exposed wall must render) or a rear court.
+  - Picture output/checks/472-b-plans.png (No. 971, No. 940, maison No. 882 with its patio): No. 971's flats
+    ring their court with salons and cuisines on the street and court; No. 940's light well keeps its walls on
+    floor 3, but its south flats on floors 1-3 are still one U-shaped chambre of about 110 m2 wrapping the court
+    (its cells exist, the program is not placed: "flat 1 has no salon, no cuisine"), and floor 0's street door
+    opens into the cafe. Maison No. 882: salon on the street, cuisine and chambre on the patio.
+  - Choices for Ali: a dark cell inside a flat or house joins the room or hall beside it (real flats of Tunis
+    and Algiers have deep rooms and a dark hall, never a bedroom without a window); a maison's 3 m patio keeps
+    the L rooms round it (cutting them left them dark); the slab search gives up on lighting the last dark rooms
+    after 4 variants (time; 185 slabs would pass with no cap at 3 times the time).
+  - Left for round C: flats planned round their courts (a couloir that follows the court, rooms spanning street
+    to court, No. 940's U chambres, the cafe taking a colonial entry, OPEN_472 No. 825), the 115 narrow maisons,
+    slab time against its blind search, maison blind cuisines (73), the guard on No. 771 and 766, OPEN_472
+    maisons No. 848 (a chambre 61.6 m2 over its most round the patio) and 990 (a partition by the palier's
+    window, a chambre over its most). Scripts in /tmp/claude-501/h472b/ (dump.py with extra.py, cmp.py, ana.py,
+    narrow.py, onec.py).
+- Lead (after 47.2 round B): committed as progress: the window check makes the counts honest again (with it,
+  HEAD's plans: villa 143, maison 208, slab 125, colonial 0), and the fixes bring villa 165, maison 390,
+  slab 139, colonial 1. Read the whole diff (blind cells scored and joined; bands cut at court ends for
+  colonial only; the plan tool's light-well drawing fixed). The helper re-saved the fingerprint
+  baseline at 7523fad (round A) as the routine says: `compare before --allow ""` is now 0 changed.
+  `pytest -q` 142 passed in 47.5 s. Slab No. 1324 takes 2.52 s alone (bar 2.2 s; HEAD 1.2 s): round C.
+  Seen in 472-b-plans.png: No. 971's flats put their salons on the street and their chambres round the
+  court; No. 940's floors 1-3 keep a chambre of about 110 m2 wrapping the court's south side (it fails
+  the check: round C's wings).
 
 ## 2026-10-31 - Prompt 50 H1f Interiors in the viewer
 - Commit: (lead commits) | Model: Opus 5.5, high

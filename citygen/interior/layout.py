@@ -440,9 +440,10 @@ def check(interior: Interior) -> list:
 
 
 def plain(interior: Interior) -> list:
-    """`check` without the way-home faults: the steps' and tiny houses' retries choose as before them (47.1 +
-    48.1 round 10; only the redraws and the way's own repairs count them)."""
-    return [f for f in check(interior) if not f.endswith(WAY)]
+    """`check` without the way-home and window faults: the steps' and tiny houses' retries choose as before
+    them (47.1 + 48.1 round 10, 47.2 round B; only the redraws and the way's own repairs count them)."""
+    from .plancheck import BLIND
+    return [f for f in check(interior) if not f.endswith(WAY) and not f.endswith(BLIND)]
 
 
 def short_steps(interior: Interior, style: dict) -> bool:

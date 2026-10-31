@@ -1408,6 +1408,17 @@ along the axes of a frame (the courtyard's or the footprint's `frame`).
   or maison with a fault no second plan cures (a storey crossing a window, no U stair, the whole home
   missing a room type) is planned no second time, `[interiors.villa] redraws` is 1, and a house's
   `rooms.check` is remembered per plan state while it is planned (time).
+  47.2 round B (the window check): `plancheck.windows` (in `rooms.check`, villas, maisons, colonial and slab
+  flats) faults every chambre, salon, salle a manger and cuisine of a home or flat with no window: a facade
+  window or balcony door on the street, a court or a light well (`layout.dim`'s rule); an sdb or wc may stay
+  blind ("flat 3: the chambre 12 on floor 1 has no window"). The steps', tiny houses' and sunken entries'
+  retries choose without these faults (`layout.plain`). The spine's search counts a blind chambre or salle a
+  manger as a fault (`[interiors.flats] blind_faults`, by layout), and a flat's search stops after `blind_cap`
+  variants when only blind rooms keep its best from passing (time). A blind leftover cell big enough for a
+  chambre joins a neighbouring room (or the way) within its `most` before it becomes a dark room
+  (`blind_join`). Colonial bands are cut at the ends of every court or light well they wrap
+  (`spine.court_cuts`, `court_cuts` by layout), so a room beside a court reaches from the street wall to the
+  court wall and no room wraps a court's corner; a maison's 3 m patio keeps its L rooms.
 - Built (prompt 46). Rules the code settled: every cut, union and difference runs on a 1 micrometer grid
   and pieces under 0.001 m2 are numerical slivers, dropped. Before and after the merges, arms of a room
   thinner than 0.8 m (strips an irregular lot leaves along a wall) move to the neighbour they share more

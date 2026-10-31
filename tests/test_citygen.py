@@ -4070,9 +4070,12 @@ OPEN_STEPS: dict = {}   # open (47.1/48.1, WORKLOG): entry steps under `tread_mi
 OPEN_PALIER = {"villa": (363,), "maison": (863,)}   # open (47.1/48.1, WORKLOG): a couloir squeezed
 # between a U stair's palier and a wall narrows its arch or doors (the new wall checks see them)
 OPEN_47_HOUSES = {"koubba": (570,)}   # open item 47.1: No. 570's annex is a strip round the koubba, too narrow
-OPEN_472 = {"colonial": (825,), "maison": (848, 990)}   # open (47.2 round B): the sample block got a court;
-# its street door opens into flat 0's hall, not the palier, and a partition crosses that door; maisons No. 848 and
-# 990 got a patio (848: a couloir only through a chambre; 990: a partition meets the palier near a window)
+OPEN_472 = {"colonial": (825,), "maison": (848, 851, 853, 864, 990)}   # open (47.2 round C): the sample block got
+# a court; its street door opens into flat 0's hall, not the palier, and a partition crosses that door; maisons
+# No. 848 and 990 got a patio (848: a chambre over its most round the patio; 990: a partition meets the palier near
+# a window);
+# No. 851 had 4 blind rooms (the window check, round B), its search now trades them for 2 chambres over their most;
+# No. 853 and 864 keep blind rooms (1 and 2; HEAD's plans had 1 and 7)
 
 
 @pytest.mark.slow
@@ -4435,6 +4438,33 @@ def test_way_home():
     bad.openings = [o for o in bad.openings if o.rooms != (0, 4)]      # the wc only through the chambre too
     bad.openings.append(Opening(9, "inner", 0.0, 0.0, 0.0, 0.7, 0.0, 2.1, 0, (2, 4)))
     assert way_home(bad)[-1] == "the home: every bath room only through a chambre" and astray(bad) == 2
+
+
+def test_windows():
+    """Every chambre, salon, salle a manger and cuisine of a villa, maison or flat has a window (street, court or
+    light well); an sdb or wc may stay blind; old-town layouts are not asked (47.2 round B). Hand-made
+    one-floor maison: salon on the street, chambre and cuisine on a patio, a blind sdb; then the cuisine's
+    window gone, and the same rooms as a flat."""
+    from shapely.geometry import box
+
+    from citygen.interior.model import Interior, Opening, Room
+    from citygen.interior.plancheck import windows
+
+    def home(layout: str, unit: str = "home", cuisine_lit: bool = True):
+        it = Interior(1, "x", 1, 1, "house", layout, "x", 0.0, 3.0, None, {})
+        cells = [("salon", box(0, 0, 5, 4)), ("chambre", box(0, 4, 4, 8)), ("cuisine", box(4, 4, 7, 8)),
+                 ("sdb", box(5, 0, 7, 4))]
+        it.rooms = [Room(i, 0, t, p, 0.0, 3.0, unit=unit) for i, (t, p) in enumerate(cells)]
+        lights = [(0, ((0, 0), (5, 0))), (1, ((4, 9), (0, 9)))] + ([(2, ((7, 9), (4, 9)))] if cuisine_lit else [])
+        it.openings = [Opening(n, "window", 0.0, 0.0, 0.0, 1.0, 1.0, 2.2, 0, (r, -1), wall)
+                       for n, (r, wall) in enumerate(lights)]
+        it.openings.append(Opening(9, "window", 0.0, 0.0, 0.0, 1.0, 1.0, 2.2, 0, (2, -1)))   # on no wall: no light
+        return it
+
+    assert windows(home("maison")) == []
+    assert windows(home("maison", cuisine_lit=False)) == ["the home: the cuisine 2 on floor 0 has no window"]
+    assert windows(home("colonial", "flat 3", False)) == ["flat 3: the cuisine 2 on floor 0 has no window"]
+    assert windows(home("dar", cuisine_lit=False)) == []
 
 
 def test_carve_band():

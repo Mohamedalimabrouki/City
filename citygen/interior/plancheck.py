@@ -36,7 +36,7 @@ def faults(interior) -> list:
     for f in range(interior.floors):
         out += _walls(interior, f, cfg)
     out += _steps(interior, cfg)
-    return out + way_in(interior) + way_home(interior)
+    return out + way_in(interior) + way_home(interior) + windows(interior)
 
 
 def rect(c, front, along, t0: float, t1: float, d0: float, d1: float) -> Polygon:
@@ -469,6 +469,27 @@ def way_home(interior) -> list:
             out.append(f"{name}: the {' and the '.join(far)} only through a chambre, bath or cuisine")
         if any(rooms[i].type in BATHS for i in mine) and not any(rooms[i].type in BATHS for i in near):
             out.append(f"{name}: every bath room only through a chambre")
+    return out
+
+
+LIVE = ("chambre", "salon", "salle_a_manger", "cuisine")   # rooms a modern home lights (47.2 round B)
+LIGHTS = ("window", "balcony")                       # facade openings (street, court, light well) that light a room
+BLIND = "has no window"
+
+
+def windows(interior) -> list:
+    """Every chambre, salon, salle a manger and cuisine of a villa, maison or flat has a window: a facade
+    window or balcony door on the street, a court or a light well; an sdb or wc may stay blind (47.2 round
+    B, as `layout.dim` counts it)."""
+    if interior.layout not in MODERN:
+        return []
+    lit = {i for o in interior.openings for i in (o.rooms or ())
+           if (o.kind in LIGHTS and o.wall is not None) or o.kind in ("court_window", "court_door")}
+    out = []
+    for r in interior.rooms:
+        if r.type in LIVE and r.id not in lit and (r.unit == "home" or r.unit.startswith("flat")):
+            name = "the home" if r.unit == "home" else r.unit
+            out.append(f"{name}: the {r.type} {r.id} on floor {r.floor} {BLIND}")
     return out
 
 

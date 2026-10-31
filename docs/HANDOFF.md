@@ -1010,6 +1010,18 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`, and how the le
   maisons keep their dark back (a 2.4 m well or 2.0 m side rooms would still leave 112). Facade openings
   are cut through `walls["exterior"]` (`mesh.depths`): court walls of modern homes take that thickness
   (`plan_interior`), or every colonial court window read "the floor reaches into the wall".
+- **The window check** (47.2 round B, `plancheck.windows`): measure a new check against HEAD's plans before
+  coding (apply it outside the code on a whole-repository HEAD copy: colonial 13 -> 0, slab 215 -> 125, maison
+  569 -> 208). Most blind rooms were not geometry but the spine itself: leftover cells typed chambre or salle a
+  manger while blind, and a search that never counted them; scoring what the check asks and joining blind
+  cells won 22 villas and 183 maisons at once. Scoring it costs time where no variant can light every room (a
+  deep slab floor tries every variant: 3.4 times slower); stop a search early when only blind rooms keep its best
+  from passing (`blind_cap`). A join with no cap made rooms over their `most`; a join that bends round a corner
+  makes L strips: cap it and refuse strips. A planner change for the courts can help one layout and hurt another
+  (court cuts: colonial strips down, maisons' cells beyond a 3 m patio blind): switch it by layout and survey
+  both. A room with a hole (ringing a light well) is a plan the drawing hid: `interior_plans.py` painted the hole
+  white over the court walls. Do not edit the code while a spawn-pool survey is starting: workers import the
+  modules on their first job and may mix two versions; finish the run, then edit.
 
 ## Known weak spots
 
