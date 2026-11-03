@@ -27,7 +27,7 @@ from ..rng import stream
 TABLE = {
     "doukkana": ("seat", "wall", (1.0, 0.80, 0.40), 24, {"stretch": (0.8, 4.0), "top": 0.40, "use": 0.4}),
     "mattress": ("seat", "on", (1.0, 0.78, 0.12), 30, {"stretch": (0.8, 4.0), "top": 0.12}),
-    "cushion": ("seat", "wall", (0.55, 0.18, 0.42), 40, {"z0": 0.52}),
+    "cushion": ("seat", "wall", (0.55, 0.18, 0.42), 72, {"z0": 0.52}),
     "mattress_floor": ("bed", "wall", (0.90, 1.90, 0.12), 30, {"use": 0.5, "top": 0.12}),
     "mattress_stack": ("storage", "wall", (0.90, 0.60, 0.55), 60, {"use": 0.6, "top": 0.55}),
     "sedda": ("bed", "wall", (1.50, 2.00, 2.30), 520, {"use": 0.5}),
@@ -287,7 +287,7 @@ def doukkana(s, v, rng):
 
 TEXTILE = {   # shape numbers of the doukkana's textiles; the style's `[interiors.furnish.textiles]` overrides them
     "mattress": {"round": 0.045, "bevel": 0.02, "belly": 0.012, "pipe": 0.009, "proud": 0.5},
-    "cushion": {"seam": 0.08, "cord": 0.94, "cord_depth": 0.016, "dome": 0.185, "lean": 0.035,
+    "cushion": {"seam": 0.08, "cord_r": 0.005, "face": 0.70, "face_at": 0.75, "dome": 0.185, "lean": 0.035,
                 "tassel": 0.085, "tassel_r": 0.02},
 }
 
@@ -336,10 +336,10 @@ def mattress(s, v, rng, shape=None):
 
 def cushion(s, v, rng, shape=None):
     """A soft, plump back cushion leaning on the wall over the doukkana: a rounded outline (a
-    superellipse, as a stuffed cover rounds its corners) at the seam, a cord of piping round the seam (a
-    narrow band in the tassel's colour, creased from the cover on both sides), the front domed to its
-    middle and the back pressed nearly flat, smooth normals; a gold tassel (red on a gold cushion) hangs
-    from each top corner, long enough to read from a meter (40 triangles)."""
+    superellipse, as a stuffed cover rounds its corners) at the seam, the front domed to its middle and the
+    back pressed nearly flat, one cover with smooth normals across the seam; a thin round cord of piping
+    (about 1 cm, in the tassel's colour, its own normals) runs round the seam; a gold tassel (red on a gold
+    cushion) hangs from each top corner, long enough to read from a meter (72 triangles)."""
     w, d, h = s
     k8 = _shape("cushion", shape)
     z0 = TABLE["cushion"][4]["z0"]
@@ -350,16 +350,20 @@ def cushion(s, v, rng, shape=None):
     ox = np.sign(c) * np.sqrt(np.abs(c)) / math.sqrt(math.cos(math.radians(22.5)))   # reaches +-1
     oz = np.sign(sn) * np.sqrt(np.abs(sn)) / math.sqrt(math.cos(math.radians(22.5)))
     hw, hh = w / 2 - 0.005, h / 2 - 0.003
-    seam, cord = k8["seam"], k8["cord"]
+    seam, r = k8["seam"], k8["cord_r"]
     ring = lambda f, y: np.stack([ox * hw * f, np.full(k, y), zc + oz * hh * f], axis=1)
-    mid, inner = ring(1.0, seam), ring(cord, seam + k8["cord_depth"])
+    fy = seam + k8["face_at"] * (k8["dome"] - seam)
+    mid, face = ring(1.0, seam), ring(k8["face"], fy)
+    grow = 1.0 + r / min(hw, hh)                         # the cord's crown stands out of the seam by its radius
+    tuck = (1.0 - 1.2 * r * (1 - k8["face"]) / (fy - seam), 1.0 - 1.2 * r / seam)   # its edges sink in the cover
+    cord = [ring(tuck[0], seam + r), ring(grow, seam), ring(tuck[1], seam - r)]
 
     def tilt(p):     # the top rests on the wall, the foot comes forward
         p = np.array(p, dtype=np.float64)
         p[:, 1] += k8["lean"] * (1.0 - (p[:, 2] - z0) / h)
         return p
 
-    every = tilt(np.concatenate([mid, inner, [[0.0, k8["dome"], zc], [0.0, 0.0, zc]]]))[:, 1]
+    every = tilt(np.concatenate([mid, face, [[0.0, k8["dome"], zc], [0.0, 0.0, zc]]]))[:, 1]
     lo, hi = every.min(), every.max()
 
     def lean(p):     # tilted, then fitted to the depth
@@ -378,11 +382,12 @@ def cushion(s, v, rng, shape=None):
 
     tassel = "velvet_red" if v == "gold" else "velvet_gold"
     mb = MeshBuilder()
-    ring_tris = lambda: [t for i in range(k) for t in ([i, k + (i + 1) % k, k + i], [i, (i + 1) % k, k + (i + 1) % k])]
-    shell(mb, tassel, np.concatenate([mid, inner]), ring_tris())                       # the piping cord
-    fan = lambda apex: [[i, (i + 1) % k, apex] for i in range(k)]
-    shell(mb, VELVET[v], np.concatenate([inner, [[0.0, k8["dome"], zc]]]), fan(k))     # the domed front
-    shell(mb, VELVET[v], np.concatenate([mid, [[0.0, 0.0, zc]]]), fan(k))              # the back
+    band = lambda a: [t for i in range(k) for j in [(i + 1) % k]
+                      for t in ([a + i, a + k + j, a + k + i], [a + i, a + j, a + k + j])]
+    fan = lambda a, apex: [[a + i, a + (i + 1) % k, apex] for i in range(k)]
+    cover = np.concatenate([mid, face, [[0.0, k8["dome"], zc], [0.0, 0.0, zc]]])   # one cover, smooth over the seam
+    shell(mb, VELVET[v], cover, band(0) + fan(k, 2 * k) + fan(0, 2 * k + 1))
+    shell(mb, tassel, np.concatenate(cord), band(0) + band(k))                        # the piping cord
     for sx in (-1, 1):
         corner = lean(np.array([[sx * hw * 0.84, seam + 0.01, zc + hh * 0.84]]))[0]
         tip = corner + np.array([sx * 0.02, 0.012, -k8["tassel"]])     # hangs from the corner

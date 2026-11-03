@@ -2226,8 +2226,9 @@ proud = 0.5          # how much of the cord stands out of the round (0 buried, 1
 
 [interiors.furnish.textiles.cushion]   # the doukkana's back cushions (interior/kit_old.py `TEXTILE`), meters
 seam = 0.08          # the seam (widest outline) this far out from the wall, before the lean
-cord = 0.94          # the piping band's inner edge, as a share of the seam outline
-cord_depth = 0.016   # how far forward of the seam the piping band reaches
+cord_r = 0.005       # the piping cord's radius (a cord about 1 cm thick round the seam)
+face = 0.70          # the front's ring, as a share of the seam outline, where the dome starts to round in
+face_at = 0.75       # that ring's place, as a share of the way from the seam to the dome's middle
 dome = 0.185         # the front's middle, before the lean (the whole is scaled into the depth)
 lean = 0.035         # the foot comes this far forward of the top
 tassel = 0.085       # a corner tassel's length
