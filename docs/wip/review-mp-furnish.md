@@ -11,6 +11,9 @@ No code changed by this review.
   never flush with one corner, half the slide positions overhang the run end (rejected later, so wasted), and a
   run between D and 1.5 D long can never take it although the guard `D > r.length` lets it try. Fix: drop
   `+ e * (D / 2)` (the slide already centres it), then re-run the survey; the 2% numbers may improve.
+  Also the yielded `s` (furnish.py:945) is then D/2 off the piece's real centre, so a piece hung on a "side" host
+  (`host.s +- host.width/2`, furnish.py:922) is bounded over the wrong span (for example a tap `hang:wc`,
+  styles/maghreb.toml:3060, if that wc slot ever gets "side"). The same one-line fix cures both.
 - citygen/interior/furnish.py:937-945, low: "side" has no `r.clear(...)` test of the run's openings (wall mode has
   it for blind/hang); a bed along a window wall relies only on the keeps. Fix: skip spans whose
   `r.clear(s - D/2, s + D/2, spec.z[1])` fails when the slot is `blind`, as wall mode does.
