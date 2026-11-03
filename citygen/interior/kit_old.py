@@ -135,15 +135,17 @@ def _prism(mb: MeshBuilder, prof, x0: float, x1: float, mats, cap: str | None) -
                 add_triangles(mb, [_oriented([(x, y, z) for y, z in tri], (nx, 0, 0))], cap)
 
 
-def _smooth(mb: MeshBuilder, mat: str, pos, tris) -> None:
-    """Triangles sharing their corners, with area-weighted smooth normals (cushions, sacks, the net)."""
+def _smooth(mb: MeshBuilder, mat: str, pos, tris, uv=None) -> None:
+    """Triangles sharing their corners, with area-weighted smooth normals (cushions, sacks, the net); `uv`
+    replaces the default wall projection (u = x + y, v = -z) where a cover has its own."""
     pos, tris = np.asarray(pos, dtype=np.float64), np.asarray(tris, dtype=np.int64)
     n = np.zeros_like(pos)
     face = np.cross(pos[tris[:, 1]] - pos[tris[:, 0]], pos[tris[:, 2]] - pos[tris[:, 0]])
     for k in range(3):
         np.add.at(n, tris[:, k], face)
     n /= np.maximum(np.linalg.norm(n, axis=1), 1e-12)[:, None]
-    mb.add(mat, pos, n, np.stack([pos[:, 0] + pos[:, 1], -pos[:, 2]], axis=1), tris)
+    uv = np.stack([pos[:, 0] + pos[:, 1], -pos[:, 2]], axis=1) if uv is None else np.asarray(uv, dtype=np.float64)
+    mb.add(mat, pos, n, uv, tris)
 
 
 def _ring(cx, cy, cz, rx, ry, count: int, phase: float = 0.0) -> np.ndarray:
@@ -317,8 +319,11 @@ def mattress(s, v, rng, shape=None):
         p0, p1, p2 = pos[tris[t]]
         if np.dot(np.cross(p1 - p0, p2 - p0), (p0 + p1 + p2) / 3 - centre) < 0:
             tris[t] = tris[t][::-1]
+    arc = np.concatenate([[0.0], np.cumsum(np.hypot(*np.diff(np.array(prof), axis=0).T))])
+    arc += prof[3][0] - arc[3]       # v runs down the profile and equals y on the top, as on the old flat pad
+    uv = np.array([(x, -a) for x in (-w / 2, w / 2) for a in arc])     # the ticking's stripes run across
     mb = MeshBuilder()
-    _smooth(mb, mat, pos, tris)
+    _smooth(mb, mat, pos, tris, uv)
     for tri in triangulate(Polygon(prof)):
         for x, nx in ((-w / 2, -1.0), (w / 2, 1.0)):
             add_triangles(mb, [_oriented([(x, y, z) for y, z in tri], (nx, 0, 0))], mat)
