@@ -65,7 +65,7 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
 - [ ] 47.2 H1c fix: courtyards and light wells for deep colonial blocks and maisons, so every chambre, salon, salle a manger and cuisine has a window (Ali, 31 October; with 47.1 + 48.1; design in their WORKLOG entry); round A done (courts in the city: 241 colonial blocks, 293 maisons), round B partly done (the window check; blind rooms scored and joined: villa 165, maison 390, slab 139, colonial 1 with every check), round C (rooms round the courts in flats, the bars) open; 3 November (flats): two bay planners measured and removed (worse than the spine), colonial 1/270, slab 139/353 (316 at most with their windows); 3 November (houses): narrow maisons get a court against a party wall (183 of 194), with every check maison 485/616, villa 166/178
 - [x] 49 H1e Floors, stairs, roof terrace (slabs with wells and light slots, beams, terrazzo and tiles, newel/U/steps/ladders, hollow roof rooms, paved court; slab cores slide past entry steps)
 - [x] 50 H1f Interiors in the viewer (Open interior on a dwelling's card, Cut menu, rooms named on click, gallery lists interiors)
-- [ ] 51 H2 Furnishing: the design
+- [x] 51 H2 Furnishing: the design (SPEC 6d: interior-only home kit `home/<piece>`, catalog per era with sizes, budgets and who gets each piece; households to tags and room functions; recipes; placement, keep-outs and fit; density passes; budgets; furniture.json; prompts 52-55 rewritten)
 - [ ] 52 H2a Traditional furniture
 - [ ] 53 H2b Modern furniture
 - [ ] 54 H2c Furnishing rules

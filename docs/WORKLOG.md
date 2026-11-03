@@ -86,6 +86,43 @@ Entry format:
   the chain run (`.venv-sdk/credit_chain.sh`, 10:42-13:12) stopped with "Credit balance is too low"
   (its session recorded about $42), so that route needs new credit first (checked 3 November).
 
+## 2026-11-03 - Prompt 51 H2 Furnishing: the design
+- Commit: (lead commits) | Model: Opus 5.5, high (design helper in a worktree, about 23 minutes; the lead
+  reviewed and committed)
+- Changed: docs/SPEC.md (new 6d Furnishing), docs/prompts/05-interiors.md (prompts 52-55 rewritten),
+  docs/ROADMAP.md, docs/HANDOFF.md, this entry. No code.
+- Design: an interior-only home kit (`home/<piece>`, code in `citygen/interior/`, never in a tile, so every
+  prompt 52-55 fingerprint is `--allow ""`); about 140 pieces in three tables (traditional 52, modern with
+  shops and cafes 53, lights, textiles, plants and clutter 55), each with category, anchor, size, triangle
+  budget, materials, variants and the household facts that pick it; 13 generated textures in
+  `interior/weave.py` (klim, mergoum, zarbia, hasira, painted wood, mink blanket...); households become tags
+  (era, band, trade groups, children, elders) and the flexible rooms get functions (reception, sleep_couple,
+  sleep_children, family TV room, work...); recipes as style slot tables; placement by wall runs with
+  keep-outs (door walk boxes and swings, windows by height, stairs, court features, the bridge's roof pieces),
+  walkways, use strips and a reach test; a `smaller` chain when a piece does not fit, never an overlap; four
+  draws per slot on `stream(seed, "interior", city_id, k, "furnish", room, slot, role)`; densities placed in
+  three passes so sparse is a subset of lived-in and full; budgets per piece, room (1,500 / 4,000 / 8,000
+  drawn triangles) and folder (+60,000 unique triangles, +6 MB); `furniture.json`; lamps lit only behind lit
+  windows.
+- Measured (quick capital, 25 interiors per layout, room medians): dar bit 11.7 m2 (width 2.5 m), maqsura
+  7.4 m2 (2.4 m), matbakh 6.2 m2 (2.3 m), court 25 m2; slab chambre 18.9 m2 (3.4 m), salon 19.5 m2, cuisine
+  13.3 m2, sdb 4.4 m2 (1.9 m), wc 2.5 m2 (1.2 m); colonial salon 23 m2. Households: members 2-9 (median 5-8),
+  no children or elders in the data.
+- Checks: docs only (no test or build needed); no em dash in the diff.
+- Look: none (a design).
+- Doubts and questions for Ali (sent by the lead on 3 November; the defaults are the recommendations, already
+  written in SPEC 6d Decisions): 1. period "today" (a dar also has a gas ring, fridge and TV, as real medina
+  homes do) or "heritage" (no electrical goods)? Recommended: today, heritage as a switch for story scenes.
+  2. Default density lived-in? Recommended: yes. 3. Prayer mats toward 112 degrees (Tunis to Mecca)?
+  Recommended: yes. 4. The framed verse: abstract gold strokes, never real or imitated Quran text (a real
+  calligraphy could come later from Ali's own artwork). Recommended: abstract now. 5. Butane bottle colour:
+  written as blue (#3B6FB6); Ali to confirm. 6. Children and elders derived on their own stream until
+  prompt 80 (lead's choice: yes). 7. Pieces modeled in code now (low-poly), hero versions in Blender later
+  (track K, same names).
+- Lead (after prompt 51): read the decisions, the home kit rules and the prompts' structure; checked the
+  claims that matter for the fingerprint (`citygen/interior/` is out of the build key, `[interiors]` out of the
+  build style). Committed with the defaults; Ali's answers, when they come, change only the defaults' lines.
+
 ## 2026-11-03 - Open item 47.2, houses round (courts against a party wall)
 - Commit: (lead commits, after flats round D) | Model: Opus 5.5, high (houses helper in a worktree, about 1 h 50 min)
 - Changed: citygen/city/courts.py (`against_for`: a court against one party wall for a maison `courts_for`

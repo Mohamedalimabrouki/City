@@ -1053,6 +1053,18 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`, and how the le
   reversed). A grid mask cannot say "against this wall or 2.4 m away": enumerate rectangles in each party
   wall's frame, test walls by distance, and try the candidates in the order of choice a chunk at a time,
   smallest sizes first (Ain Chilel's plan 1.0 s -> about 1.4 s).
+- **Furnishing design** (prompt 51, SPEC 6d): facts that shaped it. Furniture is interior-only: if its
+  pieces went into `kit.make_kit`, every build would make them, the fingerprint would list them and their
+  materials would need `[palette]`; as `home/<piece>` in `citygen/interior/` (out of the build key) no tile
+  changes. `mesh/textures.py` and `kitsheet.py` are build code: new textile images live in `interior/weave.py`
+  (`export.used_images` asks it first) and only the kit sheet's `kit=` hook touches build code (the key changes
+  once, no output). The households of `city/life.py` hold members, wealth and trade only: children and elders
+  are derived on a stream of their own. Rooms are small: a dar band is about 2.1 m deep inside (a doukkana
+  0.8 m and a meida 0.7 m leave a 0.6 m walk), a maqsura about 2.4 m wide (a 1.5 m sedda leaves 0.9 m), a slab
+  wc 1.2 m wide: placement must try smaller variants and test reach, not only overlaps. Slots are placed in
+  density passes (all sparse first) and draw a fixed four numbers each before any test, so a higher density
+  never moves a lower one's pieces and a new slot never shifts another. A lamp glows only when its room's
+  facade window is lit, so inside and outside agree at night.
 
 ## Known weak spots
 

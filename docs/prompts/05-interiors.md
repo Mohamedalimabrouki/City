@@ -449,47 +449,208 @@ Model: Opus | Effort: medium | Size: L (plan) | Needs: 50 | Look: no
 
 Model: Sonnet | Effort: high | Size: M | Needs: 51 | Look: kit sheet
 
-Draft. The traditional catalog from SPEC as pieces (a new `mesh/furniture.py`, category
-`furniture`), low-poly but rich (100-600 triangles), carpets with small generated pattern
-textures (the texture code of prompt 18).
+**Goal.** The furniture of an old-town home as kit pieces: doukkana with mattress and cushions, the sedda
+canopy bed, meida, sendouk, khzana, brass trays and tea sets, khabias, the kitchen's gas ring and butane
+bottle, klim, mergoum, zarbia and hasira, the weaver's loom, and the rest of the traditional catalog,
+low-poly but rich, seen on a kit sheet of their own.
 
-**Check.** Fingerprint: only the new `kit/<furniture piece>` parts appear.
+**Read.** SPEC 6d (Decisions, The home kit, Catalog: traditional homes, Textures and materials), 6b
+(Pieces, anchors), `kit.py` (`Piece`, `_lit_pieces`), `mesh/furniture.py` (`_lathe`, `_tube`, `_beam`,
+`_plain`, a `SIZES`-like table), `mesh/props.py` (`_box`, `_bar`, `_slab`), `mesh/builder.py` (`add_sheet`,
+`extrude`, `add_cone`), `mesh/textures.py` (`_zellige` as a model maker, `_noise`, `encode`),
+`interior/export.py` (`used_images`), `kitsheet.py`, `tools/before_after.py` (`--kit-sheet`, `--frame`).
+HANDOFF: People (check shapes with a throwaway render), Thin cloth (`add_sheet`, both sides), tile bytes.
 
-**Done when.** The kit sheet shows every traditional piece and each reads clearly.
+**Do.**
+1. `interior/homekit.py`: `HomeSpec` (size, foot, z, use, top, stretch, tris, as SPEC 6d) and
+   `home_kit(seed, style) -> HomeKit` (cached per seed and style): `.pieces` (`home/<piece>` ->
+   `kit.Piece`, source `procedural`, parts without UVs except the textured materials), `.specs`,
+   `.materials` (`[palette]` + `[interiors.palette]`); `_on` twins for category `light` (none yet).
+   Each piece module exports `pieces(seed, cfg) -> {name: (MeshBuilder, category, anchor, HomeSpec)}`;
+   sizes from its `SIZES`, overridden by `[interiors.furnish.sizes]`.
+2. `interior/kit_old.py`: every row of the traditional table, every variant its own piece
+   (`home/sendouk_green`...), in the frame and anchor of SPEC 6d. Shapes that read at a glance: the
+   doukkana's plastered box (rounded front edge, the `_zellige` band), the mattress with a piped edge,
+   cushions with soft corners; the sedda's four turned posts, carved head and foot boards, the canopy
+   frame and two gathered velvet curtains (`add_sheet`, both sides); the meida lathed (16 sides) on a
+   ring foot; the sendouk on short legs with a domed lid edge and brass studs; the khzana's two panelled
+   doors with a painted panel; the khabia and qolla lathed with a rim and handles; the loom's two posts,
+   beams, the warp as one sheet and the half-woven klim below. Random shape details only on
+   `stream(seed, "piece", "home/<piece>")`.
+3. `interior/weave.py`: `MAKERS` for `klim_red`, `klim_indigo`, `mergoum`, `zarbia`, `hasira`, `ticking`,
+   `painted`, `sajjada`, `mink` (256 px, seamless, numbers and colours in `[interiors.textures]`, each on
+   `stream(seed, "texture", name)`); `export.used_images` asks `weave.MAKERS` before `mesh/textures`
+   (which is not edited).
+4. Style: `[interiors.palette]` entries of SPEC 6d for prompt 52, `[interiors.textures]` for the nine
+   images, `[interiors.furnish.sizes]` (empty, a comment saying what it overrides).
+5. Kit sheet: `kitsheet.kit_sheet(out, kits=None, ..., kit=None)` uses a ready kit when given (images
+   embedded as the interior does); `python -m citygen kit-sheet --home` passes the home kit (default
+   `--out output/home-sheet`); `tools/before_after.py --home-sheet [--frame home/<piece>]` like
+   `--kit-sheet` (a side that cannot make it shows a blank half, as `--interior` does).
+6. SPEC 6d (mark built, any rule the code settled) and HANDOFF.
+
+**Tests** (about 1 s).
+- `test_home_pieces_traditional`: every name of the traditional table and its variants exists, with
+  its category and anchor; triangles at most its `tris`; its bounds within 0.02 m of W x D x H (stretch
+  pieces at 1.0); `wall` pieces have no vertex behind y = -0.005, `ceiling` none over z = 0.005, rugs
+  none over z = 0.02; only textured materials carry UVs; every material is in `[palette]` or
+  `[interiors.palette]`; no name collides with a city kit piece.
+- `test_weave_images`: each new image is 256 px, tiles seamlessly (the first and last columns and rows
+  differ by less than the mean neighbour difference x 2) and is the same for the same seed.
+- `test_home_kit_deterministic` (slow): `kit-sheet --home` in two processes with different
+  PYTHONHASHSEED writes the same bytes.
+
+**Check.** Fingerprint: `--allow ""` (the home kit is never in a tile). Look: `.venv/bin/python
+tools/before_after.py --home-sheet --out output/checks/52.png` as a command of its own; then
+`.venv/bin/python tools/before_after.py --home-sheet --frame home/sedda_painted --out
+output/checks/52-sedda.png`; look at both. List in the WORKLOG each piece's triangles and the sheet's
+bytes.
+
+**Done when.** The home kit sheet shows every traditional piece, each reads clearly (a Tunisian would name
+it), and all budgets hold.
 
 ## 53. H2b - Modern furniture pieces
 
 Model: Sonnet | Effort: medium | Size: M | Needs: 51 | Look: kit sheet
 
-Draft. The modern catalog from SPEC as pieces in the same module and category.
+**Goal.** The furniture of villas, maisons and flats, and of shops and cafes: salon set and sedari
+banquettes, TV on its stand with the satellite receiver, buffet, dining set, kitchen run with sink,
+cooker and fridge, the bedroom set (bed, nightstands, wardrobe, coiffeuse), children's beds and desks,
+the bathroom, water heater and washing machine, the hanout's counter and shelves, the qahwa's counter.
 
-**Check.** Fingerprint: only the new `kit/<furniture piece>` parts appear.
+**Read.** SPEC 6d (The home kit, Catalog: modern homes, shops and cafes, Textures and materials), prompt
+52's `interior/homekit.py`, `kit_old.py` and `weave.py`, `mesh/props.py` (`SHOP_GOODS`).
 
-**Done when.** The kit sheet shows every modern piece.
+**Do.**
+1. `interior/kit_new.py`: every row of the modern table and its variants, registered in `home_kit` like
+   `kit_old`. The sofa with seat and back cushions and wooden feet; the sedari as a wooden base,
+   mattress and back cushions in one stretch piece (its ends closed, so two runs meet in a corner by
+   collision, not by a corner piece); the wardrobe's doors, handles and plinth (`_mirror` with a mirror
+   door); the cooker's four burners, oven door and knobs; the fridge's two doors (`_tall`); the
+   kitchen run's doors and worktop overhang; the bunk bed's ladder and rails; the buffet's lower doors
+   and glass case with plates standing inside; the bathtub's rim; the CRT's deep back.
+2. `interior/weave.py`: `rug_floral`, `spines`, `goods` (and their `[interiors.textures]` numbers); the
+   souk trades' shelves tint `goods` by the `SHOP_GOODS` colours through materials `goods_<trade>`
+   only if a trade needs it (else one `goods`).
+3. Style: the `[interiors.palette]` entries of SPEC 6d for prompt 53.
+4. SPEC 6d (built, rules settled) and HANDOFF.
+
+**Tests** (about 1 s).
+- `test_home_pieces_modern`: as `test_home_pieces_traditional`, for the modern table.
+- `test_home_kit_budget`: the whole home kit (52 and 53) holds at most 60,000 triangles and its parts
+  and images write at most 6 MB on the kit sheet.
+
+**Check.** Fingerprint: `--allow ""`. Look: `.venv/bin/python tools/before_after.py --home-sheet --out
+output/checks/53.png`, a command of its own; look at it (the "before" side shows prompt 52's pieces).
+
+**Done when.** The home kit sheet shows every modern piece and each reads clearly.
 
 ## 54. H2c - Furnishing rules and density
 
-Model: Sonnet | Effort: high | Size: M | Needs: 52, 53 | Look: interior
+Model: Sonnet | Effort: high | Size: L | Needs: 52, 53 | Look: interior
 
-Draft. Place furniture per room with `[interiors] density`, wall-aligned with clearances and the
-household's influence. Tests: no overlaps, doors and windows clear, piece counts grow with
-density.
+**Goal.** Every interior is furnished for the family that lives there, at the density asked: nothing
+overlaps a piece or a wall, every door opens and every room can be walked, beds against blind walls and
+seats facing the door, a weaver's loom and a tailor's sewing machine, children's beds for the children.
 
-**Check.** Fingerprint: `--allow ""`.
+**Read.** SPEC 6d (Who lives here, Room functions, Recipes, Places, Keep-outs and clearances, Fit, Random
+streams, Density, Budgets, Output, Checks), 6c (Data model, Walls: leaves and their hinge side, Stairs,
+Floors and ceilings: `free_of`, `slab`, wells and slots; Output; Random streams), `interior/model.py`,
+`program.py`, `rooms.py` (`check`, the reachability walk), `floors.py` (`free_of`, `slab`, `wells`),
+`mesh.py` (`free`, the leaves), `stairs.py` (`parts`, `well`), `export.py` (`write_folder`,
+`instance_groups` use), `city/life.py`, `command.py`, `view.py` (`api/interior`).
 
-**Done when.** A "lived-in" courtyard house looks inhabited in the interior snapshot.
+**Do.**
+1. `interior/household.py`: `profile(interior, unit, style)` and `functions(interior, unit, profile)`
+   as SPEC 6d, with the family stream and the tag rules (`[interiors.furnish.trade_tags]`, `bands`,
+   `elder_share`, `elder_two`).
+2. `interior/furnish.py`: `RoomSpace` (F, runs, main door, hub, keep-outs, walk; cached per polygon and
+   openings within one interior), the place modes, `fits`, the three density passes, the `smaller`
+   chains, the balcony decks, `furnish(interior, outside, style, density) -> Furniture` (placements, the
+   profiles and functions, warnings) and `check(interior, furniture, style) -> [problems]`.
+3. Style `[interiors.furnish]`: `period`, `density`, `qibla`, `step`, `wall_gap`, `walk`, `walk_modern`,
+   `path`, `path_modern`, `door_keep`, `window_keep`, `stair_keep`, `tree_keep`, `court_keep`,
+   `front_gap`, `cushion_step`, `cafe_pitch`, `bands`, `elder_share`, `elder_two`, `room_triangles`,
+   `hidoura`, `sewing`, `piano`, `lamps_max`; `[interiors.furnish.trade_tags]`, `[interiors.furnish.trades]`
+   (the work sets), `[interiors.furnish.roles]`, `[interiors.furnish.smaller]` and the slot tables
+   `[[interiors.furnish.rooms.<function>]]` of every recipe of SPEC 6d (lights, curtains, wall
+   textiles and clutter slots stay out until prompt 55).
+4. `export.write_folder(..., density)`: the furniture as instances (a view with both kits' pieces),
+   `furniture.json`, `index.json` `interior.density`; `command.make_interior(..., density=None)` and
+   `interior --density`; `view.Interiors` passes `density=` from `api/interior` (default the style's).
+5. A survey in the WORKLOG (a throwaway script, not committed): the quick capital's sample of 6c's
+   numbers (25 per layout), at each density: problems of `check`, `need` warnings by room type, pieces
+   and drawn triangles per room, time per interior; the full capital's 30-house sample at lived-in.
+6. SPEC 6d (built, rules the code settled, measured numbers) and HANDOFF.
+
+**Tests** (about 2 s on the shared `interior_ctx`; heavier ones `slow`).
+- `test_furnish_no_overlap`: for 3 interiors of every layout (pick specs) at `full`, `furnish.check`
+  finds no overlap, wall, clearance or reach problem.
+- `test_furnish_required`: the same interiors at `sparse`: every room's `need` roles present or warned;
+  at most 2% of the rooms warned over the quick sample (slow); sleeping places >= members per unit.
+- `test_furnish_household`: a weaver's dar (find one in the quick capital, or force the trade in a
+  copy of the household) has a `home/loom`; a tailor's home a `home/sewing_machine`; a teacher's flat a
+  `home/bookcase_full`; a household with children has their beds (cots for small children).
+- `test_furnish_density`: for a dar and a slab, the sparse pieces are a subset of lived-in's, which are
+  a subset of full's (piece, x, y, yaw within 1 mm); the counts strictly grow; every room keeps its
+  `room_triangles`.
+- `test_furnish_budget` (slow): the largest slab (No. 1169) and the largest dar at `full`: at most
+  60,000 unique furniture triangles, 1,500,000 drawn, 6 MB added, the 6c budget (150,000 triangles,
+  25 MB) still holds; furnishing time printed.
+- The interior's two-process determinism test also runs `--density full` and compares
+  `furniture.json`.
+
+**Check.** Fingerprint: `--allow ""`. Look: `.venv/bin/python tools/before_after.py --view interior
+--interior pick:dar:2 --out output/checks/54.png`, a command of its own; then `.venv/bin/python
+tools/before_after.py --view overview --interior pick:slab --query cut=1 --out output/checks/54-slab.png`;
+look at both (the "before" side is the bare house). If the dar's own `interior` view stands in the court
+behind its tree, snapshot a copy of the folder with the view moved into the T room (HANDOFF prompt 48).
+Then `.venv/bin/python tools/make_blend.py <the dar's interior folder>`, a command of its own, and name
+the .blend for Ali.
+
+**Done when.** A lived-in courtyard house and a flat look inhabited by their families in the snapshots and
+in Blender, every check passes on the sample, and the budgets hold.
 
 ## 55. H2d - Light, textiles and clutter
 
-Model: Sonnet | Effort: medium | Size: S | Needs: 54 | Look: interior at night
+Model: Sonnet | Effort: medium | Size: M | Needs: 54 | Look: interior at night
 
-Draft. Interior lights (lanterns and ceiling lamps glow at night), textiles on walls, plants in
-the courtyard, small clutter (tea glasses on trays, shoes at the doors, books), all scaled by
-density; the viewer's night mode works inside.
+**Goal.** The home comes alive: lanterns, chandeliers and kitchen neons that glow at night behind lit
+windows, curtains and mergoum on the walls, the framed verse and the khomsa, plants in the court and on
+the terrace, the birdcage, tea glasses, slippers at the doors, books, bread and blankets, all by density.
 
-**Check.** Fingerprint: `--allow ""`.
+**Read.** SPEC 6d (Catalog: light, wall textiles, plants and clutter; Recipes; Density; Budgets; Night),
+prompts 52-54's `interior/homekit.py`, `weave.py`, `furnish.py`, `export.py`; `tools/viewer/index.html`
+(`LIT_AT_NIGHT`, the night lights of the street lamps, the Cut menu); HANDOFF Lit windows (prompt 21).
 
-**Done when.** The night interior snapshot looks warm and lived-in. Tick H2.
+**Do.**
+1. `interior/kit_life.py`: every row of the light, textile, plant and clutter table, registered in
+   `home_kit`; `_on` twins of every `light` piece (`lamp_glass` -> `lamp_glow`); `weave.py` adds `verse`.
+2. Style: the `[interiors.palette]` entries of SPEC 6d for prompt 55 (`lamp_glow` an exact copy of
+   `lamp_glass`); the recipes' light, curtain, wall textile, plant and clutter slots in
+   `[[interiors.furnish.rooms.<function>]]` (their densities as SPEC 6d).
+3. `interior/furnish.py`: the `window` place (curtains) and the night rule (a lamp's `_on` twin when its
+   room is lit, or blind with a lit room in its unit); `index.json` `interior.lamps`.
+4. Viewer: `LIT_AT_NIGHT` gains `lamp_glow`; at night up to 8 point lights at the lit lamps nearest the
+   camera and above the cut (from `interior.lamps`), warm, small range (4 m), no shadows.
+5. SPEC 6d (built, rules settled) and HANDOFF.
+
+**Tests** (about 1 s).
+- `test_home_pieces_life`: as `test_home_pieces_traditional` for the new table; every `light` piece has
+  its `_on` twin differing only in `lamp_glow`.
+- `test_lamps_follow_windows`: in a slab at lived-in, every `_on` lamp stands in a lit room or a blind
+  room of a lit flat, and no lamp of a dark flat is `_on`; `interior.lamps` lists only `_on` lamps.
+- `test_furnish_no_overlap`, `test_furnish_density` and `test_furnish_budget` pass with the new slots
+  (they read the recipes, so they need no change).
+
+**Check.** Fingerprint: `--allow ""`. Look: `.venv/bin/python tools/before_after.py --view interior
+--interior pick:dar:2 --query light=night --out output/checks/55.png`, a command of its own; then
+`.venv/bin/python tools/before_after.py --view overview --interior pick:slab --query cut=2 --query
+light=night --out output/checks/55-slab.png`; look at both. Then `.venv/bin/python tools/make_blend.py
+<the dar's interior folder>`, a command of its own; name the .blend.
+
+**Done when.** The night interior snapshot looks warm and lived-in, lamps glow only behind lit windows,
+and the budgets hold. Tick H2 in ROADMAP section H.
 
 ## 56. H4a - Hero scenes
 

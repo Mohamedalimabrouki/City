@@ -1915,6 +1915,543 @@ and a qahwa's on `shop`.
   `*/*/interiors/*/tiles/index.json`: each shows under its index `world_name` ("Goumosbane No. 599
   (dar)") with its own Open in 3D and its views.
 
+## 6d. Furnishing (designed in prompt 51, built by prompts 52-55, `citygen/interior/`)
+
+Every interior of 6c gets furniture and the things of daily life, chosen by the household that lives
+there and placed so that nothing overlaps, every door opens and every room can be walked. Like the rest of
+6c it is made on demand, never by a build: the furniture code lives in `citygen/interior/` (left out of
+the build key, `buildkey.NOT_BUILD_CODE`), its numbers in `[interiors.furnish]` (left out by
+`NOT_BUILD_STYLE`), its materials in `[interiors.palette]` and its images in `[interiors.textures]`, so
+the fingerprint of prompts 52-55 is `--allow ""`. Each prompt below marks what it built.
+
+**Decisions (prompt 51; the lead confirms them with Ali, the recommended choice is the default).**
+1. Period: `[interiors.furnish] period = "today"`: an old-town house is lived in now, so a dar keeps its
+   doukkana, sendouk and klim and also has a gas ring with its butane bottle, a fridge and a television,
+   as real medina homes do (and as the city outside has cars, satellite dishes and slabs). `heritage`
+   (no electrical goods, kanoun and lanterns only, every maqsura a canopy bed) is a switch for story
+   scenes. Tags `today` / `heritage` in the roles below.
+2. An interior-only kit: the pieces are kit pieces named `home/<piece>` (the `<kit>/<piece>` rule of 6b,
+   so they never meet a procedural name such as the street's `doukkana` bench or `cafe_set`), made by
+   `interior/homekit.py`, never by `kit.make_kit`: no tile, build or fingerprint part changes. Hero
+   versions modeled in Blender later (track K, prompt 38's exporter) replace them by name.
+3. Default density `lived-in` (`[interiors.furnish] density`, the command's `--density`).
+4. Placements go to a new `furniture.json` beside `rooms.json` (rooms.json keeps its format).
+5. Children and elders are derived per home on their own stream (the households of `city/life.py` have
+   only members, wealth and trade); prompt 80 (Residents) may replace the derivation later.
+6. Qibla: prayer mats face `[interiors.furnish] qibla` = 112 degrees from north, the bearing from Tunis to
+   Mecca (the country is invented, its towns lie in the same part of the world).
+7. A framed verse shows abstract gold strokes in the manner of calligraphy, never real or imitated
+   Quran text (generated script would be wrong or disrespectful); a real one can come from Ali's own
+   artwork as a texture later.
+
+**The home kit** (prompt 52, `interior/homekit.py`: `home_kit(seed, style) -> HomeKit`, made once per
+process for a seed and style; pieces in `interior/kit_old.py` (traditional, 52), `interior/kit_new.py`
+(modern, shops and cafes, 53), `interior/kit_life.py` (lights, wall textiles, plants, clutter, 55)).
+- `HomeKit.pieces` maps `home/<piece>` to `kit.Piece` (category, anchor, glTF parts, source `procedural`)
+  and `HomeKit.specs` to a `HomeSpec`: `size` (W, D, H) in meters, `foot` (its plan outline in the piece
+  frame, default the rectangle x in [-W/2, W/2], y in [0, D] for `wall` pieces, centered for `floor`
+  pieces), `z` (z0, z1 above the floor: what it occupies, for collisions), `use` (the depth in front of it
+  a person needs: a strip `use` deep along its front, 0 for none), `top` (the height things stand on it,
+  or None), `stretch` ([least, most] length in meters for pieces that run along a wall; their nominal
+  W is 1.0 and `Placement.stretch` scales x only), `tris` (the budget it must stay within).
+- Piece frame as 6b: x along the wall, front +y (into the room), z up, meters. Anchors: `wall` (origin
+  on the wall face at floor level, the piece in front of it: every y >= 0; a hanging piece keeps its
+  height in its own mesh, so a mirror's z0 is 1.15), `floor` (origin at the bottom center, free
+  standing), `ceiling` (origin at the ceiling point, every z <= 0), `on` (origin at the bottom center,
+  set on a host's `top`), `window` (origin on the wall face at the window's center line and the floor:
+  curtains). Rugs (category `rug`) lie 0.005 m over the floor, at most 0.02 m thick.
+- Sizes come from `SIZES` in each module; `[interiors.furnish.sizes]` overrides them by piece name
+  (without `home/`), like `[dressing.furniture]`.
+- Materials: plain colors without UVs (as cars and people, HANDOFF prompt 29: bytes), except the
+  textured textile, painted wood and book materials, whose parts keep meter UVs. Every material named
+  lies in `[palette]` or `[interiors.palette]`; nothing new goes into `[palette]`.
+- Lights: every piece of category `light` gets a twin `<piece>_on` (the same parts with `lamp_glass`
+  as `lamp_glow`), as the kit's `_lit` twins; by day `lamp_glow` is an exact copy of `lamp_glass`.
+- Random shapes (a woven pattern's offset, which glasses stand on a tray) draw only on
+  `stream(seed, "piece", "home/<piece>")`.
+- The city kit's own pieces may be used by name where noted (`cat_*`, `pot_plant`, `pot_plant_b`,
+  `cafe_set`, `fruit_crate`): they are already in the interior's kit through the bridge.
+- Names: each variant is its own piece `home/<base>_<suffix>` (`home/sendouk_green`, `home/klim_large_red`);
+  a base without variants is one piece `home/<base>`. A role naming a base means all its variants, and the
+  tags of the tables pick among them.
+- Kit sheet: `python -m citygen kit-sheet --home [--out output/home-sheet]` shows the home kit
+  (`kitsheet.kit_sheet(..., kit=)` takes a ready kit; textures embedded as `export.used_images` does).
+  These two small edits (`kitsheet.py`, `__main__.py`) are build code: the build key changes once and the
+  prompt's own `build --quick` refreshes it; no build output changes.
+
+**Catalog: traditional homes** (prompt 52; `dar`, `compact`, `small`, `koubba`, and village houses).
+Sizes W x D x H in meters (stretch pieces: nominal 1.0 m and the range); tris = the budget per piece.
+
+| Piece `home/...` | Cat | Anchor | W x D x H | Tris | Materials | Variants, and who gets them |
+|---|---|---|---|---|---|---|
+| `doukkana` | seat | wall | 1.0 [0.8-4.0] x 0.80 x 0.40 | 24 | `plaster_inner`; `zellige` front band | `_plain`; `_zellige` for `rich` |
+| `mattress` | seat | on (doukkana) | 1.0 [0.8-4.0] x 0.78 x 0.12 | 30 | `ticking`, `velvet_*`, `velvet_gold` piping | `_ticking` (`poor`), `_red`, `_green`, `_blue` (one per room) |
+| `cushion` | seat | wall, z 0.52-0.94 | 0.55 x 0.18 x 0.42 | 40 | `velvet_*` | `_red`, `_green`, `_blue`, `_gold`: the room's colour, every `cushion_step` 0.6 m |
+| `mattress_floor` | bed | wall | 0.90 x 1.90 x 0.12 | 30 | `ticking`, `mink` | `_ticking`, `_mink`: children, `poor`, fallback of every bed |
+| `mattress_stack` | storage | wall | 0.90 x 0.60 x 0.55 | 60 | `ticking`, `mink`, `velvet_*` | the day-time pile where more sleep than beds |
+| `sedda` | bed | wall (head) | 1.50 x 2.00 x 2.30 | 520 | `wood_painted_green`/`red`, `painted`, `wood_walnut`, `velvet_*` curtains | the maqsura's canopy bed: `_painted` (`middle`), `_walnut` (`rich`) |
+| `sedda_plain` | bed | wall (head) | 1.40 x 1.95 x 0.95 | 180 | `wood_painted_*`, `mink` | low bed without canopy: `poor` |
+| `meida` | table | floor | 0.70 x 0.70 x 0.32 | 96 | `wood_walnut`; `painted` top | `_walnut`, `_painted`; `_large` 0.90 for 6 members or more |
+| `tray_table` | table | floor | 0.80 x 0.80 x 0.45 | 140 | `brass`, `wood_walnut` | brass siniya on folding legs: `rich` |
+| `pouf` | seat | floor | 0.50 x 0.50 x 0.35 | 64 | `leather_brown` | full |
+| `sendouk` | storage | wall | 1.10 x 0.55 x 0.62 | 220 | `wood_painted_*` + `painted`, `brass` studs, `wood_walnut` | the bride's chest: `_green`, `_red`; `_walnut` (`rich`) |
+| `khzana` | storage | wall | 1.20 x 0.45 x 2.05 | 160 | `wood_painted_*` + `painted`, `wood_walnut` | the two-door wall cupboard: `_green`, `_red`, `_walnut` |
+| `shelf_wall` | storage | wall, z 1.70-1.95 | 1.0 [0.6-2.4] x 0.25 x 0.25 | 36 | `wood_painted_*`, `wood_walnut` | the carved rfouf shelf; holds plates and brass (`on`) |
+| `mirror_carved` | decor | wall, z 1.15-2.05 | 0.65 x 0.05 x 0.90 | 120 | `mirror`, `brass` (gilt) or `wood_painted_*` | `_gilt` (`rich`), `_painted` |
+| `tray_brass` | small | on | 0.60 x 0.60 x 0.03 | 48 | `brass` | on the meida |
+| `tea_set` | small | on | 0.35 x 0.25 x 0.22 | 160 | `brass` or `aluminium`, `glass_inner` | teapot and six glasses on a small tray: `_brass` (`middle`+), `_alu` |
+| `ibrik` | small | floor | 0.35 x 0.35 x 0.40 | 120 | `copper`, `brass` | ewer and basin for washing hands: `rich` |
+| `kanoun` | kitchen | floor | 0.34 x 0.34 x 0.24 | 80 | `terracotta`, `charcoal` | clay brazier: `heritage`, `poor`, the stah's grill |
+| `couscoussier` | kitchen | on / floor | 0.34 x 0.34 x 0.52 | 140 | `aluminium` | every traditional kitchen; modern ones at lived-in |
+| `counter_masonry` | kitchen | wall | 1.0 [0.8-3.0] x 0.55 x 0.80 | 30 | `plaster_inner`, `floor_tiles` top | the built counter of a matbakh |
+| `gas_ring` | kitchen | on (counter) | 0.60 x 0.35 x 0.12 | 70 | `enamel_white`, `iron_black` | the two-burner rechaud: `today` |
+| `butane` | kitchen | floor | 0.30 x 0.30 x 0.58 | 64 | `butane_bottle`, `iron_black` | beside every gas ring, cooker and gas water heater |
+| `sink_stone` | kitchen | wall | 0.70 x 0.50 x 0.85 | 60 | `terrazzo`, `chrome` tap | matbakh water |
+| `qolla` | kitchen | floor | 0.35 x 0.35 x 0.75 | 110 | `clay_pale`, `iron_black` | the porous water jar on its stand, with a cup |
+| `gsaa` | kitchen | on / floor | 0.60 x 0.60 x 0.12 | 48 | `wood_beech` | the wide bowl for rolling couscous |
+| `kursi` | seat | floor | 0.32 x 0.32 x 0.22 | 40 | `wood_beech`, `hasira` seat | the low stool of kitchen and washroom |
+| `khabia` | storage | floor | 0.55 x 0.55 x 0.85 | 120 | `terracotta`; `glaze_green` | oil jar: `_large`, `_small` (0.38 x 0.55), `_glazed` |
+| `grain_sacks` | storage | wall | 0.90 x 0.50 x 0.70 | 90 | `jute` | semolina and wheat; farmers, shepherds, olive pressers, stores |
+| `tabouna` | kitchen | floor | 0.70 x 0.70 x 0.60 | 110 | `terracotta`, `plaster_inner` | the clay bread oven: `village`, bakers; court or stah |
+| `klim` | rug | floor | 1.40 x 2.20 x 0.01 | 10 | `klim_red`, `klim_indigo` | `_red`, `_indigo`; `_large_*` 2.00 x 3.00 |
+| `mergoum` | rug | floor | 1.20 x 2.00 x 0.01 | 10 | `mergoum` | `middle`+ |
+| `zarbia` | rug | floor | 2.00 x 3.00 x 0.015 | 10 | `zarbia` | the knotted Kairouan carpet: `rich` reception |
+| `hasira` | rug | floor | 1.80 x 2.60 x 0.01 | 10 | `hasira` | the halfa mat: `poor`, kitchens, under a loom |
+| `hidoura` | rug | floor | 0.80 x 1.10 x 0.02 | 24 | `fleece` | the sheepskin of the Aid: chance `hidoura` (0.5 trad, 0.25 modern) |
+| `sajjada` | rug | floor | 0.65 x 1.15 x 0.01 | 10 | `sajjada` | prayer mat, its head end toward the qibla |
+| `rahla` | work | floor | 0.32 x 0.25 x 0.35 | 70 | `wood_walnut`, `book_green` | the folding book stand with its book: elders, imam, calligrapher |
+| `loom` | work | wall | 1.60 x 0.80 x 2.20 | 300 | `wood_beech`, `klim_red`, `wool_cream` | the upright loom with a half-woven klim: `trade:weaver` |
+| `wool_basket` | work | floor | 0.50 x 0.50 x 0.40 | 80 | `hasira`, `wool_cream` | beside the loom |
+| `sewing_machine` | work | wall | 0.90 x 0.50 x 0.95 | 260 | `iron_black`, `wood_walnut` | treadle table: `trade:tailor`; chance `sewing` 0.15 any home |
+| `dummy` | work | floor | 0.40 x 0.35 x 1.55 | 120 | `cotton_white`, `wood_walnut` | tailor, full |
+| `chechia_forms` | work | wall | 0.80 x 0.40 x 0.95 | 160 | `wood_beech`, `chechia_red` | `trade:chechia_maker` |
+| `pots_stack` | work | floor | 0.60 x 0.60 x 0.70 | 150 | `terracotta`, `glaze_green` | `trade:potter` |
+| `net_pile` | work | floor | 1.00 x 0.80 x 0.35 | 80 | `net_green` | `trade:fisherman` |
+| `skifa_bench` | seat | wall | 1.0 [0.8-3.0] x 0.45 x 0.45 | 24 | `step_stone` | the skifa's stone benches |
+| `wc_turkish` | bath | wall | 0.50 x 0.70 x 0.05 | 40 | `ceramic_white` | trad washrooms; `poor` slab wc (chance 0.4) |
+| `tap_wall` | bath | wall, z 0.55-0.70 | 0.10 x 0.12 x 0.15 | 30 | `chrome` | over every turkish wc and stone sink |
+| `bucket` | bath | floor | 0.30 x 0.30 x 0.32 | 48 | `plastic_blue` | washrooms, courts |
+| `lota` | bath | floor | 0.15 x 0.15 x 0.22 | 40 | `plastic_red` | the water jug beside every toilet |
+| `basin_washing` | bath | floor | 0.65 x 0.65 x 0.22 | 48 | `aluminium` | the laundry basin |
+
+**Catalog: modern homes, shops and cafes** (prompt 53; `villa`, `maison`, `colonial`, `slab`, any hanout,
+makhzen and qahwa).
+
+| Piece `home/...` | Cat | Anchor | W x D x H | Tris | Materials | Variants, and who gets them |
+|---|---|---|---|---|---|---|
+| `sofa_3` | seat | wall | 2.10 x 0.90 x 0.85 | 320 | `fabric_beige`/`grey`, `velvet_red`, `wood_walnut` feet | `_beige`, `_grey`, `_red`: the salon set, one fabric per room |
+| `sofa_2` | seat | wall | 1.60 x 0.90 x 0.85 | 260 | as `sofa_3` | the set's second piece, or its fallback |
+| `armchair` | seat | wall | 0.90 x 0.85 x 0.85 | 200 | as `sofa_3` | two with a set |
+| `sedari` | seat | wall | 1.0 [0.8-4.0] x 0.75 x 0.80 | 60 | `velvet_*`, `velvet_gold` trim, `wood_walnut` base | the salon tunisien: banquettes on two or three walls |
+| `coffee_table` | table | floor | 1.10 x 0.60 x 0.45 | 80 | `wood_walnut`; `glass_inner`, `chrome` | `_wood`, `_glass` (`rich`) |
+| `side_table` | table | wall | 0.50 x 0.50 x 0.55 | 60 | `wood_walnut` | full, beside an armchair |
+| `tv_stand` | storage | wall | 1.60 x 0.45 x 0.50 | 90 | `wood_walnut`/`wood_beech`, `glass_inner` | `_walnut`, `_beech` |
+| `tv_flat` | decor | on | 1.10 x 0.22 x 0.70 | 40 | `screen_black`, `plastic_black` | `middle`+; `_small` 0.80 x 0.20 x 0.52 |
+| `tv_crt` | decor | on | 0.60 x 0.50 x 0.50 | 60 | `plastic_grey`, `screen_black` | `poor` |
+| `receiver` | small | on | 0.28 x 0.20 x 0.05 | 12 | `plastic_black` | the satellite receiver beside every TV |
+| `buffet` | storage | wall | 1.80 x 0.50 x 1.90 | 300 | `wood_walnut`, `glass_inner`, `ceramic_white` plates | the vaisselier with the good dishes: `_modern` (`wood_beech`), `_carved` 2.00 x 0.55 x 2.20 (`colonial`) |
+| `dining_table` | table | floor | 1.60 x 0.90 x 0.76 | 60 | `wood_walnut`, `wood_beech` | `_4` 1.20 x 0.80, `_6`, `_8` 2.10 x 1.00 (seats >= members, `rich` +2) |
+| `dining_chair` | seat | floor | 0.45 x 0.50 x 0.95 | 90 | wood, `fabric_*` seat | `_wood`, `_carved` (`colonial`) |
+| `plastic_table` | table | floor | 0.80 x 0.80 x 0.72 | 60 | `plastic_white` | terraces, courts, `poor` kitchens |
+| `plastic_chair` | seat | floor | 0.55 x 0.55 x 0.80 | 120 | `plastic_white` | the white chair of every terrace and court |
+| `stool` | seat | floor | 0.35 x 0.35 x 0.45 | 40 | `wood_beech` | kitchen table, shop |
+| `kitchen_run` | kitchen | wall | 1.0 [0.6-4.0] x 0.60 x 0.90 | 40 | `formica_white` or `wood_beech`, `worktop` | base cupboards and worktop: `_white`, `_wood` |
+| `kitchen_sink` | kitchen | wall | 1.00 x 0.60 x 0.90 | 90 | as the run, `steel`, `chrome` | a run unit with its bowl and tap |
+| `cooker` | kitchen | wall | 0.60 x 0.60 x 0.86 | 140 | `enamel_white`, `iron_black`; `steel` | four burners and oven: `_white`, `_steel` (`rich`) |
+| `fridge` | kitchen | wall | 0.60 x 0.65 x 1.45 | 70 | `enamel_white`, `steel` | `_small`; `_tall` 0.70 x 0.70 x 1.80 (`middle`+) |
+| `wall_cabinet` | kitchen | wall, z 1.45-2.15 | 1.0 [0.6-3.0] x 0.35 x 0.70 | 30 | as the run | over the run, never over the cooker: `middle`+ |
+| `microwave` | small | on | 0.48 x 0.36 x 0.28 | 40 | `enamel_white`, `screen_black` | `rich` |
+| `table_formica` | table | floor | 0.90 x 0.60 x 0.75 | 40 | `formica_white`, `chrome` | the kitchen table, with two stools |
+| `bed_double` | bed | wall (head) | 1.50 x 2.05 x 1.10 | 200 | `wood_walnut`, `cotton_white`, `mink` | `_140`; `_160` 1.70 wide (`rich`); cover `_mink`, `_white` |
+| `nightstand` | storage | wall | 0.45 x 0.40 x 0.50 | 60 | `wood_walnut` | both sides of a double bed |
+| `wardrobe` | storage | wall | 1.50 x 0.60 x 2.10 | 90 | `wood_walnut`/`wood_beech`, `mirror` | `_2` 1.00, `_3`, `_4` 2.00 (`rich`); `_mirror` 1.40 x 0.60 x 2.30 (`colonial`) |
+| `coiffeuse` | storage | wall | 1.10 x 0.45 x 1.60 | 150 | `wood_walnut`, `mirror` | the dressing table of the wedding set: couples, `middle`+ |
+| `bed_single` | bed | wall (head) | 0.95 x 2.00 x 0.90 | 120 | wood, `mink`, `cotton_blue`/`cotton_pink` | children, elders, guests |
+| `bunk_bed` | bed | wall (head) | 0.95 x 2.00 x 1.65 | 260 | `iron_black` or wood, `mink` | two school children, `poor` and `middle` |
+| `cot` | bed | wall | 0.65 x 1.25 x 0.95 | 180 | `wood_beech` | each small child |
+| `desk` | table | wall | 1.10 x 0.55 x 0.75 | 60 | wood | school children, `reader` trades |
+| `desk_chair` | seat | floor | 0.45 x 0.50 x 0.90 | 90 | wood, `fabric_grey` | at every desk |
+| `bookcase` | storage | wall | 0.80 x 0.30 x 1.80 | 80 | wood, `spines` | `_full` (`reader`), `_half` |
+| `piano` | decor | wall | 1.45 x 0.60 x 1.25 | 180 | `wood_walnut` | `colonial` `rich`, chance `piano` 0.3 |
+| `wc_seat` | bath | wall | 0.40 x 0.70 x 0.80 | 160 | `ceramic_white` | modern wc |
+| `basin` | bath | wall | 0.55 x 0.45 x 0.85 | 120 | `ceramic_white`, `chrome` | every sdb |
+| `mirror_bath` | decor | wall, z 1.25-1.85 | 0.50 x 0.04 x 0.60 | 20 | `mirror` | over the basin |
+| `shower` | bath | wall (corner) | 0.80 x 0.80 x 2.00 | 90 | `ceramic_white`, `chrome`, `plastic_blue` curtain | sdb under 4.5 m2 or without a 1.6 m run |
+| `bathtub` | bath | wall | 1.60 x 0.70 x 0.55 | 140 | `ceramic_white` | sdb with a 1.6 m run |
+| `water_heater` | bath | wall, z 1.40-2.05 | 0.35 x 0.25 x 0.65 | 80 | `enamel_white` | `_gas` (chauffe-bain, a butane below, by a window); `_electric` 0.45 x 0.45 x 0.80, z 1.60-2.40 (`rich`) |
+| `washing_machine` | bath | wall | 0.60 x 0.60 x 0.85 | 90 | `enamel_white`, `glass_inner` | balcony, else sdb, cuisine, bit el ma: `middle`+, `poor` 0.5 |
+| `drying_rack` | textile | floor | 1.70 x 0.55 x 1.00 | 160 | `aluminium`, `cotton_*` | balcony, stah, court |
+| `shoe_cabinet` | storage | wall | 0.80 x 0.30 x 0.95 | 40 | wood | hall |
+| `coat_hooks` | decor | wall, z 1.55-1.80 | 0.60 x 0.08 x 0.25 | 30 | wood, `cotton_*` coats | hall |
+| `doormat` | rug | floor | 0.60 x 0.40 x 0.01 | 2 | `jute` | outside each flat door, on the palier |
+| `rug_floral` | rug | floor | 1.60 x 2.30 x 0.01 | 10 | `rug_floral` | the machine-made rug: `_large` 2.00 x 2.90 |
+| `shop_counter` | shop | wall | 1.0 [0.8-4.0] x 0.60 x 1.00 | 30 | `wood_beech`, `worktop` | hanout, qahwa (`_cafe` with `espresso` on it) |
+| `shop_shelves` | shop | wall | 1.0 [0.6-4.0] x 0.40 x 2.20 | 60 | `wood_beech`, `goods` | the grocer's shelves; souk trades use `SHOP_GOODS` colours |
+| `scale` | small | on | 0.40 x 0.30 x 0.30 | 60 | `steel`, `enamel_white` | on the hanout's counter |
+| `drinks_fridge` | shop | wall | 0.65 x 0.65 x 1.90 | 80 | `enamel_white`, `glass_inner`, `awning_red` band | hanout, qahwa: `today` |
+| `espresso` | small | on | 0.60 x 0.50 x 0.45 | 120 | `steel`, `iron_black` | the qahwa's machine |
+| `tv_bracket` | decor | wall, z 2.00-2.70 | 1.10 x 0.30 x 0.70 | 50 | `screen_black` | the qahwa's football screen: `today` |
+| `chicha` | small | floor | 0.25 x 0.25 x 0.75 | 100 | `glass_inner`, `brass` | qahwa shelf and tables, full |
+| `crate_stack` | storage | wall | 0.60 x 0.40 x 0.90 | 40 | `wood_beech` | makhzen (also the city's `fruit_crate`) |
+
+**Catalog: light, wall textiles, plants and clutter** (prompt 55; any era unless tagged).
+
+| Piece `home/...` | Cat | Anchor | W x D x H | Tris | Materials | Variants, and who gets them |
+|---|---|---|---|---|---|---|
+| `fanous` | light | ceiling | 0.30 x 0.30 x 1.15 (lantern 0.55 on a 0.6 chain) | 200 | `brass`, `lamp_glass` | traditional rooms, the bortal, the skifa |
+| `lantern_table` | light | on / floor | 0.20 x 0.20 x 0.40 | 120 | `brass`, `lamp_glass` | full, traditional |
+| `ceiling_lamp` | light | ceiling | 0.40 x 0.40 x 0.15 | 60 | `lamp_glass`, `chrome` | modern rooms |
+| `chandelier` | light | ceiling | 0.80 x 0.80 x 0.70 | 400 | `brass`, `lamp_glass` | salon and salle a manger: `rich`; `colonial` `middle`+ |
+| `neon` | light | wall, z 2.20-2.28 | 1.20 x 0.08 x 0.08 | 24 | `lamp_glass`, `plastic_white` | cuisine, matbakh (`today`), hanout, washrooms |
+| `bulb_bare` | light | ceiling | 0.08 x 0.08 x 0.40 | 30 | `lamp_glass`, `iron_black` | `poor` rooms, stores, the stah door |
+| `lamp_bedside` | light | on | 0.25 x 0.25 x 0.40 | 60 | `lamp_glass`, `fabric_beige` | on nightstands |
+| `frame_verse` | decor | wall, z 1.55-1.95 | 0.55 x 0.03 x 0.40 | 20 | `verse`, `brass` | one per home: reception or salon, the wall facing the door |
+| `khomsa` | decor | wall, z 1.80-2.00 | 0.16 x 0.02 x 0.20 | 24 | `brass`; `glaze_blue` | over the inside of the main door: every home |
+| `brass_plate` | decor | wall, z 1.50-2.00 | 0.50 x 0.02 x 0.50 | 32 | `brass` | traditional `rich`; three for `trade:coppersmith` |
+| `photo_frame` | decor | wall, z 1.50-1.90 / on | 0.30 x 0.02 x 0.40 | 12 | `wood_walnut`, `photo_sepia` | full |
+| `clock_wall` | decor | wall, z 1.80-2.12 | 0.32 x 0.04 x 0.32 | 40 | `plastic_white`, `iron_black` | modern lived-in |
+| `mergoum_wall` | textile | wall, z 0.95-2.35 | 1.20 x 0.02 x 1.40 | 10 | `mergoum`, `klim_*` | over a doukkana: traditional full |
+| `curtain` | textile | window | 1.0 [0.8-3.5] x 0.08 x (head + 0.15) | 60 | `fabric_*`, `voile` | each window and balcony door of modern rooms (sill to floor for balcony doors) |
+| `birdcage` | decor | ceiling / wall hook | 0.35 x 0.35 x 0.55 | 140 | `iron_white`, `door_blue` | the white and blue cage of a canary: court, balcony; full |
+| `pot_jasmine` | plant | floor | 0.45 x 0.45 x 1.20 | 220 | `terracotta`, `leaf_green`, `cotton_white` flowers | court corners, stah, balcony |
+| `pot_geranium` | plant | floor | 0.35 x 0.35 x 0.50 | 120 | `terracotta`, `leaf_green`, `awning_red` | court edge, stah |
+| `pot_basil` | plant | floor / on | 0.25 x 0.25 x 0.30 | 80 | `terracotta`, `leaf_green` | basil and mint by the kitchen, on a court sill |
+| `vase_flowers` | small | on | 0.15 x 0.15 x 0.40 | 80 | `glass_inner`, `awning_red`, `leaf_green` | plastic flowers on a coffee table or buffet |
+| `slippers` | small | floor | 0.30 x 0.28 x 0.04 | 24 | `plastic_*`, `leather_brown` | at doors into rooms with rugs (shoes come off) |
+| `shoes` | small | floor | 0.32 x 0.30 x 0.10 | 40 | `leather_brown`, `plastic_black` | inside the main door; outside flat doors, full |
+| `books_stack` | small | on | 0.25 x 0.18 x 0.15 | 24 | `spines` | desks, nightstands, rahla |
+| `plates_stack` | small | on | 0.26 x 0.26 x 0.12 | 40 | `ceramic_white` | shelves, counters |
+| `bread_basket` | small | on | 0.45 x 0.30 x 0.18 | 60 | `hasira`, `bread` | kitchen tables and counters |
+| `fruit_bowl` | small | on | 0.30 x 0.30 x 0.15 | 70 | `ceramic_white`, `awning_yellow`, `awning_red` | dining and kitchen tables |
+| `water_pack` | small | floor | 0.30 x 0.20 x 0.33 | 60 | `glass_inner`, `plastic_blue` | the six-pack of mineral water by the fridge |
+| `oil_bidon` | small | floor | 0.20 x 0.15 x 0.32 | 40 | `plastic_yellow` | olive oil by the cooker or in the store |
+| `schoolbag` | small | floor | 0.32 x 0.18 x 0.40 | 40 | `plastic_blue`, `velvet_red` | by the beds of school children |
+| `blanket_folded` | small | on | 0.60 x 0.45 x 0.15 | 20 | `mink` | on mattresses and beds, full |
+| `laundry_line` | textile | floor | 1.0 [2.0-5.0] x 0.10 x 1.80 | 160 | `iron_black`, `cotton_*` | two posts and a line with washing: stah, court |
+| `broom` | small | wall | 0.25 x 0.10 x 1.20 | 30 | `hasira`, `wood_beech` | kitchens, courts, leaning on the wall |
+| `pots_hanging` | kitchen | wall, z 1.40-1.90 | 0.90 x 0.20 x 0.50 | 120 | `copper`, `iron_black` | the rail of pans over a counter: traditional |
+
+**Textures and materials.** Generated 256 px seamless images in `interior/weave.py` (makers reuse the noise
+helpers of `mesh/textures.py`; `export.used_images` asks `weave.MAKERS` first, so `mesh/textures.py` is
+not edited), each on `stream(seed, "texture", name)`, numbers and colours in `[interiors.textures]`:
+`klim_red`, `klim_indigo` (flat weave: bands of stepped diamonds, triangles and combs in red, indigo,
+ochre, black and cream; texture_size 1.4 x 2.2 m, one repeat per rug), `mergoum` (fine weft-wrapped
+lozenges and hooks on red, black and white), `zarbia` (a central lozenge medallion in a field of small
+motifs inside a wide border, natural wool cream, brown and indigo), `hasira` (halfa straw in alternating
+bands), `ticking` (narrow red, blue and cream stripes), `painted` (flowers and leaves in red, yellow and
+white on green, the painted wood of Tunis chests and beds), `sajjada` (a mihrab arch over a plain field),
+`mink` (big flowers on a plush blanket) in prompt 52; `rug_floral`, `spines` (book backs in many
+colours), `goods` (rows of tins, boxes and bottles) in 53; `verse` (abstract gold strokes on deep
+green) in 55. New `[interiors.palette]` entries: 52 `wood_walnut` #5A3A24, `wood_beech` #C49A6C,
+`wood_painted_green` #3F6B4F, `wood_painted_red` #8E3B2F, `brass` #B08D3C (metallic 0.9, roughness
+0.35), `copper` #B5653A (metallic), `aluminium` #B9BDC2, `iron_black` #2B2A28, `terracotta` #B5653F,
+`glaze_green` #3D6B3A, `clay_pale` #E3D9C6, `charcoal` #2A2522, `velvet_red` #7E1F24, `velvet_green`
+#1F4E3A, `velvet_blue` #23406E, `velvet_gold` #B38B3A, `cotton_white` #EFEDE6, `wool_cream` #E6DCC4,
+`fleece` #E9E1CF, `jute` #A88A5C, `leather_brown` #7A4B2A, `ceramic_white` #F4F4F2 (roughness 0.15),
+`enamel_white` #ECEDEA, `chrome` (metallic 1, roughness 0.15), `mirror` #C8CDD0 (metallic 1, roughness
+0.03), `plastic_blue`, `plastic_red`, `butane_bottle` #3B6FB6, `net_green`, `book_green`, and the
+textured ones (`klim_red`... named like their image); 53 `fabric_beige`, `fabric_grey`, `formica_white`,
+`worktop`, `steel`, `screen_black` (roughness 0.15), `plastic_black`, `plastic_grey`, `cotton_blue`,
+`cotton_pink`; 55 `lamp_glass` #F3E6C8 and `lamp_glow` (the same; the viewer's night lights it),
+`voile` (alpha 0.5, double sided), `iron_white`, `glaze_blue`, `leaf_green`, `photo_sepia`, `bread`,
+`plastic_yellow`. Colours are first values for Ali to judge on the kit sheet.
+
+**Who lives here** (prompt 54, `interior/household.py`, `profile(interior, unit, style) -> Profile`).
+- The household of a unit: `home` takes `Interior.household`; `flat <n>` its `Flat.household` (flat 0
+  the plan's, the others their derived occupants); `shop` and `cafe` have none (the hanout's trade is the
+  souk's of its front street, `plan.souks` by the main door's street, else `grocer`; a qahwa's `cafe
+  owner`); a unit without a record uses members 4, wealth 0.5, no trade.
+- Family, on `stream(seed, "interior", city_id, k, "furnish", "family", unit)`, draws in this fixed
+  order: u1, u2, then one per child. Adults: 1 when members is 1, else 2. Elders: 1 when members >= 4 and
+  u1 < `elder_share` (traditional 0.45, modern 0.30), 2 when also members >= 6 and u2 < `elder_two`
+  (0.25). Children = members - adults - elders; each is `small` (under 3) when its draw < 0.15,
+  `school` below 0.85, else `teen`.
+- Tags (strings the roles test): the era `trad` (dar, compact, small, koubba) or `modern` (villa,
+  maison, colonial, slab); the layout; the district kind (`medina`, `village`, `colonial`, `modern`,
+  `residential`, `suburb`); the band by wealth (`poor` under `bands.poor` 0.35, `rich` from `bands.rich`
+  0.65, else `middle`); the period (`today` or `heritage`); `couple` (2 adults), `children`, `small`,
+  `school` (a school child or teen), `elders`, `big` (6 members or more); `trade:<trade>` (spaces as
+  `_`) and the trade's groups from `[interiors.furnish.trade_tags]`: `reader` (teacher, professor,
+  student, imam, bookseller, calligrapher, journalist, lawyer, doctor, pharmacist, engineer, architect,
+  civil servant), `craft` (weaver, tailor, potter, coppersmith, chechia maker, shoemaker, carpenter,
+  jeweler, calligrapher), `land` (farmer, shepherd, olive presser), `sea` (fisherman).
+
+**Room functions** (prompt 54, `household.functions(interior, unit, profile) -> {room id: function}`).
+Fixed by type: skifa `entry`; wast_ed_dar `court`; bortal `gallery`; matbakh and cuisine `kitchen`;
+bit_el_ma `washroom`; sdb `bath`; wc `wc`; bit_el_mouna and makhzen `store`; hall `hall`; droj, palier,
+couloir and well `passage`; stah `terrace`; salon `salon`; salle_a_manger `dining`; hanout `shop`; qahwa
+`cafe`; koubba `reception`. The flexible rooms (bit, maqsura, ghorfa, chambre) of a unit are given in
+this order, each to the best free room (ties: the lower room id):
+1. `reception` (trad, when no koubba): the bit holding a kbou (the T room), else the largest lit bit of
+   floor 0, else the largest bit or ghorfa.
+2. `sleep_couple` (adults >= 1): trad the larger maqsura, else the largest ghorfa, else the largest bit
+   left; modern the largest chambre. A one-room home sleeps in its reception.
+3. `sleep_elder` (elders >= 1): trad a floor-0 room first; modern the smallest chambre of at least 9 m2.
+4. `sleep_children`: ceil(children / 3) rooms (ceil(children / 4) for `poor`), the larger first.
+5. `family` (trad, `today`): one bit left becomes the television room.
+6. `work`: a trade with a work set (weaver, tailor, chechia maker, potter) takes a lit room left, else
+   its set goes into the reception (by a window), the gallery or the court (loom, pots).
+7. `study` (modern: `reader` or a teen): a chambre left gets a desk and a bookcase.
+8. Any room left: `guest` (trad a second reception, modern a single bed and a desk), or `store` when
+   under 6 m2.
+Sleeping places count: a double bed or sedda 2, a single bed, cot, mattress or bunk deck 1, each
+doukkana, sedari or sofa run of at least 1.8 m 1 (Tunisian homes sleep guests and children there). When
+the beds fit fewer than the members, the reception or salon takes a `mattress_stack` (lived-in) and the
+rest sleep on its seats; the check counts it.
+
+**Recipes** (prompt 54, `[[interiors.furnish.rooms.<function>]]` in the style, one table per slot, in
+order): `role` (a key of `[interiors.furnish.roles]`), `place` (below), `density` (`sparse`, `lived-in`,
+`full`: the least density that places it), `need` (true: the room must hold it, see the check), `when`
+(a tag expression: every word must hold, `!word` must not, `a|b` either), `chance` (default 1),
+`count` ([least, most], or `"chairs"`: the table's seats, `"children"`, `"sleepers"`). A role lists
+`[piece, weight, when]` entries; a slot picks among the entries whose `when` holds, by weight; when it does not fit, its
+`smaller` chain follows (see Fit). Written below as `role @place [density] !need`;
+`s` sparse, `l` lived-in, `f` full.
+- reception (trad): `seats` (doukkana + mattress + cushions) @facing_door [s] !; `seats_side` @wall
+  (next to it, an L) [l]; `meida` or `tray_table` (`rich`) @front:seats [s]; `rug` (klim; mergoum
+  `middle`; zarbia `rich`; hasira `poor`) @under:meida [l]; `sendouk` @blind [l]; `mirror_carved`
+  @hang:sendouk [l]; `tray_brass` @on:meida [l] then `tea_set` @on:tray_brass [l]; `tv` (tv_crt `poor`,
+  tv_flat else; `today`, chance 0.85) @on:sendouk or `tv_stand` + tv @facing:seats [l]; `khzana`
+  @blind [f]; `mergoum_wall` @hang:seats [f]; `brass_plate` @hang (`rich`) [f]; `pouf` @free [f];
+  `ibrik` @free (`rich`) [f]; `hidoura` @free [l, chance]; light `fanous` @ceiling [l].
+- sleep_couple: trad `sedda` / `sedda_plain` (`poor`) / `bed_double` (`today` `middle`+, chance 0.4)
+  @head [s] !; `sendouk` @blind (foot or side) [l]; `khzana` or `wardrobe` (`today`) @blind [l];
+  `mirror_carved` @hang [l]; `klim` @free (beside the bed) [l]; `slippers` @beside:bed [f]. Modern
+  `bed_double` @head [s] !; `nightstand` x2 @beside:bed [l]; `wardrobe` @blind [l] (`_2` fallback);
+  `coiffeuse` @blind (`middle`+) [l]; `rug_floral` @free [l]; `lamp_bedside` @on:nightstand [l];
+  `sajjada` @free [f]; `ceiling_lamp` @ceiling [l].
+- sleep_children: one bed per child of the room: `cot` (`small`), `bunk_bed` for two `school` children
+  (`poor`|`middle`), `bed_single` (`modern` or `today` `middle`+), else `mattress_floor` @head
+  [s] !, count `children`; `sendouk` (trad) or `wardrobe_2` (modern) @blind [l]; `desk` + `desk_chair`
+  (`school`, modern) @wall near a window [l]; `schoolbag` @beside:bed [f]; `blanket_folded` @on:bed [f].
+- sleep_elder: `bed_single` (modern) or `mattress` on a `doukkana` / `sedda_plain` (trad) @head [s] !;
+  `sajjada` @free [l]; `rahla` @beside:bed [l]; `sendouk` @blind (trad) [l].
+- family (trad `today`): `seats` @facing:tv (doukkana or `sofa_3`) [s]; `tv_stand` + tv @blind [s];
+  `meida` @front:seats [l]; `rug` @under:meida [l].
+- work: the trade's set (`[interiors.furnish.trades]`): weaver `loom` @blind near a window +
+  `wool_basket` @beside:loom + `hasira` @under:loom; tailor `sewing_machine` @wall at a window +
+  `dummy` [f]; chechia maker `chechia_forms`; potter `pots_stack` x2 (court); fisherman `net_pile`
+  (court or stah); coppersmith three `brass_plate`; farmer, shepherd and olive presser `grain_sacks` x2
+  and `khabia` x2 in the store; baker `tabouna` (court or stah) and `bread_basket`; reader trades
+  (trad) `rahla` + `books_stack`, (modern) `bookcase_full` + `desk`. Work sets place at [l], their
+  first piece `need` when the trade has a set (the check: a weaver's home has a loom).
+- kitchen (trad): `counter_masonry` @wall (the longest blind run, else any) [s]; `gas_ring`
+  (`today`) or `kanoun` @on:counter / @free [s] !; `butane` @beside:gas_ring [s]; `sink_stone` or `qolla`
+  @wall [s] !; `couscoussier` @on:counter [l]; `kursi` @free [l]; `fridge_small` (`today` `middle`+)
+  @wall [l]; `shelf_wall` + `plates_stack` @hang [l]; `gsaa` @free [f]; `pots_hanging` @hang:counter
+  [f]; `khabia_small` @wall [f]; `neon` (`today`) or `bulb_bare` [l].
+- kitchen (modern): `kitchen_run` with `kitchen_sink` @wall (the run with the window, the sink under it
+  when the sill is at least 0.95 m; else the longest blind run) [s] !; `cooker` @in the run (not under a
+  window, at least 0.3 m from a corner) [s] !; `butane` @beside:cooker (`!rich` or a gas water heater)
+  [s]; `fridge` @wall (a run end or another wall) [s] !; `wall_cabinet` @hang:kitchen_run (`middle`+)
+  [l]; `table_formica` + 2 `stool` @free (area >= 9 m2) [l]; `couscoussier` @on:cooker [l];
+  `washing_machine` (when the flat has no balcony and the bath has no room) @wall [l]; `water_pack`
+  @beside:fridge [f]; `bread_basket` @on:table [f]; `microwave` (`rich`) @on:kitchen_run [f]; `neon`
+  or `ceiling_lamp` @ceiling [l].
+- salon (modern): `seats` = `salon_set` (`sofa_3` @facing_door, `armchair` x2 @wall beside it) or
+  `sedari` @facing_door and @wall (two or three runs), by weight: sedari 0.5 `poor`|`middle`, 0.3 `rich`,
+  0.2 `colonial` [s] !; `coffee_table` @front:seats [s]; `tv_stand` + tv + `receiver` @facing:seats [l];
+  `rug_floral` (`zarbia` `rich`) @under:coffee_table [l]; `buffet` @blind (when the home has no dining
+  room) [l]; `frame_verse` @hang facing the door [l]; `vase_flowers` @on:coffee_table [l]; `chandelier`
+  (`rich`, `colonial`) or `ceiling_lamp` @ceiling [l]; `curtain` @window [l]; `piano` (`colonial`
+  `rich`) @blind [l]; `side_table` @beside:armchair [f]; `photo_frame` @hang [f]; `sajjada` [f].
+- dining: `dining_table` (seats for the members, `rich` +2) @free (the room's middle) [s] !;
+  `dining_chair` @around:table count `chairs` [s]; `buffet` @blind [l]; `rug_floral` @under:table [l];
+  `fruit_bowl` @on:table [f]; `chandelier` or `ceiling_lamp` [l]; `curtain` @window [l].
+- bath: `basin` + `mirror_bath` @wall / @hang:basin [s] !; `bathtub` (a 1.6 m run, `middle`+) or
+  `shower` @corner [s] !; `wc_seat` (when the home has no wc) @wall [s] !; `water_heater` @hang (`_gas`
+  by the window with `butane` below, `_electric` `rich`) [l]; `washing_machine` (no balcony) @wall [l];
+  `bucket` + `kursi` @free [f]; `ceiling_lamp` or `neon` [l].
+- wc: `wc_seat` (modern; `wc_turkish` for `poor` slab at chance 0.4) @facing_door [s] !; `lota`
+  @beside:wc [l]; `tap_wall` @hang:wc (turkish) [s].
+- washroom (trad): `wc_turkish` @wall [s] !; `tap_wall` @hang [s]; `lota` + `bucket` [l];
+  `basin_washing` + `kursi` [l]; `water_heater_gas` + `butane` (`today`) [l]; `washing_machine`
+  (`today` `middle`+, no other room) [l].
+- store: `khabia` x1-3, `grain_sacks`, `shelf_wall` + `plates_stack` @wall [s]; `couscoussier`,
+  `oil_bidon`, `crate_stack` [l] (makhzen: `crate_stack` x2, city `fruit_crate` [l]).
+- entry (skifa): `skifa_bench` @wall both sides where they fit [l]; `khomsa` over the main door [l];
+  `shoes` and `slippers` [f]; `fanous` [l].
+- hall: `shoe_cabinet` @wall [l]; `coat_hooks` @hang [l]; `khomsa` over the door [l]; `mirror_bath`
+  (as a hall mirror) [f]; `ceiling_lamp` [l].
+- court: keep its middle (the features' keep-outs below); `pot_geranium` x2-4 and `pot_jasmine` x1-2
+  @court_edge [l]; `qolla` @court_edge [l]; `plastic_chair` x2 (`today`) @court_edge [l];
+  `basin_washing` [f]; `laundry_line` (when the court is at least 3 m across) [f]; `birdcage` @hang at
+  a bortal arch or a lit wall [f]; city `cat_*` @free [f]; work sets of the court.
+- gallery (bortal): `doukkana` + `mattress` @wall [l] (the loom first for a weaver); `fanous` [l].
+- terrace (stah): `plastic_chair` x2-4 + `plastic_table` @free [l]; `laundry_line` @free [l];
+  `pot_geranium` x2 + `pot_basil` @court_edge (along the parapet) [l]; `kanoun` [f]; `drying_rack` [f];
+  `net_pile`, `tabouna` by trade.
+- passage: nothing, except `doormat` outside each flat door on a palier [l], `shoes` there [f], and on a
+  couloir wall `photo_frame` or `clock_wall` @hang [f].
+- shop (hanout): `shop_counter` @wall parallel to the shop front, 0.9 m behind it (`front` place) [s] !;
+  `shop_shelves` @blind (back and sides) [s] !; `scale` @on:shop_counter [l]; `stool` @free [l];
+  `drinks_fridge` (`today`) @wall [l]; `neon` @ceiling [l]; souk trades show their goods colours.
+- cafe (qahwa): `shop_counter_cafe` + `espresso` @blind [s] !; city `cafe_set` @grid [s] ! (count by area:
+  one per 4 m2 left); `tv_bracket` @hang (`today`) [l]; `chicha` x2 @on:shelf [f]; `neon` [l].
+- Balcony (no room: the deck of a `balcony_slab` piece, its rectangle in front of its wall less the door
+  zone, door width + 0.2 m x 0.8 m): `washing_machine` (the flat's first balcony, `middle`+, `poor` 0.5)
+  [l]; `drying_rack` [f]; `pot_geranium` [f]; `birdcage` [f]. Iron balconies take nothing.
+
+**Places** (prompt 54, `interior/furnish.py`). Each room is prepared once (`RoomSpace`):
+- F, the floor that can hold furniture: `floors.free_of(interior, room)` (its free floor) intersected
+  with the drawn floor of its level (`floors.slab(interior, f, style)` for upper floors: wells and light
+  slots removed; floor 0 and the court as drawn, a sunken room at its own z), shrunk by `wall_gap`
+  (0.01 m).
+- Wall runs: the edges of F's rings longer than 0.3 m that are wall faces (not a passage across, not a
+  balustrade to a well, not the court side of a bortal's arches), each with its inward normal, its
+  length and its openings (s, width, z0, z1, kind). A run is `blind` over a stretch with no opening.
+- The main door: the opening by which the walk from the unit's entrance first reaches the room (the
+  breadth-first order of `rooms.check`'s reachability). `facing_door` ranks runs by how directly their
+  inward normal points back at the door (dot product, best first; within 0.05 the longer first).
+- The hub: the room's pole of inaccessibility (`polylabel`, 0.05 m).
+Place modes, each giving candidate poses (x, y, yaw) in a fixed order:
+- `wall`: back on a run, the piece's back edge `wall_gap` from the face; along the run from its middle
+  outward in `step` (0.1 m) steps, left before right. Runs ranked: blind runs first, then by length,
+  then by run index. `blind`: only stretches with no opening in the piece's span at any height up to its
+  top. `head`: a bed's head on a blind stretch, preferring runs that are not the door's wall and not a
+  window's wall; its long axis runs into the room. `facing_door`: the facing-door rank first. `corner`:
+  only the two ends of each run. `facing:<role>`: the run whose normal points most at the host's front.
+- `front:<role>`: centered on the host's front at `front_gap` (0.25 m from a doukkana or sedari, 0.40 m
+  from a sofa), turned to face it; for an L of seats, in the L's inner corner square.
+- `beside:<role>`: along the host's wall, touching its left side, then its right (both for `x2`).
+- `around:<role>`: chairs on the table's long sides first, then its ends, 0.10 m under its edge, facing
+  it, spaced evenly.
+- `on:<role>`: on the host's `top` rectangle, inset 0.03 m, centered, then left and right in 0.1 m
+  steps; collides only with pieces on the same host and with what hangs above it.
+- `under:<role>`: a rug centered on the host (or the seat group's front), its long side along the host's;
+  the largest rug variant that lies in F inset 0.10 m.
+- `hang` and `hang:<role>`: on a run at the piece's z, over the host when given; the span must keep 0.10 m
+  from every opening's rectangle on that run.
+- `ceiling`: at the hub (two lamps at the hubs of the halves when the room is longer than 4.5 m), z at
+  the ceiling (the next slab's underside, or under the beams: z + height - slab - beam).
+- `window`: one curtain per window or balcony door of the room, as wide as its hole + 0.3 m (stretch).
+- `free`: anywhere in F, candidates on a 0.25 m grid from the hub outward (nearest first), yaw along the
+  room's frame; a `sajjada` turns to `qibla` (rounded to 15 degrees).
+- `court_edge`: like `wall` along the court's walls, between their openings; pots also at corners.
+- `grid`: cafe sets on a grid of `cafe_pitch` (1.6 m) from the room's frame, walk lanes kept.
+
+**Keep-outs and clearances** (`[interiors.furnish]`). A room's keep-outs are plan polygons with a z range:
+- Every door, court door and passage of the room: a walk box door width + 0.2 m wide and `door_keep`
+  (0.8 m) deep on the room's side, floor to head; a swinging leaf (6c Walls: hinged on the room it swings
+  into) adds its swept square, leaf width deep, on that side.
+- Every window and inner window: a box its width + 0.2 m wide, `window_keep` (0.25 m) deep, from 0.03 m
+  under its sill to its head (low pieces may stand under a window: a doukkana under a sill at 0.9 m; a sofa
+  back, wardrobe or fridge may not). A balcony door counts as a door.
+- Every stair of the room: its polygon (all heights) grown by 0.1 m, plus `stair_keep` (0.9 m) in front
+  of its door side, first and last treads; entry steps and their landings; ladders and 0.6 m in front.
+- The court's features: majel and fesqiya circles + 0.5 m, tree trunks + `tree_keep` (0.6 m); the
+  court's middle: its polygon shrunk by `court_keep` (1.2 m) takes only free pieces at [f] (a cat).
+- The bridge's own placements standing in the room (the stah's tanks, dishes and racks; anything of the
+  tile inside the footprint): their kit box at their pose.
+- Ceiling: a piece's top stays 0.05 m under the room's ceiling (beams included).
+- Walk: after the openings' walk boxes, `walk` (0.7 m traditional, `walk_modern` 0.8 m) strips join the
+  inner points (0.4 m inside each door, passage, stair door and balcony door) through the hub: the union
+  of `LineString([a, hub, b]).buffer(walk / 2)` for each pair, or the straight segment a-b when it lies
+  in F. In a room with one opening the strip runs from it to the hub.
+- Use: every piece's `use` strip (bed 0.5 m on one long side, both for a couple's bed at lived-in when
+  nightstands fit; wardrobe 0.6; cooker and sink 0.8; fridge 0.7; desk 0.7; toilet and basin 0.5;
+  doukkana and sofa 0.4) must lie in F and hold no piece taller than 0.5 m, except its own set
+  (chairs round their table, the meida in front of its seats, the rug under them).
+
+**Fit** (`furnish.fits(space, piece, pose, placed)`): a pose passes when, in this order (cheap first):
+1. its foot lies in F (`within` F grown by 0.005 m);
+2. its foot meets no keep-out whose z range overlaps its own (shared area at most 1e-4 m2);
+3. its foot meets no placed piece whose z range overlaps (rugs: only other rugs and keep-outs; `on`
+   pieces: only pieces on the same host and anything hanging over it);
+4. a `wall` piece's back edge lies on its run, within the run's span; a hanging piece clears every
+   opening's rectangle by 0.10 m;
+5. its `use` strip passes the use rule; and the pieces' use strips already placed still do;
+6. reach: F less every placed foot lower than 1.0 m, shrunk by `path` / 2 (`path` 0.5 m traditional,
+   0.6 m modern), keeps the main door's inner point and every use strip's middle in one connected part.
+When no candidate pose passes for the chosen entry, the slot tries its `smaller` chain in order
+(`[interiors.furnish.smaller]`: a doukkana stretch shortened in 0.1 m steps down to its least length; sofa_3, sofa_2, armchair;
+bed_double_160, _140, bed_single, mattress_floor; wardrobe_4, _3, _2; dining_table_8, _6, _4 with fewer
+chairs; kitchen_run shortened; fridge_tall, fridge_small), then gives up: a `need` slot records
+`furnish: <room type> <room id> has no <role>` in `Interior.warnings`, any other slot is skipped
+quietly. Nothing is ever placed overlapping, and no piece is moved after it is placed.
+
+**Random streams** (prompt 54). Every slot draws exactly four numbers, before any test, from
+`stream(seed, "interior", city_id, k, "furnish", room_id, slot_index, role)` (6c's interior path with the
+room and the slot, so a new slot or role never shifts another's choices): u_chance (against `chance`),
+u_entry (the weighted entry), u_place (for a slot with `spread = true`, such as a sendouk, khabias,
+pots and plastic chairs: of the passing poses on the first run that has any, the one at index
+floor(u_place x their number); other slots take the first passing pose, so beds, seats and tables stay
+centered), u_count (within `count`). Copies of a slot (count > 1) go one after another, each on the next
+passing pose. Colours shared by a room (one cushion colour, one sofa fabric) draw on
+`stream(..., "furnish", room_id, "colour")`; the family on `"family", unit`. No draw on the shared `props`
+stream, no `random`, no set iteration: rooms by id, slots in recipe order, candidates in the fixed order
+above.
+
+**Density** (prompt 54; `[interiors.furnish] density`, `interior --density`, `index.json` records it).
+Slots are placed in three passes, all `sparse` slots of the room first, then `lived-in`, then `full`, so
+the pieces of a lower density are exactly a subset of a higher one's (same piece, pose and room).
+- `sparse`: the pieces a room needs to be what it is: beds, seats and their table, the kitchen's stove,
+  water and fridge, the bath's basin, shower or tub and toilet, the shop's counter and shelves, the
+  cafe's counter and sets. A home the day it was moved into.
+- `lived-in` (default): storage (sendouk, khzana, wardrobes, buffet), rugs, the TV, mirrors, the work
+  sets, curtains and lamps (55), the court's pots and chairs, the terrace's chairs and washing line, the
+  hall's shoes cabinet, doormats, a tea set on its tray, the khomsa and the verse.
+- `full`: every decor (plates, frames, wall textiles, birdcage), clutter on every host (books, bread,
+  fruit, blankets, slippers at the doors, shoes), extra seats (poufs), the cat, the second plants: the
+  ROADMAP's "extremely full".
+
+**Budgets** (prompt 54 tests them; 55 keeps them).
+- Per piece: its `tris` (the tables), tested on the kit.
+- Per room, drawn triangles (each instance counts its piece): `room_triangles` sparse 1,500, lived-in
+  4,000, full 8,000; the court, the stah, a qahwa and a hanout twice that. A slot that would pass it is
+  skipped (never a `need` slot).
+- Per interior folder: furnishing adds at most 60,000 unique triangles (each home piece's mesh once) and
+  at most 6 MB of .glb (pieces, instance transforms and the home textures, about 0.5 MB for all twelve
+  images) at `full`; drawn furniture triangles at most 1,500,000 (the largest slab at full: the city
+  draws about 4.9 million). The 6c budget of prompt 48 (150,000 triangles, 25 MB, counted as the index
+  counts them: the mesh plus each instanced part once) still holds at `full`.
+- Instancing: every placed piece is a glTF instance (`EXT_mesh_gpu_instancing`), grouped by piece as
+  `mesh.tile.instance_groups` groups the bridge's (its `.kit` a view whose `.pieces` holds the home kit and
+  the city kit; names never collide), so a sofa repeated in 80 flats costs its mesh once and 28 bytes per
+  copy. Stretch pieces write SCALE.
+- Time: furnishing a dar at lived-in under 0.5 s, the largest slab (No. 1169) at full under 6 s on Ali's
+  Mac; rooms of a typical floor (6c: the same cells) share their prepared `RoomSpace` (keyed by the
+  room's polygon and openings), so only the household's choices are redone.
+
+**Output** (prompt 54).
+- `tiles/interior.glb`: the furniture as instances after the bridge's; materials and images of the home
+  kit added as needed (`export.used_images`).
+- `furniture.json` (`citygen-furniture/1`): `density`, `period`, `profiles` ({unit: tags, members,
+  adults, elders, children}), `functions` ({room id: function}), `pieces` ([{piece, x, y, z, yaw, stretch,
+  room, unit, role, slot}] in placing order, coordinates rounded to 1 mm, yaw to 1e-4 rad), `warnings`.
+- `tiles/index.json`: `interior.density`; from prompt 55 `interior.lamps`: [[x, y, z]] of the lamps lit
+  at night (at most `lamps_max` 64, nearest the focus first).
+- The command: `python -m citygen interior BUILDING [--density sparse|lived-in|full]` (same folder;
+  the density is in the files). The viewer's `api/interior` takes `density=` too (default the style's).
+
+**Night** (prompt 55). A lamp is lit (its `_on` twin) when its room is `lit` (6c: one of its facade windows
+is lit in the tile), or when the room has no facade window and another room of its unit is lit; every
+other lamp stays dark, so a dark window never shows a glowing lamp behind it. The viewer's
+`LIT_AT_NIGHT` gains `lamp_glow` (warm, 0.9) and, at night, up to 8 point lights at the lit lamps nearest
+the camera above the cut (`interior.lamps`); the street keeps its own. Blender (prompt 57) makes the same
+lamps small lights.
+
+**Checks** (prompt 54, `furnish.check(interior, furniture, style) -> [problems]`, shared by tests and
+surveys, like `rooms.check`):
+- overlap: no two pieces' feet share more than 1e-4 m2 where their z ranges overlap (rugs with rugs
+  only; `on` pieces with their host's other guests);
+- walls: every foot lies in its room's F (0.005 m tolerance); every `wall` piece's back is on a run;
+- clearances: no foot meets a door's walk box or swing, a passage, a stair's keep-out, a window's box at
+  overlapping heights, a court feature or a bridge placement; every hanging piece clears every opening by
+  0.10 m; every top stays under its ceiling;
+- reach: in every room, the main door's inner point and every use strip are joined by free floor `path`
+  wide, and the unit's walk (`rooms.check`'s graph) still joins every room;
+- required: each `need` slot's role is present unless its warning names it: a chambre or maqsura given
+  a sleep function has a bed, a kitchen a stove and water (and a fridge when modern), a bath its basin
+  and its shower or tub, a wc its toilet, a reception or salon its seats, a dining room its table, a
+  hanout its counter, a qahwa its counter; sleeping places >= members per unit;
+- household: a weaver's home has a loom, a tailor's a sewing machine, a reader's home books, each small
+  child a cot;
+- budgets: per room and per folder as above; density: sparse is a subset of lived-in, lived-in of full,
+  and the counts grow;
+- determinism: the folder's bytes (glb, rooms.json, furniture.json, index.json) are the same in two
+  processes with different PYTHONHASHSEED (slow test).
+
 ## 7. Style pack (`styles/<name>.toml`)
 
 `[names]` sounds and templates, `[lore]` eras and products, `[palette]` materials (color and
