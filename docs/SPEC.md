@@ -551,7 +551,7 @@ is none; left is left of the edge's direction), `surface` (palette material), `l
 street runs). `roads`: one link per point where a country road (`world.json` roads) crosses the city
 limit: `road` (its id), `kind`, `width`, `x`, `y` (the crossing) and `node` (the nearest node,
 `distance` meters away; the planner's connector street starts there). Built by noding every center
-line on a 5 cm grid (`shapely.set_precision`, then `unary_union(grid_size=0.05)`): plain `unary_union`
+line on a 5 cm grid (`[streets] graph_grid` in defaults.toml; `shapely.set_precision`, then `unary_union(grid_size=...)`): plain `unary_union`
 misses junctions where grid streets end on district borders only up to rounding. A piece lying on
 several streets (a grid street left under a boulevard) belongs to the widest. An impasse starts inside
 the surface of the street its mouth opens on (prompt 20.2): its edge starts with a stub from the nearest

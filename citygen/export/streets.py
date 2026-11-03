@@ -1,7 +1,8 @@
 """The street graph of a city for games (prompt 70): `cities/<name>/streets.json`, `citygen-streets/1`.
 
 Nodes are junctions and dead ends, edges the street pieces between them, built by noding every
-center line of `plan.streets` on a 5 cm grid (SPEC 6 "Street graph").
+center line of `plan.streets` on a grid of `[streets] graph_grid` meters (5 cm, citygen/defaults.toml;
+`unary_union` alone misses junctions that meet only up to rounding) (SPEC 6 "Street graph").
 """
 from __future__ import annotations
 
@@ -13,13 +14,10 @@ from shapely.geometry import LineString, Point
 from ..city.geo import lines
 from ..city.parking import walk_widths
 
-GRID = 0.05   # meters: the noding grid; `unary_union` alone misses junctions that meet only up to rounding
-
-
-def center_lines(streets) -> list:
+def center_lines(streets, grid: float) -> list:
     """Each street's center line. An impasse's starts at the nearest point of the street its mouth opens
     on (the planner starts the lane inside that street's surface, short of its center line), and that
-    point becomes a vertex of the street too, so the 5 cm grid snaps both to the same node."""
+    point becomes a vertex of the street too, so the grid snaps both to the same node."""
     out = [st.line for st in streets]
     others = [k for k, st in enumerate(streets) if st.kind != "impasse"]
     if len(others) == len(streets) or not others:
@@ -33,7 +31,7 @@ def center_lines(streets) -> list:
         h = others[int(tree.nearest(mouth))]
         d = streets[h].line.project(mouth)
         q = streets[h].line.interpolate(d)
-        if 0.0 < mouth.distance(q) <= streets[h].width / 2 + GRID:
+        if 0.0 < mouth.distance(q) <= streets[h].width / 2 + grid:
             out[k] = LineString([(q.x, q.y), *st.line.coords])
             cuts.setdefault(h, []).append(d)
     for h, ds in cuts.items():
@@ -51,20 +49,20 @@ def _with_vertices(line, ds: list):
     return LineString([allp[i] for i in order])
 
 
-def noded(streets) -> list:
+def noded(streets, grid: float) -> list:
     """(street index, LineString) of every piece between junctions, each running the way its street runs.
 
     A piece lying on several streets (a grid street left under a boulevard) belongs to the widest,
     the lowest index on a tie: the one drawn on top.
     """
-    centers = center_lines(streets)
-    snapped = [shapely.set_precision(line, GRID) for line in centers]
-    pieces = lines(shapely.unary_union([g for g in snapped if not g.is_empty], grid_size=GRID))
+    centers = center_lines(streets, grid)
+    snapped = [shapely.set_precision(line, grid) for line in centers]
+    pieces = lines(shapely.unary_union([g for g in snapped if not g.is_empty], grid_size=grid))
     tree = STRtree(snapped)
     out = []
     for piece in pieces:
         mid = piece.interpolate(0.5, normalized=True)
-        hits = sorted(tree.query(mid, predicate="dwithin", distance=GRID).tolist())
+        hits = sorted(tree.query(mid, predicate="dwithin", distance=grid).tolist())
         if not hits:
             hits = [int(tree.nearest(mid))]
         k = max(hits, key=lambda h: (streets[h].width, -h))
@@ -104,11 +102,11 @@ def _merged(pieces: list) -> list:
     return [pc for pc, ok in zip(pieces, alive) if ok]
 
 
-def street_graph(streets) -> tuple:
+def street_graph(streets, grid: float) -> tuple:
     """(nodes as (x, y) in first-use order, edges as (street index, LineString, node a, node b))."""
     index: dict = {}
     nodes, edges = [], []
-    for k, piece in _merged(noded(streets)):
+    for k, piece in _merged(noded(streets, grid)):
         ab = []
         for p in (piece.coords[0], piece.coords[-1]):
             if p not in index:
@@ -141,7 +139,7 @@ def road_links(world, plan, nodes: list) -> list:
 
 def streets_json(world, plan, ground) -> dict:
     """The street graph of one city; z of a node is the drawn street top there (`Ground.surface`)."""
-    nodes, edges = street_graph(plan.streets)
+    nodes, edges = street_graph(plan.streets, float(world.cfg["streets"]["graph_grid"]))
     xy = np.asarray(nodes, dtype=np.float64).reshape(-1, 2)
     z = np.asarray(ground.surface(xy[:, 0], xy[:, 1]), dtype=np.float64) if len(xy) else np.zeros(0)
     widths, _promoted, _parks = walk_widths(world.style, plan.districts, plan.streets, getattr(plan, "walks", []))

@@ -5046,7 +5046,7 @@ def _graph_parts(nodes: list, edges: list) -> dict:
 def test_street_graph_is_connected_and_its_edges_match_their_lines(world, plan):
     from shapely.geometry import Point
     from citygen.export.streets import road_links, street_graph
-    nodes, edges = street_graph(plan.streets)
+    nodes, edges = street_graph(plan.streets, float(world.cfg["streets"]["graph_grid"]))
     assert len(set(nodes)) == len(nodes) and len(edges) >= len(plan.streets)
     for k, line, a, b in edges:   # every edge's ends are nodes, and it runs along its street
         assert 0 <= a < len(nodes) and 0 <= b < len(nodes)
@@ -5085,3 +5085,21 @@ def test_streets_json_lists_nodes_on_the_drawn_street_and_measured_edges(world, 
     assert any(max(e["sidewalks"]) > 0.0 for e in edges)
     parts = _graph_parts(nodes, [(e["from"], e["to"], e["length"]) for e in edges])
     assert max(parts.values()) >= 0.995 * sum(parts.values())
+
+
+@pytest.mark.slow  # two processes plan the quick capital, about 20 s
+def test_streets_json_two_processes(tmp_path):
+    import os
+    import subprocess
+    import sys
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    code = ("import sys; from citygen.config import load_config; from citygen.world import generate_world; "
+            "from citygen.city import plan_city; from citygen.city.ground import Ground; "
+            "from citygen.export.streets import streets_json; from citygen.export.lore import write_json; "
+            "w = generate_world(load_config(quick=True)); p = plan_city(w, w.capital()); "
+            "write_json(sys.argv[1], streets_json(w, p, Ground(w, [p])))")
+    for name, seed in (("a", "1"), ("b", "2")):
+        subprocess.run([sys.executable, "-c", code, str(tmp_path / f"{name}.json")], cwd=root,
+                       env={**os.environ, "PYTHONHASHSEED": seed}, check=True, capture_output=True)
+    assert (tmp_path / "a.json").read_bytes() == (tmp_path / "b.json").read_bytes()
