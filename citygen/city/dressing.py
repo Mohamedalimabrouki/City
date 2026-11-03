@@ -660,12 +660,15 @@ class Dresser:
         spacing, least = float(cfg.get("spacing", 2.8)), float(cfg.get("wall", 1.8))
         well, scale = float(cfg.get("well_side", 4.0)), float(cfg.get("well_scale", 0.75))
         styles = cfg.get("style", [["shutter", 1.0]])
+        courts = self.world.style.get("courts", {})
+        party = float(courts.get("own", 0.3)) + float(courts.get("snug", 0.3)) + 0.05   # a court against a party
+        outline = orient(b.footprint, 1.0).exterior                  # wall: that wall stays blank (no draw)
         for hole in orient(b.footprint, 1.0).interiors:
             ring = np.asarray(hole.coords)[:-1, :2]
             size = scale if frame(Polygon(ring))[3] < well - 1e-6 else 1.0
             for a, c in zip(ring, np.roll(ring, -1, axis=0)):
                 length = float(np.hypot(*(c - a)))
-                if length < least:
+                if length < least or outline.distance(Point(*((a + c) / 2))) < party:
                     continue
                 u = (c - a) / length
                 yaw = yaw_of(np.array([u[1], -u[0]]))       # a court ring runs clockwise: out into the court

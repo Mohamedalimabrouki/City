@@ -584,7 +584,14 @@ def _coping(mb: MeshBuilder, b, band, z: float, z_top: float, roof: str | None =
     roof = b.roof if roof is None else roof
     if len(holes) != 1 or len(holes[0]) != len(outer):
         add_cap(mb, band, z_top, roof)                   # rare outline the offset could not pair
-        for hole in band.interiors:
+        courts = [Polygon(h) for h in b.footprint.interiors]
+        own = [any(Polygon(h).symmetric_difference(c).area < 1e-6 for c in courts) for h in band.interiors]
+        merged = any(own) and len(own) > 1
+        for hole, court in zip(band.interiors, own):
+            if merged:                   # a court against a party wall (47.2 round C) merged its parapet with
+                if not court:            # the outer one: the court's walls already rise to the coping, the
+                    add_walls(mb, hole.coords, z, z_top, b.wall, z)   # roof's inner face looks at the deck
+                continue
             add_walls(mb, hole.coords[::-1], z, z_top, b.wall, z)
         return
     inner = holes[0][::-1]                               # same direction as the counter-clockwise outer ring

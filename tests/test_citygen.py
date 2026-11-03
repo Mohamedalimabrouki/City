@@ -4543,3 +4543,35 @@ def test_allee():
     x0, x1 = allee(job, core, floor0, 1.65, 3.35, 2.0)
     assert x1 == 3.35 and abs(x0 - -0.825) < 1e-9               # the door, its clear and half a partition
     assert allee(job, core, floor0, -1.0, 3.35, 2.0) == (-1.0, 3.35)   # a door already inside: unchanged
+
+
+def test_court_against_a_party_wall():
+    """A narrow maison lot (7 x 16 m, street on y = 0) with no room for a patio clear of both party walls gets
+    a court against one party wall (`courts.against_for`): `own` m from it, `front` m or more from the street,
+    the other party walls against it too or `party` m away, every point lit; its footprint keeps the outer
+    ring exactly (a hole, the neighbours unchanged) and the floor round it stays one piece."""
+    from shapely.geometry import Polygon, box
+
+    from citygen.city.courts import against_for, courts_for, darkest
+    from citygen.city.openings import wall_arrays
+    cfg = {"reach": 6.5, "front": 4.0, "party": 2.4, "grid": 0.5, "min_dark": 1.0, "own": 0.3, "snug": 0.3,
+           "sizes": {"patio": [3.0, 7.0], "side": [2.4, 6.0]}}
+    for lot in (box(0, 0, 7, 16), Polygon([(0, 0), (7.5, 0), (7.1, 15), (0.2, 16)])):
+        p, q, _n, _length = wall_arrays(lot)
+        lit = (np.abs(p[:, 1]) < 1e-9) & (np.abs(q[:, 1]) < 1e-9)
+        assert courts_for(lot, lit, cfg, ["patio"]) == []
+        got = against_for(lot, lit, cfg, ["side"])
+        assert [k for k, _ in got] == ["side"]
+        court = got[0][1]
+        assert darkest(lot, lit, [court]) <= cfg["reach"] + 0.1
+        walls = [shapely.LineString([a, b]) for a, b in zip(p, q)]
+        d = [w.distance(court) for w in walls]
+        assert min(d) >= cfg["own"] - 1e-6 and abs(min(d) - cfg["own"]) < 1e-6
+        for dist, street in zip(d, lit):
+            if street:
+                assert dist >= cfg["front"] - 1e-6
+            else:
+                assert dist <= cfg["own"] + cfg["snug"] + 1e-6 or dist >= cfg["party"] - 1e-6
+        cut = Polygon(lot.exterior.coords, [court.exterior.coords])
+        assert cut.is_valid and list(cut.exterior.coords) == list(lot.exterior.coords)
+        assert lot.buffer(-0.3, join_style="mitre").difference(court.buffer(0.3, join_style="mitre")).geom_type == "Polygon"

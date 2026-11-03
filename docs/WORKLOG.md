@@ -86,6 +86,64 @@ Entry format:
   the chain run (`.venv-sdk/credit_chain.sh`, 10:42-13:12) stopped with "Credit balance is too low"
   (its session recorded about $42), so that route needs new credit first (checked 3 November).
 
+## 2026-11-03 - Open item 47.2, houses round (courts against a party wall)
+- Commit: (lead commits, after flats round D) | Model: Opus 5.5, high (houses helper in a worktree, about 1 h 50 min)
+- Changed: citygen/city/courts.py (`against_for`: a court against one party wall for a maison `courts_for`
+  leaves dark, with `_along`, `_choose`, `_one_piece`; `apply_courts` tries it after the plan's courts;
+  `lit_walls` takes `least`), citygen/city/dressing.py (`_court_windows`: a court wall whose middle lies within
+  `own` + `snug` + 0.05 m of the outer ring, the party side, stays blank; the skip comes before any draw),
+  citygen/mesh/tile.py (`_coping`: when a court's parapet merges with the outer one, the band's other hole walls
+  face the deck and the court ring is left to the court walls; only for a band with the court and another hole,
+  so every other outline keeps the old fallback), citygen/interior/spine.py (`against`: a maison's courts
+  against its outer wall, grown by their walls, for `court_cuts` mode "against"), citygen/interior/villa.py
+  (`halved`: a maison's chambre, salle a manger or salon over its `most` cut in two by `spine.halve`, as flats
+  do; `completed`: a floor 0 with no salon or a one-floor home with no chambre cuts one from its largest room),
+  styles/maghreb.toml (`[courts] against`, `own`, `snug`, `sizes.side`; `[interiors.villa] halve`, `complete`;
+  `[interiors.flats] court_cuts` maison = "against"), tests (`test_court_against_a_party_wall`, 0.1 s), SPEC
+  (massing courts, 6c villas and houses), HANDOFF, ROADMAP (47.2 noted, not ticked).
+- The rule (Ain Chilel's 194 deep maisons with no patio: lots 5-12 m wide, mostly 7-9 m): a rectangle along one
+  party wall, `own` 0.3 m from it, so the house keeps its own wall there: the court is a hole, the outer ring
+  stays exactly as it was (no street draw moves) and the neighbour's wall and its open-wall probe still meet
+  this house. The tile mesher draws every wall segment (no culling): the neighbour's wall stays hidden behind
+  the 0.3 m strip. The court stands `front` 4.0 m or more from every windowed wall (short ones included); every
+  other party wall is against it too (within `own` + `snug` 0.6 m: a back corner, a rear court across the lot)
+  or `party` 2.4 m away; the floor left round it stays one piece; sides 2.4-6.0 m (`side`), chosen as
+  `courts_for` chooses. Result: 183 maisons got one (135 against one party wall, mostly 2.4 x 2.4 m light wells,
+  some side patios up to 5.9 x 2.4 m; 48 in a back corner), 181 lit everywhere, 2 partly; 11 stay dark (a
+  corner 6.5-6.9 m from the windows of lots lit on 2-3 sides: no court 4 m from those walls).
+- Proof, city (per building, HEAD copy against the tree, Ain Chilel): 849 of 1,032 buildings identical; the 183
+  court houses change only their footprint (one hole, the outer ring unchanged) and placements (court windows,
+  own stream; in 57 a roof prop moved inside the new roof outline, as in round A). The quick capital has no
+  such maison: fingerprint 282 parts, 0 changed (no Blender refresh needed for the capital's .blend).
+- Counts with every check (HEAD -> now): maison 390 -> 485 of 616 (98 won, 3 lost: No. 473 couloir only through
+  a chambre, 683 a blind chambre on floor 0, 814 the cuisine only through a chambre; all three got a court),
+  villa 165 -> 166 of 178 (No. 266, by `completed`); court houses alone 79 -> 170 of 183. Every passing interior
+  0 `mesh.faults`, 0 step faults. Blind rooms in every maison plan: cuisines 73 -> 12, chambres 138 -> 59,
+  salles a manger 46 -> 28, salons 31 -> 3. Guard (`layout.dim`) on the 387 maisons passing in both: 246 -> 245.
+  Tried and removed: villa `redraws` 4 (no villa won, failing villas planned twice as long).
+- Times (CPU, HEAD and the tree alternated, two runs each): Ain Chilel's `plan_city` 1.03 -> 1.40-1.46 s (the new
+  courts); slowest maison No. 923 2.57 -> 2.61-2.68 s (plan unchanged, over 2 s already at HEAD); court houses
+  No. 628 1.25 -> 1.9 s, No. 473 0.29 -> 1.76 s (now fails, so planned again); villa No. 363 0.96 = 0.96 s.
+- Roof look: the merged parapet of these houses first rendered as thin see-through strips: `_coping`'s fallback
+  (outlines the offset cannot pair) draws every band hole's wall reversed, facing into the parapet; fixed only
+  where a court's parapet merges with the outer one (a first gate on any court hole also took a round A rim in
+  tile 13_23, caught by the fingerprint).
+- Checks: `pytest -q` 143 passed in 50.8 s; `-m slow` 5 passed, 1 xfailed; `build --quick`; fingerprint 0 changed.
+- Look: output/checks/472-h.png (in the helper's worktree: Ain Chilel's narrow maisons from above, before and
+  after: light wells against party walls with windows on their three house sides), output/checks/472-h-plans.png
+  (maisons No. 426, 453, 491: a 5.9 x 2.4 m side patio, a corner well with the cuisine and couloir on it, a corner
+  well lighting the back rooms of three floors).
+- Left: maison 485 -> 586 (the patio houses' blind chambres and salles a manger, 75 plans; a couloir or cuisine
+  only through a chambre, 49; rooms over their most, 17; `OPEN_472` No. 848, 851, 853, 864, 990, No. 639 and the
+  guard on No. 771 and 766 unchanged), villa 166 -> 170 (single faults), 11 narrow maisons still dark.
+- Lead (after the houses round): committed as progress, on top of flats round D (the two new tests were both
+  kept where they met at the end of the file). The lead's own survey (rooms.json hashes, every check, HEAD copy
+  against the helper's tree) agrees: maison 390 -> 485 (196 changed: 98 won, 3 lost), villa 165 -> 166 (No. 266
+  only), every capital home identical. Read the whole diff: no draws in the court rule, the party-side skip
+  comes before the court stream's draws, the interior steps are gated by layout. For a later round: count the
+  buildings whose parapet takes `_coping`'s fallback in the full capital and look at one before changing it
+  (a tiles change).
+
 ## 2026-11-03 - Open items 47.1 + 48.1 + 47.2, flats round D (floor-0 allee, the window limit)
 - Commit: (lead commits) | Model: Opus 5.5 (flats helper, in this folder; the houses helper in a worktree)
 - Changed: citygen/interior/flats.py (`allee`: floor 0's couloir from the street door to a core slid along the

@@ -88,6 +88,10 @@ def plan(interior, outside, style: dict, kind: str) -> None:
         if e is None:
             e = P.Entry(*region.representative_point().coords[0], 1.0, 0.0)
         cells = P.lay(job, largest(region), e, progs[f], f, (kind, f), hall=f == 0)
+        if kind in job.cfg.get("villa", {}).get("halve", ()):
+            halved(job, largest(region), cells, f)
+        if kind in job.cfg.get("villa", {}).get("complete", ()) and f == 0:
+            completed(job, largest(region), cells, f, floors)
         if landing is not None:
             landing = to_landing(job, cells, landing, f)
         rest = [Cellish(p) for p in parts(snap(region.difference(largest(region))))] if len(parts(region)) > 1 else []
@@ -115,6 +119,45 @@ def plan(interior, outside, style: dict, kind: str) -> None:
         D.ladder_up(job)
     P.finish(job)
     focus(job)
+
+
+def halved(job, region, cells: list, f: int) -> None:
+    """A house's chambres, salle a manger and salon over their `most` (a room wrapping a patio, a hall no
+    family would live in) cut in two (`spine.halve`, as flats have it), after the search (47.2 round C)."""
+    most = job.cfg.get("rooms", {}).get("most", {})
+    big = [c for c in cells if c.type in ("chambre", "salle_a_manger", "salon") and c.poly.area > float(most.get(c.type, 1e9))]
+    if not big:
+        return
+    spine = {"F": P.couloir_frame(job, region, f), "ways": [c.poly for c in cells if c.type in ("couloir", "hall")]}
+    for c in big:
+        P.halve(job, spine, cells, c, f)
+
+
+def completed(job, region, cells: list, f: int, floors: int) -> None:
+    """A floor 0 with no salon, or a one-floor home with no chambre, takes it from the largest day room,
+    cuisine or chambre cut in two (`spine.halve`: both halves windowed, each with a door's length on a way
+    in), as a small house has its few rooms (47.2 round C)."""
+    have = {c.type for c in cells}
+    want = [t for t in ("salon", "chambre") if t not in have and (t == "salon" or floors == 1)]
+    if not want:
+        return
+    spine = {"F": P.couloir_frame(job, region, f), "ways": [c.poly for c in cells if c.type in ("couloir", "hall")]}
+    for t in want:
+        donors = [c for c in cells if c.type in ("salon", "salle_a_manger", "cuisine", "chambre")]
+        for c in sorted(donors, key=lambda c: -c.poly.area):
+            if c.type == "chambre" and t == "chambre" or c.type == "salon" and t == "salon":
+                continue
+            if c.type == "chambre" and sum(x.type == "chambre" for x in cells) < 2 and t == "salon" and floors == 1:
+                continue                                  # the only chambre of a one-floor home stays one
+            old = c.poly
+            new = P.halve(job, spine, cells, c, f)
+            if new is None:
+                continue
+            if t == "chambre" or job.fits(new.poly, t):
+                new.type = t
+                break
+            c.poly = old                                  # the half is too small for a salon: undone
+            cells.remove(new)
 
 
 def to_landing(job, cells: list, landing, f: int):

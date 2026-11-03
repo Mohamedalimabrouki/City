@@ -914,8 +914,14 @@ party = 2.4                # meters between a court and a party wall: a kitchen 
 between = 3.0              # meters between two courts of one building
 grid = 0.5                 # meters: the search grid
 min_dark = 1.0             # m2: a footprint less dark than this gets no court
-sizes = { court = [4.0, 10.0], well = [2.4, 3.5], patio = [3.0, 7.0] }   # meters, smallest and largest side
+sizes = { court = [4.0, 10.0], well = [2.4, 3.5], patio = [3.0, 7.0], side = [2.4, 6.0] }   # meters, smallest and largest side
 plan = { colonial = ["court", "well", "well", "well", "well"], maison = ["patio"] }   # courts tried in turn
+# A lot too narrow for a court clear of both party walls (7-9 m maisons) gets one against a party wall, as
+# narrow Tunisian town houses have their patio, light well or rear court (`courts.against_for`): the house
+# keeps its own wall there, so its outer ring and its neighbours stay as they were.
+against = { maison = ["side"] }   # courts tried in turn when the plan's leave the footprint dark
+own = 0.3                  # meters: the house's own party wall left between such a court and its neighbour
+snug = 0.3                 # meters: another party wall this much farther away still counts as against the court
 
 # Flat roofs get a low wall around the edge (a parapet) and some of them a stair room,
 # a small room with a door that opens on the roof. Heights and shares by district kind.
@@ -1947,6 +1953,8 @@ carves = 2               # a home whose couloir or day room its entry reaches on
 carve_scrap = 2.0        # m2: a piece of the room left beside such a cut up to this joins the couloir (a nook)
 carve_tries = 6          # cuts tried per round (each checks the whole plan; time)
 bay_depth = 0.7          # meters: villas and maisons trade window bays as flats do ([interiors.flats] bay_depth; 0: never)
+halve = ["maison"]       # these houses cut a chambre, salle a manger or salon over its most in two, as flats do (47.2 round C)
+complete = ["villa", "maison"]   # a floor 0 with no salon, a one-floor home with no chambre, cuts one from its largest room (47.2 round C)
 
 [interiors.flats]   # flats in colonial blocks and slabs (SPEC 6c "Flats")
 types = [["S+1", 60.0], ["S+2", 100.0], ["S+3", 1e9]]   # flat type by area (m2, under; lead: moyen standing)
@@ -1961,7 +1969,7 @@ bay_depth = 0.7          # meters: a way and a room whose partition ends in a wi
 strip = [1.6, 3.0]       # a flat's room cut in two (over its most): neither part has more than this m2 (2nd) in parts narrower than this (m, 1st)
 way_swaps = 0            # a flat whose day rooms lie off its way in trades a day room with a chambre on it, up to this many tries (47.1 + 48.1 round 10; 0: the door rule only, as each try checks the whole block)
 blind_faults = { colonial = true, slab = true, villa = true, maison = true }   # the spine's search counts a blind chambre or salle a manger as a fault (the window check, 47.2 round B)
-court_cuts = { colonial = true }   # the spine cuts its bands at the ends of every court or light well they wrap (no L rooms round a court; a maison's 3 m patio keeps its L rooms, which the cuts left blind; 47.2 round B)
+court_cuts = { colonial = true, maison = "against" }   # the spine cuts its bands at the ends of every court or light well they wrap (no L rooms round a court; a maison's 3 m patio keeps its L rooms, which the cuts left blind; 47.2 round B); "against": only a narrow maison's court against a party wall (47.2 round C)
 blind_cap = { slab = 4, colonial = 4 }   # variants a flat's search tries at most while only blind rooms keep its best from passing (time, 47.2 round B)
 blind_join = { colonial = true, slab = true, villa = true, maison = true }     # a blind room-sized leftover cell of a lit home joins a room (or the way) rather than be a dark room (47.2 round B)
 deep_door = 0.3          # meters: a slab stair door whose top stands less than this over floor 0 opens into a sunken entry room

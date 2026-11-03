@@ -643,15 +643,29 @@ def courts(job, floor: int) -> list:
     return [shapely.Polygon(h) for h in st.polygon.interiors] if st is not None else []
 
 
+def against(job) -> list:
+    """The courts of the footprint standing against its outer wall (a narrow maison's, `courts.against_for`),
+    grown by their walls: the storey has them as notches, not holes (47.2 round C)."""
+    fp = job.outside.b.footprint
+    near = job.ext + job.court_wall + 0.05
+    out = []
+    for h in fp.interiors:
+        court = shapely.Polygon(h)
+        if court.distance(fp.exterior) < near:
+            out.append(court.buffer(job.court_wall, join_style="mitre"))
+    return out
+
+
 def court_cuts(job, poly, F: Frame, floor: int, b0: float, b1: float) -> list:
     """The cuts across a band at the ends of every court or light well it wraps, each nearest the court's edge
     line where its partition keeps clear of the openings, 1.2 m from the band's ends and from one another: the
     piece beside the court then reaches from the street wall to the court wall and no room wraps a corner
     (`[interiors.flats] court_cuts` by layout; 47.2 round B)."""
     out: list = []
-    if not job.cfg.get("flats", {}).get("court_cuts", {}).get(job.interior.layout, False):
+    mode = job.cfg.get("flats", {}).get("court_cuts", {}).get(job.interior.layout, False)
+    if not mode:
         return out
-    for court in courts(job, floor):
+    for court in (courts(job, floor) if mode is True else against(job)):
         if poly.distance(court) > 0.05:
             continue
         c0, _, c1, _ = F.bounds(court)

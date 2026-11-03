@@ -1042,6 +1042,17 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`, and how the le
   type trades), a plan with no draws cannot be redrawn, so the search's score does not predict the final plan.
   Kept only when it scored 1 or less, none was kept: their best scores were 2-20 (rooms missing, the walk, a
   hall under its least, sizes). A planner must reach clean plans by itself before it can replace the spine.
+- **Courts against a party wall** (47.2 houses round, `courts.against_for`): a narrow lot's court can stand
+  against a party wall and stay a hole: leave the house's own wall (`own` 0.3 m) between it and the
+  neighbour. The outer ring, the street draws and every neighbour's probe stay as they were; the interior
+  storeys merge the court wall with the party wall (a notch in the floor, no sliver, while `own` + `snug` stays
+  under two wall thicknesses), so the spine sees no hole: give it the footprint's courts (`spine.against`) for
+  its court cuts, which also kept the guard from growing (36 -> 51 strip or dark rooms without, 34 with, on the
+  court houses). The court's party-side wall stays blank (`_court_windows`), and the roof parapet becomes one
+  band with two holes, `_coping`'s fallback: look at the parapet in a picture (its hole walls were drawn
+  reversed). A grid mask cannot say "against this wall or 2.4 m away": enumerate rectangles in each party
+  wall's frame, test walls by distance, and try the candidates in the order of choice a chunk at a time,
+  smallest sizes first (Ain Chilel's plan 1.0 s -> about 1.4 s).
 
 ## Known weak spots
 

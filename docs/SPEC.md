@@ -267,7 +267,12 @@ block on `rng("impasse", block)`: lot line jitter, widths, covered share and len
   patio): the smallest that lights every dark point wins, else the one lighting the most. Footprints
   less dark than `min_dark` m2 keep none. The outer ring stays exactly as it was; a set-back top floor
   gets the same holes (the court stays open); a corner dome or turret keeps 1 m clear. Quick capital:
-  241 of 270 colonial blocks (224 main courts, 22 light wells); Ain Chilel: 293 of 616 maisons.
+  241 of 270 colonial blocks (224 main courts, 22 light wells); Ain Chilel: 293 of 616 maisons. A maison
+  whose lot is too narrow for a patio clear of both party walls (7-9 m) gets a court against one party wall
+  instead (`[courts] against`, `courts.against_for`): a light well or patio along a side wall, in a back
+  corner, or a rear court across the lot, `own` 0.3 m from the party wall (the house's own wall) so the
+  footprint keeps its outer ring; its party-side wall holds no window, its other walls a window on every
+  floor (Ain Chilel: 183 of the 194 left dark).
   Fortification fields (prompt 30, `city/kasbah.py`): `battlement` ({"chains", "breast", "merlon",
   "depth"}: a breastwork with merlons along each chain of the roof edge, the building's inside on the
   left; such a building gets no parapet from `roof_layout`) and `arches` ([(x, y, yaw, width, height,
@@ -1604,6 +1609,11 @@ Built (prompt 47, `interior/spine.py`, `interior/villa.py`). Rules the code sett
   room over its largest is narrowed and cut back. Cells left over join the room they share most with
   within its `largest` and `most`, else become rooms (a windowed one a chambre, a blind one beside the salon
   a salle a manger), else join the couloir; a nook under its minimum beside the stair box joins the palier.
+- A maison's spine cuts its bands at the ends of a court against a party wall (`[interiors.flats]
+  court_cuts` maison = "against", `spine.against`), so the rooms beside it reach from the street wall to the
+  court. A chambre, salle a manger or salon over its `most` is cut in two as a flat's is (`[interiors.villa]
+  halve`); a floor 0 with no salon, or a one-floor home with no chambre, takes one from its largest room when
+  both halves keep a window and a way in (`complete`; 47.2 houses round).
 - Programs (`[interiors.villa] programs` may replace them): villa floor 0 salon, salle a manger (over
   `dining_area`), cuisine, wc, chambres; maison floor 0 salon, cuisine, wc, chambres; upper floors chambre,
   sdb, chambres; one storey: salon, (salle a manger,) cuisine, chambre, sdb, (wc,) chambres. A maison gets a
