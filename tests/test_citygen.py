@@ -4575,3 +4575,50 @@ def test_court_against_a_party_wall():
         cut = Polygon(lot.exterior.coords, [court.exterior.coords])
         assert cut.is_valid and list(cut.exterior.coords) == list(lot.exterior.coords)
         assert lot.buffer(-0.3, join_style="mitre").difference(court.buffer(0.3, join_style="mitre")).geom_type == "Polygon"
+
+
+def test_kitchen_nook():
+    """A cuisine traded for a chambre on the way (`layout.way_home`, last trades only) leaves a 5.5 m2 nook
+    under a chambre's minimum: it joins the chambre beside it (`layout.nook`), its window and the room ids
+    following; never outside the last trades. Hand-made, 0.01 s (47.2 houses round 2)."""
+    from shapely.geometry import box
+
+    from citygen.interior.layout import nook
+    from citygen.interior.model import Interior, Opening, Room
+
+    it = Interior(1, "x", 1, 1, "house", "maison", "x", 0.0, 3.0, None, {})
+    cells = [("hall", box(0, 0, 3, 4)), ("chambre", box(3, 0, 7, 4)), ("chambre", box(3, 4, 5.5, 6.2))]
+    it.rooms = [Room(i, 0, t, p, 0.0, 3.0) for i, (t, p) in enumerate(cells)]
+    pairs = [(0, -1, "door"), (0, 1, "inner"), (1, 2, "inner"), (2, -1, "window")]
+    it.openings = [Opening(n, k, 0.0, 0.0, 0.0, 0.9, 0.0, 2.1, 0, (a, b)) for n, (a, b, k) in enumerate(pairs)]
+    it.rules = {"minimums": {"chambre": (8.0, 2.4)}, "largest": {}}
+    style = {"interiors": {"rooms": {"most": {"chambre": 36.0}}, "flats": {"strip": [1.6, 3.0]}}}
+    nook(it, style, it.rooms[2])
+    assert len(it.rooms) == 3                                       # not in the last trades: unchanged
+    it.nooks = True
+    nook(it, style, it.rooms[2])
+    assert [r.type for r in it.rooms] == ["hall", "chambre"] and abs(it.rooms[1].polygon.area - 21.5) < 1e-6
+    assert [o.rooms for o in it.openings] == [(0, -1), (0, 1), (1, -1)]   # the nook's inner door gone
+
+
+def test_relit_repartition():
+    """A blind chambre beside a chambre holding two windows: the pair is cut again so both keep a window and
+    a door's length on the couloir (`villa.repartition`, the cut nearest the middle first); a pair with one
+    window between them is left as it is. Hand-made, 0.01 s (47.2 houses round 2)."""
+    from types import SimpleNamespace as NS
+
+    from shapely.geometry import Point, box
+
+    from citygen.interior.cuts import width
+    from citygen.interior.villa import repartition
+
+    least = {"chambre": (8.0, 2.4)}
+    job = NS(door=0.9, half=0.05, clear=0.3, interior=NS(rules={"inner_clear": 0.15}),
+             fits=lambda p, t: p.area >= least[t][0] and width(p) >= least[t][1])
+    sun = [Point(1.0, 0.0), Point(7.0, 0.0)]
+    windows = lambda poly: sum(1 for p in sun if poly.distance(p) < 0.05)   # noqa: E731
+    pair, ways = box(0, 0, 8, 4), [box(0, 4, 8, 5.15)]
+    got = repartition(job, pair, "chambre", "chambre", ways, [], {"chambre": 36.0}, 1.6, 3.0, 0.25, windows)
+    assert got is not None and all(windows(p) == 1 and abs(p.area - 16.0) < 1e-6 for p in got)
+    sun.pop()
+    assert repartition(job, pair, "chambre", "chambre", ways, [], {"chambre": 36.0}, 1.6, 3.0, 0.25, windows) is None

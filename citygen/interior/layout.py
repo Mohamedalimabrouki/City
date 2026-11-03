@@ -69,6 +69,13 @@ def plan_interior(outside, style: dict) -> Interior:
         carve(interior, style)                        # (a plan the first carve saw: no second)
     if carved is not None and (check(interior) or dim(interior, style) > carved[1]):
         _hold(interior, carved[0])
+    if layout in style.get("interiors", {}).get("villa", {}).get("nooks", ()) and any(
+            f.endswith(WAY) for f in check(interior)):
+        interior.nooks = True                         # the last trade: a kitchen nook joins a chambre (`nook`)
+        try:
+            way_home(interior, style)
+        finally:
+            del interior.nooks
     interior.__dict__.pop("checked", None)
     return interior
 
@@ -372,6 +379,7 @@ def way_home(interior: Interior, style: dict) -> None:
         for a, b in (way_swaps(interior) if any(f.endswith(WAY) for f in bad) else [])[:tries]:
             ra, rb = (next(r for r in interior.rooms if r.id == i) for i in (a, b))
             ra.type, rb.type = rb.type, ra.type
+            nook(interior, style, ra)
             if way_doors(interior):
                 settle(interior)
             got = judge()
@@ -381,6 +389,32 @@ def way_home(interior: Interior, style: dict) -> None:
         if won is None:
             return
         _hold(interior, won)
+
+
+def nook(interior: Interior, style: dict, r) -> None:
+    """A day room traded for a chambre (`way_home`) that is too small for one (a 5-6 m2 kitchen nook) joins
+    the chambre beside it it shares most with, within the chambre's `most` and with no corridor-like arm
+    (`[interiors.flats] strip`): the bedroom gets the alcove (`[interiors.villa] nooks`: only in the
+    last trades of a plan whose way still faults after the redraws and carves, so every passing plan stays as
+    it was; 47.2 houses round 2)."""
+    from . import rooms as R
+    from .spine import strip
+    if not interior.__dict__.get("nooks"):
+        return
+    area_min, width_min = interior.rules["minimums"].get(r.type, (0.0, 0.0))
+    if r.polygon.area >= area_min - 1e-6 and R.width(r.polygon) >= width_min - 0.03:
+        return
+    most = float(style.get("interiors", {}).get("rooms", {}).get("most", {}).get(r.type, 1e9))
+    wide, thin = (float(v) for v in style.get("interiors", {}).get("flats", {}).get("strip", (1.6, 3.0)))
+    for _, n in sorted(R.neighbours(interior, r), key=lambda x: (-x[0], x[1].id)):
+        if n.type != r.type or n.floor != r.floor:
+            continue
+        poly = R.union(n.polygon, r.polygon)
+        if poly is None or poly.area > most or strip(poly, wide) > thin:
+            continue
+        if R.merge(interior, n, r):
+            R.renumber(interior)
+            return
 
 
 def _score(interior: Interior, bad: list) -> tuple:

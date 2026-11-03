@@ -92,6 +92,8 @@ def plan(interior, outside, style: dict, kind: str) -> None:
             halved(job, largest(region), cells, f)
         if kind in job.cfg.get("villa", {}).get("complete", ()) and f == 0:
             completed(job, largest(region), cells, f, floors)
+        if kind in job.cfg.get("villa", {}).get("relight", ()):
+            relit(job, cells, f)
         if landing is not None:
             landing = to_landing(job, cells, landing, f)
         rest = [Cellish(p) for p in parts(snap(region.difference(largest(region))))] if len(parts(region)) > 1 else []
@@ -158,6 +160,78 @@ def completed(job, region, cells: list, f: int, floors: int) -> None:
                 break
             c.poly = old                                  # the half is too small for a salon: undone
             cells.remove(new)
+
+
+def relit(job, cells: list, f: int) -> None:
+    """A blind chambre or salle a manger beside a room holding two windows or more: the partition between
+    them moved (the pair cut again across or along the pair's own sides) so both keep a window and a door's
+    length on the hall or couloir, each within its minimum and `most`, with no corridor-like arm and the
+    partition clear of the openings, as a planner gives each room a window (47.2 houses round 2)."""
+    from .cuts import shared, union
+    sun = P.lights(job, f)
+    most = job.cfg.get("rooms", {}).get("most", {})
+    wide, thin = (float(v) for v in job.cfg.get("flats", {}).get("strip", (1.6, 3.0)))
+    zones = job.zs([f])
+    step = float(job.cfg.get("villa", {}).get("relight_step", 0.25))
+    windows = lambda poly: sum(1 for p in sun if poly.distance(p) < 0.05)   # noqa: E731
+    for c in [c for c in cells if c.type in ("chambre", "salle_a_manger") and not windows(c.poly)]:
+        ways = [x.poly for x in cells if x.type in ("couloir", "hall")]
+        if not ways:
+            return
+        near = [x for x in cells if x is not c and x.type in ("salon", "salle_a_manger", "chambre", "cuisine")
+                and windows(x.poly) >= 2 and shared(x.poly, c.poly) >= P.need(job)]
+        for n in sorted(near, key=lambda x: (-shared(x.poly, c.poly), x.poly.area)):
+            u = union(n.poly, c.poly)
+            if u is None:
+                continue
+            got = repartition(job, u, n.type, c.type, ways, zones, most, wide, thin, step, windows)
+            if got is not None:
+                n.poly, c.poly = got
+                break
+
+
+def repartition(job, u, keep: str, other: str, ways: list, zones: list, most: dict, wide: float, thin: float,
+                step: float, windows):
+    """(keep's part, other's part) of `u` cut by one straight partition across or along its rotated
+    rectangle, the cut nearest the middle first; None when no cut keeps both rooms windowed, on a way,
+    within their minimum and most."""
+    import math
+    from shapely import affinity
+    from shapely.geometry import box
+    from .cuts import parts, shared, snap
+    from .spine import strip
+    rect = u.minimum_rotated_rectangle
+    xy = list(rect.exterior.coords)
+    angle = math.degrees(math.atan2(xy[1][1] - xy[0][1], xy[1][0] - xy[0][0]))
+    flat = affinity.rotate(u, -angle, origin=(0, 0))
+    x0, y0, x1, y1 = flat.bounds
+    tries = []
+    for axis, lo, hi in ((0, x0, x1), (1, y0, y1)):
+        n = int((hi - lo) / step)
+        for k in range(1, n):
+            tries.append((abs(k - n / 2), axis, lo + k * step))
+    back = lambda g: affinity.rotate(g, angle, origin=(0, 0))   # noqa: E731
+    for _, axis, at in sorted(tries):
+        if axis == 0:
+            a, b = box(x0 - 1, y0 - 1, at, y1 + 1), box(at, y0 - 1, x1 + 1, y1 + 1)
+        else:
+            a, b = box(x0 - 1, y0 - 1, x1 + 1, at), box(x0 - 1, at, x1 + 1, y1 + 1)
+        pa, pb = parts(snap(back(flat.intersection(a)))), parts(snap(back(flat.intersection(b))))
+        if len(pa) != 1 or len(pb) != 1:
+            continue
+        for mine, rest in ((pa[0], pb[0]), (pb[0], pa[0])):
+            if not (job.fits(mine, keep) and job.fits(rest, other)):
+                continue
+            if mine.area > float(most.get(keep, 1e9)) or rest.area > float(most.get(other, 1e9)):
+                continue
+            if not (windows(mine) and windows(rest)) or any(strip(x, wide) > thin for x in (mine, rest)):
+                continue
+            if any(max(shared(x, w) for w in ways) < P.need(job) for x in (mine, rest)):
+                continue
+            if R.clash_polys(mine, rest, zones, 2 * job.half):
+                continue
+            return mine, rest
+    return None
 
 
 def to_landing(job, cells: list, landing, f: int):

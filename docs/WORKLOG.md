@@ -86,6 +86,49 @@ Entry format:
   the chain run (`.venv-sdk/credit_chain.sh`, 10:42-13:12) stopped with "Credit balance is too low"
   (its session recorded about $42), so that route needs new credit first (checked 3 November).
 
+## 2026-11-03 - Open items 47.1 + 48.1 + 47.2, houses round 2 (the window count, kitchen nooks)
+- Commit: (lead commits) | Model: Opus 5.5, high (houses helper, worktree /tmp/claude-501/houses-r2, about 40 min)
+- Changed: citygen/interior/layout.py (`nook`: in `way_home`'s trades, a day room traded for a chambre that is
+  under a chambre's minimum, a 5-6 m2 kitchen nook, joins the chambre beside it, within its `most` and with no
+  corridor-like arm; only in a last `way_home` pass that `plan_interior` runs when the plan's way still faults
+  after the redraws and carves, so every passing plan stays byte-identical), citygen/interior/villa.py (`relit`,
+  `repartition`: a blind chambre or salle a manger beside a room holding two windows or more, the pair cut again
+  across or along its own sides so both keep a window and a door's length on the hall or couloir, each within its
+  minimum and `most`, the partition clear of the openings), styles/maghreb.toml (`[interiors.villa]` `nooks`,
+  `relight`, `relight_step`), tests (`test_kitchen_nook`, `test_relit_repartition`, 0.01 s each).
+- The window count (HEAD 13f452a, every failing plan, per floor: windows into the home's rooms against the
+  program's least and the plan's lit rooms, and the spare ones in ways, baths and second windows of a room):
+  maison 131 failing, 69 with a blind lit room: 10 have fewer windows on a floor than its program's least (No.
+  410, 476, 523, 552, 686, 743, 780, 819, 961, 1015), the other 59 have at least as many spare windows as blind
+  rooms on every floor (87 blind rooms; 138 windows in ways and baths, 143 second windows in a room), so a better
+  plan can light them. Villas: 1 of 12 failing has a blind room (No. 399), spare windows enough. The 62 maisons
+  without a blind room fail on the way (couloir or cuisine only through a chambre), sizes or the stair. For
+  houses the windows are rarely the limit (10 of 131); where the rooms lie is.
+- Measured and removed: the spine's variants all allowed in a failing house's redraw (48 instead of 18): +3
+  maisons at up to 9.3 s a plan; a blind room joined to a lit neighbour and halved: 0 won (the neighbour has one
+  window); a swapped cuisine over its most cut in two: 0 (its door is at the couloir end, its window at the
+  facade end); more carves (`carve_tries` 16, `carves` 3): 1 villa (No. 332), no maison.
+- Counts with every check (HEAD -> now): maison 485 -> 490 of 616 (won No. 490 by `relit`, 730, 745, 846, 936 by
+  `nook`; none lost; 10 changed in all, every passing plan identical), villa 166 -> 166. Every passing interior 0
+  `mesh.faults`, 0 step faults. The way faults: 41 of the 43 plans whose couloir is reached only through a
+  chambre have a couloir that touches neither the palier nor the hall (mostly floor 1: the spine's upper-floor
+  couloir misses the stair landing).
+- Times (CPU, HEAD and the tree alternated, 2 runs each): slowest maison No. 923 2.94 / 3.02 s both (plan
+  unchanged); No. 554 1.83 / 1.89 -> 2.15 / 2.11 s (still fails: the last trades plan it again); slowest villa
+  No. 363 0.99 / 1.02 -> 1.04 / 1.03 s.
+- Checks: `pytest -q` 146 passed in 48.7 s; `build --quick`; fingerprint 282 parts, 0 changed.
+- Look: output/checks/472-h2-plans.png (worktree /tmp/claude-501/houses-r2; before | after: No. 490 salon and
+  chambre cut again across the west windows, No. 730 and 936 the cuisine on the couloir, its nook joined to a
+  chambre).
+- Left: maison 490 -> 586: the blind rooms of patio houses (59 a better plan can light, 10 the windows cannot);
+  the way faults (couloir only through a chambre 32 plans, cuisine 12); tiny one-floor maisons with no chambre
+  (No. 526, 642, 726, 744, 985); chambres over their most (17). Villa 166 -> 170 (single faults).
+- Lead (after houses round 2): committed as progress. The lead's own survey agrees: maison 485 -> 490 (10 changed:
+  5 won, 0 lost), every villa and every capital home identical. Read the whole diff: both repairs are gated (the
+  nook only in the last pass on plans that still fault, `relit` by layout), no draws. Next for houses: an
+  upper-floor couloir that starts at the landing (41 plans), then a patio-house planner (couloir on the blind
+  side, rooms on the patio and the street), judged by the houses it passes.
+
 ## 2026-11-03 - Prompt 51 H2 Furnishing: the design
 - Commit: (lead commits) | Model: Opus 5.5, high (design helper in a worktree, about 23 minutes; the lead
   reviewed and committed)

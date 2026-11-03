@@ -1614,6 +1614,12 @@ Built (prompt 47, `interior/spine.py`, `interior/villa.py`). Rules the code sett
   court. A chambre, salle a manger or salon over its `most` is cut in two as a flat's is (`[interiors.villa]
   halve`); a floor 0 with no salon, or a one-floor home with no chambre, takes one from its largest room when
   both halves keep a window and a way in (`complete`; 47.2 houses round).
+- A blind chambre or salle a manger beside a room with two windows or more: the pair is cut again by one
+  straight partition (across or along its rotated rectangle, nearest the middle first) when both keep a window
+  and a door's length on the hall or couloir, each within its minimum and `most` and the partition clear of
+  the openings (`[interiors.villa] relight`). A plan whose way still faults after the redraws and carves trades
+  its day rooms once more, a day room traded for a chambre too small for one (a kitchen nook) joining the
+  chambre beside it within its `most` (`nooks`; 47.2 houses round 2).
 - Programs (`[interiors.villa] programs` may replace them): villa floor 0 salon, salle a manger (over
   `dining_area`), cuisine, wc, chambres; maison floor 0 salon, cuisine, wc, chambres; upper floors chambre,
   sdb, chambres; one storey: salon, (salle a manger,) cuisine, chambre, sdb, (wc,) chambres. A maison gets a

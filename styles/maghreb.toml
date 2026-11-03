@@ -1948,12 +1948,15 @@ rhythm = [3.6, 3.2, 2.8, 2.5]   # meters between the cuts across the couloir, tr
 dining_area = 110.0      # m2: a villa's floor 0 over this has a salle a manger
 largest = { cuisine = 16.0, sdb = 8.0, wc = 3.0 }   # m2: a bigger cell gives the service its couloir end
 redraws = 1              # a villa or maison the plan check faults is planned again with fresh draws up to this many times (47.1 round 8; 2 until round 11: the second won 1 maison for 0.6 s)
+nooks = ["villa", "maison"]   # a day room traded for a chambre too small for one joins the chambre beside it (47.2 houses round 2)
 way_swaps = 6            # a home whose day rooms lie off its way in trades a day room with a chambre on it, up to this many tries (47.1 + 48.1 round 10)
 carves = 2               # a home whose couloir or day room its entry reaches only through a chambre, cuisine or sdb gets up to this many couloirs cut through one (47.1 + 48.1 round 11)
 carve_scrap = 2.0        # m2: a piece of the room left beside such a cut up to this joins the couloir (a nook)
 carve_tries = 6          # cuts tried per round (each checks the whole plan; time)
 bay_depth = 0.7          # meters: villas and maisons trade window bays as flats do ([interiors.flats] bay_depth; 0: never)
 halve = ["maison"]       # these houses cut a chambre, salle a manger or salon over its most in two, as flats do (47.2 round C)
+relight = ["villa", "maison"]    # a blind chambre or salle a manger and a room beside it holding two windows or more are cut again so both keep one (47.2 houses round 2)
+relight_step = 0.25      # meters between the partitions tried
 complete = ["villa", "maison"]   # a floor 0 with no salon, a one-floor home with no chambre, cuts one from its largest room (47.2 round C)
 
 [interiors.flats]   # flats in colonial blocks and slabs (SPEC 6c "Flats")

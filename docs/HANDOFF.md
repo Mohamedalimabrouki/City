@@ -1053,6 +1053,18 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`, and how the le
   reversed). A grid mask cannot say "against this wall or 2.4 m away": enumerate rectangles in each party
   wall's frame, test walls by distance, and try the candidates in the order of choice a chunk at a time,
   smallest sizes first (Ain Chilel's plan 1.0 s -> about 1.4 s).
+- **Count the windows before planning** (47.2 houses round 2): per failing house and floor, windows into home
+  rooms against the program's least and the plan's lit rooms, and the spare ones (in ways and baths, second ones
+  in a room) against the blind rooms. For Ain Chilel's maisons the windows bind only 10 of 131 failing plans; 59
+  have spare windows enough, taken by couloirs and halls (patio houses: the couloir runs along the patio and takes
+  its window) or doubled in one room. Local repairs on the spine's cells (join and halve, re-cut a pair) win
+  little (5 houses), because the lit neighbour usually has one window and the blind room is a whole band away from
+  the facade. The next win is a planner for patio houses that lays the couloir on the blind side (the party walls)
+  and the rooms round the patio and on the street, judged by the houses it passes.
+- **A repair run last keeps every passing plan** (47.2 houses round 2): a trade or merge that runs inside the
+  first stages also makes some first plans pass that the redraw used to replace by better ones (the dark-room
+  guard got worse on 4 houses); run it only in a last pass on plans that still fail, and passing plans stay
+  byte-identical.
 - **Furnishing design** (prompt 51, SPEC 6d): facts that shaped it. Furniture is interior-only: if its
   pieces went into `kit.make_kit`, every build would make them, the fingerprint would list them and their
   materials would need `[palette]`; as `home/<piece>` in `citygen/interior/` (out of the build key) no tile
