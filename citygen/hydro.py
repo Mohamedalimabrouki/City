@@ -315,7 +315,8 @@ def _smooth(xy, w, z, rounds: int = 2) -> tuple:
 
 
 def _snap(xy, z, main_xy, main_z) -> tuple:
-    """A tributary ends on its main river's smoothed line, never below the main river's bed there."""
+    """A tributary ends on its main river's smoothed line. Its last height is the main bed there, unless
+    the point before is lower: the profile never rises, so then it ends below the main bed."""
     line = LineString(main_xy)
     s = line.project(Point(xy[-1]))
     p = line.interpolate(s)
