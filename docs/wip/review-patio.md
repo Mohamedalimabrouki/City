@@ -48,15 +48,17 @@ is WKB bytes plus sorted `need`. Float positions are rounded to 3 decimals.
 - The pass keeps a plan only when the whole `check` is empty (layout.py:422), stricter than `again`: it cannot
   add a fault, so no bar can drop; per the notes, maison passing 499 -> 500, villa 167 identical, 0 mesh/step
   faults, fingerprint 0 changed.
-- SPEC: nothing in SPEC 6c describes round 6 yet (add a line when merged). Open question not checked in time:
-  SPEC line 1426 "a maison's 3 m patio keeps its L rooms"; the straight cuts here never make L rooms, so check
-  that a replanned upper floor beside a court still meets that rule (No. 509 picture: the sdb is a
-  1.4 x 6.5 m strip across the floor, mediocre, per the branch notes).
+- SPEC: nothing in SPEC 6c describes round 6 yet (add a line when merged). SPEC lines 1418-1426: the window
+  rule (a window on the street, a court or a light well; sdb and wc may stay blind) is enforced, since the pass
+  keeps only a plan the full check passes and `kinds()` (patio.py:78) puts no living room on an unlit piece;
+  "no room wraps a court's corner" is a colonial-band rule and "a maison's 3 m patio keeps its L rooms", so the
+  slabs here (L-shaped where the region has a notch) break no SPEC rule. Quality note from the branch notes:
+  No. 509's sdb is a 1.4 x 6.5 m strip across the floor (legal, mediocre; the notes' next step (2) fixes it).
 
 ## Left (time ran out)
 Run: `pytest -q -k "patio_house or little_house"` on this branch: 2 passed in 1.9 s. Not run: the full suite, the
 patio test on the parent (it fails there trivially: patio.py does not
-exist), the court-L rule on No. 509.
+exist), a look at No. 509 in 3D.
 
 ## Also checked (no finding)
 - `layout.check` memo (layout.py:594-607) keys on an md5 of the pickled HELD state + `full0`; the `patio` flag
