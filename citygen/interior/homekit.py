@@ -1,7 +1,7 @@
 """The home kit (prompt 52, SPEC 6d "The home kit"): the furniture of interiors as kit pieces `home/<piece>`.
 
 Made on demand for one seed and style (cached), never by `kit.make_kit`: no tile, build or fingerprint
-part changes. Each piece module (`kit_old`, later `kit_new` and `kit_life`) exports
+part changes. Each piece module (`kit_old`, `kit_new`, later `kit_life`) exports
 `pieces(seed, cfg) -> {name: (MeshBuilder, category, anchor, spec)}`; `home_kit` turns them into
 `kit.Piece`s (source `procedural`, glTF axes) and `HomeSpec`s. Parts keep UVs only for textured
 materials (their palette entry names a texture); plain colors need none (HANDOFF prompt 29: bytes).
@@ -12,9 +12,9 @@ import json
 from dataclasses import dataclass
 
 from ..kit import Piece
-from . import kit_old
+from . import kit_new, kit_old
 
-MODULES = (kit_old,)
+MODULES = (kit_old, kit_new)
 LIGHT = "light"   # category whose pieces get an `_on` twin (`lamp_glass` as `lamp_glow`)
 
 

@@ -89,6 +89,8 @@ SIZES = {**{b: row[2] for b, row in TABLE.items()}, **VARIANT_SIZES}   # `[inter
 VELVET = {"red": "velvet_red", "green": "velvet_green", "blue": "velvet_blue", "gold": "velvet_gold"}
 PAINTED = {"green": "wood_painted_green", "red": "wood_painted_red", "walnut": "wood_walnut"}
 RUG_Z = 0.005   # rugs lie this far over the floor
+REPEAT = {"klim_red": (1.4, 2.2), "klim_indigo": (1.4, 2.2), "mergoum": (1.2, 2.0), "zarbia": (2.0, 3.0),
+          "sajjada": (0.65, 1.15)}   # their `texture_size`: the UVs span exactly one repeat (prompt 53 fix)
 
 
 # --- helpers ------------------------------------------------------------------------------------------
@@ -216,7 +218,7 @@ def _disc(mb: MeshBuilder, r: float, z: float, segments: int, mat: str) -> None:
 
 def _rug(mb: MeshBuilder, w: float, d: float, h: float, mat: str, repeat=None) -> None:
     """A flat rug 0.005 m over the floor: its top and four edges (10 triangles). `repeat` (meters of one
-    image repeat) maps the whole rug to exactly one repeat; else meter UVs."""
+    image repeat, its `texture_size`) maps the whole rug to exactly one repeat; else meter UVs."""
     x0, x1, y0, y1, z0, z1 = -w / 2, w / 2, -d / 2, d / 2, RUG_Z, RUG_Z + h
     tmp = MeshBuilder()
     _box(tmp, x0, x1, y0, y1, z0, z1, mat)
@@ -822,7 +824,7 @@ def tabouna(s, v, rng):
 def rug(base: str, mat: str, repeat: bool):
     def make(s, v, rng):
         mb = MeshBuilder()
-        _rug(mb, s[0], s[1], s[2], mat, (1.0, 1.0) if repeat else None)
+        _rug(mb, s[0], s[1], s[2], mat, REPEAT[mat] if repeat else None)
         return mb
     return make
 
@@ -830,7 +832,7 @@ def rug(base: str, mat: str, repeat: bool):
 def klim(s, v, rng):
     mat = "klim_indigo" if v.endswith("indigo") else "klim_red"
     mb = MeshBuilder()
-    _rug(mb, s[0], s[1], s[2], mat, (1.0, 1.0))
+    _rug(mb, s[0], s[1], s[2], mat, REPEAT[mat])
     return mb
 
 

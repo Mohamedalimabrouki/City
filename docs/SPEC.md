@@ -2121,6 +2121,23 @@ makhzen and qahwa).
 | `chicha` | small | floor | 0.25 x 0.25 x 0.75 | 100 | `glass_inner`, `brass` | qahwa shelf and tables, full |
 | `crate_stack` | storage | wall | 0.60 x 0.40 x 0.90 | 40 | `wood_beech` | makhzen (also the city's `fruit_crate`) |
 
+Built in prompt 53 (`interior/kit_new.py`, 54 bases, 95 pieces with their variants, each within its tris,
+7,700 triangles; the whole home kit 166 pieces, 13,500 triangles): the rules the code settled. Variant
+suffixes: `sofa_*` and `armchair` `_beige`/`_grey`/`_red`, `sedari_red`/`_green`/`_blue`, `tv_flat_large`/`_small`,
+`buffet_walnut`/`_modern`/`_carved`, `dining_table_4`/`_6`/`_8`, `bed_double_140_mink` (and `_140_white`,
+`_160_mink`, `_160_white`), `wardrobe_2`/`_3`/`_4`/`_mirror`, `water_heater_gas`/`_electric`,
+`rug_floral_medium`/`_large`, `shop_counter_hanout`/`_cafe` (the qahwa's has a zellige front and a chrome foot
+rail; `espresso` stays its own `on` piece), `shop_shelves_grocer` and one per souk trade
+(`shop_shelves_spices`... `_cloth`, the seven of `mesh/props.SHOP_GOODS`). `kitchen_sink` is 1.12 m high: its
+tap rises over the 0.90 m worktop (`top` 0.90). Doors and drawers stand a little proud of a carcass whose
+front shows darker (`worktop` on kitchen units, `plastic_grey` on the fridge), so the gaps read as lines.
+Book and goods rows map one image row to one shelf space: `spines` is 0.28 m and `goods` 0.32 m tall
+(`texture_size` v, `kit_new.TEX_H`), the row's top face shows the image's foot; the souk trades' shelves
+use materials `goods_<trade>` (the one `goods` image tinted by the trade's colour). Stretch pieces scale
+their x, so a long `kitchen_run` has wide doors and a long `shop_shelves` wide goods (prompt 54 may set
+runs of 1 m units instead). The chicha's base is `glaze_green` (green glass: `glass_inner` is all but
+invisible). The bunk bed's ladder stands at its +x side near the foot.
+
 **Catalog: light, wall textiles, plants and clutter** (prompt 55; any era unless tagged).
 
 | Piece `home/...` | Cat | Anchor | W x D x H | Tris | Materials | Variants, and who gets them |

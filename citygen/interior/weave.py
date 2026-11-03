@@ -1,4 +1,4 @@
-"""Textile and painted-wood images of the home kit (prompt 52, SPEC 6d "Textures and materials").
+"""Textile, painted-wood, book and goods images of the home kit (prompts 52 and 53, SPEC 6d "Textures and materials").
 
 256 px colored images that tile seamlessly, like `mesh/textures._zellige` (the palette entry naming one is
 white: the image holds the colors). Each draws only on `stream(seed, "texture", name)`; its numbers and
@@ -268,8 +268,121 @@ def _mink(rng, n: int, s: dict) -> np.ndarray:
     return out * plush[:, :, None]
 
 
+def _rug_floral(rng, n: int, s: dict) -> np.ndarray:
+    """The machine-made rug of modern salons (one repeat per rug): a red field strewn with small flowers,
+    a navy medallion with a cream ring and a red heart, navy corner pieces, and a wide navy border of
+    rosettes between cream guard lines (its rosettes repeat every 32 px, so the border meets itself)."""
+    x, y = _grid(n)
+    field, navy, guard, flower, leafc, rose = (_col(s, k) for k in ("field", "navy", "guard", "flower", "leaf", "rose"))
+    out = np.ones((n, n, 3)) * field
+    bw = n * float(s.get("border", 0.12))
+    edge = np.minimum(np.minimum(x, n - x), np.minimum(y, n - y))
+    petal, heart, leaf = _flowers(rng, n, int(s.get("flowers", 60)), n * 0.022, n * 0.034, 6)
+    field_zone = edge > bw + 3
+    out = _paint(out, leaf & field_zone, leafc)
+    out = _paint(out, petal & field_zone, flower)
+    out = _paint(out, heart & field_zone, rose)
+    m = (np.abs(x - n / 2) / (n * 0.20)) ** 1.4 + (np.abs(y - n / 2) / (n * 0.28)) ** 1.4   # the medallion
+    out = _paint(out, m < 1.0, navy)
+    out = _paint(out, (m > 0.78) & (m < 0.88), guard)
+    out = _paint(out, m < 0.45, rose)
+    out = _paint(out, m < 0.18, guard)
+    corner = np.hypot(np.minimum(x, n - x) - bw, np.minimum(y, n - y) - bw) < n * 0.13
+    out = _paint(out, corner & field_zone, navy)
+    out = _paint(out, edge < bw, navy)
+    along = np.where(np.minimum(x, n - x) < np.minimum(y, n - y), y, x)
+    ros = np.hypot(((along % 32) - 16), edge - bw / 2)
+    out = _paint(out, (edge < bw) & (ros < bw * 0.32), rose)
+    out = _paint(out, (edge < bw) & (ros < bw * 0.12), guard)
+    out = _paint(out, (np.abs(edge - bw) < 1.3) | (np.abs(edge - bw * 0.15) < 1.0), guard)
+    return _woven(rng, out, s, 2.0)
+
+
+def _items(rng, n: int, lo: float, hi: float) -> list:
+    """Column edges of items side by side across the image: widths drawn between lo and hi px, scaled
+    so the last edge is the image's (the columns wrap at an item's edge)."""
+    widths = []
+    while sum(widths) < n:
+        widths.append(float(rng.uniform(lo, hi)))
+    edges = np.round(np.cumsum([0.0] + widths) * n / sum(widths)).astype(int)
+    return [(int(a), int(b)) for a, b in zip(edges[:-1], edges[1:]) if b > a]
+
+
+def _palette(s: dict) -> list:
+    return [_hex(str(s[k])) for k in sorted(s) if k.startswith("color_")]
+
+
+def _spines(rng, n: int, s: dict) -> np.ndarray:
+    """Book backs standing on a shelf (one row per image, its top the row's top): widths and heights drawn
+    on the stream, cloth colours, a gold band or two on some, a pale label on others, each back rounded by
+    its shading, the dark of the shelf above the shorter ones."""
+    x, y = _grid(n)
+    colors = _palette(s)
+    gold, label = _col(s, "gold"), _col(s, "label")
+    out = np.ones((n, n, 3)) * _col(s, "gap")
+    for x0, x1 in _items(rng, n, float(s.get("wmin", 7)), float(s.get("wmax", 20))):
+        top = n * (1.0 - float(rng.uniform(float(s.get("hmin", 0.7)), 0.98)))
+        col = colors[int(rng.integers(len(colors)))] * float(rng.uniform(0.8, 1.1))
+        inside = (x >= x0) & (x < x1 - 0.5) & (y >= top)
+        tone = 1.0 - 0.35 * ((x - (x0 + x1) / 2) / max((x1 - x0) / 2, 1.0)) ** 2
+        book = col * tone[:, :, None]
+        kind = int(rng.integers(3))
+        span = n - top
+        if kind == 0:
+            for f in (0.10, 0.85):
+                book = np.where((np.abs(y - (top + span * f)) < 1.6)[:, :, None], gold * tone[:, :, None], book)
+        elif kind == 1:
+            book = np.where(((y > top + span * 0.25) & (y < top + span * 0.50) & (x > x0 + 2) & (x < x1 - 2.5))[:, :, None],
+                            label * tone[:, :, None], book)
+        out = np.where(inside[:, :, None], book, out)
+    grain = 1.0 + 0.08 * s["mottle"] * (_noise(rng, n, 16, 2) - 0.5) * 2.0
+    return out * grain[:, :, None]
+
+
+def _goods(rng, n: int, s: dict) -> np.ndarray:
+    """A shelf row of a grocer's goods (one row per image): boxes, tins and bottles side by side on the
+    row's foot, each with a pale label or band, tins with a light rim, bottles with a neck and cap, the
+    dark of the shelf's back between them."""
+    x, y = _grid(n)
+    colors = _palette(s)
+    label, cap = _col(s, "label"), _col(s, "cap")
+    out = np.ones((n, n, 3)) * _col(s, "back")
+    run, left = [], 0
+    for x0, x1 in _items(rng, n, float(s.get("wmin", 14)), float(s.get("wmax", 34))):
+        if left <= 0:      # a facing of two to four of the same product
+            kind = int(np.searchsorted([0.45, 0.75], rng.uniform()))   # boxes, tins, bottles
+            run = [kind, colors[int(rng.integers(len(colors)))], float(rng.uniform(0.45, 0.92))]
+            left = int(rng.integers(2, 5))
+        left -= 1
+        kind, col, hf = run
+        a, b = x0 + 1, x1 - 1
+        top = n * (1.0 - hf * (0.62 if kind == 1 else 1.0))
+        cx, half = (a + b) / 2, max((b - a) / 2, 1.0)
+        tone = (1.0 - 0.30 * ((x - cx) / half) ** 2)[:, :, None] if kind else 1.0 - 0.10 * ((x - cx) / half > 0.6)[:, :, None]
+        if kind == 2:      # a bottle: a narrower neck over the top third, a cap
+            neck = top + (n - top) * 0.32
+            body = (x >= a) & (x < b) & (y >= neck)
+            nk = (np.abs(x - cx) < half * 0.35) & (y >= top) & (y < neck)
+            capm = (np.abs(x - cx) < half * 0.40) & (y >= top - 3) & (y < top + 2)
+            out = np.where((body | nk)[:, :, None], col * tone, out)
+            out = np.where(((y > neck + (n - neck) * 0.35) & (y < neck + (n - neck) * 0.65) & body)[:, :, None], label * tone, out)
+            out = np.where(capm[:, :, None], cap * tone, out)
+            continue
+        item = (x >= a) & (x < b) & (y >= top)
+        out = np.where(item[:, :, None], col * tone, out)
+        if kind == 1:      # a tin: a light rim, a label band
+            out = np.where((item & (y < top + 2.5))[:, :, None], cap * tone, out)
+            out = np.where((item & (y > top + (n - top) * 0.30) & (y < top + (n - top) * 0.75))[:, :, None], label * tone, out)
+        else:              # a box: a label panel
+            out = np.where((item & (y > top + (n - top) * 0.20) & (y < top + (n - top) * 0.45) & (x > a + 2) & (x < b - 2))[:, :, None],
+                           label * tone, out)
+    grain = 1.0 + 0.06 * s["mottle"] * (_noise(rng, n, 16, 2) - 0.5) * 2.0
+    return out * grain[:, :, None]
+
+
 MAKERS = {"klim_red": _klim, "klim_indigo": _klim, "mergoum": _mergoum, "zarbia": _zarbia, "hasira": _hasira,
-          "ticking": _ticking, "painted": _painted, "sajjada": _sajjada, "mink": _mink}
+          "ticking": _ticking, "painted": _painted, "sajjada": _sajjada, "mink": _mink,
+          "rug_floral": _rug_floral, "spines": _spines, "goods": _goods}
 
 
 def texture(name: str, seed: int, spec: dict | None = None) -> Image.Image:

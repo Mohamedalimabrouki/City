@@ -96,6 +96,34 @@ Entry format:
   the chain run (`.venv-sdk/credit_chain.sh`, 10:42-13:12) stopped with "Credit balance is too low"
   (its session recorded about $42), so that route needs new credit first (checked 3 November).
 
+## 2026-11-03 - Prompt 53 H2b Modern furniture pieces
+- Commit: (lead commits) | Model: Opus 5.5, high (helper in worktree wip/furn-53; the lead reviewed and committed)
+- Changed: new citygen/interior/kit_new.py (54 bases, 95 pieces with variants: salon set, sedari, TV stand, flat
+  and CRT sets, receiver, buffet, dining set, plastic table and chair, kitchen run, sink, cooker, fridge, wall
+  cabinet, microwave, formica table, the bedroom set, children's beds and desk, bookcase, piano, wc, basin,
+  mirror, shower, bathtub, water heaters, washing machine, drying rack, hall pieces, rugs, the hanout's counter,
+  shelves, scale and drinks fridge, the qahwa's espresso machine, football screen and chicha, crates);
+  interior/homekit.py (`MODULES` += kit_new); interior/weave.py (rug_floral, spines, goods); interior/kit_old.py
+  (fix: one-repeat rugs mapped 0..1 UVs, but the glTF writer divides UVs by `texture_size`, so the zarbia showed a
+  quarter of its pattern and the sajjada 1.5 arches; `REPEAT` now holds their texture_size); styles/maghreb.toml
+  ([interiors.palette] 10 plain + spines, goods, rug_floral and 7 `goods_<trade>` tints; [interiors.textures] 3
+  images); tests/test_homekit.py (`test_home_pieces_modern`, `test_home_kit_budget`, the 3 new images); SPEC 6d.
+- Checks: `pytest -q` 152 passed in the helper's tree (the home-kit tests about 4.5 s with the shared kit setup;
+  the slow determinism test passes); `build --quick`; fingerprint `--allow ""`: 282 parts, 0 changed. Home sheet
+  glb 1,418,160 bytes (was 738,588). Triangles: modern pieces 7,673 (95, each within budget); the home kit 13,460
+  (166 pieces) of 60,000.
+- Choices the SPEC left open: `kitchen_sink` H 1.12 m (its tap) with `top` 0.90 m; the chicha's base `glaze_green`
+  (a transparent `glass_inner` nearly vanishes).
+- Look: output/checks/53.png and 53-<piece>.png frames (worktree /tmp/claude-501/furn-53); contact sheets in the
+  session scratchpad (hj_a, hj_b, hj_c, hj_rugs).
+- Open for prompt 54: stretch pieces scale x, so a 4 m `kitchen_run` has 2 m doors and a 4 m `shop_shelves` 4x-wide
+  goods: place runs of 1 m units instead of stretching far (SPEC 6d says so). `before_after --frame home/<piece>`
+  does not always centre the named piece. The longer home sheet shows coarse golden-hour shadow edges (viewer).
+- Lead: looked at the contact sheets (the salon set, sedari, buffet behind glass, cooker, fridges, double beds with
+  the mink blanket, bunk beds, cot, desk and the bookcase read clearly; the goods rows are rough) and read the
+  `REPEAT` fix against the glTF writer's UV rule (meters over `texture_size`): right; it changes only the home
+  sheet's bytes.
+
 ## 2026-11-03 - Open item 47.2, flats round E (types follow the windows, the bay planner)
 - Commit: (lead commits) | Model: Opus 5.5, high (flats helper, worktree /tmp/claude-501/flats-e, about 55 min)
 - Changed: citygen/interior/program.py (`bays`, `flat_type`, `flat_lit`: a flat's window bays, windows on one

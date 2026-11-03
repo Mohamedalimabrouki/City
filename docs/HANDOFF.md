@@ -1095,6 +1095,16 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`, and how the le
   (rectangles, windows front and back) reach clean plans (233/353 blocks); colonial flats are 3-7 m deep L and U
   strips round the court, where a couloir beside a chambre needs 3.55 m and must turn the corners: the next
   colonial planner has to walk the ring.
+- **Modern home kit pieces** (prompt 53, `interior/kit_new.py`): doors and drawers read when they stand 1.5-2 cm
+  proud of a carcass whose front is a darker material (`worktop` behind kitchen doors, `plastic_grey` behind fridge
+  doors): the gaps show as lines with no extra geometry. A row of books or goods is one textured box face whose
+  UVs map exactly one image row onto one shelf space (`_row`: the material's texture_size v equals the row height);
+  its top face samples the image's foot so it shows the items' colours, not the dark gap. UVs are meters divided by
+  `texture_size` in the glTF writer: a "one repeat per rug" mapping must span texture_size, not 0..1 (prompt 52's
+  rugs had it wrong). Things that rise over a piece's nominal height (the sink's tap) must be in its H, or the
+  bounds test fails: give the piece its full H and set `top` to the working surface. A strongly transparent glass
+  vanishes in a z-buffer contact sheet and nearly in the viewer: a glass part that must read takes a coloured
+  glossy material.
 - **Furnishing design** (prompt 51, SPEC 6d): facts that shaped it. Furniture is interior-only: if its
   pieces went into `kit.make_kit`, every build would make them, the fingerprint would list them and their
   materials would need `[palette]`; as `home/<piece>` in `citygen/interior/` (out of the build key) no tile

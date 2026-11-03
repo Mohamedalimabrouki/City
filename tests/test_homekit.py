@@ -1,4 +1,4 @@
-"""The home kit of interiors (prompt 52, SPEC 6d): traditional pieces and their woven images."""
+"""The home kit of interiors (prompts 52 and 53, SPEC 6d): traditional and modern pieces, their images."""
 import numpy as np
 import pytest
 
@@ -16,20 +16,23 @@ def home(style):
     return home_kit(42, style)
 
 
-def test_home_pieces_traditional(home, style):
-    from citygen.interior import kit_old
+@pytest.fixture(scope="module")
+def city(style):
     from citygen.kit import make_kit
+    return set(make_kit(42, load_config(), style).pieces)
+
+
+def _check_table(home, style, city, module):
     palette = {**style["palette"], **style["interiors"]["palette"]}
-    city = set(make_kit(42, load_config(), style).pieces)
-    for base, (cat, anchor, size, tris, extra) in kit_old.TABLE.items():
-        for suffix in kit_old.VARIANTS.get(base, (None,)):
+    for base, (cat, anchor, size, tris, extra) in module.TABLE.items():
+        for suffix in module.VARIANTS.get(base, (None,)):
             name = f"home/{base}" if suffix is None else f"home/{base}_{suffix}"
             pc, spec = home.pieces[name], home.specs[name]
             assert (pc.category, pc.anchor, pc.source) == (cat, anchor, "procedural"), name
             assert pc.triangles <= tris == spec.tris, (name, pc.triangles)
             lo, hi = pc.bounds                                    # glTF axes: y up, -z the front
             extent = np.array([hi[0] - lo[0], hi[2] - lo[2], hi[1] - lo[1]])
-            want = kit_old.SIZES.get(name[5:], size)
+            want = module.SIZES.get(name[5:], size)
             assert np.abs(extent - np.array(want)).max() <= 0.02, (name, extent, want)
             assert abs(lo[1] - spec.z[0]) <= 0.02, name
             if anchor == "wall":
@@ -42,7 +45,27 @@ def test_home_pieces_traditional(home, style):
                 assert mat in palette, (name, mat)
                 assert (part.get("uv") is not None) == bool(palette[mat].get("texture")), (name, mat)
             assert name not in city
-    assert len(home.pieces) == len(kit_old.names())
+
+
+def test_home_pieces_traditional(home, style, city):
+    from citygen.interior import kit_new, kit_old
+    _check_table(home, style, city, kit_old)
+    assert len(home.pieces) == len(kit_old.names()) + len(kit_new.names())
+    assert not set(kit_old.names()) & set(kit_new.names())
+
+
+def test_home_pieces_modern(home, style, city):
+    from citygen.interior import kit_new
+    _check_table(home, style, city, kit_new)
+
+
+def test_home_kit_budget(home, tmp_path):
+    """The whole home kit (prompts 52 and 53) holds at most 60,000 triangles, and its parts and images
+    write at most 6 MB on the kit sheet."""
+    from citygen.kitsheet import kit_sheet
+    assert sum(pc.triangles for pc in home.pieces.values()) <= 60_000
+    kit_sheet(tmp_path, kit=home)
+    assert (tmp_path / "tiles" / "sheet.glb").stat().st_size <= 6_000_000
 
 
 def test_weave_images(style):
@@ -54,6 +77,15 @@ def test_weave_images(style):
         rows = (np.abs(a[1] - a[0]).mean() + np.abs(a[-1] - a[-2]).mean()) / 2 + 0.5   # the neighbour rows' difference
         cols = (np.abs(a[:, 1] - a[:, 0]).mean() + np.abs(a[:, -1] - a[:, -2]).mean()) / 2 + 0.5
         assert np.abs(a[0] - a[-1]).mean() < 2 * rows and np.abs(a[:, 0] - a[:, -1]).mean() < 2 * cols, name
+        assert weave.texture(name, 42, spec[name]).tobytes() == weave.texture(name, 42, spec[name]).tobytes()
+    for name in ("rug_floral", "spines", "goods"):      # prompt 53; book and goods rows tile across only
+        a = np.asarray(weave.texture(name, 42, spec[name]), dtype=np.float64)
+        assert a.shape == (256, 256, 3), name
+        cols = (np.abs(a[:, 1] - a[:, 0]).mean() + np.abs(a[:, -1] - a[:, -2]).mean()) / 2 + 0.5
+        assert np.abs(a[:, 0] - a[:, -1]).mean() < 2 * cols, name
+        if name == "rug_floral":
+            rows = (np.abs(a[1] - a[0]).mean() + np.abs(a[-1] - a[-2]).mean()) / 2 + 0.5
+            assert np.abs(a[0] - a[-1]).mean() < 2 * rows, name
         assert weave.texture(name, 42, spec[name]).tobytes() == weave.texture(name, 42, spec[name]).tobytes()
 
 
