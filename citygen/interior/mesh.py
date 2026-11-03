@@ -438,6 +438,7 @@ def leaves(mb, interior, o, c, front, along, d0: float, d1: float, ops: dict) ->
     lo, hi = ops.get("open_angle", [70.0, 100.0])
     angle = math.radians(rng.uniform(float(lo), float(hi))) if opened else 0.0
     hinge = 1.0 if rng.random() < 0.5 else -1.0
+    hinge = o.hinge or hinge                          # a narrow wet room's door: hinged on its corner's side
     sigma = swing(interior, o)
     face = d1 if sigma > 0 else d0
     thick = float(ops.get("leaf", 0.04))

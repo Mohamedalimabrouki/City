@@ -2046,6 +2046,7 @@ two_flats = 130.0        # m2: a colonial floor less its core keeping this has t
 min_flat = 40.0          # m2: floor 0 of a colonial block keeps a flat beside its shop or cafe from this
 couloir = 1.1            # meters wide, the flats' couloir (villas and maisons: [interiors.villa] couloir)
 wc_area = 70.0           # m2: a flat this big has a wc beside its sdb
+wet_corner = [0.9, 1.75]   # m: a wc or sdb whose free floor is this wide gets its door near a corner of its wall, hinged on the corner's side (47.2 flats round I)
 slide = 0.25             # meters: a colonial core slides inward in these steps until every storey holds it
 slide_most = 6.0         # meters: ... at most
 retry_variants = { colonial = 0.5, slab = 0.0 }   # share of the spine's variants a flat's second tries search when its first plan faults (0: none; slabs: time)

@@ -71,12 +71,16 @@ class Opening:
     s: float = 0.0    # meters from the wall segment's start to the center
     piece: str = ""   # the kit piece of a facade opening
     lit: bool = False
+    hinge: float = 0.0  # +1 / -1: the leaf's hinge side along its wall when the plan sets it (else drawn)
 
     def to_json(self) -> dict:
         wall = None if self.wall is None else [_xy(self.wall[0]), _xy(self.wall[1])]
-        return {"id": self.id, "kind": self.kind, "x": _r(self.x), "y": _r(self.y), "yaw": round(float(self.yaw), 5),
-                "width": _r(self.width), "z0": _r(self.z0), "z1": _r(self.z1), "floor": self.floor,
-                "rooms": list(self.rooms), "wall": wall, "s": _r(self.s), "piece": self.piece, "lit": self.lit}
+        out = {"id": self.id, "kind": self.kind, "x": _r(self.x), "y": _r(self.y), "yaw": round(float(self.yaw), 5),
+               "width": _r(self.width), "z0": _r(self.z0), "z1": _r(self.z1), "floor": self.floor,
+               "rooms": list(self.rooms), "wall": wall, "s": _r(self.s), "piece": self.piece, "lit": self.lit}
+        if self.hinge:
+            out["hinge"] = int(self.hinge)
+        return out
 
 
 @dataclass

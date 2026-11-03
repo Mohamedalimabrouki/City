@@ -96,6 +96,26 @@ Entry format:
   the chain run (`.venv-sdk/credit_chain.sh`, 10:42-13:12) stopped with "Credit balance is too low"
   (its session recorded about $42), so that route needs new credit first (checked 3 November).
 
+## 2026-11-03 - Open item 47.2, flats round I (a narrow wet room's door by a corner)
+- Commit: (lead commits) | Model: Opus 5.5, high (flats helper, worktree /tmp/claude-501/flats-i, about 45 min)
+- Changed: citygen/interior/plancheck.py (`wet_corners`, a last planning step for colonial and slab flats, called from
+  layout.py: every door into a wc or sdb 0.9-1.75 m wide moves to a corner end of its wall, its leaf hinged on the corner
+  side so it opens against the wall; a place `_fits` refuses is not taken, so no check result changes), model.py
+  (`Opening.hinge`, in rooms.json only when set), mesh.py and furnish.py (the leaf and its swept quarter disc follow the
+  hinge, their draws taken first as before), styles/maghreb.toml (`[interiors.flats] wet_corner = [0.9, 1.75]`), tests
+  (`test_flats_wet_door_by_a_corner`).
+- Beyond the brief (the lead keeps it): the jamb stands `inner_clear` (0.15 m) from the end wall's face, half a
+  partition plus clear; with a full partition plus clear the 1.48 x 1.89 m sdbs kept 0.78 m beside the door, short of a
+  0.8 m shower tray (No. 1042's four had none); with it all four get one.
+- Plans (every check): slab and colonial pass counts and fault counts unchanged (the doors move only where the plan's
+  rules allow); the old town, villas and maisons identical.
+- Furnishing (lived-in): rooms missing a piece 5.4% -> 4.2% (slab 4.1 -> 2.3, colonial 8.3 -> 7.7); colonial "bath no
+  basin" 35 -> 47; 0 placement faults. The 2% target is not met: the colonial wet rooms often have two doors or are tiny
+  wcs (a planner matter).
+- Checks: `pytest -q` 161 passed and `-m slow -k furnish` 3 passed in the helper's tree; fingerprint 0 changed.
+- Look: output/checks/472-i-wet.png (worktree; two fixed wet rooms, furnished).
+- Lead: merged on houses round 5 (one conflict in layout.py's last passes: both kept, gated by layout); checked below.
+
 ## 2026-11-03 - Open item 47.2, houses round 5 (a small house's plan without a couloir)
 - Commit: (lead commits) | Model: Opus 5.5, high (houses helper, worktree /tmp/claude-501/houses-r5, about 45 min)
 - Changed: citygen/interior/villa.py (`little`: a short hall at the street door opening into the salon, the chambre,

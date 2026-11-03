@@ -1147,6 +1147,10 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`, and how the le
   steps pushed along the door wall left the street door in front of a flat's hall (six slab blocks failed by that
   alone). Build the entry hall from the door, not from the box: the door's width plus `clear`, the steps' depth plus
   their landing, then join the palier. A sunk door is a different problem (the steps' head must land at the well).
+- **A wet room's door by its corner** (47.2 flats round I, `plancheck.wet_corners`): move a narrow wc or sdb's door to
+  a corner end of its wall, hinged on the corner side, as a last step that takes only places the plan's own `_fits`
+  accepts: no check result changes, and the fixtures fit (slab rooms missing a piece 4.1% -> 2.3%). A full partition
+  plus `clear` from the corner leaves a 1.5 m sdb 2 cm short of a 0.8 m tray: half a partition plus clear does it.
 - **Furnishing design** (prompt 51, SPEC 6d): facts that shaped it. Furniture is interior-only: if its
   pieces went into `kit.make_kit`, every build would make them, the fingerprint would list them and their
   materials would need `[palette]`; as `home/<piece>` in `citygen/interior/` (out of the build key) no tile

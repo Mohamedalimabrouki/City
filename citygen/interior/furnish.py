@@ -425,6 +425,7 @@ def _swept(interior, o, c, along, n, face: float, ops: dict):
     if opened:
         rng.uniform(0.0, 1.0)
     hinge = 1.0 if rng.random() < 0.5 else -1.0
+    hinge = o.hinge or hinge
     leaves = CASED.get(o.kind, 1)
     w = o.width / leaves
     out = []

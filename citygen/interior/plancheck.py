@@ -246,6 +246,98 @@ def bend(interior) -> None:
         o.x, o.y, o.s, o.width = old
 
 
+def wet_corners(interior, narrow) -> None:
+    """A narrow wc's or sdb's door (its free floor `narrow` m wide: `[interiors.flats] wet_corner`) goes near
+    a corner of its wall, as in real flats: its jamb the door's clear from the end wall's face (half a
+    partition and the clear from the corner's center line, the nearest `rooms.place` allows; a whole
+    partition left a 1.5 x 1.9 m sdb 0.78 m beside its door, short of a 0.8 m tray), the leaf hinged on
+    the corner's side so it opens against the end wall (47.2 flats round I). The end farther from the
+    room's windows first; a place the walls fault is not taken (the door stays)."""
+    if not interior.rules or not narrow:
+        return
+    from .mesh import swing
+    from .rooms import pieces_between
+    rules, cfg = interior.rules, interior.rules.get("plan", {})
+    by_id = {r.id: r for r in interior.rooms}
+    part = interior.walls["partition"]
+    for f in range(interior.floors):
+        ops = [o for o in interior.openings if o.floor == f and walled_in(interior, o, cfg)]
+        todo = []
+        for o in ops:
+            if o.kind != "inner" or o.wall is not None or not all(i in by_id for i in o.rooms):
+                continue
+            r = by_id[o.rooms[1] if swing(interior, o) > 0 else o.rooms[0]]
+            if r.type in ("sdb", "wc"):
+                todo.append((o, r))
+        if not todo:
+            continue
+        fl = Floor(interior, f, cfg)
+        holes = {o.id: fl.hole(o) for o in ops}
+        for o, r in todo:
+            if not narrow[0] <= _narrow_side(fl.floor.intersection(r.polygon)) <= narrow[1]:
+                continue
+            clear = rules.get("inner_clear", rules["clear"]) if o.width >= rules["door"] - 1e-6 else \
+                rules.get("narrow_clear", 0.05)
+            c, _, along = frame_of(o)
+            lit = [np.array([w.x, w.y]) for w in interior.openings if r.id in w.rooms and w.kind in LIGHTS]
+            old = (o.x, o.y, o.s, o.width)
+            ends = sorted(_corner_ends(interior, o, r, by_id, pieces_between, c, along),
+                          key=lambda x: -min((float(np.hypot(*(x[0] - w))) for w in lit), default=0.0))
+            t = part / 2 + clear + o.width / 2
+            for e, d, room in ends:
+                if room < t + o.width / 2 + clear + part / 2 - 1e-6:
+                    continue
+                p = e + d * t
+                if _fits(fl, _put(o, (float(p[0]), float(p[1]), o.s, None), o.width), holes, by_id):
+                    o.hinge = 1.0 if float((e - p) @ along) > 0 else -1.0
+                    holes[o.id] = fl.hole(o)
+                    break
+                o.x, o.y, o.s, o.width = old
+
+
+def _narrow_side(poly) -> float:
+    """The short side of a free floor's least rotated rectangle (0 for none)."""
+    if poly.is_empty:
+        return 0.0
+    q = np.asarray(poly.minimum_rotated_rectangle.exterior.coords)
+    return min(float(np.hypot(*(q[i + 1] - q[i]))) for i in range(2)) if len(q) >= 4 else 0.0
+
+
+def _corner_ends(interior, o, r, by_id, pieces_between, c, along) -> list:
+    """(end, unit direction from it into the piece, the piece's length) for each end of the straight piece
+    o's rooms share under it that is a corner of room r."""
+    a, b = by_id[o.rooms[0]], by_id[o.rooms[1]]
+    out = []
+    for p0, p1 in pieces_between(interior, a, b):
+        p0, p1 = np.asarray(p0, dtype=float), np.asarray(p1, dtype=float)
+        length = float(np.hypot(*(p1 - p0)))
+        if length < 1e-6 or LineString([p0, p1]).distance(Point(*c)) > 0.02:
+            continue
+        d = (p1 - p0) / length
+        if abs(float(d @ along)) < 0.999:
+            continue
+        for e, k in ((p0, d), (p1, -d)):
+            if _is_corner(r.polygon, e):
+                out.append((e, k, length))
+        break
+    return out
+
+
+def _is_corner(poly, e) -> bool:
+    """True when point e is a vertex of poly where its boundary turns (more than 30 degrees)."""
+    for ring in [poly.exterior, *poly.interiors]:
+        q = np.asarray(ring.coords)[:-1]
+        n = len(q)
+        for i in range(n):
+            if math.dist(q[i], e) > 0.02:
+                continue
+            u, v = q[i] - q[i - 1], q[(i + 1) % n] - q[i]
+            nu, nv = float(np.hypot(*u)), float(np.hypot(*v))
+            if nu > 1e-9 and nv > 1e-9 and abs(float(u[0] * v[1] - u[1] * v[0])) / (nu * nv) > 0.5:
+                return True
+    return False
+
+
 def _put(o, place: tuple, width: float):
     o.x, o.y, o.s, o.width = place[0], place[1], place[2], width if place[3] is None else place[3]
     return o

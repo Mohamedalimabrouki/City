@@ -4991,3 +4991,36 @@ def test_slab_entry_hall_reaches_the_well():
     assert hall.contains(box(-0.85, 0.0, 0.85, 3.0).buffer(-1e-3)) and hall.distance(well) < 1e-9
     centred = Core(box(-1.15, 0.25, 1.15, 4.9), {"across": 2.3, "landing": 1.35, "length": 4.65}, fd, 0.0, 0.25, 4, spot)
     assert entry_hall(job, centred, poly, gap) is gap
+
+
+def test_flats_wet_door_by_a_corner(new_districts):
+    """A narrow wc's or sdb's door in a block of flats stands by a corner of its wall, its jamb the door's clear
+    from the end wall's face (half a partition and the clear from the corner), hinged on that side (47.2 flats
+    round I); other homes keep the drawn hinge and their rooms.json (no `hinge` key). Reads the planned
+    samples, under 0.1 s."""
+    import math
+
+    import numpy as np
+
+    from citygen.interior.mesh import frame_of, swing
+    hinged = 0
+    for group, items in new_districts.items():
+        for interior, _ in items:
+            by_id = {r.id: r for r in interior.rooms}
+            rules, part = interior.rules, interior.walls["partition"]
+            for o in interior.openings:
+                if not o.hinge:
+                    continue
+                assert group in ("slab", "colonial") and o.kind == "inner", (group, interior.building, o.id)
+                assert "hinge" in o.to_json()
+                r = by_id[o.rooms[1] if swing(interior, o) > 0 else o.rooms[0]]
+                assert r.type in ("sdb", "wc")
+                c, _, along = frame_of(o)
+                jamb = c + along * o.hinge * o.width / 2
+                clear = rules["inner_clear"] if o.width >= rules["door"] - 1e-6 else rules["narrow_clear"]
+                near = min(math.dist(jamb, v) for v in np.asarray(r.polygon.exterior.coords))
+                assert abs(near - (part / 2 + clear)) < 0.02, (interior.building, o.id, near)
+                hinged += 1
+            if group not in ("slab", "colonial"):
+                assert not any("hinge" in o.to_json() for o in interior.openings)
+    assert hinged
