@@ -20,16 +20,21 @@ Entry format:
   reach 90% of weekly usage" (64% at 10:15 UTC), for this day: after the reset ask him before going over 55%
   again. Plan: two helpers in parallel, flats (colonial blocks, slabs) in this folder and houses (maisons,
   villas) in a worktree, each group kept byte-identical by the other; the lead reviews, merges and commits.
-  Done and pushed that day (entries below): flats round D (5739573), houses round (d3327bb), prompt 51
-  (13f452a), houses round 2 (76b6572), roof copings (3359c5a), prompt 52 (3b1e4c0), flats round E (70fc537);
-  counts with every check: colonial 3/270, slab 233/353, maison 490/616, villa 166/178, old town unchanged.
-  Running at 14:45 UTC (each in a worktree under `/tmp/claude-501/`, notes in the session scratchpad, nothing
-  committed there): houses round 3 (`houses-r3`, an upper-floor couloir from the landing: maison 499, villa
-  167 so far, its time to fix), flats round F (`flats-f`, slab time, a ring planner for colonial flats) and
-  prompt 53 (`furn-53`, modern furniture). If the session ends first: their branches `wip/houses-r3`,
-  `wip/flats-f`, `wip/furn-53` hold nothing until committed; read their notes files (hf, hi, hj) and redo
-  the lead's review before merging. The fingerprint baseline `output/checks/fp-before.json` was re-saved at
-  3b1e4c0 (after the roof copings).
+  Done and pushed that day on this branch (entries below, newest first): flats rounds D-I, houses rounds 1-5,
+  prompts 51, 52, 53 and 54 (two rounds, partly done), the roof copings; last code commit c48fb1e. Counts with
+  every check: slab 247/353, colonial 3/270, maison 499/616, villa 167/178 (bars 336, 257, 586, 170), old town
+  unchanged. Saved, NOT merged (each a pushed branch `wip/<name>` with its helper's notes in
+  `docs/wip/<name>.md`; review, test and survey each before merging, one at a time): flats-j (slab 247 -> 253),
+  colonial-k (colonial blocks 3 -> 5, flats 387 -> 514, but chambres 4,895 -> 4,577 and slab only sampled: check),
+  furnish-m (prompt 54 round 3: warned rooms 1.8% in the quick capital, 2.2% full, the 2% test: then tick 54),
+  speed-n (planning 14-20% faster, byte-identical over 2,304 homes), houses-patio and villas-o (their notes say
+  what they reached), arabic-87 (prompt 87 done; two questions for Ali: feminine agreement after a name in ة, and
+  the share of a long a written), rivers-59 (prompt 59 done; salt lakes touch Sota and Ain Chilel), graph-70
+  (prompt 70 done), lore-81 (prompt 81 done), godot-72 (prompt 72 written, never run: Godot is not installed,
+  Ali's yes needed), styles-94 (prompt 94 done, its aerial look not taken). An independent review of the day's
+  commits: `docs/wip/2026-11-03-review.md` (first: `interior/export.py:59`'s material order may let the home
+  kit or interior palette override city colours, check before fixing; `villa.little` has no size cap; the
+  furnishing check reuses the placer's rules). The fingerprint baseline was re-saved at 3b1e4c0.
 - State: prompts 1-50 are done (branch `claude/procedural-city-generator-xop72h`; CP4, prompt 43, on 25
   October; the interiors 44-47 on 29 October, 48 (walls and openings) on 30-31 October). Continue when Ali
   says (for example "Do prompt 49." or "continue the playbook").
