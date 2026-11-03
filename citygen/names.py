@@ -22,6 +22,8 @@ _JOINED_AR = re.compile(r"(^|\s)(ال|بو) ")
 _ARABIC = re.compile(r"[\u0621-\u063A\u0641-\u064A\u06A4\u06A8]")
 # twin lists in [names]: each Arabic list has one entry per entry of its Latin list
 TWINS = ("onsets", "vowels", "codas", "endings", "berber_endings", "country_endings", "descriptors")
+# the built-in Latin of fixed_name, for a style without these keys (souks() keeps its own default)
+FIXED_DEFAULTS = {"medina": "Medina of {s}", "great_mosque": "Great Mosque of {s}", "village_mosque": "Mosque of {s}"}
 
 
 class Name(str):
@@ -216,7 +218,7 @@ class NameMaker:
     def country(self) -> Name:
         parts = self.core_parts()
         lat, ar = parts[-1]
-        if lat[-1] in "aeiou":
+        if lat and lat[-1] in "aeiou":
             parts[-1] = (lat[:-1], _cut_ar(lat, ar) if self.ar else "")
         stem = self._name(parts)
         lat, ar = self._part("country_endings")
@@ -255,7 +257,7 @@ class NameMaker:
 def fixed_name(style: dict, key: str, **fields) -> Name:
     """A name from one fixed template of [names] (no random draw), with its `key_ar` twin."""
     n = style["names"]
-    latin = n[key].format(**fields)
+    latin = n.get(key, FIXED_DEFAULTS[key]).format(**fields)
     twin = n.get(key + "_ar")
     return Name(latin, fill_ar(twin, **fields) if twin and _twins(n) else "")
 
@@ -265,6 +267,12 @@ def _twins(n: dict) -> dict:
     With `g_ar` set, every Latin "g" onset is spelled with it (ڨ, the Tunisian g) instead of ق."""
     if not all(k + "_ar" in n for k in TWINS) or "prefixes_ar" not in n:
         return {}
+    for k in TWINS:
+        if len(n.get(k, [])) != len(n[k + "_ar"]):
+            raise ValueError(f"[names] {k}_ar has {len(n[k + '_ar'])} entries, {k} has {len(n.get(k, []))}")
+    for kind, prefixes in n.get("prefixes", {}).items():
+        if len(prefixes) != len(n["prefixes_ar"].get(kind, [])):
+            raise ValueError(f"[names] prefixes_ar.{kind} must have one twin per entry of prefixes.{kind}")
     out = {k: list(n[k + "_ar"]) for k in TWINS}
     g = n.get("g_ar")
     if g:

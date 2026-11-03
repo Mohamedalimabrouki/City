@@ -121,11 +121,11 @@ def generate_world(cfg: dict) -> World:
     canon = cfg.get("canon", {}).get("names", {})
     canon_ar = cfg.get("canon", {}).get("names_ar", {})
     for sid, new_name in canon.items():
-        if int(sid) < len(settlements):
+        if 0 <= int(sid) < len(settlements):
             settlements[int(sid)].name = str(new_name)
             settlements[int(sid)].name_ar = ""      # a pinned Latin name gets Arabic only from [canon.names_ar]
     for sid, new_ar in canon_ar.items():
-        if int(sid) < len(settlements):
+        if 0 <= int(sid) < len(settlements):
             settlements[int(sid)].name_ar = str(new_ar)
     _add_lore(seed, style, settlements)
     roads = _build_roads(seed, cfg, terrain, settlements)

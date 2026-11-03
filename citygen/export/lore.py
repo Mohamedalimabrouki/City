@@ -128,15 +128,16 @@ def gazetteer(world, plans) -> str:
              f"Rebuilding with the same seed and settings gives exactly this world again.", ""]
     cap = world.capital()
     lines += ["## The capital", "", _describe(cap), ""]
+    ar = any(s.name_ar for s in world.settlements)      # the Arabic column only for a style with twins
     for kind, title in (("city", "Cities"), ("town", "Towns"), ("village", "Villages")):
         group = sorted((s for s in world.settlements if s.kind == kind), key=lambda s: -s.population)
         if not group:
             continue
-        lines += [f"## {title}", "", "| Name | Arabic | People | Coast | Land | Known for | Founded | Map position (km) |",
-                  "|---|---|---:|---|---|---|---|---|"]
+        lines += [f"## {title}", "", f"| Name |{' Arabic |' if ar else ''} People | Coast | Land | Known for | Founded "
+                  f"| Map position (km) |", f"|---|{'---|' if ar else ''}---:|---|---|---|---|---|"]
         for s in group:
-            lines.append(f"| {s.name} | {s.name_ar} | {s.population:,} | {'yes' if s.coastal else 'no'} | {s.biome} | "
-                         f"{', '.join(s.known_for)} | {s.founded} | {s.x / 1000:.1f}, {s.y / 1000:.1f} |")
+            lines.append(f"| {s.name} |{f' {s.name_ar} |' if ar else ''} {s.population:,} | {'yes' if s.coastal else 'no'} | "
+                         f"{s.biome} | {', '.join(s.known_for)} | {s.founded} | {s.x / 1000:.1f}, {s.y / 1000:.1f} |")
         lines.append("")
     for plan in plans:
         s = plan.settlement
