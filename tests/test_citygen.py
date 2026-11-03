@@ -5024,3 +5024,15 @@ def test_flats_wet_door_by_a_corner(new_districts):
             if group not in ("slab", "colonial"):
                 assert not any("hinge" in o.to_json() for o in interior.openings)
     assert hinged
+
+
+def test_box_room_roomy():
+    """A stair box in the middle of a small floor leaves a ring of couloir; against a wall, a floor rooms can
+    take (`villa.roomy`, the `box_room` replan, 47.2 villas round O). Hand-made, 0.01 s."""
+    from types import SimpleNamespace as NS
+    from shapely.geometry import box
+    from citygen.interior.villa import roomy
+    job = NS(interior=NS(storeys=[NS(polygon=box(0, 0, 6, 6.5)), NS(polygon=box(0, 0, 6, 6.5))]))
+    middle, side = box(2.0, 0.5, 4.1, 6.0), box(3.9, 0.5, 6.0, 6.0)
+    assert roomy(job, side, [0, 1], 2.6) > roomy(job, middle, [0, 1], 2.6) + 10.0
+    assert roomy(job, middle, [0, 1], 2.6) < 1.0                  # 1.9 and 2.0 m strips: no room is that thin

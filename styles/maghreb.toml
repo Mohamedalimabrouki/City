@@ -2035,7 +2035,8 @@ halve = ["maison"]       # these houses cut a chambre, salle a manger or salon o
 relight = ["villa", "maison"]    # a blind chambre or salle a manger and a room beside it holding two windows or more are cut again so both keep one (47.2 houses round 2)
 relight_step = 0.25      # meters between the partitions tried
 way_room = ["villa", "maison"]   # a home with no chambre on its top floor cuts one from its hall or couloir (47.2 houses round 4)
-little = ["maison"]      # a one-floor maison still with no chambre is planned last with no couloir: the door into the salon, the chambre, cuisine and sdb off it (47.2 houses round 5)
+little = ["maison", "villa"]   # a one-floor maison still with no chambre (a villa: or no salon) is planned last with no couloir: the door into the salon, the chambre, cuisine and sdb off it (47.2 houses round 5)
+box_room = { villa = 2.6 }   # m: a house of two floors or more still with no salon or no chambre is planned last with its U stair box where it leaves the most floor in parts this wide (no ring of couloir round the stair; 47.2 villas round O)
 little_step = 0.5        # meters between the partitions a little house tries
 complete = ["villa", "maison"]   # a floor 0 with no salon, a one-floor home with no chambre, cuts one from its largest room (47.2 round C)
 
