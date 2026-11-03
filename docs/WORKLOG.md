@@ -41,6 +41,19 @@ Entry format:
   the 64 km world 127 of 131 settlements move and their names shift: protect the canon names before merging),
   lead-notes (LEAD.md lessons of the day), review-70, review-81, review-94 (independent reviews of those branches:
   fix their findings before merging), kit-hide, kit-brass, kit-textile, kit-goods (home-kit touch-ups on furnish-m).
+  Final half hour (20:30-21:00 UTC, more `wip/<name>` branches, notes in `docs/wip/<name>.md`): fix-70 (review-70's
+  two medium findings: a two-process byte test of streets.json; GRID moved to `[streets] graph_grid` in defaults.toml,
+  which may change the data-file key), fix-81 (review-81 findings 3, 4, 8: gate and shrine grammar, era wording
+  tables; the rest left), fix-little (`villa.little` capped by `[interiors.villa] little_most = 80` m2; 794 Ain
+  Chilel hashes match; one 151 m2 maison 2.86 s -> 0 s), furn-55 (prompt 55 slice 1: `kit_life.py`, 18 pieces, 164
+  tests pass, fingerprint 0 changed), check-k (colonial-k leaves all 353 slab plans byte-identical), shot-hide,
+  shot-brass, shot-textile (contact sheets of the kit branches: kit-textile looks WORSE, do not merge it as is;
+  kit-brass's tray rim is too steep for one-sided brass), review-87 (nothing blocks the merge, 6 Low findings),
+  review-59 (deterministic, the numbers match; one medium for Ali: the water-balance rule drains some dry basins
+  the prompt wants endorheic). Started at 20:51 UTC, 20 more (read their notes): fix-hide, fix-textile, fix-brass,
+  shot-goods, fix-81b, fix-87, fix-59, check-70, canon-60 (how to keep prompt 60's canon names), merge-map (which
+  branches conflict, and a merge order), shot-55, furn-55b, review-55, review-mats, review-mp-furnish (can 54 be
+  ticked), review-mp-flats, review-mp-speed, review-patio, review-villas, review-godot.
 - State: prompts 1-50 are done (branch `claude/procedural-city-generator-xop72h`; CP4, prompt 43, on 25
   October; the interiors 44-47 on 29 October, 48 (walls and openings) on 30-31 October). Continue when Ali
   says (for example "Do prompt 49." or "continue the playbook").
