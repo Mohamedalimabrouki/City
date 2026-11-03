@@ -1,0 +1,4 @@
+# shot-textile (3 November): z-buffer sheet `shot-textile.png`, e871984 on the left, kit-textile (a646d52) on the right; doukkana mattresses (4) and cushions (4)
+
+Worse on the whole: the ticking mattress's top lost its stripes (a pale wash with faint diagonal streaks, so the top's UVs are stretched along the swept profile; fix the top's u/v so the stripes run across as before), and the rounded front, belly and piping read the same as the old box from the kit view; the cushion's piping is a wide flat gold (red on the gold one) picture frame and its face now shades flat, so it looks less plump than the old domed one.
+Better: longer corner tassels show; to fix, make the cushion's band a thin round cord (about 1 cm, its own normals), keep the face's smooth dome normals across the seam, then re-render before merging.
