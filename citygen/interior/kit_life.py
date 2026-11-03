@@ -12,6 +12,7 @@ from __future__ import annotations
 import math
 
 from ..mesh.builder import MeshBuilder
+from ..mesh.furniture import _tube
 from ..rng import stream
 from .kit_new import _front
 from .kit_old import _box, _lathed
@@ -174,7 +175,7 @@ def fruit_bowl(s, v, rng):
     w, d, h = s
     r = w / 2
     mb = MeshBuilder()
-    _lathed(mb, [(0.05, 0.0), (r, 0.08), (r - 0.02, 0.08), (0.04, 0.03)], "ceramic_white", 8)
+    _lathed(mb, [(0.0, 0.0), (0.05, 0.0), (r, 0.08), (r - 0.02, 0.08), (0.0, 0.03)], "ceramic_white", 8)   # closed
     _ball(mb, 0.04, 0.0, h - 0.04, 0.04, "awning_yellow")
     _ball(mb, -0.05, 0.02, h - 0.045, 0.04, "awning_red")
     return mb
@@ -191,27 +192,41 @@ def oil_bidon(s, v, rng):
     return mb
 
 
+def _lathe_radius(prof, z: float, a: float, n: int) -> float:
+    """How far from the axis the `n`-sided lathe of `prof` (z rising) lies at height `z` towards angle `a`:
+    its flat faces between the ring's vertices come nearer than the profile's radius."""
+    rz = next(r0 + (r1 - r0) * (z - z0) / (z1 - z0) for (r0, z0), (r1, z1) in zip(prof[:-1], prof[1:]) if z0 <= z <= z1)
+    half = math.pi / n
+    return rz * math.cos(half) / math.cos(a % (2 * half) - half)
+
+
 def pot_jasmine(s, v, rng):
     """The jasmine of a court corner, the stah or a balcony: a tall bush in its pot, white flowers on it."""
     w, d, h = s
     r = w / 2
     mb = MeshBuilder()
     _pot(mb, 0.34, 0.34)
-    _lathed(mb, [(0.0, 0.30), (r - 0.025, 0.55), (r, 0.85), (r - 0.075, 1.08), (0.0, h - 0.05)], "leaf_green", 8)
+    bush = [(0.0, 0.30), (r - 0.025, 0.55), (r, 0.85), (r - 0.075, 1.08), (0.0, h - 0.05)]
+    _lathed(mb, bush, "leaf_green", 8)
     for k, z in enumerate((0.62, 0.74, 0.86, 0.95, 1.02)):
         a = k * 2.4
-        _ball(mb, (r - 0.05) * math.cos(a), (r - 0.05) * math.sin(a), z, 0.025, "cotton_white")
+        c, sn = math.cos(a), math.sin(a)
+        out = min(_lathe_radius(bush, z, a, 8) + 0.005, (r - 0.015) / max(abs(c), abs(sn)))  # over half out, in W x D
+        _ball(mb, out * c, out * sn, z, 0.025, "cotton_white")
     _ball(mb, 0.0, 0.0, h - 0.025, 0.025, "cotton_white")
     return mb
 
 
 def vase_flowers(s, v, rng):
-    """Plastic flowers in a glass vase on a coffee table or the buffet: two red heads and a green sprig."""
+    """Plastic flowers in a glass vase on a coffee table or the buffet: two red heads and a green sprig, each
+    on a green stem rising from inside the vase through its neck."""
     w, d, h = s
     mb = MeshBuilder()
     _lathed(mb, [(0.04, 0.0), (0.065, 0.10), (0.03, 0.20)], "glass_inner", 6)
     for (x, y), mat in zip(((0.04, 0.0), (-0.02, 0.04), (-0.02, -0.04)), ("awning_red", "awning_red", "leaf_green")):
-        _ball(mb, x, y, h - 0.035 - (0.03 if mat == "leaf_green" else 0.0), 0.035, mat)
+        z = h - 0.035 - (0.03 if mat == "leaf_green" else 0.0)
+        _tube(mb, (x * 0.2, y * 0.2, 0.12), (x, y, z), (0.003, 0.003), "leaf_green")
+        _ball(mb, x, y, z, 0.035, mat)
     return mb
 
 
