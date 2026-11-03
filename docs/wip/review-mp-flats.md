@@ -18,17 +18,16 @@ Line numbers are those in merge-prep 3099981.
   1279) is untested: deleting it keeps the test green. Fix: add a slab case with a faulty plan (faults 2) whose
   hall is a real hall, and one whose scrap hall meets a couloir by 1.1 m; both must try only the first door.
 - flats.py:599-608 (duplex, ladder moved into the couloir), MEDIUM: nothing checks the clear width left beside the
-  ladder; a 0.6 m ladder against the side of a 1.1-1.3 m couloir leaves 0.4-0.6 m, below a passage. Fix: keep the
-  moved spot only when the way minus the ladder still has its passage width (cfg value, about 0.8 m), else keep the
-  old spot; add that case to test_slab_duplex_ladder_from_the_couloir.
-- flats.py:540-547 (scrap_hall), LOW: the 0.8 m arch length is a number in code (rule: numbers in
-  styles/defaults); it must stay equal to `spine.doors`' arch length. Fix: read both from one cfg key.
+  ladder. `S.ladder` lays the 1.2 m long side against the way's edge, so it stands 0.6 m into the couloir, plus
+  the 0.1 m inset (`buffer(-0.1)`): a 1.2 m couloir keeps 0.5 m clear, below `passage_min = 0.8`
+  (styles/maghreb.toml:2077). Fix: keep the moved spot only when the way minus the ladder keeps `passage_min`,
+  else keep the old spot; add that case to test_slab_duplex_ladder_from_the_couloir (its couloir is 1.5 m: 0.8 left).
+- flats.py:540-547 (scrap_hall), LOW: the 0.8 m is typed again in code, although `spine.ARCH = 0.8`
+  (spine.py:1274) is the same arch length; they can drift. Fix: use `P.ARCH` (P is spine in flats.py).
 - flats.py:565 (R_PRIVATE), LOW: a copy of `plancheck.PRIVATE` (plancheck.py:545); they can drift. Fix: import
   `PRIVATE` from plancheck (check for an import cycle) or move it to one shared place.
 - flats.py:429 (best_lay), LOW: `scrap_hall(job, first)` uses `first`, which is only bound by the loop body of
   try 0; correct today (i == 1 always follows i == 0) but fragile. Fix: set `first = None` with `best`.
-- flats.py:601 (duplex), LOW: `solid(...)` on an empty union (a flat with couloir/hall rooms that miss the region)
-  is not guarded before `.buffer`; `way.is_empty` is tested only after. Fix: test the intersection's emptiness first.
 - flats.py:602, LOW (style): `from shapely.ops import nearest_points` inside the loop. Fix: module import.
 - tests/test_citygen.py:5030-5061 (duplex test), LOW: only the happy path; no case where the moved ladder still
   lands private (old spot kept) or where `S.ladder` finds no spot. Fix: two more hand-made cases (cheap).
@@ -44,4 +43,5 @@ Line numbers are those in merge-prep 3099981.
   the luck is in the unit test above (score 0 hides the branch).
 
 ## Left (time)
-- Did not re-run the survey or pytest here; did not open spine.doors to confirm its arch length is 0.8 m.
+- Did not re-run the survey or pytest here (time). Checked: spine.ARCH is 0.8 m; `cuts.solid` returns an empty
+  Polygon when there is nothing, so the empty-way case is safe.
