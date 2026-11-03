@@ -598,11 +598,12 @@ def mirror_carved(s, v, rng):
 
 
 def tray_brass(s, v, rng):
-    """The brass tray of the meida: a slanted rim round a flat 16-sided centre (48 triangles)."""
+    """The brass tray of the meida: a steep narrow rim (so its edge reads crisp from across a room) round a
+    flat 16-sided centre (48 triangles)."""
     w, d, h = s
     r = w / 2
     mb = MeshBuilder()
-    _lathed(mb, [(r, h), (r - 0.04, 0.004), (0.0, 0.003)], "brass", 16)
+    _lathed(mb, [(r, h), (r - 0.018, 0.004), (0.0, 0.003)], "brass", 16)
     return mb
 
 
@@ -618,7 +619,7 @@ def tea_set(s, v, rng):
     tray[0][-1][:, :2] *= [w, d]
     px, py = w * 0.25, 0.0
     _lathed(mb, [(0.035, 0.004), (0.060, 0.07), (0.0, h)], metal, 5, at=(px, py, 0.0))
-    _tube(mb, (px - 0.045, py, 0.05), (px - 0.11, py, 0.13), (0.007, 0.007), metal)
+    _tube(mb, (px - 0.05, py, 0.035), (px - 0.125, py, 0.15), (0.009, 0.003), metal)   # long tapering spout
     _tube(mb, (px + 0.04, py, 0.12), (px + 0.075, py, 0.05), (0.005, 0.010), metal)
     spots = [(x, y) for x in (-0.135, -0.08, -0.025) for y in (-0.055, 0.045)]
     for k in rng.permutation(len(spots)):
@@ -636,8 +637,8 @@ def ibrik(s, v, rng):
     r = w / 2
     mb = MeshBuilder()
     _lathed(mb, [(r * 0.55, 0.0), (r, 0.10), (r * 0.9, 0.10), (0.0, 0.04)], "copper", 8)
-    _lathed(mb, [(0.045, 0.045), (0.085, 0.16), (0.03, 0.27), (0.042, h)], "brass", 8)
-    _tube(mb, (0.06, 0.0, 0.17), (0.16, 0.0, 0.31), (0.009, 0.009), "brass")
+    _lathed(mb, [(0.045, 0.045), (0.085, 0.16), (0.026, 0.28), (0.052, h)], "brass", 8)   # flared mouth
+    _tube(mb, (0.07, 0.0, 0.17), (0.165, 0.0, 0.34), (0.012, 0.004), "brass")             # tapering spout
     _tube(mb, (-0.035, 0.0, 0.33), (-0.11, 0.0, 0.27), (0.006, 0.012), "brass")
     _tube(mb, (-0.11, 0.0, 0.27), (-0.07, 0.0, 0.16), (0.006, 0.012), "brass")
     return mb
@@ -1005,8 +1006,9 @@ def chechia_forms(s, v, rng):
 
 
 def pots_stack(s, v, rng):
-    """The potter's stock: two jars at the back, a tall green-glazed jug in front, a stack of two bowls
-    beside it, each set a little at random."""
+    """The potter's stock: two jars at the back, a tall green-glazed jug in front, a stack of two open bowls
+    beside it (the lower one's glazed rim ring round the upper one, the upper one's glazed hollow showing),
+    each set a little at random."""
     w, d, h = s
     mb = MeshBuilder()
     j = rng.uniform(-0.008, 0.008, (4, 2))
@@ -1016,8 +1018,10 @@ def pots_stack(s, v, rng):
         x, y = x + j[k, 0], y + j[k, 1]
         _lathed(mb, [(r * 0.6, 0.0), (r, ph * 0.45), (r * 0.42, ph * 0.86), (r * 0.55, ph)], mat, 6, at=(x, y, 0.0))
     bx, by = -0.17 + j[3, 0], 0.18 + j[3, 1]
-    for z, r in ((0.0, 0.13), (0.055, 0.125)):           # two bowls, mouth up, one in the other
-        _lathed(mb, [(r * 0.5, z), (r, z + 0.08), (0.0, z + 0.03)], "terracotta", 6, at=(bx, by, 0.0))
+    r1, r2, zr, z2 = 0.13, 0.125, 0.08, 0.035          # radii, the lower rim's height, the upper bowl's foot
+    ri = r2 * (0.5 + 0.5 * (zr - z2) / 0.08)            # the upper bowl's wall where the lower rim meets it
+    _lathed(mb, [(r1 * 0.5, 0.0), (r1, zr), (ri, zr)], ["terracotta", "glaze_green"], 6, at=(bx, by, 0.0))
+    _lathed(mb, [(ri, zr), (r2, z2 + 0.08), (0.0, z2 + 0.025)], ["terracotta", "glaze_green"], 6, at=(bx, by, 0.0))
     return mb
 
 
