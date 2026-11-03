@@ -39,7 +39,7 @@ def plan_json(plan) -> dict:
         "settlement": plan.settlement.to_json(),
         "stats": plan.stats,
         "boundary": _geometry(plan.boundary),
-        "districts": [{"id": d.id, "kind": d.kind, "name": d.name, "geometry": _geometry(d.polygon)}
+        "districts": [{"id": d.id, "kind": d.kind, "name": d.name, **_ar(d), "geometry": _geometry(d.polygon)}
                       for d in plan.districts],
         "streets": [{"kind": s.kind, "width": s.width, "coords": np.round(np.asarray(s.line.coords), 2).tolist()}
                     for s in plan.streets],
@@ -51,16 +51,28 @@ def plan_json(plan) -> dict:
                        **_massing_json(b)}
                       for b in plan.buildings],
         "trees": [[round(t.x, 2), round(t.y, 2), t.kind, round(t.height, 1)] for t in plan.trees],
-        "landmarks": [{"kind": m.kind, "name": m.name, "x": round(m.x, 1), "y": round(m.y, 1)}
+        "landmarks": [{"kind": m.kind, "name": m.name, **_ar(m), "x": round(m.x, 1), "y": round(m.y, 1)}
                       for m in plan.landmarks],
         "households": [{"building": h.building, "family": h.family, "trade": h.trade, "wealth": h.wealth,
                         "door": h.door, "members": h.members} for h in plan.households],
-        "souks": [{"street": k.street, "name": k.name, "trade": k.trade} for k in plan.souks],
+        "souks": [{"street": k.street, "name": k.name, **_ar(k), "trade": k.trade} for k in plan.souks],
         **_station_json(plan),
         **_port_json(plan),
         "props": [{"kind": p.kind, "x": round(p.x, 2), "y": round(p.y, 2), "yaw": round(p.yaw, 4),
                    "scale": round(p.scale, 3), "on": p.on} for p in getattr(plan, "props", ())],
     }
+
+
+def _ar(thing) -> dict:
+    """{"name_ar": ...} when the thing has an Arabic name (prompt 87), else nothing."""
+    ar = getattr(thing, "name_ar", "")
+    return {"name_ar": ar} if ar else {}
+
+
+def _both(thing) -> str:
+    """"Name (الاسم)": a name in both scripts for the gazetteer, or the Latin name alone."""
+    ar = getattr(thing, "name_ar", "")
+    return f"{thing.name} ({ar})" if ar else thing.name
 
 
 def _station_json(plan) -> dict:
@@ -110,7 +122,7 @@ def _massing_json(b) -> dict:
 def gazetteer(world, plans) -> str:
     """A readable guide to the world, for writing stories."""
     km = world.size / 1000.0
-    lines = [f"# {world.name}", "",
+    lines = [f"# {_both(world)}", "",
              f"A generated country, {km:.0f} by {km:.0f} km, seed {world.seed}, style "
              f"\"{world.style.get('name', world.cfg['world']['style'])}\". "
              f"Rebuilding with the same seed and settings gives exactly this world again.", ""]
@@ -120,39 +132,39 @@ def gazetteer(world, plans) -> str:
         group = sorted((s for s in world.settlements if s.kind == kind), key=lambda s: -s.population)
         if not group:
             continue
-        lines += [f"## {title}", "", "| Name | People | Coast | Land | Known for | Founded | Map position (km) |",
-                  "|---|---:|---|---|---|---|---|"]
+        lines += [f"## {title}", "", "| Name | Arabic | People | Coast | Land | Known for | Founded | Map position (km) |",
+                  "|---|---|---:|---|---|---|---|---|"]
         for s in group:
-            lines.append(f"| {s.name} | {s.population:,} | {'yes' if s.coastal else 'no'} | {s.biome} | "
+            lines.append(f"| {s.name} | {s.name_ar} | {s.population:,} | {'yes' if s.coastal else 'no'} | {s.biome} | "
                          f"{', '.join(s.known_for)} | {s.founded} | {s.x / 1000:.1f}, {s.y / 1000:.1f} |")
         lines.append("")
     for plan in plans:
         s = plan.settlement
-        lines += [f"## {s.name} in detail", ""]
+        lines += [f"## {_both(s)} in detail", ""]
         kinds: dict = {}
         for d in plan.districts:
-            kinds.setdefault(d.kind, []).append(d.name)
+            kinds.setdefault(d.kind, []).append(_both(d))
         for kind, names in sorted(kinds.items()):
             lines.append(f"- **{kind}**: {', '.join(sorted(names))}")
-        marks = [m.name for m in plan.landmarks if m.kind == "mosque"]
-        gates = [m.name for m in plan.landmarks if m.kind == "gate"]
+        marks = [_both(m) for m in plan.landmarks if m.kind == "mosque"]
+        gates = [_both(m) for m in plan.landmarks if m.kind == "gate"]
         if marks:
             lines.append(f"- **mosques**: {', '.join(marks)}")
         if gates:
             lines.append(f"- **gates of the old town**: {', '.join(gates)}")
-        kasbahs = [m.name for m in plan.landmarks if m.kind == "kasbah"]
+        kasbahs = [_both(m) for m in plan.landmarks if m.kind == "kasbah"]
         if kasbahs:
             lines.append(f"- **kasbah** (the citadel on the old town's high edge): {', '.join(kasbahs)}")
-        civic = [m.name for m in plan.landmarks if m.kind in ("cathedral", "theatre")]
+        civic = [_both(m) for m in plan.landmarks if m.kind in ("cathedral", "theatre")]
         if civic:
             lines.append(f"- **on the boulevard**: {', '.join(civic)}")
-        stations = [m.name for m in plan.landmarks if m.kind == "station"]
+        stations = [_both(m) for m in plan.landmarks if m.kind == "station"]
         if stations and getattr(plan, "station", None) is not None:
             n = len(plan.station.tracks)
             lines.append(f"- **railway station** ({n} tracks, at the edge of the colonial quarter): {', '.join(stations)}")
         port = getattr(plan, "port", None)
         if port is not None:
-            lights = [m.name for m in plan.landmarks if m.kind == "lighthouse"]
+            lights = [_both(m) for m in plan.landmarks if m.kind == "lighthouse"]
             quay = sum(q.line.length for q in port.quays)
             text = f"- **harbor**: {quay:,.0f} m of quays {port.level:g} m above the sea"
             if port.breakwaters:
@@ -163,7 +175,7 @@ def gazetteer(world, plans) -> str:
         if plan.souks:
             seen = {}
             for k in plan.souks:
-                seen.setdefault(k.name, k.trade)
+                seen.setdefault(_both(k), k.trade)
             lines.append("- **souks**: " + ", ".join(f"{n} ({t})" for n, t in seen.items()))
         if plan.households:
             notable = sorted(plan.households, key=lambda h: -h.wealth)[:5]
@@ -178,5 +190,5 @@ def _describe(s) -> str:
     coast = "on the coast" if s.coastal else "inland"
     known = f" Known for {', '.join(s.known_for)}." if s.known_for else ""
     founded = f" Founded in the time of {s.founded}." if s.founded else ""
-    return (f"**{s.name}**, {s.population:,} people, {coast}, in {s.biome} country at {s.elevation:.0f} m."
+    return (f"**{_both(s)}**, {s.population:,} people, {coast}, in {s.biome} country at {s.elevation:.0f} m."
             f"{founded}{known}")

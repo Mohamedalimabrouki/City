@@ -9,6 +9,7 @@ seed = 42              # the starting number. Same seed = same world. Change it 
 size_km = 64           # the country is a square this many kilometers wide
 style = "maghreb"      # style pack to use, from the styles/ folder
 name = ""              # country name; leave empty to let the generator invent one
+name_ar = ""           # its Arabic spelling when `name` is set (an invented name gets one by itself)
 
 [terrain]
 sea_direction = "random"  # where the sea is: "random", or a compass bearing in degrees (0 = north, 90 = east)

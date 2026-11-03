@@ -16,7 +16,7 @@ from scipy.sparse.csgraph import dijkstra
 from shapely.geometry import LineString
 
 from .config import load_style
-from .names import NameMaker
+from .names import Name, NameMaker
 from .rng import stream
 from .terrain import BIOME_NAMES, Terrain, classify
 
@@ -39,9 +39,16 @@ class Settlement:
     biome: str
     known_for: list = field(default_factory=list)
     founded: str = ""
+    name_ar: str = ""   # the name in Arabic script ("" for a pinned name without an Arabic pin)
+
+    @property
+    def label(self) -> Name:
+        """The name with its Arabic spelling, for templates such as "Kasbah of {s}"."""
+        return Name(self.name, self.name_ar)
 
     def to_json(self) -> dict:
-        return {"id": self.id, "name": self.name, "kind": self.kind,
+        return {"id": self.id, "name": self.name, **({"name_ar": self.name_ar} if self.name_ar else {}),
+                "kind": self.kind,
                 "x": round(self.x, 1), "y": round(self.y, 1), "population": self.population,
                 "radius": round(self.radius, 1), "elevation": round(self.elevation, 1),
                 "coastal": self.coastal, "biome": self.biome,
@@ -70,6 +77,7 @@ class World:
     terrain: Terrain
     settlements: list
     roads: list
+    name_ar: str = ""   # the country's name in Arabic script
 
     @property
     def size(self) -> float:
@@ -92,6 +100,7 @@ class World:
 
     def to_json(self) -> dict:
         return {"format": "citygen-world/1", "seed": self.seed, "name": self.name,
+                **({"name_ar": self.name_ar} if self.name_ar else {}),
                 "style": self.cfg["world"]["style"], "size": self.size,
                 "sea_direction": [round(v, 4) for v in self.terrain.sea_dir],
                 "settlements": [s.to_json() for s in self.settlements],
@@ -104,16 +113,23 @@ def generate_world(cfg: dict) -> World:
     terrain = Terrain(seed, cfg)
     settlements = _place_settlements(seed, cfg, style, terrain)
     namer = NameMaker(style, stream(seed, "names"))
-    name = cfg["world"].get("name") or namer.country()
+    pinned = cfg["world"].get("name")
+    name = Name(pinned, str(cfg["world"].get("name_ar", ""))) if pinned else namer.country()
     for s in settlements:
-        s.name = namer.settlement(s.kind)
+        made = namer.settlement(s.kind)
+        s.name, s.name_ar = str(made), made.ar
     canon = cfg.get("canon", {}).get("names", {})
+    canon_ar = cfg.get("canon", {}).get("names_ar", {})
     for sid, new_name in canon.items():
         if int(sid) < len(settlements):
             settlements[int(sid)].name = str(new_name)
+            settlements[int(sid)].name_ar = ""      # a pinned Latin name gets Arabic only from [canon.names_ar]
+    for sid, new_ar in canon_ar.items():
+        if int(sid) < len(settlements):
+            settlements[int(sid)].name_ar = str(new_ar)
     _add_lore(seed, style, settlements)
     roads = _build_roads(seed, cfg, terrain, settlements)
-    return World(seed, cfg, style, name, terrain, settlements, roads)
+    return World(seed, cfg, style, str(name), terrain, settlements, roads, name.ar)
 
 
 # --- settlements ----------------------------------------------------------------

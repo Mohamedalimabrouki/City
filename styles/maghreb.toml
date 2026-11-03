@@ -27,6 +27,32 @@ article_prefixes = ["Bir", "Ain", "Ras", "Oued", "Henchir", "Ksar", "Hammam", "S
 article_chance = 0.3        # "Ras el Mokrane" instead of "Ras Mokrane"
 compound_chance = { village = 0.15, town = 0.15, city = 0.1, capital = 0.0 }
 descriptors = ["Kebir", "Sghir", "Djedid", "Bahri", "Gharbi", "Chergui", "Zitoun", "Rmel", "Melh", "Nakhla", "Ghar", "Souk", "Bey"]
+# Arabic twins (prompt 87): each *_ar list has one entry per entry of its Latin list, so a name is spelled in
+# Arabic part by part from the same draws. Short vowels are not written: some "a" are ا, some nothing, "e"
+# nothing; "i" is ي, "ou" and "o" و. A repeated onset can be an emphatic letter (the second s ص, t ط, k ق);
+# "g" is ق as in official Tunisian names (قفصة، قابس); set g_ar = "ڨ" for the Tunisian letter instead.
+onsets_ar = ["ب", "د", "ف", "ق", "ح", "ك", "ل", "م", "ن", "ر", "س", "ت", "ز", "ش", "ج", "غ", "خ", "ب", "ق", "م", "ص", "ط", "ز", "ر", "ق"]
+vowels_ar = ["ا", "", "ا", "", "ي", "و", "و", "و"]
+codas_ar = ["", "", "", "", "ن", "ر", "ل", "م", "س", "ز", "ب", "ك"]
+endings_ar = ["ة", "ة", "ان", "وان", "ين", "ين", "ير", "رة", "كة", "بة", "ية", "ونة", "س", "ل", "ار"]
+berber_endings_ar = ["رت", "روت", "ين", "ان", "ونت", "رة", "كة", "وين"]
+country_endings_ar = ["يا", "ا", "ان"]
+# "Bou" and "El" are joined to the name in Arabic (بوسالم، الكبيرة)
+prefixes_ar.village = ["بئر", "عين", "هنشير", "سيدي", "سيدي بو", "دوار", "وادي", "رأس", "دار", "أولاد", "بني", "زاوية"]
+prefixes_ar.town = ["منزل", "قصر", "سوق", "برج", "عين", "سيدي", "حمام", "قلعة", "بو", "رأس"]
+prefixes_ar.city = ["ال", "منزل", "قصر"]
+descriptors_ar = ["كبير", "صغير", "جديد", "بحري", "غربي", "شرقي", "زيتون", "رمل", "ملح", "نخلة", "غار", "سوق", "باي"]   # the article ال is added
+# names built without a draw: the old town, its great mosque (a village's mosque), the souk repeats
+medina = "Medina of {s}"
+medina_ar = "مدينة {s} العتيقة"
+great_mosque = "Great Mosque of {s}"
+great_mosque_ar = "الجامع الكبير ب{s}"
+village_mosque = "Mosque of {s}"
+village_mosque_ar = "جامع {s}"
+souk = "Souk {a} {w}"
+souk_ar = "سوق {w}"
+souk_repeats = ["", " el Djedid", " el Kebir", " es Sghir", " el Bahri", " el Gharbi", " ech Chergui"]
+souk_repeats_ar = ["", " الجديد", " الكبير", " الصغير", " البحري", " الغربي", " الشرقي"]
 # Real towns are never generated, so the world never copies an existing place.
 avoid = ["tunis", "sfax", "sousse", "kairouan", "bizerte", "gabes", "ariana", "gafsa", "monastir", "kasserine",
          "mahdia", "nabeul", "tataouine", "beja", "jendouba", "kebili", "tozeur", "siliana", "zaghouan", "medenine",
@@ -53,6 +79,24 @@ cathedral = ["Cathedral of St {g} de {n}"]   # {g}: a saint from [landmarks.cath
 theatre = ["Theatre Municipal de {s}", "Theatre Municipal de {s}", "Grand Theatre de {s}"]
 station = ["Gare de {s}", "Gare de {s}", "Gare Centrale de {s}", "Gare de {s}-Ville"]   # the railway station (prompt 33)
 lighthouse = ["Phare de {s}", "Phare de la Jetee", "Phare de Ras {n}", "Phare de Sidi {n}"]   # the harbor light (prompt 34)
+
+[names.districts_ar]
+# Arabic twins of [names.districts], one per template; the article is written ال{n}, joined.
+colonial = ["حي {n}", "مدينة {n}", "{n}"]
+modern = ["حي {n}", "حي {n}", "حي ال{n}"]
+residential = ["حي {n}", "{n}", "حي ال{n}"]
+suburb = ["رياض {n}", "حدائق {n}", "{n}"]
+industrial = ["المنطقة الصناعية {n}"]
+port = ["ميناء {n}"]
+park = ["منتزه {n}", "بلفيدير {n}"]
+cemetery = ["مقبرة سيدي {n}"]
+gate = ["باب {n}", "باب ال{n}"]
+mosque = ["جامع {n}", "جامع ال{n}"]
+kasbah = ["قصبة {s}", "قصبة {s}", "قصبة ال{n}", "دار ال{n}", "برج ال{n}"]
+cathedral = ["كاتدرائية القديس {g} ب{n}"]
+theatre = ["المسرح البلدي ب{s}", "المسرح البلدي ب{s}", "المسرح الكبير ب{s}"]
+station = ["محطة {s}", "محطة {s}", "المحطة المركزية ب{s}", "محطة {s} المدينة"]
+lighthouse = ["منارة {s}", "منارة الرصيف", "منارة رأس {n}", "منارة سيدي {n}"]
 
 [lore]
 # Fictional history: settlements are said to date from one of these eras.
@@ -506,6 +550,8 @@ trim = "stone_dressed"
 dome = "verdigris"
 saints = ["Aurele", "Firmin", "Anselme", "Eloi", "Honorat", "Leonce", "Hilaire", "Gatien", "Fulcran", "Cyprien",
           "Theodore", "Romain", "Ambroise", "Felicien", "Austremoine", "Lazare", "Prosper", "Saturnin"]
+saints_ar = ["أوريل", "فيرمان", "أنسلم", "إلوا", "أونورا", "ليونس", "إيلير", "غاتيان", "فولكران", "سيبريان",
+             "تيودور", "رومان", "أمبرواز", "فيليسيان", "أوسترموان", "لازار", "بروسبير", "ساتورنان"]   # twins of saints
 
 [landmarks.theatre]        # Art Nouveau, like the Municipal Theatre of Tunis
 size = [30.0, 32.0]        # meters: facade width, depth behind the steps
@@ -1108,42 +1154,49 @@ trades.suburb = [["doctor", 1], ["engineer", 1.5], ["business owner", 1.5], ["ar
 # ground, wall: piece names or roles from [dressing.roles]; "tounes/..." pieces come from Tounes Rush.
 [[souk]]
 word = "Attarine"
+word_ar = "العطارين"
 shop = "spices"
 trade = "perfumers and spice sellers"
 ground = ["spice_stall", "tounes/spice_baskets", "tounes/sacks_pile"]
 wall = ["copper_display"]
 [[souk]]
 word = "Chaouachia"
+word_ar = "الشواشية"
 shop = "chechia"
 trade = "chechia makers"
 ground = []
 wall = ["chechia_shelf"]
 [[souk]]
 word = "Nhas"
+word_ar = "النحاس"
 shop = "copper"
 trade = "coppersmiths"
 ground = []
 wall = ["copper_display"]
 [[souk]]
 word = "Zrabi"
+word_ar = "الزرابي"
 shop = "cloth"
 trade = "carpet sellers"
 ground = ["tounes/rugs_rolled", "tounes/rug_stand"]
 wall = ["rug_wall"]
 [[souk]]
 word = "Khodhra"
+word_ar = "الخضرة"
 shop = "fruit"
 trade = "fruit and vegetable sellers"
 ground = ["fruit_crate", "fruit_crate_b", "tounes/crates_oranges", "tounes/crate_wood"]
 wall = []
 [[souk]]
 word = "Fakhkhara"
+word_ar = "الفخارة"
 shop = "pots"
 trade = "potters"
 ground = ["tounes/amphora_terracotta", "tounes/amphora_ochre", "tounes/amphorae_stack", "tounes/stall_sbs", "pot"]
 wall = []
 [[souk]]
 word = "Kmach"
+word_ar = "القماش"
 shop = "cloth"
 trade = "cloth merchants"
 ground = ["tounes/rugs_rolled"]
