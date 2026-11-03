@@ -915,7 +915,7 @@ def hidoura(s, v, rng):
     out = np.array(out)
     nxt = np.roll(out, -1, axis=0)                           # two wool locks along every edge, out then in
     locks = [out] + [(out + (nxt - out) * f) * k * rng.uniform(0.97, 1.03, (len(out), 1)) for f, k in ((1 / 3, 1.13), (2 / 3, 0.88))]
-    out = np.stack(locks, axis=1).reshape(-1, 2) + rng.uniform(-0.02, 0.02, (3 * len(out), 2))
+    out = np.stack(locks, axis=1).reshape(-1, 2) * rng.uniform(0.96, 1.04, (3 * len(out), 1))   # along the radius: no fold
     out = (out - out.min(axis=0)) / (out.max(axis=0) - out.min(axis=0)) - 0.5
     m = len(out)
     edge = RUG_Z + rng.uniform(0.002, 0.006, m)               # the ragged hem, some locks lifted

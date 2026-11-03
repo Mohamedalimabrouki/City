@@ -135,3 +135,19 @@ def test_goods_rows_fill_and_vary(style):
         dark = np.abs(a[b * h:(b + 1) * h] - back).sum(-1) < 40      # the shelf's back between goods
         assert dark[h // 4:].mean() < 0.2, b                         # the goods fill the row's height
     assert np.abs(a[:h] - a[h:2 * h]).mean() > 20.0                  # the rows differ
+
+
+def test_hidoura_never_folds():
+    """The hide's triangles never overlap seen from above, over 200 seeds: their areas add up to the
+    outline's (the review of fix-hide: an x/y jitter swapped neighbouring outline points in about 1 seed of 5)."""
+    from citygen.interior import kit_old
+    from citygen.rng import stream
+    for seed in range(200):
+        mb = kit_old.hidoura(kit_old.TABLE["hidoura"][2], "", stream(seed, "piece", "home/hidoura"))
+        (_mat, pos, tris, _fine), = mb.arrays()
+        m = (len(pos) - 1) // 2                                   # the hem's points come first
+        x, y = pos[:m, 0], pos[:m, 1]
+        outline = abs(np.dot(x, np.roll(y, -1)) - np.dot(y, np.roll(x, -1))) / 2
+        u, v = pos[tris[:, 1], :2] - pos[tris[:, 0], :2], pos[tris[:, 2], :2] - pos[tris[:, 0], :2]
+        cover = np.abs(u[:, 0] * v[:, 1] - u[:, 1] * v[:, 0]).sum() / 2
+        assert cover == pytest.approx(outline, rel=1e-9), seed
