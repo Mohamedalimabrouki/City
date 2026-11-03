@@ -68,7 +68,7 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
 - [x] 51 H2 Furnishing: the design (SPEC 6d: interior-only home kit `home/<piece>`, catalog per era with sizes, budgets and who gets each piece; households to tags and room functions; recipes; placement, keep-outs and fit; density passes; budgets; furniture.json; prompts 52-55 rewritten)
 - [x] 52 H2a Traditional furniture (home kit: 71 traditional pieces, 9 woven images, the home sheet)
 - [x] 53 H2b Modern furniture (95 modern pieces with shops and cafes, 3 more woven images; the home kit 166 pieces, 13,460 triangles)
-- [ ] 54 H2c Furnishing rules (3 November: built, 0 placement faults at every density in the quick capital; open: 7.4% of rooms miss a piece, target 2% (wet-room doors in the middle of narrow wc and sdb), villas and maisons unsurveyed, the rich maqsura's sedda, the full capital's survey)
+- [ ] 54 H2c Furnishing rules (3 November: built, 0 placement faults at every density in the quick capital; round 2: kitchens complete, villas and maisons furnished, the sedda first in traditional homes; open: 5.4% of rooms miss a piece, target 2% (2.1% without the wet rooms whose door stands in the middle of a narrow wc or sdb: a planner matter), one-room small homes, the full capital's survey)
 - [ ] 55 H2d Light, textiles, clutter
 - [ ] 56 H4a Hero scenes
 - [ ] 57 H4b Hero scenes in Blender

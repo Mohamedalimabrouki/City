@@ -1138,6 +1138,11 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`, and how the le
   `clean`. What cells cannot show: arches and doors, placed by `spine.doors` and moved by `plancheck.settle`; a test of
   the ways' joints on cells loses blocks the whole check passes. A roof newel's door goes where its square shares a
   side with the palier, not where it faces the roof door across a corner (`newel_rooms(door_to=)`, flats only).
+- **Order decides small rooms** (prompt 54 round 2, `interior/furnish.py`): the piece that needs a whole wall or corner
+  (bathtub, shower tray, the kitchen run) goes first, and the small ones slide from a wall's ends (`ends`), never from
+  its middle. A run of units starts at a corner when its wall has no window, and each next unit tries beside, round
+  the corner, then another corner. Try another place (`else`) before a smaller piece. A narrow wc or sdb whose door
+  stands in the middle of a long wall cannot hold its fixtures: the planners should put that door near a corner.
 - **Furnishing design** (prompt 51, SPEC 6d): facts that shaped it. Furniture is interior-only: if its
   pieces went into `kit.make_kit`, every build would make them, the fingerprint would list them and their
   materials would need `[palette]`; as `home/<piece>` in `citygen/interior/` (out of the build key) no tile

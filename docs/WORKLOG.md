@@ -96,6 +96,35 @@ Entry format:
   the chain run (`.venv-sdk/credit_chain.sh`, 10:42-13:12) stopped with "Credit balance is too low"
   (its session recorded about $42), so that route needs new credit first (checked 3 November).
 
+## 2026-11-03 - Prompt 54 H2c Furnishing, round 2 (kitchens, baths, villas and maisons)
+- Commit: (lead commits) | Model: Opus 5.5, high (furnishing helper, worktree wip/furn-54b, about 1 h 15 min)
+- Changed: citygen/interior/furnish.py (slot keys `ends`: slide from a wall's ends inward, also for a sink on a wall
+  without a window; `else`: other places tried before the next smaller piece; `[interiors.furnish.smaller_trad]` read
+  by `chain` in traditional homes; a shower tray's use strip is its front or either side), styles/maghreb.toml (the
+  modern kitchen: sink, unit, cooker beside the unit, the sink, round the corner or by a corner, the fridge at the
+  run's end; units may cross the walk strips; the bath: bathtub (sdb of 3.6 m2 and more) or shower first, the basin
+  from a wall's ends; `else` places for the couple's, children's and elders' beds, looms and sewing machines;
+  smaller_trad: bed_double_140 -> sedda_plain -> bed_single), SPEC 6d built notes.
+- Survey (25 per layout, sparse; lived-in and full warn the same rooms; faults = overlap, wall, clearance, ceiling,
+  reach): quick capital warned rooms 7.4% -> 5.4% (without the wet-door rooms 3.4% -> 2.1%): slab 6.7 -> 4.1 (2.9 ->
+  1.1), colonial 10.1 -> 8.3 (3.6 -> 2.7), dar 3.4, compact 3.1, koubba 2.7, small 12.5 (unchanged). Ain Chilel 3.9%
+  -> 3.7%: villa 4.7 -> 4.0, maison 3.4 -> 3.1. Faults 0 at every density in both cities. Household problems 37 -> 33
+  (capital), 13 -> 11 (Ain Chilel).
+- Kitchens (quick capital): no fridge 68 -> 13, no cooker 17 -> 0, no sink 12 -> 0 (the sink slid from the middle of
+  a windowless wall, so the run could not grow; the cooker and fridge had too few places). Baths: the bathtub or tray
+  first and the basin by a corner (bath without washing 131 -> 49 slab, 92 -> 44 colonial); no basin 2 -> 68, mostly
+  in the wet-door rooms (a tray and a basin cannot both clear a centred door in a 1.5-1.7 m room).
+- Wet-door rooms (a planner matter: a wc, sdb or bit el ma 0.9-1.75 m wide whose door stands 0.15 m or more from both
+  ends of its wall): warnings 253 -> 213 in the quick capital; Ain Chilel 22.
+- Checks: `pytest -q` 158 passed; `pytest -m slow -k furnish` 3 passed; `build --quick`; fingerprint 0 changed;
+  rooms.json byte-identical (planners untouched).
+- Look (worktree /tmp/claude-501/furn-54b): output/checks/54b-maison.png (No. 865, the Mathlouthi house: sdb with
+  shower and heater, the kitchen run under the window, children's room with bed, cot and wardrobe, salon with sofa,
+  coffee table, rug, TV and bookcase), output/checks/54b-villa.png (No. 367; its salon frame faces a wall).
+- Left: the 2% target (5.4% with the wet-door rooms: the planners should put a narrow wet room's door near a corner);
+  small homes 12.5% (one-room homes); a dar's maqsura under 4.5 m2; the full capital's survey.
+- Lead: looked at the maison picture (reads as a real town house); merged on flats round G. Prompt 54 stays open.
+
 ## 2026-11-03 - Open item 47.2, flats round G (the roof newel's door on the palier, bay plans judged after `nooks`)
 - Commit: (lead commits) | Model: Opus 5.5, high (flats helper, worktree /tmp/claude-501/flats-g, about 45 min)
 - Changed: citygen/interior/spine.py (`newel_rooms(..., door_to="")`: with a room type, the door goes on a side of the

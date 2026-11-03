@@ -2207,6 +2207,11 @@ buffet_carved = "buffet_walnut"
 mattress_stack = "mattress_floor_mink"
 loom = "sewing_machine"
 
+[interiors.furnish.smaller_trad]   # traditional homes: a double bed gives way to a plain sedda before a single bed
+bed_double_140_mink = "sedda_plain"
+bed_double_140_white = "sedda_plain"
+sedda_plain = "bed_single_mink"
+
 [interiors.furnish.roles]   # role = [[piece, weight, tags], ...]; {velvet} {fabric} {paint} {klim} {cover} {single} {unit} {goods}: the room's colours
 seats = [["home/doukkana_plain", 1, "!rich"], ["home/doukkana_zellige", 1, "rich"]]
 meida = [["home/meida_walnut", 1, "!rich !big"], ["home/meida_painted", 1, "!rich !big"], ["home/meida_large", 1, "big !rich"], ["home/tray_table", 1, "rich"]]
@@ -2374,13 +2379,15 @@ when = "reader"
 [[interiors.furnish.rooms.reception]]
 role = "loom"
 place = "window_wall"
-density = "lived-in"
+else = ["blind", "wall"]   # no blind wall by a window: any blind wall, then any wall clear of the windows
+density = "sparse"     # a weaver's loom before the lived-in pieces take the walls
 when = "trade:weaver"
 no_room = "work"
 blind = true
 [[interiors.furnish.rooms.reception]]
 role = "sewing_machine"
 place = "window_wall"
+else = ["wall"]
 density = "lived-in"
 when = "trade:tailor"
 no_room = "work"
@@ -2412,6 +2419,7 @@ chance = "hidoura"
 [[interiors.furnish.rooms.reception]]
 role = "sewing_machine"
 place = "window_wall"
+else = ["wall"]
 density = "lived-in"
 when = "!trade:tailor"
 chance = "sewing"
@@ -2419,6 +2427,7 @@ alias = "sewing_extra"
 [[interiors.furnish.rooms.sleep_couple]]
 role = "bed"
 place = "head"
+else = ["wall"]   # under a window when no blind wall is left (a cot before a floor mattress)
 density = "sparse"
 need = true
 [[interiors.furnish.rooms.sleep_couple]]
@@ -2489,6 +2498,7 @@ density = "full"
 [[interiors.furnish.rooms.sleep_children]]
 role = "child_bed"
 place = "head"
+else = ["wall"]   # under a window when no blind wall is left (a cot before a floor mattress)
 density = "sparse"
 need = true
 count = "children"
@@ -2521,6 +2531,7 @@ when = "trad"
 [[interiors.furnish.rooms.sleep_elder]]
 role = "elder_bed"
 place = "head"
+else = ["wall"]   # under a window when no blind wall is left (a cot before a floor mattress)
 density = "sparse"
 need = true
 [[interiors.furnish.rooms.sleep_elder]]
@@ -2572,6 +2583,7 @@ spread = true
 [[interiors.furnish.rooms.work]]
 role = "loom"
 place = "window_wall"
+else = ["blind", "wall"]   # no blind wall by a window: any blind wall, then any wall clear of the windows
 density = "lived-in"
 need = true
 when = "trade:weaver"
@@ -2589,6 +2601,7 @@ when = "trade:weaver"
 [[interiors.furnish.rooms.work]]
 role = "sewing_machine"
 place = "window_wall"
+else = ["wall"]
 density = "lived-in"
 need = true
 when = "trade:tailor"
@@ -2656,6 +2669,7 @@ when = "trad"
 [[interiors.furnish.rooms.guest]]
 role = "elder_bed"
 place = "head"
+else = ["wall"]   # under a window when no blind wall is left (a cot before a floor mattress)
 density = "sparse"
 when = "modern"
 [[interiors.furnish.rooms.guest]]
@@ -2735,23 +2749,42 @@ role = "khabia_small"
 place = "wall"
 density = "full"
 when = "trad"
-[[interiors.furnish.rooms.kitchen]]
-role = "sink"
+[[interiors.furnish.rooms.kitchen]]   # the run of 1 m units: sink under the window (else from a corner), unit, cooker,
+role = "sink"                          # fridge at its end; each turns the corner (`next`) or starts again by a corner
 place = "window_wall"
 density = "sparse"
 need = true
 when = "modern"
+cross = true       # kitchen units may stand in a two-door kitchen's walk strip (the reach test keeps the way)
 [[interiors.furnish.rooms.kitchen]]
 role = "run"
 place = "beside:sink"
 density = "sparse"
 when = "modern"
+cross = true
 [[interiors.furnish.rooms.kitchen]]
 role = "cooker"
 place = "beside:run"
 density = "sparse"
 need = true
 when = "modern"
+cross = true
+[[interiors.furnish.rooms.kitchen]]
+role = "cooker"
+place = "beside:sink"
+density = "sparse"
+need = true
+when = "modern"
+unless = "cooker"
+cross = true
+[[interiors.furnish.rooms.kitchen]]
+role = "cooker"
+place = "next:sink"
+density = "sparse"
+need = true
+when = "modern"
+unless = "cooker"
+cross = true
 [[interiors.furnish.rooms.kitchen]]
 role = "cooker"
 place = "wall"
@@ -2759,6 +2792,8 @@ density = "sparse"
 need = true
 when = "modern"
 unless = "cooker"
+ends = true
+cross = true
 [[interiors.furnish.rooms.kitchen]]
 role = "butane"
 place = "beside:cooker"
@@ -2766,10 +2801,52 @@ density = "sparse"
 when = "modern !rich"
 [[interiors.furnish.rooms.kitchen]]
 role = "fridge"
+place = "beside:cooker"
+density = "sparse"
+need = true
+when = "modern"
+cross = true
+[[interiors.furnish.rooms.kitchen]]
+role = "fridge"
+place = "beside:run"
+density = "sparse"
+need = true
+when = "modern"
+unless = "fridge"
+cross = true
+[[interiors.furnish.rooms.kitchen]]
+role = "fridge"
+place = "beside:sink"
+density = "sparse"
+need = true
+when = "modern"
+unless = "fridge"
+cross = true
+[[interiors.furnish.rooms.kitchen]]
+role = "fridge"
+place = "next:cooker"
+density = "sparse"
+need = true
+when = "modern"
+unless = "fridge"
+cross = true
+[[interiors.furnish.rooms.kitchen]]
+role = "fridge"
+place = "next:sink"
+density = "sparse"
+need = true
+when = "modern"
+unless = "fridge"
+cross = true
+[[interiors.furnish.rooms.kitchen]]
+role = "fridge"
 place = "wall"
 density = "sparse"
 need = true
 when = "modern"
+unless = "fridge"
+ends = true
+cross = true
 [[interiors.furnish.rooms.kitchen]]
 role = "run2"
 place = "beside:sink"
@@ -2898,19 +2975,11 @@ role = "rug_floral"
 place = "under:dining_table"
 density = "lived-in"
 [[interiors.furnish.rooms.bath]]
-role = "basin"
-place = "wall"
-density = "sparse"
-need = true
-[[interiors.furnish.rooms.bath]]
-role = "mirror_bath"
-place = "hang:basin"
-density = "sparse"
-[[interiors.furnish.rooms.bath]]
 role = "wash"
 place = "blind"
 density = "sparse"
 when = "!poor"
+min_area = 3.6    # m2: a smaller sdb takes a shower tray, so the basin still finds its wall
 [[interiors.furnish.rooms.bath]]
 role = "wash"
 place = "corner"
@@ -2925,12 +2994,24 @@ density = "sparse"
 need = true
 unless = "wash"
 alias = "shower"
+ends = true
+[[interiors.furnish.rooms.bath]]   # the bathtub or shower first: it needs a whole end wall or a corner
+role = "basin"
+place = "wall"
+density = "sparse"
+need = true
+ends = true        # from the wall's ends inward: the basin stands by a corner, not in the middle of the wall
+[[interiors.furnish.rooms.bath]]
+role = "mirror_bath"
+place = "hang:basin"
+density = "sparse"
 [[interiors.furnish.rooms.bath]]
 role = "wc"
 place = "wall"
 density = "sparse"
 need = true
 when = "nowc"
+ends = true
 [[interiors.furnish.rooms.bath]]
 role = "heater"
 place = "hang"

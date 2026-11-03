@@ -2517,16 +2517,26 @@ the rules the code settled.
   `mattress` on its top and its `cushions` every `cushion_step` along its back), `unless` (skip when the room
   already holds that role: a shower after a bathtub, a cooker on another wall), `no_room` (skip when the unit has
   a room of that function: the loom of a weaver without a work room goes to the reception, the gallery or the
-  court) and `cross` (the hanout's counter may lie across the walk). Role entries name pieces with the room's
+  court), `cross` (the hanout's counter and the modern kitchen's units may lie across the walk), `ends` (slide
+  from the wall's ends inward, so the piece stands by a corner: the basin, a wall cooker or fridge) and `else`
+  (other places tried before the next smaller piece: a cot, bed or elder's bed by a window wall when no blind
+  wall is left, a loom on any blind wall when none stands by a window). `[interiors.furnish.smaller_trad]`
+  overrides `smaller` in traditional homes (a double bed gives way to a plain sedda before a single bed). Role entries name pieces with the room's
   colours as `{velvet}`, `{fabric}`, `{paint}`, `{klim}`, `{cover}`, `{single}`, `{unit}`, `{bunk}` (drawn on the
   room's `colour` stream) and `{goods}` (the hanout's trade).
 - Room tags join the unit's: `sedari` or `sofas` (a salon tunisien by `[interiors.furnish] sedari`, on the room's
   `salon` stream), `nowc`, `nodining`, `elders2`. Children are dealt to the children's rooms in draw order; a small
   child without a children's room gets a cot by the parents' bed (`count = "cots"`).
 - Modern kitchens are runs of 1 m units, never one stretched piece: the sink under the window (a kitchen
-  piece's window test uses its worktop height, so the tap may rise before a sill at 0.95 m and more), a
-  `kitchen_run` unit beside it, the cooker beside that (else on another wall), the butane beside the cooker, a
-  second unit at lived-in, the wall cabinets over the units only.
+  piece's window test uses its worktop height, so the tap may rise before a sill at 0.95 m and more; on a wall
+  without a window it starts at a corner), a `kitchen_run` unit beside it, the cooker beside that, else beside
+  the sink, else round the corner (`next:sink`), else by a corner of another wall; the butane beside the cooker;
+  the fridge at the run's end (beside the cooker, the unit or the sink, round the corner, else by a corner); a
+  second unit at lived-in, the wall cabinets over the units only. Prompt 54 round 2 (quick capital, 25 per
+  layout): cuisine no fridge 41 + 27 -> 1 + 12, no cooker 17 -> 0, no sink 12 -> 0 (slab + colonial).
+- Baths: the bathtub (blind wall, sdb of `min_area` 3.6 m2 and more) or the shower tray (a corner, else a wall
+  from its ends) first, then the basin from a wall's ends; a shower tray is stepped into from its front or either
+  side. The rooms left warned are mostly the planners' (the door in the middle of a 0.9-1.75 m wide wc or sdb).
 - Keep-outs: a door's walk box is its width + 0.2 m (its own width in the wet rooms `wet`), `door_keep` deep from
   the wall's face on the room's side; its leaf's swing is the quarter disc at the hinge `mesh.leaves` draws (read
   from the leaf's own `doors` stream, no draw added), not a square. The walk strips run only in rooms with two

@@ -668,27 +668,35 @@ class Furnisher:
         return None
 
     # --- placing one piece -----------------------------------------------------------------------------
+    def place(self, room, sp, prof, slot, i, role, name, u_place, level):
+        """The piece at the slot's place, then at its `else` places (a cot by a window wall when no blind wall
+        is left), before the next smaller piece."""
+        alts = [slot] + [dict(slot, place=pl) for pl in slot.get("else", ())]
+        for nm in self.chain(name):
+            nm = self._known(nm)
+            if nm is None:
+                continue
+            for sl in alts:
+                got = self.place_one(room, sp, prof, sl, i, role, nm, u_place, level)
+                if got is not None:
+                    return got
+        return None
+
     def chain(self, name: str) -> list:
         out = [name]
         seen = {name}
-        while out[-1].removeprefix("home/") in self.smaller:
-            nxt = self.smaller[out[-1].removeprefix("home/")]
+        trad = {} if self.modern else self.cfg.get("smaller_trad", {})
+        while True:
+            key = out[-1].removeprefix("home/")
+            nxt = trad.get(key, self.smaller.get(key))
+            if nxt is None:
+                break
             nxt = nxt if nxt.startswith("home/") else "home/" + nxt
             if nxt in seen:
                 break
             out.append(nxt)
             seen.add(nxt)
         return out
-
-    def place(self, room, sp, prof, slot, i, role, name, u_place, level):
-        for nm in self.chain(name):
-            nm = self._known(nm)
-            if nm is None:
-                continue
-            got = self.place_one(room, sp, prof, slot, i, role, nm, u_place, level)
-            if got is not None:
-                return got
-        return None
 
     def _known(self, name: str):
         if name in self.kit.pieces:
@@ -1037,7 +1045,8 @@ class Furnisher:
             return []
         if mode == "corner":
             return [lo, hi] if hi > lo + 1e-6 else [lo]
-        if mode == "next" and host is not None and run is not None:
+        no_window = mode == "window_wall" and run is not None and not any(k in WINDOWS for *_, k in run.ops)
+        if (mode == "next" and host is not None or slot.get("ends") or no_window) and run is not None:
             ss = list(np.arange(lo, hi + 1e-6, step))      # from both ends inward: an L starts at a corner
             out = []
             for k in range(len(ss)):
@@ -1095,6 +1104,11 @@ class Furnisher:
                     for sx0, sx1 in ((spec.size[0] / 2, spec.size[0] / 2 + spec.use),
                                      (-spec.size[0] / 2 - spec.use, -spec.size[0] / 2))]
             use = uses
+        elif p.piece.startswith("home/shower"):     # a corner tray is stepped into from its front or either side
+            y0, y1 = spec.foot[0][1], spec.foot[2][1]
+            hw, u = spec.size[0] / 2, spec.use
+            use = [frame_poly(((-0.5, y1), (0.5, y1), (0.5, y1 + u), (-0.5, y1 + u)), x, y, yaw, spec.size[0])] + [
+                frame_poly(((a, y0), (b, y0), (b, y1), (a, y1)), x, y, yaw) for a, b in ((hw, hw + u), (-hw - u, -hw))]
         else:
             y1 = spec.foot[2][1]
             use = [frame_poly(((-0.5, y1), (0.5, y1), (0.5, y1 + spec.use), (-0.5, y1 + spec.use)), x, y, yaw,
