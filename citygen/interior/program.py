@@ -8,6 +8,8 @@ keeps a bit, and a matbakh when floor 0 holds two rooms or more. A service never
 """
 from __future__ import annotations
 
+import math
+
 from .cuts import Frame, absorb, cut, shared, union, width
 
 SERVICES = ("matbakh", "bit_el_ma", "bit_el_mouna")
@@ -347,6 +349,56 @@ def house_problems(interior) -> list:
     return out
 
 
+LIGHT_KINDS = ("window", "balcony")                 # facade openings that light a flat's room (`plancheck.windows`)
+
+
+def lights_of(ops) -> list:
+    """The openings that light a room (`plancheck.windows`): facade windows and balcony doors on a wall
+    (street, court, light well), court windows and doors."""
+    return [o for o in ops if (o.kind in LIGHT_KINDS and o.wall is not None) or o.kind in ("court_window", "court_door")]
+
+
+def bays(ops, gap: float) -> int:
+    """Window bays of a flat: its lighting openings (`lights_of`), those on one wall whose pier is narrower
+    than `gap` (a partition clear of both: 2 x `clear` + a partition) counted once (one room each)."""
+    walls = {}
+    for o in lights_of(ops):
+        if o.wall is None:
+            walls.setdefault(("court", round(o.x, 2), round(o.y, 2)), []).append(0.0)
+            continue
+        (ax, ay), (bx, by) = o.wall
+        k = ("wall",) + tuple(round(v, 2) for v in (ax, ay, bx, by))
+        d = math.hypot(bx - ax, by - ay) or 1.0
+        t = ((o.x - ax) * (bx - ax) + (o.y - ay) * (by - ay)) / d
+        walls.setdefault(k, []).append((t - o.width / 2, t + o.width / 2))
+    n = 0
+    for k in sorted(walls):
+        spans = sorted(walls[k]) if k[0] != "court" else []
+        n += 1 if not spans else 1 + sum(b[0] - a[1] >= gap - 1e-6 for a, b in zip(spans, spans[1:]))
+    return n
+
+
+def flat_type(rules: dict, area: float, lit: int | None) -> str:
+    """A flat's type: by its area (`flat_types`: under each area), and with `lit` (its window bays, when
+    the type follows the windows) the largest type no bigger whose lit rooms (salon, cuisine, the n
+    chambres) its bays cover, at least the smallest (47.2 flats round E: the rooms follow the bays)."""
+    types = rules.get("flat_types") or [("S+1", 60.0), ("S+2", 100.0), ("S+3", 1e9)]
+    by_area = next((t for t, under in types if area < under), types[-1][0])
+    if lit is None:
+        return by_area
+    n = int(by_area.split("+")[1])
+    ok = [t for t, _ in types if int(t.split("+")[1]) <= n and int(t.split("+")[1]) + 2 <= lit]
+    return max(ok, key=lambda t: int(t.split("+")[1])) if ok else types[0][0]
+
+
+def flat_lit(interior, ops) -> int | None:
+    """The window bays a flat's type follows (`bays`), or None where the type follows its area only
+    (`[interiors.flats] by_windows`, by layout)."""
+    if not interior.rules.get("flat_bays"):
+        return None
+    return bays(ops, 2 * interior.rules["clear"] + interior.walls["partition"])
+
+
 def flat_problems(interior) -> list:
     """Every flat: its type matches its area, it holds its type's rooms (hall, salon, cuisine, sdb, the n
     chambres of an S+n, a wc from `wc_area`), its salon has a facade window, its hall opens on a palier."""
@@ -356,9 +408,11 @@ def flat_problems(interior) -> list:
     for flat in interior.flats:
         rooms = [by_id[i] for i in flat.rooms if i in by_id]
         area = sum(r.polygon.area for r in rooms)
-        want = next((t for t, under in rules.get("flat_types", []) if area < under), flat.type)
+        lit = flat_lit(interior, [o for o in interior.openings if o.rooms and o.rooms[0] in flat.rooms])
+        want = flat_type(rules, area, lit) if rules.get("flat_types") else flat.type
         if want != flat.type:
-            out.append(f"flat {flat.id} ({flat.type}) has {area:.0f} m2, a {want}")
+            out.append(f"flat {flat.id} ({flat.type}) has {area:.0f} m2" + (f" and {lit} window bays" if lit is not None else "")
+                       + f", a {want}")
         n = int(flat.type.split("+")[1])
         types = [r.type for r in rooms]
         ids = {r.id for r in rooms}

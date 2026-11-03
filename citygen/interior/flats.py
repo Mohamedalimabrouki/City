@@ -21,7 +21,9 @@ from ..city.geo import frame as oriented
 from ..city.life import family_name
 from ..names import NameMaker
 from ..rng import stream, weighted
+from . import bayplan as BP
 from . import dar as D
+from . import program as PR
 from . import rooms as R
 from . import shop as SH
 from . import spine as P
@@ -356,19 +358,23 @@ def run(job, cores: list, kind: str) -> None:
         for place, (region, core) in enumerate(regions):
             n = len(flats)
             area = region.area
-            ftype = type_of(job, area)
+            lit = region_lit(job, region, f)
+            ftype = type_of(job, area, lit)
             unit = f"flat {n}"
             es = (core.entries(region, core.paliers[f].polygon if f in core.paliers else None, P.need(job))
                   if core is not None else [])
             es = es or [P.Entry(*region.representative_point().coords[0], 1.0, 0.0)]
-            cells = best_lay(job, region, es, program(job, ftype, area), f, ("flat", place))   # stacked flats repeat
-            halved(job, region, cells, f)
+            prog = program(job, ftype, area, lit)
+            cells = bay_cells(job, region, es[0], prog, f, place)
+            if cells is None:
+                cells = spine_cells(job, region, es, prog, f, place)
             rooms = P.add_rooms(job, cells, f, unit)
             rooms = P.nooks(job, rooms)
             P.doors(job, rooms)
             if core is not None and f in core.paliers:
                 front_door(job, core.paliers[f], rooms)
             flats.append((unit, f, ftype))
+            interior.__dict__.setdefault("flat_place", {})[unit] = (f, place)
     for c in cores:
         if c.bottom > 0:                                  # the ladder from the core's last palier up its well
             below = next((k for k in cores if k is not c and k.bottom == 0 and c.bottom - 1 in k.paliers), None)
@@ -404,6 +410,7 @@ def run(job, cores: list, kind: str) -> None:
     focus(job)
 
 
+
 def best_lay(job, region, entries: list, prog: list, f: int, key: tuple) -> list:
     """The flat's cells from its first entry; when that plan faults (`flat_score` over 1), the other
     entries, then the first with a second hall draw (stream key + "again"), each with `retry_variants` of
@@ -431,6 +438,57 @@ def best_lay(job, region, entries: list, prog: list, f: int, key: tuple) -> list
     if done > 1:
         memo[base] = memo.get(base, False) or best[1] is not first
     return best[1]
+
+
+def bay_cells(job, region, entry, prog: list, f: int, place: int):
+    """The flat's cells planned bay by bay (`bayplan`) where `layout.flat_bays` asks them (the flat's spine
+    plan faulted and this one is clean), else None; the first plan of a block keeps what a bay plan needs
+    (`bay_plans`, 47.2 flats round E)."""
+    interior = job.interior
+    if not BP.on(job):
+        return None
+    use = interior.__dict__.get("bay_use")
+    keep = interior.__dict__.get("bay_kept", {})
+    if use is None:
+        if job.fits(region, "chambre"):
+            interior.__dict__.setdefault("bay_args", {})[(f, place)] = (region, entry, list(prog))
+            interior.__dict__["bay_job"] = job
+        return None
+    if (f, place) not in use or (f, place) not in keep:
+        return None
+    return [Cell(c.poly, c.type, c.band, c.part) for c in keep[(f, place)]]
+
+
+def bay_plans(interior, keys: set) -> dict:
+    """The clean bay plans (`bayplan.lay`) of the flats `keys` ((floor, place)) of a block's first plan, by
+    its own job (only the flats the plan check faults are asked: time)."""
+    args, job = interior.__dict__.pop("bay_args", {}), interior.__dict__.pop("bay_job", None)
+    out = {}
+    for k in sorted(keys & set(args)):
+        region, entry, prog = args[k]
+        got = BP.lay(job, region, entry, prog, k[0], ("flat", k[1]))
+        if got is not None:
+            out[k] = got
+    return out
+
+
+def spine_cells(job, region, entries: list, prog: list, f: int, place: int) -> list:
+    """The flat's cells by the spine (`best_lay`, `halved`); a second plan of the block (`layout.flat_bays`)
+    replays the first's for the same region, entries and program (time: the search is most of a plan)."""
+    interior = job.interior
+    if not BP.on(job):
+        best = best_lay(job, region, entries, prog, f, ("flat", place))   # stacked flats repeat
+        halved(job, region, best, f)
+        return best
+    key = (f, place, shapely.to_wkb(shapely.normalize(shapely.set_precision(region, 1e-3))), tuple(entries), tuple(prog))
+    done = interior.__dict__.setdefault("spine_kept", {})
+    if interior.__dict__.get("bay_use") is not None and key in done:
+        return [Cell(c.poly, c.type, c.band, c.part) for c in done[key]]
+    best = best_lay(job, region, entries, prog, f, ("flat", place))   # stacked flats repeat
+    halved(job, region, best, f)
+    if interior.__dict__.get("bay_use") is None:
+        done[key] = [Cell(c.poly, c.type, c.band, c.part) for c in best]
+    return best
 
 
 def halved(job, region, cells: list, f: int) -> None:
@@ -927,19 +985,27 @@ def line_at(job, fb: Frame, storeys: list, at: float, ts: list, band, j: int) ->
 
 
 # --- the flats ---------------------------------------------------------------------------------------
-def type_of(job, area: float) -> str:
-    types = job.cfg.get("flats", {}).get("types", [["S+1", 60.0], ["S+2", 100.0], ["S+3", 1e9]])
-    return next((t for t, under in types if area < float(under)), types[-1][0])
+def type_of(job, area: float, lit: int | None = None) -> str:
+    """The flat's type by its area, capped by its window bays where the type follows them (`program.flat_type`)."""
+    return PR.flat_type(job.interior.rules, area, lit)
 
 
-def program(job, ftype: str, area: float) -> list:
+def region_lit(job, region, f: int) -> int | None:
+    """The window bays of a flat region on floor f before its plan (`program.flat_lit`: the openings whose
+    inside point lies in it, as `rooms.assign` will put them), or None where the type follows its area only."""
+    from .dar import inside
+    ops = [o for o in job.interior.openings if o.floor == f and o.piece and region.distance(inside(o, job.ext)) < 0.05]
+    return PR.flat_lit(job.interior, ops)
+
+
+def program(job, ftype: str, area: float, lit: int | None = None) -> list:
     """Salon, cuisine, the n chambres of an S+n, sdb, a wc from `wc_area`, a salle a manger from
-    `[interiors.villa] dining_area`."""
+    `[interiors.villa] dining_area` (where the type follows the windows: only with a bay to light it)."""
     n = int(ftype.split("+")[1])
     out = ["salon", "cuisine"] + ["chambre"] * n + ["sdb"]
     if area >= float(job.cfg.get("flats", {}).get("wc_area", 70.0)):
         out.append("wc")
-    if area >= float(job.cfg.get("villa", {}).get("dining_area", 110.0)):
+    if area >= float(job.cfg.get("villa", {}).get("dining_area", 110.0)) and (lit is None or lit >= n + 3):
         out.append("salle_a_manger")                     # a big flat's dining room
     return out
 
@@ -989,8 +1055,11 @@ def records(job, flats: list) -> None:
             continue
         c = shapely.union_all([r.polygon for r in rooms]).centroid
         keyed.append((f, round(float(fd.local((c.x, c.y))[0]), 3), unit, ftype, rooms))
-    keyed = [(f, x, unit, type_of(job, sum(r.polygon.area for r in rooms)), rooms) for f, x, unit, _, rooms in keyed]
+    lit = lambda rooms: PR.flat_lit(interior, [o for o in interior.openings if o.rooms and o.rooms[0] in {r.id for r in rooms}])   # noqa: E731
+    keyed = [(f, x, unit, type_of(job, sum(r.polygon.area for r in rooms), lit(rooms)), rooms) for f, x, unit, _, rooms in keyed]
     keyed.sort(key=lambda t: (t[0], t[1], t[2]))
+    place = interior.__dict__.get("flat_place", {})
+    interior.__dict__["flat_keys"] = {n: place.get(unit) for n, (_, _, unit, _, _) in enumerate(keyed)}
     for n, (f, _, unit, ftype, rooms) in enumerate(keyed):
         for r in rooms:
             r.unit = f"flat {n}"

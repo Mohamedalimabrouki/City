@@ -1083,6 +1083,18 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`, and how the le
   sheet's 3.2 m walls hid whole rows of small furniture: a ready kit's walls stand 0.4 m over their piece. Check
   pieces with a throwaway z-buffer contact sheet first (about 2 s for 71 pieces, interpolated normals so smooth
   shading shows), then the browser; the lead's first look sent back six pieces a contact sheet showed plainly.
+- **The type follows the bays; the bay planner judged by the whole check** (47.2 flats round E): count a flat's
+  bays before planning (windows on one wall whose pier holds no partition clear of both are one bay) and let the
+  type follow them (`program.flat_type`), the check asking the same of the finished flat. A planner that replaces
+  the spine must be clean by itself (program, sizes, the search's faults, no blind lit room, every room against a
+  way) and then pass the whole plan check: `layout.flat_bays` plans a faulty block again with the bay plans of
+  its faulty flats only, keeps it when no passing flat fails, and replays the spine's cells of the others
+  (`flats.spine_cells`): the spine's memo misses on a second plan, the regions come back with their vertices in
+  another order (same shape, other WKB). The spine's bands uncut leave the couloir short (`cut_region` stretches
+  it to the cells it cut): give `cut_region` the pier places (`piers=`) instead of cutting after it. Slab flats
+  (rectangles, windows front and back) reach clean plans (233/353 blocks); colonial flats are 3-7 m deep L and U
+  strips round the court, where a couloir beside a chambre needs 3.55 m and must turn the corners: the next
+  colonial planner has to walk the ring.
 - **Furnishing design** (prompt 51, SPEC 6d): facts that shaped it. Furniture is interior-only: if its
   pieces went into `kit.make_kit`, every build would make them, the fingerprint would list them and their
   materials would need `[palette]`; as `home/<piece>` in `citygen/interior/` (out of the build key) no tile

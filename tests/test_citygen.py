@@ -4655,3 +4655,23 @@ def test_relit_repartition():
     assert got is not None and all(windows(p) == 1 and abs(p.area - 16.0) < 1e-6 for p in got)
     sun.pop()
     assert repartition(job, pair, "chambre", "chambre", ways, [], {"chambre": 36.0}, 1.6, 3.0, 0.25, windows) is None
+
+
+def test_flat_type_by_bays():
+    """A flat's type follows its window bays as well as its area (47.2 flats round E): the largest type no
+    bigger than its area's whose lit rooms (salon, cuisine, the chambres) the bays cover; windows on one wall
+    whose pier holds no partition clear of both are one bay, a court window one. Hand-made, 0.01 s."""
+    from types import SimpleNamespace as NS
+
+    from citygen.interior.program import bays, flat_type
+
+    rules = {"flat_types": [("S+1", 60.0), ("S+2", 100.0), ("S+3", 1e9)]}
+    assert flat_type(rules, 105.0, None) == "S+3"                # the type by its area only
+    assert flat_type(rules, 105.0, 4) == "S+2"                   # four bays: salon, cuisine, two chambres
+    assert flat_type(rules, 105.0, 9) == "S+3" and flat_type(rules, 80.0, 9) == "S+2"   # never past the area's
+    assert flat_type(rules, 80.0, 2) == "S+1"                    # at least the smallest
+    win = lambda x: NS(kind="window", wall=((0.0, 0.0), (20.0, 0.0)), x=x, y=0.0, width=1.2)   # noqa: E731
+    assert bays([win(1.0), win(3.0), win(6.0)], 0.7) == 3        # piers of 0.8 and 1.8 m: three rooms
+    assert bays([win(1.0), win(2.5)], 0.7) == 1                  # a 0.3 m pier: one room
+    assert bays([win(1.0), NS(kind="court_window", wall=None, x=5.0, y=5.0, width=1.0),
+                 NS(kind="inner", wall=None, x=0.0, y=0.0, width=0.9)], 0.7) == 2

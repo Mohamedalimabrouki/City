@@ -86,6 +86,49 @@ Entry format:
   the chain run (`.venv-sdk/credit_chain.sh`, 10:42-13:12) stopped with "Credit balance is too low"
   (its session recorded about $42), so that route needs new credit first (checked 3 November).
 
+## 2026-11-03 - Open item 47.2, flats round E (types follow the windows, the bay planner)
+- Commit: (lead commits) | Model: Opus 5.5, high (flats helper, worktree /tmp/claude-501/flats-e, about 55 min)
+- Changed: citygen/interior/program.py (`bays`, `flat_type`, `flat_lit`: a flat's window bays, windows on one
+  wall whose pier holds no partition clear of both counted once; the check's "type matches" asks the type its
+  area and its bays give), citygen/interior/flats.py (`region_lit`, `type_of` and `records` with the bays; a salle
+  a manger only with a bay to light it; `bay_cells`, `bay_plans`, `spine_cells`), citygen/interior/bayplan.py
+  (new: the bay planner), citygen/interior/layout.py (`flat_bays`, `flat_faults`: the second plan of a faulty
+  block), citygen/interior/spine.py (`cut_region(..., piers=)`: bands cut at given places; rules `flat_bays`),
+  styles/maghreb.toml (`[interiors.flats] by_windows`, `bay_plan`), tests (`test_flat_type_by_bays`, 0.01 s).
+- Lead decision (a), sent to Ali (no answer yet; he may still choose (b) more windows or (c) splits by windows):
+  a flat's type follows its windows as well as its area: the largest type no bigger than its area's whose lit
+  rooms (salon, cuisine, the n chambres) its bays cover, at least S+1 (a 105 m2 flat with four bays is an S+2).
+  The derived occupants (`flats.occupants`) never read the type: nothing to keep in step; the city is unchanged.
+- The bay planner (`bayplan`): per flat, variants (rooms `deep` m along the street, court or every lit wall, the
+  couloir behind them, its pieces joined to the hall by straight stubs; then the spine's hall and couloir with the
+  bands cut at the piers between windows instead of its rhythm), kept only when clean by itself (program
+  complete, sizes, no search fault, no blind lit room, no strip, every room against the hall or a couloir).
+  `layout.flat_bays`: after a block's plan, the flats the check faults get their bay plans, the block is planned
+  again with those (the spine's cells of the others replayed, `flats.spine_cells`); kept when no flat that passed
+  fails and the check finds less.
+- Counts (every check; HEAD 3359c5a copy against the tree, rooms.json hashes): colonial 1 -> 3 of 270 (flats 287
+  -> 368 of 2,049, faults 4,185 -> 3,559; the type alone: 3 blocks, 337 flats), slab 139 -> 233 of 353 (flats
+  3,694 -> 4,467 of 5,147, faults 2,084 -> 892; the type alone: 143 blocks). Flats won 855, lost 1 (No. 893 flat
+  3, by the type rule alone), blocks lost 0. Faults by kind, colonial / slab: blind chambre 1,532 -> 1,082 /
+  1,045 -> 310; blind salle a manger 218 -> 180 / 223 -> 105; cuisine only through a private room 250 -> 227 / 250
+  -> 108; bath only through a chambre 365 -> 343 / 38 -> 33. Every passing interior 0 `mesh.faults`, 0 step
+  faults. Old town and Ain Chilel's villas and maisons identical.
+- Times (CPU, HEAD and tree alternated, two runs each): colonial No. 958 6.26 / 6.24 -> 7.51 / 7.48 s (bar 8 s
+  met); slab No. 1324 2.45 / 2.43 -> 4.58 / 4.59 s (bar 2.2 s not met: all 30 of its flats fault in the first
+  plan, so 23 bay searches, about 1.5 s, and a second plan, about 1 s).
+- Checks: `pytest -q` 148 passed in the helper's tree; fingerprint 0 changed.
+- Look: output/checks/472-e-plans.png (worktree; No. 940, 971, 962): 940 and 971 keep the spine's plans (their
+  flats are thin L and U strips, 3-4 m deep, round the court), 962 newly passes.
+- Open: colonial 257/270 stays far: its flats are rings 3-7 m deep round the court, in L and U shapes, where a
+  couloir beside a chambre needs 3.55 m and must turn the ring's corners: the next colonial planner walks the
+  ring (a couloir along the court wall that turns with it, rooms one bay each on the street side). Slab 336:
+  233 now, 23 blocks with one faulty flat left. No. 1324's time.
+- Lead (after flats round E): committed as progress. The lead's own survey agrees: colonial 1 -> 3 (216 changed,
+  0 lost), slab 139 -> 233 (153 changed: 94 won, 0 lost), the old town, villas and maisons identical; the slowest
+  slab 2.5 -> 5.1 s in the lead's parallel survey. Kept although No. 1324 doubles: 94 more slab blocks pass and
+  the blind chambres of slabs fall by 70%; the time goes first in the next flats round (plan a block once with
+  the bay plans when the types predict the spine's failure, not twice).
+
 ## 2026-11-03 - Prompt 52 H2a Traditional furniture pieces
 - Commit: (lead commits) | Model: Opus 5.5, high (helper in worktree wip/furn-52, paused once for the 5-hour
   limit and resumed; the lead reviewed and committed)

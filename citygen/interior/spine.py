@@ -447,10 +447,11 @@ def free(job, poly, F: Frame, axis: int, at: float, floor: int, lo=-math.inf, hi
 
 
 def cut_region(job, region, entry: Entry, floor: int, cfg: dict, depth: float, wide: float, cell: float,
-               hall: bool, turn: bool = False, place: str = "auto") -> tuple:
+               hall: bool, turn: bool = False, place: str = "auto", piers=None) -> tuple:
     """(cells, spine) of a region: the hall (or a couloir end, `hall` False), the couloir and untyped room
     cells cut across it every `cell` m. `turn` turns the couloir a quarter, `place` puts it as the rules
-    say ("auto") or against the low or high side wall. `spine` holds the couloir's frame and polygons."""
+    say ("auto") or against the low or high side wall. `spine` holds the couloir's frame and polygons.
+    `piers` (band, frame, b0, b1 -> places along u) cuts the bands there instead (`bayplan`: at the piers)."""
     F = couloir_frame(job, region, floor)
     if turn:
         F = Frame(F.c[0], F.c[1], F.angle + math.pi / 2)
@@ -575,8 +576,10 @@ def cut_region(job, region, entry: Entry, floor: int, cfg: dict, depth: float, w
     spans = []
     for name, poly in bands:
         b0, _, b1, _ = F.bounds(poly)
-        k = max(1, int(round((b1 - b0) / cell)))
+        k = max(1, int(round((b1 - b0) / cell))) if piers is None else 1
         cuts_at = court_cuts(job, poly, F, floor, b0, b1)   # no room wraps a court's corner (47.2 round B)
+        if piers is not None:
+            cuts_at += [x for x in piers(poly, F, b0, b1) if all(abs(x - y) > 1.2 for y in cuts_at)]
         for i in range(1, k):
             at = b0 + i * (b1 - b0) / k
             got = free(job, poly, F, 0, at, floor, b0 + 1.2, b1 - 1.2)
@@ -1317,6 +1320,7 @@ def modern_job(interior, outside, style: dict):
     interior.rules["min_flat"] = float(flats.get("min_flat", 40.0))
     interior.rules["dining_area"] = float(job.cfg.get("villa", {}).get("dining_area", 110.0))
     interior.rules["wc_area"] = float(flats.get("wc_area", 70.0))
+    interior.rules["flat_bays"] = bool(flats.get("by_windows", {}).get(interior.layout, False))
     interior.rules["flat_types"] = [(t, float(u)) for t, u in flats.get("types", [["S+1", 60.0], ["S+2", 100.0], ["S+3", 1e9]])]
     return job
 

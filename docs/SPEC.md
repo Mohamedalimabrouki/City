@@ -1668,7 +1668,10 @@ its floor landing (`palier`, unit `common`) against the door's wall, the flights
   each flat runs from the front wall to the back wall; the landing reaches along the door wall to a door
   width past the split. Floor 0 has flats too (slabs have windows on every floor).
 - Each flat region is laid out by the spine engine, its hall at its landing door. Type by area
-  (`[interiors.flats] types`: S+1 under 60 m2, S+2 under 100, else S+3, lead decision of prompt 47): hall, salon, the chambres,
+  (`[interiors.flats] types`: S+1 under 60 m2, S+2 under 100, else S+3, lead decision of prompt 47) and by its
+  windows (lead decision, 47.2 flats round E, `[interiors.flats] by_windows`: a flat whose window bays, windows on
+  one wall whose pier holds no partition clear of both counting once, cannot light its type's salon, cuisine and
+  chambres takes the largest type they light, at least S+1; a salle a manger only with a bay to light it): hall, salon, the chambres,
   cuisine, sdb, a wc from 70 m2; a slab balcony door makes its room the salon (else a chambre).
 - Flats are numbered by floor, then along the frame's u (section, half; left before right seen from the
   door). Flat 0 holds the plan's household (`plan.households` is never touched). Flat n >= 1 gets derived
@@ -1701,7 +1704,7 @@ its floor landing (`palier`, unit `common`) against the door's wall, the flights
   chambres are allowed (a big flat's spare windowed cells). The flat's door: from the palier into its hall,
   else the room it shares most with (narrow when no full door fits). Numbering: floor, then left to right
   seen from the main door (records renumber units after the plan). Program check: the type matches the
-  area, the type's rooms are there, the salon has a facade window, the hall opens on a common room, and
+  area and the window bays, the type's rooms are there, the salon has a facade window, the hall opens on a common room, and
   every room keeps its flat's unit; tested: every flat reachable through its core only.
   Round 4: a flat region with no facade window joins the windowed flat it shares most with (on floor 0 it
   becomes stores). Follow-up round: two colonial flats are cut where their areas are equal; when that line misses the core,
@@ -1734,6 +1737,11 @@ its floor landing (`palier`, unit `common`) against the door's wall, the flights
   street door (`flats.allee`: its new side `clear` plus half a partition past the door's jamb, moved clear of
   the openings); a core standing on the door wall beside the door gets its landing extended along the wall to
   the door. Before, the cafe or shop took the street door of 13 blocks (No. 940) and nobody reached the stair.
+  Flats round E (47.2): a block whose flats the plan check faults is planned again with each faulty flat that has
+  a clean bay plan laid bay by bay (`bayplan`: rooms along the lit walls with the couloir behind them, or the
+  spine's couloir with its bands cut at the piers; one room per bay, the baths in the blind pieces or carved from
+  a room's corner on the couloir), the spine's cells of the others replayed; kept when no flat that passed fails
+  and the check finds less (`layout.flat_bays`, `[interiors.flats] bay_plan`).
 
 **Stairs** (`[interiors.stairs]`, records prompts 46-47, geometry prompt 49). Rule (tested): every
 point of every tread on the walking line has at least `headroom` (2.0 m) clear above it. Risers: the

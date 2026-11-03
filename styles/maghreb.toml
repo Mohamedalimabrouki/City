@@ -2012,6 +2012,7 @@ complete = ["villa", "maison"]   # a floor 0 with no salon, a one-floor home wit
 
 [interiors.flats]   # flats in colonial blocks and slabs (SPEC 6c "Flats")
 types = [["S+1", 60.0], ["S+2", 100.0], ["S+3", 1e9]]   # flat type by area (m2, under; lead: moyen standing)
+by_windows = { colonial = true, slab = true }   # a flat's type follows its window bays too: the largest type no bigger than its area's whose lit rooms (salon, cuisine, the chambres) the bays cover (47.2 flats round E)
 two_flats = 130.0        # m2: a colonial floor less its core keeping this has two flats
 min_flat = 40.0          # m2: floor 0 of a colonial block keeps a flat beside its shop or cafe from this
 couloir = 1.1            # meters wide, the flats' couloir (villas and maisons: [interiors.villa] couloir)
@@ -2026,6 +2027,7 @@ blind_faults = { colonial = true, slab = true, villa = true, maison = true }   #
 court_cuts = { colonial = true, maison = "against" }   # the spine cuts its bands at the ends of every court or light well they wrap (no L rooms round a court; a maison's 3 m patio keeps its L rooms, which the cuts left blind; 47.2 round B); "against": only a narrow maison's court against a party wall (47.2 round C)
 blind_cap = { slab = 4, colonial = 4 }   # variants a flat's search tries at most while only blind rooms keep its best from passing (time, 47.2 round B)
 blind_join = { colonial = true, slab = true, villa = true, maison = true }     # a blind room-sized leftover cell of a lit home joins a room (or the way) rather than be a dark room (47.2 round B)
+bay_plan = { layouts = ["colonial", "slab"], room = 2.4, wet = 1.2, wet_most = 2.4 }   # a faulty flat planned one room per window bay where that plan is clean and passes (`bayplan`; room: least m of a lit piece along its band, wet / wet_most: a blind end piece for a bath; 47.2 flats round E)
 deep_door = 0.3          # meters: a slab stair door whose top stands less than this over floor 0 opens into a sunken entry room
 
 [interiors.shop]   # the hanout and makhzen of a ground floor shop front (SPEC 6c "Shops and cafes")
