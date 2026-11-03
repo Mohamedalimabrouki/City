@@ -58,7 +58,7 @@ TABLE = {
     "mergoum": ("rug", "floor", (1.20, 2.00, 0.01), 10, {}),
     "zarbia": ("rug", "floor", (2.00, 3.00, 0.015), 10, {}),
     "hasira": ("rug", "floor", (1.80, 2.60, 0.01), 10, {}),
-    "hidoura": ("rug", "floor", (0.80, 1.10, 0.02), 24, {}),
+    "hidoura": ("rug", "floor", (0.80, 1.10, 0.02), 84, {}),
     "sajjada": ("rug", "floor", (0.65, 1.15, 0.01), 10, {}),
     "rahla": ("work", "floor", (0.32, 0.25, 0.35), 70, {}),
     "loom": ("work", "wall", (1.60, 0.80, 2.20), 300, {"use": 0.8}),
@@ -840,8 +840,8 @@ def klim(s, v, rng):
 
 def hidoura(s, v, rng):
     """The sheepskin of the Aid: a hide outline with its four legs, neck and tail and four shaggy tufts on
-    the flanks, every point a little in or out; the fleece domed to its full height in the middle and thin
-    at the ragged edge; wool locks in the image (22 triangles)."""
+    the flanks, a wool lock pushed in or out between every two points; the fleece domed over a soft
+    shoulder to its full height in the middle and thin at the ragged edge; wool locks in the image (84 triangles)."""
     w, d, h = s
     hide = [(0.0, 0.5), (0.2, 0.38), (0.5, 0.30), (0.30, 0.02), (0.5, -0.36), (0.06, -0.5),
             (-0.5, -0.36), (-0.30, 0.02), (-0.5, 0.30), (-0.2, 0.38)]
@@ -851,24 +851,20 @@ def hidoura(s, v, rng):
         if i in (2, 3, 6, 7):
             q = hide[i + 1]
             out.append(((p[0] + q[0]) / 2 * rng.uniform(1.05, 1.18), (p[1] + q[1]) / 2))
-    out = np.array(out) + rng.uniform(-0.035, 0.035, (len(out), 2))
+    out = np.array(out)
+    mid = (out + np.roll(out, -1, axis=0)) / 2               # a lock between every two points, in or out
+    lock = np.where(np.arange(len(out)) % 2, 0.90, 1.10)[:, None] * rng.uniform(0.96, 1.04, (len(out), 1))
+    out = np.stack([out, mid * lock], axis=1).reshape(-1, 2) + rng.uniform(-0.03, 0.03, (2 * len(out), 2))
     out = (out - out.min(axis=0)) / (out.max(axis=0) - out.min(axis=0)) - 0.5
     m = len(out)
-    corner = np.pi / 4 + np.arange(4) * np.pi / 2           # the woolly middle: four points round the crown
-    inner = np.c_[0.2 * np.cos(corner), 0.24 * np.sin(corner)] + rng.uniform(-0.03, 0.03, (4, 2))
-    edge = RUG_Z + rng.uniform(0.0015, 0.004, m)              # the ragged hem, some locks lifted
-    crown = RUG_Z + h - 0.005
-    pos = np.concatenate([np.c_[out * [w, d], edge], np.c_[inner * [w, d], crown - rng.uniform(0.003, 0.006, 4)],
-                          [[0.0, 0.0, crown]]])
-    near = (np.floor((np.arctan2(out[:, 1], out[:, 0]) % (2 * np.pi)) / (np.pi / 2)).astype(int)) % 4
+    edge = RUG_Z + rng.uniform(0.002, 0.006, m)               # the ragged hem, some locks lifted
+    crown = RUG_Z + h - 0.005                                  # a rug stays under 2 cm: chairs stand on it
+    ring = np.c_[out * 0.55 * [w, d], RUG_Z + (0.7 + rng.uniform(-0.1, 0.1, m)) * (crown - RUG_Z)]   # the soft shoulder
+    pos = np.concatenate([np.c_[out * [w, d], edge], ring, [[0.0, 0.0, crown]]])
     tris = []
     for i in range(m):
         j = (i + 1) % m
-        a, b = m + near[i], m + near[j]
-        tris.append([i, j, b])
-        if a != b:
-            tris.append([i, b, a])
-    tris += [[m + i, m + (i + 1) % 4, m + 4] for i in range(4)]
+        tris += [[i, j, m + j], [i, m + j, m + i], [m + i, m + j, 2 * m]]
     tris = np.array(tris)
     for n in range(len(tris)):
         p0, p1, p2 = pos[tris[n]]
@@ -1062,7 +1058,7 @@ def net_pile(s, v, rng):
         if np.cross(p1 - p0, p2 - p0)[2] < 0:
             tris[n] = tris[n][::-1]
     mb = MeshBuilder()
-    _smooth(mb, "net_green", pos, tris, uv=np.stack([pos[:, 0], -(pos[:, 1] + pos[:, 2])], axis=1))   # the meshes
+    _smooth(mb, "net_green", pos, tris, uv=np.stack([pos[:, 0], -pos[:, 1]], axis=1))   # one top-down projection
     for i in (1, 3, 4, 6):                                # floats on the second ring's ridges
         x, y, z = pos[1 + k + i]
         _pyramid(mb, _ring(x, y, z + 0.025, 0.04, 0.03, 4), (x, y, z + 0.06), "plastic_red")
