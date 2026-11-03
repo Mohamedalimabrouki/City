@@ -42,6 +42,23 @@ in front; back faces are drawn dark). No code changed.
 - shoes (0.42 m, 40 t): pair of brown blocks on black soles. Reads as shoes at room scale; blocky toe.
 - schoolbag (0.45 m, 28 t): blue body, red front pocket, top handle. Reads well. OK.
 
+## Causes found in the code (file:line, severity, one-line fix)
+- kit_life.py:208 vase_flowers, high: the vase neck ends at z 0.20 but the blooms sit at h - 0.035
+  (about 0.33 m), a 0.09 m gap with no stems; add 2 to 3 thin `leaf_green` stems from the neck, or set
+  the bloom z to about 0.22.
+- kit_life.py:172 fruit_bowl, medium: the lathe profile starts at radius 0.05 and ends at radius 0.04,
+  so the bowl has a hole in its bottom (the dark crescent); start it at (0.0, 0.0) and end it at (0.0, 0.03).
+- kit_life.py:164 plates_stack, low: one lathe = one solid drum; lathe 5 to 6 thin plates with tiny gaps.
+- kit_life.py:122 lamp_bedside, medium: the shade is one open single-sided lathe and `fabric_beige`
+  (styles/maghreb.toml:1913, shared with chairs) is not double sided, so from above (a nightstand is
+  seen from above) the inside of the shade is culled and it looks hollow; lathe the shade a second
+  time with the profile reversed (inner face), rather than make the shared fabric double sided.
+- kit_life.py:80 chandelier, low: the 8 glass tulips are open single-sided cones (`lamp_glass`,
+  maghreb.toml:1934, not double sided); fine from below where a chandelier is seen, hollow from above.
+- maghreb.toml:1935 `lamp_glow` is an exact copy of `lamp_glass` (by design: the viewer lights it at
+  night). So in Blender and any glTF tool (Godot) the `_on` twins do NOT glow; only the viewer shows it.
+  Not a bug of prompt 55, but worth one line in the Blender/Godot notes.
+
 ## Most worth fixing first
 1. vase_flowers floating blooms (no stems). 2. fruit_bowl dark hole inside. 3. plates_stack reads as one
 drum. 4. pot_basil pyramid. 5. check double-sided on open shades and cups (lamp_bedside, chandelier).
