@@ -1405,7 +1405,8 @@ def roof_newel(job, region, on_walls: bool = False):
 def newel_rooms(job, square, droj, door_to: str = "") -> None:
     """The `Stair` of the roof newel (top floor to the roof) and its door into the room it touches most
     (a core's palier first). `door_to` (a room type, flats: "palier"): the door on a side the square shares
-    with such a room when one does, not on a side that meets it only at a corner (47.2 flats round G)."""
+    with such a room when one does, not on a side that meets it only at a corner (47.2 flats round G); a tuple:
+    the first type that has such a side (a little villa: the hall, else the salon; 47.2 villas round O)."""
     from shapely.geometry import LineString
     interior = job.interior
     top = interior.floors - 1
@@ -1413,9 +1414,11 @@ def newel_rooms(job, square, droj, door_to: str = "") -> None:
     floor = shapely.union_all([r.polygon for r in others]) if others else None
     toward = job.roof.door[2] if job.roof is not None and job.roof.door is not None else None
     door = None
-    if door_to and floor is not None:
-        to = sorted((r for r in others if r.type == door_to), key=lambda r: (-shared(droj.polygon, r.polygon), r.id))
+    for t in ((door_to,) if isinstance(door_to, str) else door_to) if door_to and floor is not None else ():
+        to = sorted((r for r in others if r.type == t), key=lambda r: (-shared(droj.polygon, r.polygon), r.id))
         door = S.door_side(square, [floor, to[0].polygon], toward) if to else None
+        if door is not None:
+            break
     door = door or (S.door_side(square, [floor], toward) if floor is not None else None) or S.door_side(square, [square.buffer(5)])
     stair = S.newel(square, door, interior.floors, interior.fh, job.stairs)
     stair.floor = top
