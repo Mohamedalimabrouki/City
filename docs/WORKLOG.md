@@ -83,7 +83,11 @@ Entry format:
     towns by salt lakes are fine, min_flow stays 3.0); Arabic: a describing word after a core in ة is feminine (if
     the Latin must follow, those names change once); long a: keep today's mix; lamps glow only at night; histories:
     show Ali before/after examples of review-81 items 5 and 9 first; SPEC 6d home kit defaults confirmed (today,
-    lived-in, 112 degrees, abstract verse, blue butane, low-poly now); flats: add windows on court walls and blank
+    lived-in, 112 degrees, abstract verse, low-poly now; the butane bottle is NOT blue: Ali saw grey, green or red,
+    so a mix of the three, one per home, on its own stream); the long a (Ali): ا follows how the name is said (a
+    long vowel, as in Safaqus; a doubled letter takes a shadda, Sammarine); Latin-first parts cannot know that, so
+    keep today's mix now; idea for later: build name parts from Arabic sound patterns (Sammar, Fallah) so the
+    Arabic and the Latin both follow the sound and names sound more Arabic); flats: add windows on court walls and blank
     street walls (a city change) to reach the bars. To judge in 3D after merge-3d: cushions, rug, prompt 55 pieces.
   - merge-3d (started 21:20 UTC, branch `wip/merge-3d`): merge-prep and its small fixes, fix-materials, the four kit
     fixes, colonial-k, villas-o, fix-little, plus the rug fold, cord normals and bowl size fixes; gates: all tests,
