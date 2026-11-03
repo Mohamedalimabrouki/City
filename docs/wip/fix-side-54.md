@@ -10,5 +10,12 @@ Task: review-mp-furnish found that place mode "side" moved the piece twice along
 - `pytest -q -k "furn or household"`: 9 passed (43 s).
 
 ## Left
-- The quick capital's warned-room share before and after: see below if measured, else not done.
+- Not found: which room flips to warned (see the share below), and why.
+
+## Warned-room share (quick capital, the 2% test's sample: 8 homes per layout nearest the centre, 2087 rooms)
+- Old code (the fix undone by a monkeypatch in a throwaway test): 36 warned = 1.72%, at sparse and at lived-in alike.
+- New code: 37 warned = 1.77%, at sparse and at lived-in alike. So the fix does not lower the share here: one more
+  room misses a `need` piece, probably because a "side" bed now lands mid-wall (slide starts at the middle) and
+  blocks another need piece that used to fit. Still under 2%. Worth a look before ticking 54: try "side" from
+  the run's ends inward (`ends`-style slide) so the bed hugs a corner and leaves the rest of the wall free.
 - Not done (other review findings, out of this task): "side" has no `r.clear` window test; household.py:168 `<= 1`.
