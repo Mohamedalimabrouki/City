@@ -13,6 +13,7 @@ import math
 
 from ..mesh.builder import MeshBuilder
 from ..rng import stream
+from .kit_new import _front
 from .kit_old import _box, _lathed
 
 # name: (category, anchor, (W, D, H), tris, extra), as kit_old.TABLE
@@ -29,6 +30,10 @@ TABLE = {
     "plates_stack": ("small", "on", (0.26, 0.26, 0.12), 40, {"top": 0.12}),
     "fruit_bowl": ("small", "on", (0.30, 0.30, 0.15), 70, {}),
     "oil_bidon": ("small", "floor", (0.20, 0.15, 0.32), 40, {}),
+    "pot_jasmine": ("plant", "floor", (0.45, 0.45, 1.20), 220, {}),
+    "vase_flowers": ("small", "on", (0.15, 0.15, 0.40), 80, {}),
+    "photo_frame": ("decor", "wall", (0.30, 0.02, 0.40), 12, {"z0": 1.50}),
+    "khomsa": ("decor", "wall", (0.16, 0.02, 0.20), 24, {"z0": 1.80}),
 }
 VARIANTS: dict = {}
 SIZES = {b: row[2] for b, row in TABLE.items()}   # `[interiors.furnish.sizes]` overrides
@@ -184,9 +189,57 @@ def oil_bidon(s, v, rng):
     return mb
 
 
+def pot_jasmine(s, v, rng):
+    """The jasmine of a court corner, the stah or a balcony: a tall bush in its pot, white flowers on it."""
+    w, d, h = s
+    r = w / 2
+    mb = MeshBuilder()
+    _pot(mb, 0.34, 0.34)
+    _lathed(mb, [(0.0, 0.30), (r - 0.025, 0.55), (r, 0.85), (r - 0.075, 1.08), (0.0, h - 0.05)], "leaf_green", 8)
+    for k, z in enumerate((0.62, 0.74, 0.86, 0.95, 1.02)):
+        a = k * 2.4
+        _ball(mb, (r - 0.05) * math.cos(a), (r - 0.05) * math.sin(a), z, 0.025, "cotton_white")
+    _ball(mb, 0.0, 0.0, h - 0.025, 0.025, "cotton_white")
+    return mb
+
+
+def vase_flowers(s, v, rng):
+    """Plastic flowers in a glass vase on a coffee table or the buffet: two red heads and a green sprig."""
+    w, d, h = s
+    mb = MeshBuilder()
+    _lathed(mb, [(0.04, 0.0), (0.065, 0.10), (0.03, 0.20)], "glass_inner", 6)
+    for (x, y), mat in zip(((0.04, 0.0), (-0.02, 0.04), (-0.02, -0.04)), ("awning_red", "awning_red", "leaf_green")):
+        _ball(mb, x, y, h - 0.035 - (0.03 if mat == "leaf_green" else 0.0), 0.035, mat)
+    return mb
+
+
+def photo_frame(s, v, rng):
+    """A framed family photograph on the wall."""
+    w, d, h = s
+    z0 = TABLE["photo_frame"][4]["z0"]
+    mb = MeshBuilder()
+    _box(mb, -w / 2, w / 2, 0.0, d - 0.001, z0, z0 + h, "wood_walnut", "k")
+    _front(mb, -w / 2 + 0.04, w / 2 - 0.04, z0 + 0.04, z0 + h - 0.04, d, "photo_sepia")
+    return mb
+
+
+def khomsa(s, v, rng):
+    """The brass hand over the inside of the main door: a palm and five fingers, two of them thumbs."""
+    w, d, h = s
+    z0 = TABLE["khomsa"][4]["z0"]
+    mb = MeshBuilder()
+    _box(mb, -0.055, 0.055, 0.0, d - 0.002, z0, z0 + 0.10, "brass", "kb")
+    fingers = ((-w / 2, -0.055, 0.03, 0.13), (-0.05, -0.018, 0.09, 0.19), (-0.016, 0.016, 0.09, 0.20),
+               (0.018, 0.05, 0.09, 0.19), (0.055, w / 2, 0.03, 0.13))
+    for x0, x1, a, b in fingers:
+        _front(mb, x0, x1, z0 + a, z0 + b, d, "brass")
+    return mb
+
+
 MAKERS = {"fanous": fanous, "lantern_table": lantern_table, "ceiling_lamp": ceiling_lamp, "chandelier": chandelier,
           "neon": neon, "bulb_bare": bulb_bare, "lamp_bedside": lamp_bedside, "pot_geranium": pot_geranium,
-          "pot_basil": pot_basil, "plates_stack": plates_stack, "fruit_bowl": fruit_bowl, "oil_bidon": oil_bidon}
+          "pot_basil": pot_basil, "plates_stack": plates_stack, "fruit_bowl": fruit_bowl, "oil_bidon": oil_bidon,
+          "pot_jasmine": pot_jasmine, "vase_flowers": vase_flowers, "photo_frame": photo_frame, "khomsa": khomsa}
 
 
 def names() -> list:
