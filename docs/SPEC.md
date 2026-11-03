@@ -645,12 +645,23 @@ its version, nothing in flight, the street camera placed) after the first full l
 the camera move makes tiles load. `tools/make_artifact.py` swaps the one reading line of `fetchTile`
 for its base64 JSON files and converts the lod1 files too.
 
-**Other engines (note for prompt 72, Godot 4):** not verified here. Godot 4's glTF importer is
-believed to read `KHR_mesh_quantization` and to generate normals when NORMAL is absent (to verify in
-prompt 72: they must come out flat on the split vertices); `EXT_mesh_gpu_instancing` support is not confirmed (it
-may need a `GLTFDocumentExtension` that turns each instance node into a `MultiMeshInstance3D`, or
-expanding the copies on import). Test one quick tile in Godot first; `[tiles] quantize = false`
-removes the quantization requirement if needed.
+**Godot 4 (prompt 72, `engine/godot/`, Godot 4.3 or newer):** checked in Godot's
+`modules/gltf/gltf_document.cpp` (4.3, 4.4, 4.5 and master), since Godot is not installed here: the
+built-in reader supports `KHR_texture_transform` but neither `KHR_mesh_quantization` (a file that
+requires it is refused) nor `EXT_mesh_gpu_instancing`; it decodes normalized SHORT as `c / 32768`
+(not `c / 32767`), and a primitive without NORMAL gets no normals (its split vertices are merged by
+`SurfaceTool.index()`). `scripts/citygen_gltf.gd` (a `GLTFDocumentExtension`) lists both extensions,
+scales normalized SHORT / BYTE positions by 32768/32767 / 128/127, gives every surface without
+normals flat face normals (deindexed, then indexed again), turns each instanced node into a
+`MultiMeshInstance3D` (its own accessor reader: byteStride, component types, `normalized`, glTF
+3.11 rules), and in shared mode takes the external images out of the JSON before parsing and sets one
+cached `ImageTexture` per image (mipmapped, repeat, `uv1_scale` from `KHR_texture_transform`).
+`scripts/city_streamer.gd` streams like the viewer (lod1 everywhere, full under `full_in` 1400 m,
+lod1 over `full_out` 1700 m, full only within `full_radius` 2500 m, at most `max_loads` 3 loads on
+`WorkerThreadPool`, load then swap, full tiles freed when they leave, lod1 kept) and places each tile
+root at `(x0 - focus.x, 0, -(y0 - focus.y))`, computed in double precision (floating origin at the
+focus). `tools/check.gd` (`godot --headless --path engine/godot --script res://tools/check.gd`) loads
+every full and lod1 tile and prints the counts. `[tiles] quantize = false` remains the fallback.
 
 **Textures:** a palette entry may carry `texture = "<name>"` and `texture_size = [w, h]` (meters
 one repeat covers). The writer emits `images`, `textures`, one REPEAT sampler with mipmaps

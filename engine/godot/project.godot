@@ -1,0 +1,14 @@
+; Godot 4.3 or newer. Open this folder in Godot and press Play (F5): see README.md.
+
+config_version=5
+
+[application]
+
+config/name="Citygen city"
+config/description="Streams a citygen build (tiles/index.json) around the camera."
+run/main_scene="res://main.tscn"
+config/features=PackedStringArray("4.3", "Forward Plus")
+
+[rendering]
+
+anti_aliasing/quality/msaa_3d=2
