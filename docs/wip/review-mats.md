@@ -6,8 +6,9 @@ Reviewed: `git diff 3036039..941b135` (8a4bb29 the fix, 941b135 notes). No code 
 - All uses renamed? In code, yes: kit_old (ibrik, kanoun, khabia, tabouna, pots_stack, net_pile), kit_new
   (chicha), `[interiors.palette]`. `git grep` finds no home-kit use of `copper`, `terracotta`, `net_green`
   left in citygen/interior, tools/ (make_blend.py, blender_kit_export.py, viewer index.html and
-  gallery.html), tests or furniture data. The remaining uses are city ones and must stay: mesh/boats.py
-  `net_green`, mesh/props.py `terracotta` and `copper`, mesh/furniture.py:281-282 `copper` (a fountain),
+  gallery.html) or tests; `furniture.json` holds piece names and places only
+  (furnish.py:142-145), no material names. The remaining uses are city ones and must stay: mesh/boats.py
+  `net_green`, mesh/props.py `terracotta` and `copper`, mesh/furniture.py:281-282 `copper` (the `sabil` fountain),
   kits/tounes/manifest.json `terracotta`, `[palette]` lines 113 and 188. Two SPEC lines were missed (below).
 - Does the city's value win? Yes: `interior_materials` is `{**home, **city}`. Dropping the old
   `cfg.get("palette")` is safe: `home.materials` already holds `[interiors.palette]` (homekit.py:63).
@@ -18,11 +19,12 @@ Reviewed: `git diff 3036039..941b135` (8a4bb29 the fix, 941b135 notes). No code 
 1. docs/SPEC.md:2189 (`pots_hanging` row), medium: still lists `copper`, the next 6d builder (furn-55b)
    would use the city's copper; write `copper_ware`.
 2. docs/SPEC.md:2069, low: "`copper` metallic 0.5" in the metals sentence; write `copper_ware`.
-3. wip/furn-55 citygen/interior/kit_life.py:141, medium (merge): a new pot uses `"terracotta"`; after
+3. wip/furn-55 citygen/interior/kit_life.py:141, medium (merge): `_pot` (used by `pot_geranium`,
+   `pot_basil`, `pot_jasmine`) draws `"terracotta"`; after
    this fix it draws the city's #B8643C (no roughness) instead of `clay_red` #B5653F r0.9, and no test
    catches it (`[palette]` terracotta is in home.materials too). Change to `"clay_red"` when merging
    furn-55; tell furn-55b the same.
-4. tests/test_homekit.py:31-42, low: the "city wins" order is not tested: with today's data the old
+4. tests/test_homekit.py:30-42, low: the "city wins" order is not tested: with today's data the old
    order `{**city, **home}` passes every assert too (checked by script). The real guard is the
    disjoint-names assert, which is right. Optional: add
    `assert interior_materials({"x": 1}, {"x": 2})["x"] == 1`.
