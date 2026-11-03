@@ -4993,6 +4993,73 @@ def test_slab_entry_hall_reaches_the_well():
     assert entry_hall(job, centred, poly, gap) is gap
 
 
+def test_slab_scrap_hall_tries_other_doors(monkeypatch):
+    """A block of flats (no second tries) whose first plan's hall is a scrap no hall fits (a door on a landing
+    side facing a strip of the flat) tries the flat's other doors and keeps the better plan; a first plan with
+    a real hall is kept without them, and a colonial block's tries are unchanged (47.2 flats round J).
+    Hand-made, under 0.01 s."""
+    from types import SimpleNamespace as NS
+
+    from shapely.geometry import box
+
+    from citygen.interior import flats as FL
+    from citygen.interior.cuts import Cell
+
+    calls = []
+
+    def lay(job, region, e, prog, f, key):
+        calls.append((e, key))
+        hall = box(0, 0, 3, 0.5) if e == "strip" else box(0, 0, 2, 2)
+        return [Cell(hall, "hall"), Cell(box(0, 2, 4, 6), "chambre")]
+
+    monkeypatch.setattr(FL.P, "lay", lay)
+    monkeypatch.setattr(FL.P, "faults", lambda *a, **k: 0)
+    job = NS(cfg={"flats": {"retry_variants": {"colonial": 0.5, "slab": 0.0}}}, interior=NS(layout="slab"),
+             fits=lambda poly, t: min(poly.bounds[2] - poly.bounds[0], poly.bounds[3] - poly.bounds[1]) >= 1.0)
+    region = box(0, 0, 10, 10)
+    got = FL.best_lay(job, region, ["strip", "side"], ["chambre"], 3, ("flat", 0))
+    assert [e for e, _ in calls] == ["strip", "side"] and got[0].poly.area == 4.0
+    calls.clear()
+    FL.best_lay(job, region, ["side", "strip"], ["chambre"], 3, ("flat", 1))
+    assert [e for e, _ in calls] == ["side"]
+    calls.clear()
+    job.interior.layout = "colonial"
+    FL.best_lay(job, region, ["strip", "strip"], ["chambre"], 3, ("flat", 2))
+    assert [k for _, k in calls] == [("flat", 2), ("flat", 2), ("flat", 2, "again")]
+
+
+def test_slab_duplex_ladder_from_the_couloir(monkeypatch):
+    """A duplex's ladder whose foot would stand in a chambre of the flat below moves into its couloir, against
+    its side, in a block of flats; a colonial block keeps the ladder where it stood (47.2 flats round J).
+    Hand-made, under 0.05 s."""
+    from types import SimpleNamespace as NS
+
+    from shapely.geometry import box
+
+    from citygen.interior import flats as FL
+    from citygen.interior.cuts import Cell
+
+    def rooms_of(job, cells, f, unit):
+        out = [NS(id=10 + i, polygon=c.poly, type=c.type, unit=unit, floor=f) for i, c in enumerate(cells)]
+        job.interior.rooms += out
+        return out
+
+    monkeypatch.setattr(FL.P, "lay", lambda *a, **k: [Cell(box(0, 0, 6, 5), "chambre"), Cell(box(0, 5, 6, 6.5), "couloir")])
+    monkeypatch.setattr(FL.P, "add_rooms", rooms_of)
+    monkeypatch.setattr(FL.P, "doors", lambda *a: None)
+    for kind, foot in (("slab", "couloir"), ("colonial", "chambre")):
+        below = [NS(id=1, polygon=box(0, 0, 6, 5), type="chambre", unit="flat 0", floor=2),
+                 NS(id=2, polygon=box(0, 5, 6, 6.5), type="couloir", unit="flat 0", floor=2)]
+        job = NS(interior=NS(rooms=list(below), stairs=[], warnings=[], fh=3.0))
+        FL.duplex(job, [(box(0, 0, 6, 6.5), None)], 3, kind)
+        stair = job.interior.stairs[0]
+        rooms = {r.id: r for r in job.interior.rooms}
+        assert [rooms[i].type for i in stair.rooms] == [foot, foot]
+        if kind == "slab":
+            assert box(0, 5, 6, 6.5).contains(stair.polygon)
+            assert min(abs(stair.polygon.bounds[1] - 5.1), abs(stair.polygon.bounds[3] - 6.4)) < 1e-6
+
+
 def test_flats_wet_door_by_a_corner(new_districts):
     """A narrow wc's or sdb's door in a block of flats stands by a corner of its wall, its jamb the door's clear
     from the end wall's face (half a partition and the clear from the corner), hinged on that side (47.2 flats
