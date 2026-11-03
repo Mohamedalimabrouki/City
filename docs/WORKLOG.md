@@ -89,6 +89,13 @@ Entry format:
     keep today's mix now; idea for later: build name parts from Arabic sound patterns (Sammar, Fallah) so the
     Arabic and the Latin both follow the sound and names sound more Arabic); flats: add windows on court walls and blank
     street walls (a city change) to reach the bars. To judge in 3D after merge-3d: cushions, rug, prompt 55 pieces.
+  - Ali found a design fault (screenshot of Megine, 21:50 UTC): open balconies (iron, prompt 22, and the modern
+    blocks' concrete ones) stand in front of plain windows with a sill, so nobody can step out. His choice: every
+    open balcony gets a porte-fenetre (door-window down to the balcony floor, same shutters and frame, its `_lit`
+    twin), some tall windows without one get a flush balconnet (railing, no slab); inside, the room behind a
+    balcony is a salon or chambre (a kitchen for a service balcony, never a bath) and furniture keeps the door
+    clear. The mashrabiya on a window stays. Do it after merge-3d, in one facade round with the extra windows;
+    the same round checks the large cream panels standing out of walls on the right of his screenshot.
   - merge-3d (started 21:20 UTC, branch `wip/merge-3d`): merge-prep and its small fixes, fix-materials, the four kit
     fixes, colonial-k, villas-o, fix-little, plus the rug fold, cord normals and bowl size fixes; gates: all tests,
     fingerprint explained, no survey group worse. The lead reviews it, then main moves, then make_blend.
