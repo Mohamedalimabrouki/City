@@ -166,3 +166,15 @@ def test_cushion_cord_normals_face_out():
         assert len(t) == 32, v
         face = np.cross(p[t[:, 1]] - p[t[:, 0]], p[t[:, 2]] - p[t[:, 0]])
         assert (np.einsum("tj,tkj->tk", face, n[t]) > 0).all(), v
+
+
+def test_pots_stack_stays_in_its_size():
+    """The potter's stock stays inside its table size over 200 seeds (the review of fix-brass: the
+    8-sided bowls reached 0.318 m past the 0.30 m half-depth, the jars 0.308 m across)."""
+    from citygen.interior import kit_old
+    from citygen.rng import stream
+    w, d, h = kit_old.TABLE["pots_stack"][2]
+    for seed in range(200):
+        mb = kit_old.pots_stack((w, d, h), "", stream(seed, "piece", "home/pots_stack"))
+        p = np.concatenate([a[1] for a in mb.arrays()])
+        assert (np.abs(p[:, :2]) <= [w / 2, d / 2]).all() and p[:, 2].min() >= 0.0 and p[:, 2].max() <= h, seed

@@ -1083,12 +1083,12 @@ def pots_stack(s, v, rng):
     w, d, h = s
     mb = MeshBuilder()
     j = rng.uniform(-0.008, 0.008, (4, 2))
-    pots = [((-0.16, -0.17), 0.14, 0.44, "clay_red"), ((0.16, -0.17), 0.14, 0.38, "clay_red"),
+    pots = [((-0.15, -0.17), 0.14, 0.44, "clay_red"), ((0.15, -0.17), 0.14, 0.38, "clay_red"),   # inside 0.30 m
             ((0.15, 0.17), 0.14, h, "glaze_green")]
     for k, ((x, y), r, ph, mat) in enumerate(pots):
         x, y = x + j[k, 0], y + j[k, 1]
         _lathed(mb, [(r * 0.6, 0.0), (r, ph * 0.45), (r * 0.42, ph * 0.86), (r * 0.55, ph)], mat, 6, at=(x, y, 0.0))
-    bx, by = -0.17 + j[3, 0], 0.18 + j[3, 1]
+    bx, by = -0.16 + j[3, 0], 0.16 + j[3, 1]            # 8 sides reach their full radius: inside 0.30 m
     r1, r2, zr, z2 = 0.13, 0.125, 0.08, 0.035          # radii, the lower rim's height, the upper bowl's foot
     ri = r2 * (0.5 + 0.5 * (zr - z2) / 0.08)            # the upper bowl's wall where the lower rim meets it
     _lathed(mb, [(r1 * 0.5, 0.0), (r1, zr), (ri, zr)], ["clay_red", "glaze_green"], 8, at=(bx, by, 0.0))
