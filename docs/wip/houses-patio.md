@@ -26,3 +26,6 @@ Survey: CITYROOT=/tmp/claude-501/houses-patio <venv python> $S/hr/hr_dump.py --c
   way AND across (slabs that split around a notch: take the part touching the way, the rest a second slab row),
   (2) the sdb/wc as a notch at the couloir rather than a full-depth slab (a family-grade bath), (3) prune the
   strips (deterministic count budget) to bring the time back under +15%.
+- 20:35 Proof done (rooms.json hashes, HEAD copy 61a8778 against the final tree): Ain Chilel old town 210
+  identical, quick capital 1,300 identical (colonial 270, slab 353, dar 159, compact 277, small 83, koubba 22,
+  shop 136); villa 178 identical; maison 615 identical + No. 509 (won). Stopped and reported to the lead.
