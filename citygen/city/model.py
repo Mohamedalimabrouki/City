@@ -11,6 +11,7 @@ class District:
     name: str
     polygon: object  # shapely Polygon or MultiPolygon
     angle: float = 0.0  # street grid direction, radians counter-clockwise from east
+    history: str = ""   # city/history.py: two to four sentences for stories (prompt 81)
 
 
 @dataclass
