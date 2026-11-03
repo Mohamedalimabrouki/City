@@ -185,11 +185,13 @@ it may be a new draw on an existing stream (rule break) or a draw on a stream ma
 ## Branches with no new stream( and no added draw in .py files
 
 47.1-48.1, 47.2-round-c, 51-furnishing, check-70, check-k, colonial-k, fix-70, fix-brass, fix-little, fix-materials, fix-textile, flats-j, furnish-m, godot-72, graph-70, houses-patio, kit-brass, kit-textile, lead-notes, merge-map, merge-prep, review-70, review-godot, review-mats, review-mp-flats, review-mp-furnish, review-mp-speed, review-patio, review-villas, shot-brass, shot-textile, speed-n, villas-o
+## Traced by hand after the first push
+- `citygen/names.py` (arabic-87, fix-87, review-87): OK, low. The new `_pick_i` / `_part` keep one `self.rng.integers`
+  per pick and the same `self.rng.random()` coda test as main's `_pick`, so no draw is added to the naming stream.
+- `citygen/city/history.py` (fix-81, fix-81b, lore-81, review-81): OK. New file; its draws use its own purpose
+  `ctx.rng("history", d.id)` (history.py:89), which this scan's `stream(` search did not catch.
+
 ## Left (not done in the 4 minutes)
-- The "draw, check" rows were not traced by hand to the stream they use. Most worth a look (severity medium):
-  `citygen/names.py` in arabic-87, fix-87, review-87 (`self.rng` draws in new code: if `self.rng` is an
-  existing naming stream, every later name shifts; fix: give the new choice its own `stream(seed, "names", ...)`),
-  and `citygen/city/history.py` in fix-81, fix-81b, lore-81, review-81 (check `rng` is the history's own stream).
-- kit-hide / fix-hide / shot-hide (`kit_old.py`) and kit-goods / shot-goods (`weave.py`): likely a new piece's own
-  `stream(seed, "piece", name)` made outside the hunk; confirm.
-- Only `*.py` files were scanned; toml and tests were not.
+- kit-hide / fix-hide / shot-hide (`kit_old.py:853-862`) and kit-goods / shot-goods (`weave.py:361-364`): the `rng`
+  is made outside the hunk; confirm it is the piece's own `stream(seed, "piece", name)` and not the shared `props` stream.
+- Only `*.py` files were scanned; `ctx.rng(` purposes were not listed for every branch.
