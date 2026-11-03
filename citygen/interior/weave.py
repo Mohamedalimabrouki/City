@@ -339,43 +339,83 @@ def _spines(rng, n: int, s: dict) -> np.ndarray:
     return out * grain[:, :, None]
 
 
+GOODS_KINDS = ("box", "tin", "bottle", "jar", "packet", "stack")
+
+
 def _goods(rng, n: int, s: dict) -> np.ndarray:
-    """A shelf row of a grocer's goods (one row per image): boxes, tins and bottles side by side on the
-    row's foot, each with a pale label or band, tins with a light rim, bottles with a neck and cap, the
-    dark of the shelf's back between them."""
+    """A shelf row of a Tunisian grocer's goods (one row per image), in facings of two to four of a product
+    on the row's foot: cartons (tea, sugar, milk) with a shaded side and a coloured stripe on a pale panel,
+    tomato-paste tins with light rims and a wrap label, stacks of two flat tins (sardines, tuna), oil and
+    water bottles with shoulders, a neck and a cap, harissa jars under a metal lid, soft packets (couscous,
+    pasta) with a crimped seal; each product a body and an accent colour of the palette, the dark of the
+    shelf's back between them (a gap at each edge, so the row tiles across)."""
     x, y = _grid(n)
     colors = _palette(s)
     label, cap = _col(s, "label"), _col(s, "cap")
+    weights = np.array([float(s.get(f"w_{k}", 1.0)) for k in GOODS_KINDS])
+    cuts = np.cumsum(weights / weights.sum())[:-1]
     out = np.ones((n, n, 3)) * _col(s, "back")
     run, left = [], 0
     for x0, x1 in _items(rng, n, float(s.get("wmin", 14)), float(s.get("wmax", 34))):
-        if left <= 0:      # a facing of two to four of the same product
-            kind = int(np.searchsorted([0.45, 0.75], rng.uniform()))   # boxes, tins, bottles
-            run = [kind, colors[int(rng.integers(len(colors)))], float(rng.uniform(0.45, 0.92))]
-            left = int(rng.integers(2, 5))
+        if left <= 0:      # a new product
+            kind = GOODS_KINDS[int(np.searchsorted(cuts, rng.uniform()))]
+            i, j = rng.choice(len(colors), 2, replace=False)
+            run = [kind, colors[int(i)], colors[int(j)], float(rng.uniform(float(s.get("hmin", 0.5)), 0.92))]
+            left = int(rng.integers(int(s.get("facing_min", 2)), int(s.get("facing_max", 4)) + 1))
         left -= 1
-        kind, col, hf = run
+        kind, col, acc, hf = run
+        hf = {"tin": hf * 0.55, "stack": hf * 0.62, "jar": hf * 0.50, "bottle": max(hf, 0.70)}.get(kind, hf)
         a, b = x0 + 1, x1 - 1
-        top = n * (1.0 - hf * (0.62 if kind == 1 else 1.0))
+        top = n * (1.0 - hf)
         cx, half = (a + b) / 2, max((b - a) / 2, 1.0)
-        tone = (1.0 - 0.30 * ((x - cx) / half) ** 2)[:, :, None] if kind else 1.0 - 0.10 * ((x - cx) / half > 0.6)[:, :, None]
-        if kind == 2:      # a bottle: a narrower neck over the top third, a cap
-            neck = top + (n - top) * 0.32
-            body = (x >= a) & (x < b) & (y >= neck)
-            nk = (np.abs(x - cx) < half * 0.35) & (y >= top) & (y < neck)
-            capm = (np.abs(x - cx) < half * 0.40) & (y >= top - 3) & (y < top + 2)
-            out = np.where((body | nk)[:, :, None], col * tone, out)
-            out = np.where(((y > neck + (n - neck) * 0.35) & (y < neck + (n - neck) * 0.65) & body)[:, :, None], label * tone, out)
-            out = np.where(capm[:, :, None], cap * tone, out)
-            continue
-        item = (x >= a) & (x < b) & (y >= top)
-        out = np.where(item[:, :, None], col * tone, out)
-        if kind == 1:      # a tin: a light rim, a label band
-            out = np.where((item & (y < top + 2.5))[:, :, None], cap * tone, out)
-            out = np.where((item & (y > top + (n - top) * 0.30) & (y < top + (n - top) * 0.75))[:, :, None], label * tone, out)
-        else:              # a box: a label panel
-            out = np.where((item & (y > top + (n - top) * 0.20) & (y < top + (n - top) * 0.45) & (x > a + 2) & (x < b - 2))[:, :, None],
-                           label * tone, out)
+        u = (x - cx) / half
+        span = n - top
+        round_ = (1.0 - 0.38 * u ** 2)[:, :, None]
+        if kind == "box":
+            tone = np.where((u > 0.55)[:, :, None], 0.78, 1.0) * np.ones((n, n, 1))
+            item = (x >= a) & (x < b) & (y >= top)
+            out = np.where(item[:, :, None], col * tone, out)
+            panel = item & (y > top + span * 0.18) & (y < top + span * 0.62) & (u < 0.50) & (u > -0.80)
+            out = np.where(panel[:, :, None], label * tone, out)
+            out = np.where((panel & (y > top + span * 0.30) & (y < top + span * 0.42))[:, :, None], acc * tone, out)
+            out = np.where((item & (np.abs(y - top - 1.5) < 1.0))[:, :, None], col * tone * 0.75, out)
+        elif kind in ("tin", "stack"):
+            parts = [(top, n)] if kind == "tin" else [(top, top + span / 2), (top + span / 2, n)]
+            for t0, t1 in parts:
+                item = (x >= a) & (x < b) & (y >= t0) & (y < t1)
+                h = t1 - t0
+                out = np.where(item[:, :, None], label * round_, out)
+                out = np.where((item & (y > t0 + h * 0.22) & (y < t0 + h * 0.80))[:, :, None], col * round_, out)
+                out = np.where((item & (np.abs(u) < 0.45) & (y > t0 + h * 0.38) & (y < t0 + h * 0.62))[:, :, None],
+                               acc * round_, out)
+                out = np.where((item & ((y < t0 + 2.0) | (y > t1 - 2.0)))[:, :, None], cap * round_, out)
+        elif kind == "bottle":
+            shoulder, neck = top + span * 0.30, top + span * 0.14
+            w = np.where(y >= shoulder, 1.0, 0.38 + 0.62 * np.clip((y - neck) / max(shoulder - neck, 1.0), 0, 1))
+            body = (np.abs(u) < w) & (y >= top + 3)
+            out = np.where(body[:, :, None], col * round_, out)
+            band = body & (y > top + span * 0.52) & (y < top + span * 0.80)
+            out = np.where(band[:, :, None], label * round_, out)
+            out = np.where((band & (np.abs(u) < 0.5) & (y > top + span * 0.60) & (y < top + span * 0.70))[:, :, None],
+                           acc * round_, out)
+            out = np.where(((np.abs(u) < 0.36) & (y >= top) & (y < top + 4))[:, :, None], acc * round_ * 0.85, out)
+            out = np.where((body & (np.abs(u + 0.45) < 0.10) & (y > shoulder))[:, :, None], np.minimum(col * 1.35 + 0.1, 1.0), out)
+        elif kind == "jar":
+            item = (x >= a) & (x < b) & (y >= top + 4)
+            out = np.where(item[:, :, None], col * round_, out)
+            out = np.where((item & (y > top + span * 0.35) & (y < top + span * 0.80))[:, :, None], label * round_, out)
+            out = np.where((item & (np.abs(u) < 0.55) & (y > top + span * 0.48) & (y < top + span * 0.66))[:, :, None],
+                           acc * round_, out)
+            out = np.where(((np.abs(u) < 0.92) & (y >= top) & (y < top + 5))[:, :, None], cap * round_ * 0.9, out)
+        else:              # a soft packet: narrower to its crimped seal, a pale window
+            w = 0.84 + 0.16 * np.clip((y - top) / max(span * 0.25, 1.0), 0, 1)
+            seal = (np.abs(u) < 0.84) & (y >= top) & (y < top + 4 + 1.5 * (np.floor(x / 2) % 2))
+            item = (np.abs(u) < w) & (y >= top + 4)
+            soft = (1.0 - 0.22 * u ** 2 - 0.06 * np.sin((y - top) * 0.6) * (np.abs(u) > 0.6))[:, :, None]
+            out = np.where((item | seal)[:, :, None], col * soft, out)
+            win = item & (np.abs(u) < 0.55) & (y > top + span * 0.35) & (y < top + span * 0.70)
+            out = np.where(win[:, :, None], label * soft, out)
+            out = np.where((win & (y > top + span * 0.42) & (y < top + span * 0.52))[:, :, None], acc * soft, out)
     grain = 1.0 + 0.06 * s["mottle"] * (_noise(rng, n, 16, 2) - 0.5) * 2.0
     return out * grain[:, :, None]
 

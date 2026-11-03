@@ -1948,7 +1948,7 @@ mink = { pixels = 256, flowers = 4, mottle = 0.6, ground = "#3A2432", rose = "#B
 # prompt 53: the machine-made rug, book backs, a grocer's shelf row (one row per image: kit_new.TEX_H)
 rug_floral = { pixels = 256, border = 0.12, flowers = 60, mottle = 0.35, field = "#8C1E23", navy = "#1E2A4D", guard = "#D9CAA2", flower = "#E4D5AE", leaf = "#55724A", rose = "#C4553D" }
 spines = { pixels = 256, wmin = 7, wmax = 20, hmin = 0.72, mottle = 0.3, gap = "#2B2118", gold = "#C9A23E", label = "#E6DCC4", color_1 = "#7E1F24", color_2 = "#23406E", color_3 = "#1F4E3A", color_4 = "#B38B3A", color_5 = "#E9E1CF", color_6 = "#5A3A24", color_7 = "#2B2A28", color_8 = "#A84A2E" }
-goods = { pixels = 256, wmin = 10, wmax = 26, mottle = 0.3, back = "#3A2E24", label = "#EDE6D6", cap = "#C9C9C9", color_1 = "#C0392B", color_2 = "#E0B23E", color_3 = "#2F6FB8", color_4 = "#3E7A55", color_5 = "#F2F2EE", color_6 = "#D9822B", color_7 = "#7E1F24", color_8 = "#8E5A9A" }
+goods = { pixels = 256, wmin = 16, wmax = 34, hmin = 0.5, facing_min = 2, facing_max = 4, w_box = 0.22, w_tin = 0.20, w_bottle = 0.18, w_jar = 0.12, w_packet = 0.18, w_stack = 0.10, mottle = 0.3, back = "#3A2E24", label = "#EDE6D6", cap = "#C9C9C9", color_1 = "#C0392B", color_2 = "#E0B23E", color_3 = "#2F6FB8", color_4 = "#3E7A55", color_5 = "#F2F2EE", color_6 = "#D9822B", color_7 = "#7E1F24", color_8 = "#8E5A9A" }
 
 [interiors.rooms]  # [least area m2, least width m] (width: twice the largest inscribed circle's radius)
 piece = 0.5        # m2: a smaller piece always joins its neighbour
