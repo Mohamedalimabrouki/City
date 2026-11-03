@@ -135,14 +135,16 @@ def _prism(mb: MeshBuilder, prof, x0: float, x1: float, mats, cap: str | None) -
                 add_triangles(mb, [_oriented([(x, y, z) for y, z in tri], (nx, 0, 0))], cap)
 
 
-def _smooth(mb: MeshBuilder, mat: str, pos, tris, uv=None) -> None:
+def _smooth(mb: MeshBuilder, mat: str, pos, tris, uv=None, nrm=None) -> None:
     """Triangles sharing their corners, with area-weighted smooth normals (cushions, sacks, the net); `uv`
-    replaces the default wall projection (u = x + y, v = -z) where a cover has its own."""
+    replaces the default wall projection (u = x + y, v = -z) where a cover has its own, `nrm` the normals
+    where a shape knows its own (the cushion's round cord)."""
     pos, tris = np.asarray(pos, dtype=np.float64), np.asarray(tris, dtype=np.int64)
     n = np.zeros_like(pos)
     face = np.cross(pos[tris[:, 1]] - pos[tris[:, 0]], pos[tris[:, 2]] - pos[tris[:, 0]])
     for k in range(3):
         np.add.at(n, tris[:, k], face)
+    n = n if nrm is None else np.array(nrm, dtype=np.float64)
     n /= np.maximum(np.linalg.norm(n, axis=1), 1e-12)[:, None]
     uv = np.stack([pos[:, 0] + pos[:, 1], -pos[:, 2]], axis=1) if uv is None else np.asarray(uv, dtype=np.float64)
     mb.add(mat, pos, n, uv, tris)
@@ -371,14 +373,14 @@ def cushion(s, v, rng, shape=None):
         p[:, 1] = (p[:, 1] - lo) / (hi - lo) * (d - 0.004)
         return p
 
-    def shell(mb, mat, pos, tris):
+    def shell(mb, mat, pos, tris, nrm=None):
         pos, tris = lean(np.asarray(pos)), np.array(tris)
         centre = lean(mid).mean(axis=0)
         for n in range(len(tris)):     # every face looks out of the cushion
             p0, p1, p2 = pos[tris[n]]
             if np.dot(np.cross(p1 - p0, p2 - p0), (p0 + p1 + p2) / 3 - centre) < 0:
                 tris[n] = tris[n][::-1]
-        _smooth(mb, mat, pos, tris)
+        _smooth(mb, mat, pos, tris, nrm=nrm)
 
     tassel = "velvet_red" if v == "gold" else "velvet_gold"
     mb = MeshBuilder()
@@ -387,7 +389,8 @@ def cushion(s, v, rng, shape=None):
     fan = lambda a, apex: [[a + i, a + (i + 1) % k, apex] for i in range(k)]
     cover = np.concatenate([mid, face, [[0.0, k8["dome"], zc], [0.0, 0.0, zc]]])   # one cover, smooth over the seam
     shell(mb, VELVET[v], cover, band(0) + fan(k, 2 * k) + fan(0, 2 * k + 1))
-    shell(mb, tassel, np.concatenate(cord), band(0) + band(k))                        # the piping cord
+    axis = lean(mid)                                     # the cord's own round normals: out from its axis
+    shell(mb, tassel, np.concatenate(cord), band(0) + band(k), np.concatenate([lean(c) - axis for c in cord]))   # the piping cord
     for sx in (-1, 1):
         corner = lean(np.array([[sx * hw * 0.84, seam + 0.01, zc + hh * 0.84]]))[0]
         tip = corner + np.array([sx * 0.02, 0.012, -k8["tassel"]])     # hangs from the corner

@@ -151,3 +151,18 @@ def test_hidoura_never_folds():
         u, v = pos[tris[:, 1], :2] - pos[tris[:, 0], :2], pos[tris[:, 2], :2] - pos[tris[:, 0], :2]
         cover = np.abs(u[:, 0] * v[:, 1] - u[:, 1] * v[:, 0]).sum() / 2
         assert cover == pytest.approx(outline, rel=1e-9), seed
+
+
+def test_cushion_cord_normals_face_out():
+    """The cushion's piping cord shades round: every vertex normal of its triangles lies within 90 degrees
+    of the face (the review of fix-textile: area-weighted normals turned its front towards the wall)."""
+    from citygen.interior import kit_old
+    from citygen.rng import stream
+    for v in kit_old.VARIANTS["cushion"]:
+        mb = kit_old.cushion(kit_old.TABLE["cushion"][2], v, stream(42, "piece", f"home/cushion_{v}"))
+        cord = "velvet_red" if v == "gold" else "velvet_gold"
+        pos, nrm, _uv, tris, _n, _c = mb._parts[cord]
+        p, n, t = pos[0], nrm[0], tris[0]                           # the cord comes first, then the tassels
+        assert len(t) == 32, v
+        face = np.cross(p[t[:, 1]] - p[t[:, 0]], p[t[:, 2]] - p[t[:, 0]])
+        assert (np.einsum("tj,tkj->tk", face, n[t]) > 0).all(), v
