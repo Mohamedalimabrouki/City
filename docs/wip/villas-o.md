@@ -23,3 +23,7 @@ HEAD copy: scratchpad/hy/head (git archive c48fb1e). Survey: scratchpad/hy/hy_du
   380 a 15.2 m2 U chambre round the stair upstairs (< 2 x 8 m2 for two): next: the thin arm as a placard/dressing joined to the couloir or sdb.
   330 upper couloir off the palier (only through a chambre); 332 salon only via an L cuisine round the stair; 399 blind chambre (relit finds no cut).
 - 20:30 head_cap done (1782 s wall); tree_cap running
+- 20:34 PROOF capital (quick build, every home): 1300/1300 rooms.json identical (903 pass both), 0 bad passing. Worktree code == snapshot hy/tree (diff -r). Patch: scratchpad/hy/hy_round_o.patch.
+## DONE (not committed). Result: villa 167 -> 168 (won 369, 307 2->1 faults, none lost); maisons, old town, capital identical.
+## Exact next step: villas 388 (an upper floor of one chambre + sdb beside a stair that spans the floor's depth) and 320 (`little` with the droj's sides as grid lines); then 380 (U chambre's thin arm as a placard).
+- 20:34 note: the lead saved this tree as WIP commit 4b916ba on wip/villas-o (20:31 UTC, docs/wip/villas-o.md); its code is exactly the verified tree. Patch vs c48fb1e: scratchpad/hy/hy_round_o.patch.
