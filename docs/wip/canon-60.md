@@ -14,13 +14,17 @@ Worktree /tmp/claude-501/canon-60 on wip/rivers-60 (d1c5be0). No code changed.
   `stream(seed, "names")`, after the country name; `NameMaker.settlement(kind)` (names.py:116) draws a
   variable count per name (core, roll, prefix, article). The k-th settlement of a kind sequence gets the k-th
   name, so names follow the id and the order, not the place: when the places move, each name now sits on
-  another place (and if a kind ever fails to fill its count, every later name changes too).
+  another place (and if a kind ever fails to fill its count, every later name changes too). Worse for the
+  cities after id 3: they did not really move, but each one's id drops by one, so each takes the name of the
+  city before it (the name and the canon pin follow the id).
 - Lore: `_add_lore` uses `stream(seed, "lore")` in id order too (world.py:219), same weakness.
 
 ## Which names are canon
-- The only pin in code is `cfg["canon"]["names"]` by id (world.py:116-119); no entry exists today in
-  citygen/defaults.toml or styles/*.toml (grep "canon"). A pin by id would land on another place after any
-  placement change.
+- The only pin in code is `cfg["canon"]["names"]` by id (world.py:116-119). worlds/example.toml:16-20 has
+  only commented examples (0 = "Carthage Nova", 12 = "Sidi Amor"); no live pin in defaults.toml or styles.
+  README.md:176 promises a pin "never changes, even if the generator gets new features": false today, since a
+  pin by id lands on another place after any placement change (prompts 08-stories.md:67, 102, 105 extend
+  `[canon]` the same way, so fix the key before prompt 84 and 87 build on it).
 - Names used as fixed facts elsewhere: the quick world's capital (id 0) and Ain Chilel (tools/interior_survey.py:9,
   docs/SPEC.md:298, 303, 1106, 1332: the quick world's villa town); Sota and Chilel in tests/test_hydro.py:77
   (64 km world) and docs/wip/rivers-59.md, rivers-60.md; WORKLOG / HANDOFF / prompts/05 mention them as history.
