@@ -50,13 +50,34 @@ def _check_table(home, style, city, module):
 def test_home_pieces_traditional(home, style, city):
     from citygen.interior import kit_new, kit_old
     _check_table(home, style, city, kit_old)
-    assert len(home.pieces) == len(kit_old.names()) + len(kit_new.names())
+    from citygen.interior import kit_life
+    lights = sum(1 for pc in home.pieces.values() if pc.category == "light" and not pc.name.endswith("_on"))
+    assert len(home.pieces) == len(kit_old.names()) + len(kit_new.names()) + len(kit_life.names()) + lights
     assert not set(kit_old.names()) & set(kit_new.names())
+    assert not (set(kit_old.names()) | set(kit_new.names())) & set(kit_life.names())
 
 
 def test_home_pieces_modern(home, style, city):
     from citygen.interior import kit_new
     _check_table(home, style, city, kit_new)
+
+
+def test_home_pieces_life(home, style, city):
+    """Prompt 55: the lights (first slice of the life table); every `light` piece has its `_on` twin, the
+    same parts with `lamp_glass` as `lamp_glow`, and `lamp_glow` is an exact copy of `lamp_glass`."""
+    from citygen.interior import kit_life
+    _check_table(home, style, city, kit_life)
+    inner = style["interiors"]["palette"]
+    assert inner["lamp_glow"] == inner["lamp_glass"]
+    lights = [n for n, pc in home.pieces.items() if pc.category == "light" and not n.endswith("_on")]
+    assert lights
+    for name in lights:
+        pc, on = home.pieces[name], home.pieces[name + "_on"]
+        assert "lamp_glass" in pc.parts and "lamp_glow" not in pc.parts, name
+        assert set(on.parts) == set(pc.parts) - {"lamp_glass"} | {"lamp_glow"}, name
+        assert on.parts["lamp_glow"] is pc.parts["lamp_glass"], name
+        assert all(on.parts[m] is p for m, p in pc.parts.items() if m != "lamp_glass"), name
+        assert home.specs[name + "_on"] == home.specs[name], name
 
 
 def test_home_kit_budget(home, tmp_path):

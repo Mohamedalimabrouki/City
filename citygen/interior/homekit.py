@@ -12,9 +12,9 @@ import json
 from dataclasses import dataclass
 
 from ..kit import Piece
-from . import kit_new, kit_old
+from . import kit_life, kit_new, kit_old
 
-MODULES = (kit_old, kit_new)
+MODULES = (kit_old, kit_new, kit_life)
 LIGHT = "light"   # category whose pieces get an `_on` twin (`lamp_glass` as `lamp_glow`)
 
 

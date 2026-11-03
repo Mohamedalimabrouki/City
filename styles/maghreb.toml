@@ -1930,6 +1930,16 @@ goods_copper = { color = "#D58A56", roughness = 0.4, metallic = 0.3, texture = "
 goods_chechia = { color = "#D2524A", roughness = 0.8, texture = "goods", texture_size = [0.8, 0.32] }
 goods_fruit = { color = "#E8B25A", roughness = 0.7, texture = "goods", texture_size = [0.8, 0.32] }
 goods_cloth = { color = "#C98A8A", roughness = 0.9, texture = "goods", texture_size = [0.8, 0.32] }
+# prompt 55: lamp_glow is an exact copy of lamp_glass (the `_on` twins of the lights; the viewer lights it at night)
+lamp_glass = { color = "#F3E6C8", roughness = 0.3 }
+lamp_glow = { color = "#F3E6C8", roughness = 0.3 }
+voile = { color = "#F4F1EA", roughness = 0.9, alpha = 0.5, double_sided = true }   # the sheer curtains of modern rooms
+iron_white = { color = "#EDEBE6", roughness = 0.5, metallic = 0.3 }   # the canary's cage
+glaze_blue = { color = "#2F5F9E", roughness = 0.25 }
+leaf_green = { color = "#4E7A3A", roughness = 0.8, double_sided = true }   # potted jasmine, geranium, basil
+photo_sepia = { color = "#A88B68", roughness = 0.5 }
+bread = { color = "#C98E4E", roughness = 0.9 }
+plastic_yellow = { color = "#E8C02E", roughness = 0.45 }   # the olive oil bidon
 
 [interiors.textures]  # images only interiors use (mesh/textures.py makes them; the build never writes them)
 terrazzo = { pixels = 256, chips = 1400, grain = 0.5, mottle = 0.4, field = "#D9D3C7", chip_1 = "#8E877B", chip_2 = "#4F4A44", chip_3 = "#B9A687", chip_4 = "#F1EDE6", chip_5 = "#9A6B55" }
