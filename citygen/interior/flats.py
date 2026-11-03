@@ -553,7 +553,7 @@ def ground_floor(job, core: Core, poly) -> tuple:
     interior = job.interior
     common = []
     if core.y > 0.05:
-        x0, x1 = gap_sides(job, core, poly)
+        x0, x1 = allee(job, core, poly, *gap_sides(job, core, poly), core.y)
         gap = clip(poly, core.fd.rect(x0, -1.0, x1, core.y + 1e-6))
         merged = P.union(core.paliers[0].polygon, gap) if (0 in core.paliers and not gap.is_empty
                                                            and core.y < 1.5) else None
@@ -566,6 +566,16 @@ def ground_floor(job, core: Core, poly) -> tuple:
             poly = solid(shapely.difference(poly, gap, grid_size=1e-6))
             if 0 in core.paliers:
                 P.arch(job, room, core.paliers[0])
+    elif 0 in core.paliers:                               # a core on the door wall beside the door: the landing
+        half = core.size["across"] / 2                    # reaches the door along the wall
+        deep = core.size["landing"]
+        x0, x1 = allee(job, core, poly, core.x - half, core.x + half, deep)
+        if (x0, x1) != (core.x - half, core.x + half):
+            gap = solid(shapely.difference(clip(poly, core.fd.rect(x0, -1.0, x1, deep)), core.box, grid_size=1e-6))
+            merged = P.union(core.paliers[0].polygon, gap) if not gap.is_empty else None
+            if merged is not None:
+                core.paliers[0].polygon = merged
+                poly = solid(shapely.difference(poly, gap, grid_size=1e-6))
     kind = job.outside.ctx.dresser(job.outside.plan).front_of(interior.building)[2]
     keep = shapely.union_all([core.box] + [r.polygon for r in common]).buffer(0.01)
     if kind == "cafe":
@@ -611,6 +621,31 @@ def gap_sides(job, core: Core, poly) -> tuple:
             got = job.free(strip, fd, 0, x, [0], *sorted((x, x - sgn * inward)))
         out.append(got if got is not None else x)
     return out[0], out[1]
+
+
+def allee(job, core: Core, poly, x0: float, x1: float, deep: float) -> tuple:
+    """The couloir's sides (x0, x1) widened so it holds the main door: a core slid along the door wall
+    leaves the door beside the couloir (the cafe or shop took it, and nobody reached the stair: No. 940).
+    As in real blocks, the allee runs from the street door to the stair; its new side keeps `clear` of the
+    door and stands clear of the openings' zones (47.1 flats, 3 November)."""
+    door = job.main
+    if door is None:
+        return x0, x1
+    fd = core.fd
+    xd, w = float(fd.local((door.x, door.y))[0]), door.width / 2
+    if x0 <= xd - w and xd + w <= x1:
+        return x0, x1
+    strip = clip(poly, fd.rect(-BIG, -1.0, BIG, deep))
+    reach = w + job.clear + job.half
+    if xd - w < x0:
+        at = xd - reach
+        got = job.free(strip, fd, 0, at, [0], at - 1.2, at)
+        x0 = got if got is not None else at
+    if xd + w > x1:
+        at = xd + reach
+        got = job.free(strip, fd, 0, at, [0], at, at + 1.2)
+        x1 = got if got is not None else at
+    return x0, x1
 
 
 def pier_at(job, fd: Frame, sgn: float) -> float | None:

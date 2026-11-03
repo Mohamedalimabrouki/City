@@ -1022,6 +1022,26 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`, and how the le
   both. A room with a hole (ringing a light well) is a plan the drawing hid: `interior_plans.py` painted the hole
   white over the court walls. Do not edit the code while a spawn-pool survey is starting: workers import the
   modules on their first job and may mix two versions; finish the run, then edit.
+- **The floor-0 allee and the window limit** (47.1 + 47.2, flats helper, 3 November): print the core's place
+  in the door's frame before fixing an entry: the 13 blocks whose floor-0 palier nobody reached all had a core
+  slid 2.0-2.5 m along the door wall (to clear a court), so floor 0's couloir ran in from the core's own sides
+  and the cafe or shop took the street door; widening the couloir to the door (11) and running a ladder core's
+  landing along the wall to the door (2) fixed all 13, and the sample block No. 825 left `OPEN_472`. Count what
+  a plan can reach before writing a planner: every lit room needs one window, so compare the windows each flat
+  holds with the lit rooms its type asks (salon, cuisine, n chambres). Colonial: 458 of 2,049 flats hold fewer
+  (S+3 188, S+2 206, S+1 64); on 240 of 1,223 floors the windows do not cover the flats' needs even in sum (135
+  even as one flat per floor); only 62 of 270 blocks have enough in every flat (28 more by a split by windows),
+  so no room planner reaches 257/270 with today's types, splits and windows. Slabs: 316 of 353 at most (bar 336).
+  Measured outside the code: a type capped at the flat's windows less two (the check asking the same) moves
+  colonial blocks 1 -> 2 only, faulty flats 1,737 -> 1,695: of the 1,591 window-feasible colonial flats only
+  287 pass, the spine spends their windows on couloirs, halls and baths. Two planners were built, measured on a
+  39-block sample and removed (kept outside the tree): rooms cut at every window pier along the spine's uncut
+  bands, and a couloir round the court or `depth` m behind the lit walls (buffers of the lit wall faces). Kept
+  per flat when the search's score plus a walk from the entry was lower, they lowered the flats passing (53 ->
+  39): a spine plan that fails the search is still mended by the later stages (redraws with fresh draws, carves,
+  type trades), a plan with no draws cannot be redrawn, so the search's score does not predict the final plan.
+  Kept only when it scored 1 or less, none was kept: their best scores were 2-20 (rooms missing, the walk, a
+  hall under its least, sizes). A planner must reach clean plans by itself before it can replace the spine.
 
 ## Known weak spots
 

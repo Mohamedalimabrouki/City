@@ -29,7 +29,8 @@ and care as the last one: keep this file up to date when you learn something tha
   helpers run, check `get_usage` about every 30 minutes (a background `sleep 1800` wakes the lead); at
   about 80% with more than half an hour to its reset, have each helper save its state and report, then
   resume it after the reset with SendMessage; start new helpers right after a reset, never just before
-  one. Measured on 3 November: three Opus helpers and the lead used about 27% of the window per hour.
+  one. Measured on 3 November: the account (three Opus helpers, the lead and Ali's own other sessions,
+  which share the limits) used about 27% of the window per hour; steer by the live percentages.
 - Where he wants to go: the 100 prompts, then two tracks (prompts 101-120,
   `docs/prompts/10-life-and-polish.md`): every asset polished to hero quality, and a city with life.
 

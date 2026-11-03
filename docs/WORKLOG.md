@@ -86,6 +86,58 @@ Entry format:
   the chain run (`.venv-sdk/credit_chain.sh`, 10:42-13:12) stopped with "Credit balance is too low"
   (its session recorded about $42), so that route needs new credit first (checked 3 November).
 
+## 2026-11-03 - Open items 47.1 + 48.1 + 47.2, flats round D (floor-0 allee, the window limit)
+- Commit: (lead commits) | Model: Opus 5.5 (flats helper, in this folder; the houses helper in a worktree)
+- Changed: citygen/interior/flats.py (`allee`: floor 0's couloir from the street door to a core slid along the
+  door wall holds the door; a core on the door wall beside the door gets its landing along the wall to it),
+  citygen/interior/spine.py (`clash_of`: in flats, the search's partition test remembered per floor and pair of
+  shapes, the variants ask the same pairs again; proved byte-identical on all 623 flats' blocks, villas and maisons
+  call it as before), tests/test_citygen.py (`test_allee`, hand-made, 0.01 s; `OPEN_472` colonial empty: No. 825 passes its holes
+  and flats tests again), SPEC 6c (Flats: the allee), HANDOFF (lesson), ROADMAP (47.1, 47.2 notes, not ticked).
+- Floor-0 entry: the 13 blocks (772, 789, 795, 796, 803, 845, 890, 896, 904, 937, 940, 996, 1007) all had a core
+  slid 2.0-2.5 m along the door wall; the street door opened into the cafe or shop. Now 0 floor-0 paliers
+  unreached (No. 940: 159 faults -> 13; No. 796's floor-0 flat hall still has no door on its ladder landing).
+- Counts (every check: rooms.check, walls, entry steps; HEAD 4826c62 copy against the tree, rooms.json hashes):
+  colonial 1 -> 1 of 270 (67 changed, 203 identical, none lost; faulty flats 1,743 -> 1,737, faults 5,439 ->
+  4,185: "opens from a room nobody reaches" 568 -> 72, "cannot be reached" 449 -> 77), slab 139 -> 139 of 353 (353 identical), old
+  town 677 of 677 identical (dar 155/159, compact 266/277, small 81/83, koubba 21/22, shop 130/136). Every
+  passing interior 0 `mesh.faults`, 0 step faults.
+- Times (CPU, HEAD and tree alternated, two runs each, the machine shared): colonial No. 958 HEAD 7.82 / 7.91 s,
+  tree 6.43 / 6.42 s (floor 0 now faults less, so fewer retries); slab No. 1324 HEAD 2.54 / 2.64 s, tree 2.56 /
+  2.60 s before `clash_of`; with it (alternated again) No. 1324 HEAD 2.74 / 2.77 s, tree 2.64 / 2.64 s (-4%, bar
+  2.2 s still over), No. 958 HEAD 8.31 / 8.33 s, tree 6.77 / 6.73 s.
+- The window limit (found while measuring; the reason no planner reaches the bars): a lit room needs a window,
+  so a flat holding fewer windows than its type's lit rooms (salon, cuisine, n chambres) cannot pass. Colonial:
+  458 of 2,049 flats (S+3 188, S+2 206, S+1 64); 240 of 1,223 floors short even in sum, 135 even as one flat;
+  62 of 270 blocks have enough windows in every flat, 28 more only with a split by windows. Slab: 316 of 353
+  blocks at most (bar 336). Measured outside the code: types capped at the flat's windows less two (the check
+  asking the same): colonial 1 -> 2 blocks, faulty flats 1,737 -> 1,695.
+- The planner (step 2), two attempts measured and removed (not in the tree; code in the scratchpad as
+  ha_bayplan_attempt.py, the hook in ha_attempt.diff): (1) the spine's hall and couloir with its bands uncut,
+  cut at every window pier (one room per window) with a blind end piece for a bath, typed by `spine.assign`;
+  (2) a couloir round the court, or rooms 4 m deep along the lit walls with the couloir behind them (buffers of
+  the lit wall faces: street, court, both), rooms cut at the piers of their wall. Kept per flat when the search's
+  score plus a walk from the entry (no room reached only through a chambre, bath or cuisine) was lower than the
+  spine's. 39-block sample (every 7th block): flats passing 53 -> 39 (whole city with (1) and the first ring:
+  faulty flats 1,738 -> 1,772); kept only at a score of 1 or less: none kept (53 = 53). Their best scores were
+  2-20: rooms missing (97 of 99 sampled flats), the walk (85), a hall under its least (67), sizes (58).
+- Look: output/checks/472-d-plans.png (No. 940, 971, 958): No. 940's street door opens into the common couloir
+  to the stair, the cafe beside it; the upper floors are the spine's as at HEAD.
+- Doubts and questions for Ali (through the lead): the bars 257/270 and 336/353 cannot be reached with today's
+  flat types, splits and windows. Options: (a) a flat's type follows its windows as well as its area (a 105 m2
+  flat with four window bays is an S+2 with big rooms); (b) more windows on court walls and blank street walls
+  (a city change); (c) split floors by windows, not by area (28 blocks). Then a planner that reaches clean plans
+  by itself (one room per window bay, the couloir on the unlit side) is the next round, judged by the flats it
+  passes, not by the search's score. Not done: slabs (step 4 of the brief), No. 1324's time bar (the rest of
+  its time is spread over the spine's assign, cuts and bays: no single hot spot left).
+- Lead (after flats round D): committed as progress. Read the whole diff; the lead's own survey (rooms.json hashes,
+  HEAD copy against the tree, every check) agrees: colonial 1 -> 1 (67 changed, 0 won, 0 lost), every slab and
+  old-town plan identical; `pytest -q` 143 passed; fingerprint 0 changed. `clash_of`'s memo key now also holds the
+  zone set (`id(job.zones)`): no flats job swaps it today (only the old-town shop's `job.zones = job.plain`, on a
+  job of its own), so the answers are the same by construction. The window limit goes to Ali with the lead's
+  recommendation (a): a flat's type follows its windows (the city unchanged; real blocks lay their rooms on the
+  facade's bays), then the one-room-per-bay planner, judged by the flats it passes.
+
 ## 2026-10-31 - Open items 47.1 + 48.1 Plan faults and colonial flats
 - Commit: rounds 1-4 by the lead, 31 October (part 1 goes on: under the bar) | Model: Opus 5.5, high |
   Part 1 of 3 (48.1, old town, shops, villas, maisons), after the

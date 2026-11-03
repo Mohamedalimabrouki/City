@@ -312,11 +312,26 @@ def faults(job, cells: list, floor: int, hall: bool = False, hard: int = 1) -> i
             continue
         if not job.fits(c.poly, c.type) or c.poly.area > float(most.get(c.type, 1e9)) + 0.01:
             n += hard
+    memo = job.__dict__.setdefault("clash_memo", {}) if job.interior.layout in ("colonial", "slab") else None
     for i, a in enumerate(cells):
         for b in cells[i + 1:]:
-            if R.clash_polys(a.poly, b.poly, zones, job.half * 2):
+            if clash_of(job, a.poly, b.poly, zones, floor, memo):
                 n += hard
     return n
+
+
+def clash_of(job, a, b, zones: list, floor: int, memo) -> bool:
+    """`rooms.clash_polys` of two cells, remembered per floor and pair of shapes in flats (`memo`; the variants
+    of a flat's search score the same pairs again: time, same answers)."""
+    if memo is None:
+        return R.clash_polys(a, b, zones, job.half * 2)
+    if not R.near(a, b):
+        return False
+    key = (floor, id(job.zones), shapely.to_wkb(a), shapely.to_wkb(b))   # zones: a swapped set asks again
+    got = memo.get(key)
+    if got is None:
+        got = memo[key] = R.clash_polys(a, b, zones, job.half * 2)
+    return got
 
 
 def blind(job, cells: list, sun: list) -> int:

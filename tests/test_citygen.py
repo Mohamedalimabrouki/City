@@ -4070,8 +4070,8 @@ OPEN_STEPS: dict = {}   # open (47.1/48.1, WORKLOG): entry steps under `tread_mi
 OPEN_PALIER = {"villa": (363,), "maison": (863,)}   # open (47.1/48.1, WORKLOG): a couloir squeezed
 # between a U stair's palier and a wall narrows its arch or doors (the new wall checks see them)
 OPEN_47_HOUSES = {"koubba": (570,)}   # open item 47.1: No. 570's annex is a strip round the koubba, too narrow
-OPEN_472 = {"colonial": (825,), "maison": (848, 851, 853, 864, 990)}   # open (47.2 round C): the sample block got
-# a court; its street door opens into flat 0's hall, not the palier, and a partition crosses that door; maisons
+OPEN_472 = {"colonial": (), "maison": (848, 851, 853, 864, 990)}   # open (47.2 round C): the sample colonial block
+# No. 825 left on 3 November (floor 0's allee: its street door opens into the couloir to the stair again); maisons
 # No. 848 and 990 got a patio (848: a chambre over its most round the patio; 990: a partition meets the palier near
 # a window);
 # No. 851 had 4 blind rooms (the window check, round B), its search now trades them for 2 chambres over their most;
@@ -4523,3 +4523,23 @@ def test_court_rule():
     narrow = box(0, 0, 7, 16)                              # 7 m wide: no 3 m patio clear of both party walls
     assert courts_for(narrow, street_side(narrow), cfg, ["patio"]) == []
     assert darkest(narrow, street_side(narrow), []) > cfg["reach"]
+
+
+def test_allee():
+    """A colonial core slid along its door wall: floor 0's couloir widens to hold the street door (the
+    allee, No. 940: the cafe took the door; 47.1 flats, 3 November). Hand-made, 0.01 s."""
+    from types import SimpleNamespace as NS
+
+    from shapely.geometry import box
+
+    from citygen.interior.cuts import Frame
+    from citygen.interior.flats import Core, allee
+
+    job = NS(main=NS(x=0.0, y=-0.45, width=0.95), clear=0.3, half=0.05,
+             free=lambda poly, F, axis, at, floors, lo, hi: at)
+    fd = Frame(0.0, 0.0, 0.0)
+    core = Core(box(1.65, 2.0, 3.35, 6.31), {"across": 1.7}, fd, 2.5, 2.0, 3, None)
+    floor0 = box(-10.0, 0.0, 10.0, 12.0)
+    x0, x1 = allee(job, core, floor0, 1.65, 3.35, 2.0)
+    assert x1 == 3.35 and abs(x0 - -0.825) < 1e-9               # the door, its clear and half a partition
+    assert allee(job, core, floor0, -1.0, 3.35, 2.0) == (-1.0, 3.35)   # a door already inside: unchanged

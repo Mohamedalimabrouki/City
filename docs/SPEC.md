@@ -1713,6 +1713,11 @@ its floor landing (`palier`, unit `common`) against the door's wall, the flights
   (`spine.halve`): the room keeps its minimum and a door's length on a way in, the new part is a chambre
   with a door's length on a way in or on the room (en enfilade), both windowed when the room was, neither
   with more than `strip` 3 m2 in parts under 1.6 m wide. A flat with no such room keeps its plan.
+  Floor 0's allee (47.1 flats, 3 November): as in real blocks, a passage runs from the street door to the
+  stair beside the shop or cafe. When the core slid along the door wall, floor 0's couloir widens to hold the
+  street door (`flats.allee`: its new side `clear` plus half a partition past the door's jamb, moved clear of
+  the openings); a core standing on the door wall beside the door gets its landing extended along the wall to
+  the door. Before, the cafe or shop took the street door of 13 blocks (No. 940) and nobody reached the stair.
 
 **Stairs** (`[interiors.stairs]`, records prompts 46-47, geometry prompt 49). Rule (tested): every
 point of every tread on the walking line has at least `headroom` (2.0 m) clear above it. Risers: the
