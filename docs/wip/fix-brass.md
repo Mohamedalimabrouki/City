@@ -1,0 +1,2 @@
+fix-brass (3 November): tray_brass keeps its crisp 0.018 m rim and gains an outer skin lathed from the lip down to (r - 0.006, 0), so the near rim is seen from outside in a standing view (80 tris, was 48; faces checked: the skin points out, the inner rim up and in); the pots_stack bowls go from 6 to 8 sides so the hollow reads as open, not a peaked lid (164 tris, was 150). `pytest -q -k "kit or home or furn"`: 14 passed.
+Left: render sheet docs/wip/fix-brass.png (see below if present).

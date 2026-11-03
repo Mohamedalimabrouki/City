@@ -39,7 +39,7 @@ TABLE = {
     "khzana": ("storage", "wall", (1.20, 0.45, 2.05), 160, {"use": 0.6}),
     "shelf_wall": ("storage", "wall", (1.0, 0.25, 0.25), 36, {"stretch": (0.6, 2.4), "z0": 1.70, "top": 1.86}),
     "mirror_carved": ("decor", "wall", (0.65, 0.05, 0.90), 120, {"z0": 1.15}),
-    "tray_brass": ("small", "on", (0.60, 0.60, 0.03), 48, {"top": 0.01}),
+    "tray_brass": ("small", "on", (0.60, 0.60, 0.03), 80, {"top": 0.01}),
     "tea_set": ("small", "on", (0.35, 0.25, 0.22), 160, {}),
     "ibrik": ("small", "floor", (0.35, 0.35, 0.40), 120, {}),
     "kanoun": ("kitchen", "floor", (0.34, 0.34, 0.24), 80, {"top": 0.24}),
@@ -66,7 +66,7 @@ TABLE = {
     "sewing_machine": ("work", "wall", (0.90, 0.50, 0.95), 260, {"use": 0.6}),
     "dummy": ("work", "floor", (0.40, 0.35, 1.55), 120, {}),
     "chechia_forms": ("work", "wall", (0.80, 0.40, 0.95), 160, {"use": 0.6}),
-    "pots_stack": ("work", "floor", (0.60, 0.60, 0.70), 150, {}),
+    "pots_stack": ("work", "floor", (0.60, 0.60, 0.70), 164, {}),
     "net_pile": ("work", "floor", (1.00, 0.80, 0.35), 80, {}),
     "skifa_bench": ("seat", "wall", (1.0, 0.45, 0.45), 24, {"stretch": (0.8, 3.0), "use": 0.4}),
     "wc_turkish": ("bath", "wall", (0.50, 0.70, 0.05), 40, {}),
@@ -598,12 +598,13 @@ def mirror_carved(s, v, rng):
 
 
 def tray_brass(s, v, rng):
-    """The brass tray of the meida: a steep narrow rim (so its edge reads crisp from across a room) round a
-    flat 16-sided centre (48 triangles)."""
+    """The brass tray of the meida: a steep narrow rim (so its edge reads crisp from across a room) with an
+    outer skin (brass is one-sided, so the near rim stays seen from a standing view) round a flat 16-sided
+    centre (80 triangles)."""
     w, d, h = s
     r = w / 2
     mb = MeshBuilder()
-    _lathed(mb, [(r, h), (r - 0.018, 0.004), (0.0, 0.003)], "brass", 16)
+    _lathed(mb, [(r - 0.006, 0.0), (r, h), (r - 0.018, 0.004), (0.0, 0.003)], "brass", 16)
     return mb
 
 
@@ -1020,8 +1021,8 @@ def pots_stack(s, v, rng):
     bx, by = -0.17 + j[3, 0], 0.18 + j[3, 1]
     r1, r2, zr, z2 = 0.13, 0.125, 0.08, 0.035          # radii, the lower rim's height, the upper bowl's foot
     ri = r2 * (0.5 + 0.5 * (zr - z2) / 0.08)            # the upper bowl's wall where the lower rim meets it
-    _lathed(mb, [(r1 * 0.5, 0.0), (r1, zr), (ri, zr)], ["terracotta", "glaze_green"], 6, at=(bx, by, 0.0))
-    _lathed(mb, [(ri, zr), (r2, z2 + 0.08), (0.0, z2 + 0.025)], ["terracotta", "glaze_green"], 6, at=(bx, by, 0.0))
+    _lathed(mb, [(r1 * 0.5, 0.0), (r1, zr), (ri, zr)], ["terracotta", "glaze_green"], 8, at=(bx, by, 0.0))
+    _lathed(mb, [(ri, zr), (r2, z2 + 0.08), (0.0, z2 + 0.025)], ["terracotta", "glaze_green"], 8, at=(bx, by, 0.0))   # 8 sides: an open hollow, not a peaked lid
     return mb
 
 
