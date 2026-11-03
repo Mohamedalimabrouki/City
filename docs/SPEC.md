@@ -96,6 +96,7 @@ build.build()                 orchestrates the above into output/<country>-<seed
 | `citygen/noise.py` | Perlin and fractal noise, smoothstep |
 | `citygen/terrain.py` | height, moisture, slope, biome classes |
 | `citygen/names.py` | invented names from the style's sounds |
+| `citygen/hydro.py` | `River`, `Lake`: drainage from the terrain (priority flood, lakes by water balance, flow, river lines; prompt 59) |
 | `citygen/world.py` | `World`, `Settlement`, `Road`; placement and road routing (Dijkstra on a cost grid) |
 | `citygen/city/*.py` | the city planner (see pipeline) |
 | `citygen/mesh/builder.py` | mesh primitives: extrude, walls, caps, domes, hip roofs, ribbons, trees |
@@ -164,6 +165,29 @@ block on `rng("impasse", block)`: lot line jitter, widths, covered share and len
 - `Settlement(id, name, kind, x, y, population, radius, elevation, coastal, biome, known_for, founded)`;
   kinds: `capital`, `city`, `town`, `village`. Ids are stable for a given seed and settings.
 - `Road(id, kind, width, coords, ends)`; kinds `national`, `regional`, `local`.
+- `World.rivers` and `World.lakes` (prompt 59, `citygen/hydro.py`, `[rivers]`, a pure function of the
+  terrain, computed right after it in `generate_world`, no randomness). On a grid of `cell` m (150) a
+  priority flood (Barnes et al. 2014, epsilon gradient 1e-4 m) runs inward from the sea and the map
+  border; each land cell drains to the cell the flood reached it from, so every cell drains, even on
+  filled flats. A filled basin (8-connected cells whose filled height is over the ground) is considered
+  for a lake only if deeper than `lake_min_depth` (3 m) and larger than `lake_min_area` (0.5 km2); its
+  lake surface is `lake_area_per_flow` (0.04) km2 per km2 of rain-weighted inflow: a basin of wet country
+  that this fills spills over (a fresh lake at the spill level, its river goes on from the outlet); one
+  it cannot fill just drains; a basin whose lowest cell is steppe or desert is endorheic: a salt lake of
+  that balanced size (level: the height that gives that area), its rim re-flooded from the lake so every
+  cell of the basin drains into it, and rivers end there (prompt 65 turns them into chotts). Lakes under
+  `lake_min_area` are left out. Flow: catchment area weighted by rain, `dry_weight + (1 - dry_weight) x
+  moisture` (0.15: desert storms still feed oueds); a river where it passes `min_flow` (3 km2). Rivers run
+  from a source to the sea, a lake, a basin, the map border or the river they join (the upstream branch
+  with more flow carries the name downstream); streams under `min_points` cells with no tributary are left
+  out. `River(id, coords, widths, flow, seasonal, profile, mouth, into)`: ids by flow at the mouth, biggest
+  first; `coords` the D8 path rounded (two 3-point moving averages, two Chaikin cuts, ends fixed; a
+  tributary's end snapped onto its main river's line); `widths` `width_k x sqrt(flow)` clipped to
+  `width_min..width_max` (oueds x `oued_scale`); `flow` km2 at the mouth; `seasonal` when the catchment's
+  mean moisture is under `seasonal_moisture` (an oued); `profile` the bed height per point: the filled
+  height along the D8 path, made non-increasing with a running minimum (smoothing only averages it, so it
+  never rises downstream); `mouth` `sea` | `lake` | `basin` | `border` | `river`, `into` the lake or river
+  id. `Lake(id, polygon, level, salt)`: the shore ring where the ground inside the basin meets `level`.
 - `CityPlan`: `boundary`, `land` (with the quay aprons since prompt 34), `medina`, `districts`, `streets`, `blocks`, `parcels`,
   `buildings`, `trees`, `landmarks`, `walks`, `households`, `souks`, `paint`, `stats`, `station`
   (a `city.station.Station` or None: `facade`, `tracks`, `precinct`, `corridor`, `district`, `core`), `port`
@@ -527,11 +551,11 @@ the sea, the railing along the sea edge, no paint or parked car on it; everythin
 
 | File | Content |
 |---|---|
-| `world.json` | `citygen-world/1`: seed, name, size, settlements, roads (coords in meters) |
+| `world.json` | `citygen-world/1`: seed, name, size, settlements, roads (coords in meters), `rivers` (`id`, `coords`, `widths`, `flow`, `seasonal`, `profile`, `mouth`, `into`) and `lakes` (`id`, `polygon`, `level`, `salt`) (prompt 59) |
 | `cities/<name>/plan.json` | `citygen-city/1`: districts, streets, buildings, trees, landmarks, households, souks, and `rail` (track center lines, corridor) when the city has a station, `port` (quay edges and aprons,
 breakwater lines, basins, lighthouses) when it has a harbor, `props` (`kind`, `x`, `y`, `yaw`, `scale`, `on`: boats, cranes, rails, cargo; empty without a harbor); GeoJSON-style geometry in world meters |
 | `gazetteer.md` | readable guide for stories |
-| `maps/country.png`, `maps/<city>.png` | 2D maps, north up |
+| `maps/country.png`, `maps/<city>.png` | 2D maps, north up; the country map draws lakes (salt ones pale), rivers wider by flow and oueds in a greyer blue (prompt 59) |
 | `tiles/tile_<i>_<j>.glb` | 3D tile covering x `i*512..(i+1)*512`, y `j*512..(j+1)*512` |
 | `tiles/tile_<i>_<j>_lod1.glb` | the same tile for distant views (prompt 40): merged blocks, low-poly landmarks, 32 m terrain, flat colors |
 | `tiles/textures/*.png` | base-color images shared by the tiles (`[tiles] textures = "shared"`, the default) |

@@ -35,6 +35,8 @@ RAIL_BED_RGB, RAIL_RGB = (160, 150, 138), (70, 62, 58)   # the tracks (prompt 33
 QUAY_RGB, QUAY_EDGE_RGB, RUBBLE_RGB = (200, 194, 182), (96, 88, 78), (150, 142, 130)   # the harbor (prompt 34)
 PROMENADE_RGB, SEA_WALL_RGB = (226, 214, 190), (120, 108, 92)   # the corniche promenade (prompt 36)
 LIGHT_RGB = ((246, 244, 238), (178, 54, 44))
+RIVER_RGB, OUED_RGB = (46, 100, 150), (96, 124, 150)        # rivers and seasonal oueds (prompt 59)
+LAKE_RGB, SALT_RGB = ((82, 136, 172), (46, 92, 130)), ((216, 220, 214), (150, 150, 140))   # fill, shore
 ROAD_STYLE = {"national": ((196, 72, 52), 3.2), "regional": ((222, 150, 60), 2.2),
               "local": ((120, 110, 96), 1.2)}
 
@@ -78,6 +80,7 @@ def country_map(world, path, width: int = 1800) -> Path:
     def px(x, y):
         return (x * k, (size - y) * k)
 
+    _draw_water(draw, world, px, width)
     for kind in ("local", "regional", "national"):
         color, w = ROAD_STYLE[kind]
         for r in world.roads:
@@ -102,6 +105,23 @@ def country_map(world, path, width: int = 1800) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     img.save(path, optimize=True)
     return path
+
+
+def _draw_water(draw, world, px, width):
+    """Lakes and salt basins, then rivers drawn wider where they carry more water."""
+    scale = width / 1800
+    for lake in world.lakes:
+        fill, line = SALT_RGB if lake.salt else LAKE_RGB
+        draw.polygon([px(x, y) for x, y in lake.polygon], fill=fill, outline=line)
+    for r in sorted(world.rivers, key=lambda r: r.flow):
+        color = OUED_RGB if r.seasonal else RIVER_RGB
+        pts = [px(x, y) for x, y in r.coords]
+        px_w = np.maximum(1, np.round((0.8 + r.widths / 6.0) * scale)).astype(int)
+        start = 0
+        for i in range(1, len(pts)):    # one line per run of equal drawn width
+            if i == len(pts) - 1 or px_w[i] != px_w[start]:
+                draw.line(pts[start:i + 1], fill=color, width=int(px_w[start]), joint="curve")
+                start = i
 
 
 def _scale_bar(draw, k, w, h):
