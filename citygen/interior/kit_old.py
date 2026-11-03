@@ -58,7 +58,7 @@ TABLE = {
     "mergoum": ("rug", "floor", (1.20, 2.00, 0.01), 10, {}),
     "zarbia": ("rug", "floor", (2.00, 3.00, 0.015), 10, {}),
     "hasira": ("rug", "floor", (1.80, 2.60, 0.01), 10, {}),
-    "hidoura": ("rug", "floor", (0.80, 1.10, 0.02), 84, {}),
+    "hidoura": ("rug", "floor", (0.80, 1.10, 0.02), 126, {}),
     "sajjada": ("rug", "floor", (0.65, 1.15, 0.01), 10, {}),
     "rahla": ("work", "floor", (0.32, 0.25, 0.35), 70, {}),
     "loom": ("work", "wall", (1.60, 0.80, 2.20), 300, {"use": 0.8}),
@@ -840,8 +840,8 @@ def klim(s, v, rng):
 
 def hidoura(s, v, rng):
     """The sheepskin of the Aid: a hide outline with its four legs, neck and tail and four shaggy tufts on
-    the flanks, a wool lock pushed in or out between every two points; the fleece domed over a soft
-    shoulder to its full height in the middle and thin at the ragged edge; wool locks in the image (84 triangles)."""
+    the flanks, two wool locks, one out and one in, along every edge; the fleece domed over a soft
+    shoulder to its full height in the middle and thin at the ragged edge; wool locks in the image (126 triangles)."""
     w, d, h = s
     hide = [(0.0, 0.5), (0.2, 0.38), (0.5, 0.30), (0.30, 0.02), (0.5, -0.36), (0.06, -0.5),
             (-0.5, -0.36), (-0.30, 0.02), (-0.5, 0.30), (-0.2, 0.38)]
@@ -852,9 +852,9 @@ def hidoura(s, v, rng):
             q = hide[i + 1]
             out.append(((p[0] + q[0]) / 2 * rng.uniform(1.05, 1.18), (p[1] + q[1]) / 2))
     out = np.array(out)
-    mid = (out + np.roll(out, -1, axis=0)) / 2               # a lock between every two points, in or out
-    lock = np.where(np.arange(len(out)) % 2, 0.90, 1.10)[:, None] * rng.uniform(0.96, 1.04, (len(out), 1))
-    out = np.stack([out, mid * lock], axis=1).reshape(-1, 2) + rng.uniform(-0.03, 0.03, (2 * len(out), 2))
+    nxt = np.roll(out, -1, axis=0)                           # two wool locks along every edge, out then in
+    locks = [out] + [(out + (nxt - out) * f) * k * rng.uniform(0.97, 1.03, (len(out), 1)) for f, k in ((1 / 3, 1.13), (2 / 3, 0.88))]
+    out = np.stack(locks, axis=1).reshape(-1, 2) + rng.uniform(-0.02, 0.02, (3 * len(out), 2))
     out = (out - out.min(axis=0)) / (out.max(axis=0) - out.min(axis=0)) - 0.5
     m = len(out)
     edge = RUG_Z + rng.uniform(0.002, 0.006, m)               # the ragged hem, some locks lifted
