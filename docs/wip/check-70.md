@@ -7,7 +7,9 @@ Compared 7cc1e2d (WIP fix-70) with 57c8c1d (WIP review-70, the commit before it;
   The 3 that differ differ only where they must: `summary.json` and `tiles/index.json` carry the new
   build key, `summary.json` also echoes the new `settings/streets` section, and `plan.json` /
   `summary.json` record the planning time (5.7 s vs 6.0 s, a clock reading, differs between any two runs).
-- Tests: full `pytest -q` (not slow) still running at the first push; see the next commit.
+- Tests: full `pytest -q` (not slow): 164 passed, 12 deselected, 82.7 s (slow because the two builds ran at the
+  same time). The 3 warnings are an old shapely divide-by-zero in roof and court tests, not fix-70's.
+  fix-70's slow test `-m slow -k streets_json`: 2 passed (16 s).
 - Cache: yes, the build redoes its cached data once. `build_key` (citygen/buildkey.py:61) hashes every
   setting, so the new `[streets]` section changes the key, and `clean_cache` then drops the old plan
   pickles and the tile journal (cache/goumosbane-<key>.pkl, cache/tiles-<key>): the next build re-plans
@@ -16,4 +18,4 @@ Compared 7cc1e2d (WIP fix-70) with 57c8c1d (WIP review-70, the commit before it;
   new section too, as after any code merge. One cost to know: `graph_grid` only shapes streets.json,
   yet changing it later re-plans every city (a few seconds per city in a quick build, longer in a full
   one); Ali will rarely touch it, so leave it.
-- Verdict: pending the tests.
+- Verdict: ready to merge. No code changed here; nothing is left.
