@@ -96,6 +96,21 @@ Entry format:
   the chain run (`.venv-sdk/credit_chain.sh`, 10:42-13:12) stopped with "Credit balance is too low"
   (its session recorded about $42), so that route needs new credit first (checked 3 November).
 
+## 2026-11-03 - Open item 47.2, houses round 5 (a small house's plan without a couloir)
+- Commit: (lead commits) | Model: Opus 5.5, high (houses helper, worktree /tmp/claude-501/houses-r5, about 45 min)
+- Changed: citygen/interior/villa.py (`little`: a short hall at the street door opening into the salon, the chambre,
+  cuisine and sdb off the salon or the hall, salon, chambre and cuisine each on a window, partitions clear of the
+  openings), citygen/interior/layout.py (a last pass, only for one-floor maisons the check still faults for "has no
+  chambre"; a local `again` renamed `redrawn`), styles/maghreb.toml (`[interiors.villa] little`, `little_step`), tests
+  (`test_little_house`, 0.4 s).
+- Counts with every check (rooms.json hashes, HEAD d96e409 against the tree): maison 498 -> 499 of 616 (won No. 744;
+  none lost; no passing house changed), villa 167. Still failing: No. 642 (every plan puts a partition too close to a
+  window), 726 and 985 (three windows, no plan of straight cuts works); they take about 0.6 s more CPU, No. 744 0.37
+  -> 1.1 s. The old town and every capital flat identical. Every passing interior 0 `mesh.faults`, 0 step faults.
+- Checks: `pytest -q` 160 passed in the helper's tree; fingerprint 0 changed.
+- Look: output/checks/472-h5-plans.png (worktree; No. 744: a family could live in it; its hall is long, 7.8 m2).
+- Lead: verified with the lead's survey (maison 498 -> 499, only No. 744 changed) and merged.
+
 ## 2026-11-03 - Open item 47.2, flats round H (the street door opens on the palier of a ladder well beside it)
 - Commit: (lead commits) | Model: Opus 5.5, high (flats helper, worktree /tmp/claude-501/flats-h, about 35 min)
 - Changed: citygen/interior/flats.py (`entry_hall`: on floor 0 of a slab block, a core slid inward off the entry steps

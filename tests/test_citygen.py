@@ -4691,6 +4691,35 @@ def test_way_room_cut_and_bare_landing():
     assert not off_landing(it) and off_landing(it, True)          # no couloir: the landing pass keeps no such floor
 
 
+def test_little_house(monkeypatch):
+    """A small one-floor house with no couloir (`villa.little`, 47.2 houses round 5): a short hall at the
+    street door, the salon off it, the chambre, cuisine and sdb off the salon or the hall; every room within
+    its minimum, the salon, chambre and cuisine windowed. Hand-made, about 0.4 s."""
+    from types import SimpleNamespace as NS
+
+    from shapely.geometry import Point, box
+
+    from citygen.interior import villa as V
+    from citygen.interior.cuts import shared, width
+
+    least = {"hall": (2.5, 1.1), "salon": (12.0, 2.4), "chambre": (8.0, 2.4), "cuisine": (5.0, 1.7), "sdb": (3.0, 1.4)}
+    job = NS(door=0.9, half=0.05, clear=0.3, cfg={"rooms": {"most": {"salon": 30.0, "chambre": 18.0, "cuisine": 14.0, "sdb": 8.0}},
+                                       "villa": {"little_step": 1.0}},
+             minimums=least, interior=NS(rules={"inner_clear": 0.15}), zs=lambda floors: [],
+             fits=lambda p, t: p.area >= least[t][0] - 1e-6 and width(p) >= least[t][1] - 0.03)
+    sun = [Point(1.5, 0.05), Point(6.5, 0.05), Point(0.05, 4.5), Point(7.95, 4.5), Point(4.0, 5.95)]
+    monkeypatch.setattr(V.P, "lights", lambda job, f: sun)
+    cells = V.little(job, box(0, 0, 8, 6), V.P.Entry(4.0, 0.0, 1.0, 0.0), 0)
+    assert cells is not None and sorted(c.type for c in cells) == ["chambre", "cuisine", "hall", "salon", "sdb"]
+    by = {c.type: c.poly for c in cells}
+    assert by["hall"].distance(Point(4.0, 0.0)) < 0.3 and abs(sum(c.poly.area for c in cells) - 48.0) < 1e-6
+    door = V.P.need(job)
+    assert shared(by["hall"], by["salon"]) >= door
+    assert all(max(shared(by[t], by["salon"]), shared(by[t], by["hall"])) >= door for t in V.LITTLE)
+    assert all(any(by[t].distance(p) < 0.05 for p in sun) for t in ("salon", "chambre", "cuisine"))
+    assert all(job.fits(c.poly, c.type) for c in cells)
+
+
 def test_relit_repartition():
     """A blind chambre beside a chambre holding two windows: the pair is cut again so both keep a window and
     a door's length on the couloir (`villa.repartition`, the cut nearest the middle first); a pair with one

@@ -87,14 +87,15 @@ def plan(interior, outside, style: dict, kind: str) -> None:
         e = entry if f == 0 else (upper_entry(job, core) if core else entry)
         if e is None:
             e = P.Entry(*region.representative_point().coords[0], 1.0, 0.0)
-        cells = P.lay(job, largest(region), e, progs[f], f, (kind, f), hall=f == 0)
-        if kind in job.cfg.get("villa", {}).get("halve", ()):
-            halved(job, largest(region), cells, f)
-        if kind in job.cfg.get("villa", {}).get("complete", ()) and f == 0:
+        small = little(job, largest(region), e, f) if floors == 1 and interior.__dict__.get("little") else None
+        cells = small or P.lay(job, largest(region), e, progs[f], f, (kind, f), hall=f == 0)
+        if not small and kind in job.cfg.get("villa", {}).get("halve", ()):   # (a little house's rooms stay
+            halved(job, largest(region), cells, f)                                # as cut)
+        if not small and kind in job.cfg.get("villa", {}).get("complete", ()) and f == 0:
             completed(job, largest(region), cells, f, floors)
-        if kind in job.cfg.get("villa", {}).get("relight", ()):
+        if not small and kind in job.cfg.get("villa", {}).get("relight", ()):
             relit(job, cells, f)
-        if (kind in job.cfg.get("villa", {}).get("way_room", ()) and f == top and "chambre" in progs[f]
+        if not small and (kind in job.cfg.get("villa", {}).get("way_room", ()) and f == top and "chambre" in progs[f]
                 and not any(c.type == "chambre" for c in list(cells) + interior.rooms)):
             way_room(job, cells, f, e, landing)       # a home with no chambre: one from its hall or couloir
         if landing is not None:
@@ -113,6 +114,8 @@ def plan(interior, outside, style: dict, kind: str) -> None:
         if square is not None and f == top:
             droj = P.add_rooms(job, [P.Cell(cell, "droj")], f, "home")[0]
         P.doors(job, rooms)
+        if small:
+            off_salon(job, rooms)
     if core is not None:
         box, size, x, y, fd = core
         stair = S.u_record(box, fd, x, y, size, 0, top)
@@ -203,6 +206,114 @@ def way_room(job, cells: list, f: int, entry, landing) -> None:
             c.poly = got[1]
             cells.append(P.Cell(got[0], "chambre", c.band, c.part))
             return
+
+
+LITTLE = ("chambre", "cuisine", "sdb")   # a little house's rooms off its salon
+
+
+def little(job, region, entry, f: int) -> list | None:
+    """A small one-floor house with no couloir (47.2 houses round 5): a short hall at the street door opens
+    into the salon, the house's heart, and the chambre, the cuisine and the sdb open off the salon or the
+    hall. The floor cut by straight partitions (one room cut from another, on a `little_step` grid along its
+    rotated rectangle) into four rooms, the salon's at the door (room for a hall too), then the smallest hall
+    at the door cut from the salon; every room within its minimum and most, the salon, chambre and cuisine windowed, every room
+    with a door's length on the salon (or the hall), no partition within `clear` of an opening; the plan whose
+    smaller of salon and chambre (to 12 and 9 m2) is largest first. None when no cut gives one."""
+    import itertools
+    import math
+    from functools import lru_cache
+    from shapely import affinity
+    from shapely.geometry import Point, box
+    from .cuts import shared
+    sun = P.lights(job, f)
+    most = job.cfg.get("rooms", {}).get("most", {})
+    wide, thin = (float(v) for v in job.cfg.get("flats", {}).get("strip", (1.6, 3.0)))
+    step = float(job.cfg.get("villa", {}).get("little_step", 0.5))
+    zones, door, at = job.zs([f]), P.need(job), Point(entry.x, entry.y)
+    hall, salon_min = job.minimums.get("hall", (0.0, 0.0))[0], job.minimums.get("salon", (0.0, 0.0))[0]
+    xy = list(region.minimum_rotated_rectangle.exterior.coords)
+    angle = math.degrees(math.atan2(xy[1][1] - xy[0][1], xy[1][0] - xy[0][0]))
+    flat = affinity.rotate(region, -angle, origin=(0, 0))
+    x0, y0, x1, y1 = flat.bounds
+    grid = [[lo + k * step for k in range(int((hi - lo) / step) + 1)] + [hi] for lo, hi in ((x0, x1), (y0, y1))]
+    grid = [g[:-2] + [g[-1]] if g[-1] - g[-2] < step / 2 else g for g in grid]
+
+    @lru_cache(maxsize=None)
+    def piece(b):
+        got = parts(snap(affinity.rotate(flat.intersection(box(grid[0][b[0]], grid[1][b[2]], grid[0][b[1]],
+                                                                    grid[1][b[3]])), angle, origin=(0, 0))))
+        return got[0] if len(got) == 1 else None
+
+    @lru_cache(maxsize=None)
+    def kinds(b):
+        poly = piece(b)
+        if poly is None:
+            return ()
+        lit = any(poly.distance(p) < 0.05 for p in sun)
+        out = tuple(t for t in LITTLE if (t == "sdb" or lit) and job.fits(poly, t)
+                    and poly.area <= float(most.get(t, 1e9)) and P.strip(poly, wide) <= thin)
+        heart = lit and poly.distance(at) < 0.3 and job.fits(poly, "salon") and poly.area >= hall + salon_min
+        return out + (("salon",) if heart else ())
+
+    @lru_cache(maxsize=None)
+    def split(b, k):
+        if k == 1:
+            return [(b,)] if kinds(b) else []
+        out = []
+        for axis in (0, 1):
+            for c in range(b[2 * axis] + 1, b[2 * axis + 1]):
+                one, two = list(b), list(b)
+                one[2 * axis + 1], two[2 * axis] = c, c
+                for n in range(1, k):
+                    out += [p + q for p in split(tuple(one), n) for q in split(tuple(two), k - n)]
+        return out
+
+    plans = []
+    for four in split((0, len(grid[0]) - 1, 0, len(grid[1]) - 1), 4):
+        for s in four:
+            if "salon" not in kinds(s):
+                continue
+            rest = [b for b in four if b != s]
+            if any(shared(piece(b), piece(s)) < door for b in rest):
+                continue
+            for types in itertools.permutations(LITTLE):
+                if all(t in kinds(b) for b, t in zip(rest, types)):
+                    chambre = piece(rest[types.index("chambre")])
+                    plans.append((min((piece(s).area - hall) / 12.0, chambre.area / 9.0), s, tuple(rest), types))
+    def lit(poly):
+        return any(poly.distance(p) < 0.05 for p in sun)
+
+    def clear(polys):
+        return not any(R.clash_polys(p, q, zones, 2 * job.half) for p, q in itertools.combinations(polys, 2))
+    for _, s, rest, types in sorted(plans, key=lambda p: -p[0]):
+        rooms = [piece(b) for b in rest]
+        if not clear([piece(s)] + rooms):
+            continue
+        for hall, salon in sorted(split(s, 2) + [x[::-1] for x in split(s, 2)], key=lambda x: piece(x[0]).area):
+            h, sal = piece(hall), piece(salon)
+            if (h.distance(at) < 0.3 and job.fits(h, "hall") and job.fits(sal, "salon") and lit(sal)
+                    and sal.area <= float(most.get("salon", 1e9)) and P.strip(sal, wide) <= thin
+                    and shared(h, sal) >= door and all(max(shared(r, sal), shared(r, h)) >= door for r in rooms)
+                    and clear([h, sal] + rooms)):
+                return [P.Cell(h, "hall"), P.Cell(sal, "salon")] + [P.Cell(p, t) for p, t in zip(rooms, types)]
+    return None
+
+
+def off_salon(job, rooms: list) -> None:
+    """A little house's doors (`little`): every room the hall's doors (`spine.doors`) missed into the salon
+    (a bath room's narrow door when a full one does not fit)."""
+    salon = next((r for r in rooms if r.type == "salon"), None)
+    if salon is None:
+        return
+    interior, rules = job.interior, job.interior.rules
+    have = {i for o in interior.openings if o.kind in ("inner", "arch") for i in o.rooms}
+    for r in sorted(rooms, key=lambda r: r.id):
+        if r is salon or r.type in P.SPINE or r.id in have:
+            continue
+        if R.place(interior, r, salon, "inner", job.door, job.door_height, clear=P.inner(job),
+                   deep=P.deep(job)) is None and r.type in P.WET:
+            R.place(interior, r, salon, "inner", rules.get("narrow", 0.7), job.door_height,
+                    clear=rules.get("narrow_clear", 0.05), deep=P.deep(job))
 
 
 def cut_two(u, step: float, fine):

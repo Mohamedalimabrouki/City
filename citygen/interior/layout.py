@@ -65,10 +65,10 @@ def plan_interior(outside, style: dict) -> Interior:
             _hold(interior, start)
     if layout in TRADITIONAL + HOUSES and any(not any(w in f for w in DEAF) for f in check(interior)) and not hopeless(
             interior, layout):
-        again = redraw(interior, outside, style, layout, before)
+        redrawn = redraw(interior, outside, style, layout, before)
     else:
-        again = True
-    if layout in HOUSES and again and any(f.endswith(WAY) for f in check(interior)):
+        redrawn = True
+    if layout in HOUSES and redrawn and any(f.endswith(WAY) for f in check(interior)):
         carve(interior, style)                        # (a plan the first carve saw: no second)
     if carved is not None and (check(interior) or dim(interior, style) > carved[1]):
         _hold(interior, carved[0])
@@ -82,6 +82,9 @@ def plan_interior(outside, style: dict) -> Interior:
             way_home(interior, style)
         finally:
             del interior.nooks
+    if layout in style.get("interiors", {}).get("villa", {}).get("little", ()) and interior.floors == 1 and any(
+            f.endswith("has no chambre") for f in check(interior)):
+        again(interior, outside, style, layout, "little", before)   # rooms off the salon (47.2 houses round 5)
     interior.__dict__.pop("checked", None)
     return interior
 
