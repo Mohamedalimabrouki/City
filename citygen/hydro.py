@@ -15,8 +15,10 @@ from dataclasses import dataclass
 
 import contourpy
 import numpy as np
+import shapely
 from scipy import ndimage
 from shapely.geometry import LineString, Point, Polygon
+from shapely.ops import unary_union
 
 from .terrain import DESERT, STEPPE, classify
 
@@ -51,6 +53,27 @@ class Lake:
     def to_json(self) -> dict:
         return {"id": self.id, "polygon": np.round(self.polygon, 1).tolist(),
                 "level": round(self.level, 2), "salt": self.salt}
+
+
+def lake_shape(lakes):
+    """All lakes, fresh and salt, as one prepared shape (None without lakes); prompt 60: lakes count as
+    water for settlements, roads and city land."""
+    if not lakes:
+        return None
+    shape = unary_union([Polygon(k.polygon).buffer(0) for k in lakes])
+    shapely.prepare(shape)
+    return shape
+
+
+def in_lake(lakes, X, Y, margin: float = 0.0) -> np.ndarray:
+    """Boolean array of the points (X, Y arrays) inside a lake or within `margin` meters of its shore."""
+    shape = lake_shape(lakes)
+    if shape is None:
+        return np.zeros(np.shape(X), bool)
+    if margin > 0.0:
+        shape = shape.buffer(margin)
+        shapely.prepare(shape)
+    return shapely.contains_xy(shape, X, Y)
 
 
 def drainage(terrain, cfg: dict) -> tuple:

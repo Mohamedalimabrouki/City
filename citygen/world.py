@@ -13,10 +13,10 @@ import numpy as np
 from scipy import ndimage
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import dijkstra
-from shapely.geometry import LineString
+from shapely.geometry import LineString, Point
 
 from .config import load_style
-from .hydro import drainage
+from .hydro import drainage, in_lake, lake_shape
 from .names import NameMaker
 from .rng import stream
 from .terrain import BIOME_NAMES, Terrain, classify
@@ -108,7 +108,7 @@ def generate_world(cfg: dict) -> World:
     style = load_style(cfg["world"]["style"])
     terrain = Terrain(seed, cfg)
     rivers, lakes = drainage(terrain, cfg)
-    settlements = _place_settlements(seed, cfg, style, terrain)
+    settlements = _place_settlements(seed, cfg, style, terrain, lakes)
     namer = NameMaker(style, stream(seed, "names"))
     name = cfg["world"].get("name") or namer.country()
     for s in settlements:
@@ -118,13 +118,13 @@ def generate_world(cfg: dict) -> World:
         if int(sid) < len(settlements):
             settlements[int(sid)].name = str(new_name)
     _add_lore(seed, style, settlements)
-    roads = _build_roads(seed, cfg, terrain, settlements)
+    roads = _build_roads(seed, cfg, terrain, settlements, lakes)
     return World(seed, cfg, style, name, terrain, settlements, roads, rivers, lakes)
 
 
 # --- settlements ----------------------------------------------------------------
 
-def _place_settlements(seed: int, cfg: dict, style: dict, terrain: Terrain) -> list:
+def _place_settlements(seed: int, cfg: dict, style: dict, terrain: Terrain, lakes=()) -> list:
     size = terrain.size
     sc = cfg["settlements"]
     n = max(8, int(size // 400))
@@ -141,7 +141,7 @@ def _place_settlements(seed: int, cfg: dict, style: dict, terrain: Terrain) -> l
     else:
         coast_d = ndimage.distance_transform_edt(land) * cell
     margin = 0.05 * size
-    ok = land & (slope < 0.12) & (H < 1050) & (X > margin) & (X < size - margin)
+    ok = land & ~in_lake(lakes, X, Y) & (slope < 0.12) & (H < 1050) & (X > margin) & (X < size - margin)
     ok &= (Y > margin) & (Y < size - margin)
 
     rng = stream(seed, "settlements")
@@ -157,6 +157,7 @@ def _place_settlements(seed: int, cfg: dict, style: dict, terrain: Terrain) -> l
     spacing = {"capital": sc["city_spacing"], "city": sc["city_spacing"],
                "town": sc["town_spacing"], "village": sc["village_spacing"]}
 
+    wet = lake_shape(lakes)   # a settlement keeps its whole radius off lakes (prompt 60)
     placed: list[Settlement] = []
     taken = np.zeros((0, 4))  # x, y, radius, rank of placed settlements
     for kind in KINDS:
@@ -187,6 +188,8 @@ def _place_settlements(seed: int, cfg: dict, style: dict, terrain: Terrain) -> l
                 continue
             h = float(terrain.height(x, y))
             if h < 2.0:
+                continue
+            if wet is not None and wet.distance(Point(x, y)) < radius:
                 continue
             placed.append(Settlement(len(placed), "", kind, x, y, pop, radius, h,
                                      bool(coast_d.flat[flat] < radius + 900.0), ""))
@@ -237,14 +240,15 @@ def _add_lore(seed: int, style: dict, settlements: list) -> None:
 class _Router:
     """Least-cost routes over a terrain grid: roads avoid water, steep slopes and peaks."""
 
-    def __init__(self, terrain: Terrain, cell: float):
+    def __init__(self, terrain: Terrain, cell: float, lakes=()):
         size = terrain.size
         self.n = n = max(8, int(math.ceil(size / cell)))
         self.cell = size / n
         c = (np.arange(n) + 0.5) * self.cell
         self.X, self.Y = np.meshgrid(c, c)
         self.H = terrain.height(self.X, self.Y)
-        self.water = (self.H < 1.0).ravel()
+        # lakes are water, with a margin of one cell so the smoothed road line keeps off the shore (prompt 60)
+        self.water = ((self.H < 1.0) | in_lake(lakes, self.X, self.Y, self.cell)).ravel()
         self.mult = np.ones(n * n)
         idx = np.arange(n * n).reshape(n, n)
         a_list, b_list, d_list = [], [], []
@@ -332,8 +336,8 @@ def _smooth(coords: np.ndarray, tolerance: float) -> np.ndarray:
     return pts
 
 
-def _build_roads(seed: int, cfg: dict, terrain: Terrain, settlements: list) -> list:
-    router = _Router(terrain, float(cfg["roads"]["routing_cell"]))
+def _build_roads(seed: int, cfg: dict, terrain: Terrain, settlements: list, lakes=()) -> list:
+    router = _Router(terrain, float(cfg["roads"]["routing_cell"]), lakes)
     nodes = {s.id: router.node(s.x, s.y) for s in settlements}
     roads: list[Road] = []
     tol = router.cell * 0.6

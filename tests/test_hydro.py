@@ -71,3 +71,17 @@ def test_oueds_are_thin_and_seasonal(world):
     salt = [Polygon(k.polygon) for k in world.lakes if k.salt]
     assert salt                                # endorheic basins keep their water: no river leaves them
     assert not any(p.contains(Point(r.coords[0])) for p in salt for r in world.rivers)
+
+
+def test_settlements_and_roads_keep_off_lakes():
+    """Prompt 60: lakes count as water. On the 64 km world (41 lakes; prompt 59 put Sota and Chilel on salt
+    lakes) no settlement's disc touches a lake and no road point lies in one."""
+    from citygen.hydro import lake_shape
+    from citygen.world import generate_world
+    w = generate_world(load_config())
+    wet = lake_shape(w.lakes)
+    assert wet is not None
+    for s in w.settlements:
+        assert wet.distance(Point(s.x, s.y)) >= s.radius, s.name
+    for r in w.roads:
+        assert not any(wet.contains(Point(x, y)) for x, y in r.coords), r.kind

@@ -70,7 +70,7 @@ def plan_city(world, settlement) -> CityPlan:
     t0 = time.perf_counter()
     ctx = CityContext(world, settlement)
     s = settlement
-    land = land_near(world.terrain, s.x, s.y, s.radius * 1.35)
+    land = land_near(world.terrain, s.x, s.y, s.radius * 1.35, world.lakes)
     ctx.boundary = boundary = city_boundary(ctx, land)
     roads = [r for r in world.roads if LineString(r.coords).intersects(boundary)]
     axis = main_axis(ctx, roads)

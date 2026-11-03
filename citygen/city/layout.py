@@ -9,6 +9,7 @@ import shapely
 from shapely.geometry import MultiPoint, Point, Polygon
 from shapely.ops import unary_union
 
+from ..hydro import lake_shape
 from ..names import NameMaker
 from ..noise import Perlin
 from ..rng import weighted
@@ -16,8 +17,16 @@ from .geo import frame, largest, noisy_loop, polygons, scatter
 from .model import District
 
 
-def land_near(terrain, x: float, y: float, radius: float):
-    """Land (above 0.8 m) within `radius` of a point, as a polygon traced from the height field."""
+def land_near(terrain, x: float, y: float, radius: float, lakes=()):
+    """Land (above 0.8 m, outside the lakes) within `radius` of a point, as a polygon traced from the
+    height field."""
+    land = _dry_land(terrain, x, y, radius)
+    wet = lake_shape(lakes)
+    return land if wet is None or not land.intersects(wet) else land.difference(wet)
+
+
+def _dry_land(terrain, x: float, y: float, radius: float):
+    """Land above 0.8 m within `radius` of a point (lakes not removed)."""
     step = max(6.0, radius / 250.0)
     n = int(2 * radius / step) + 1
     xs = np.linspace(x - radius, x + radius, n)

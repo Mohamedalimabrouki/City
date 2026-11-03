@@ -188,6 +188,10 @@ block on `rng("impasse", block)`: lot line jitter, widths, covered share and len
   height along the D8 path, made non-increasing with a running minimum (smoothing only averages it, so it
   never rises downstream); `mouth` `sea` | `lake` | `basin` | `border` | `river`, `into` the lake or river
   id. `Lake(id, polygon, level, salt)`: the shore ring where the ground inside the basin meets `level`.
+  Lakes count as water (prompt 60, `hydro.lake_shape`, `hydro.in_lake`): settlement sites inside a lake
+  are not `ok`, and a settlement keeps its whole radius off every lake; the road router treats lake
+  cells and cells within one `routing_cell` of a shore as water (so the smoothed road line keeps off
+  the shore); `layout.land_near` (a city's land) leaves the lakes out.
 - `CityPlan`: `boundary`, `land` (with the quay aprons since prompt 34), `medina`, `districts`, `streets`, `blocks`, `parcels`,
   `buildings`, `trees`, `landmarks`, `walks`, `households`, `souks`, `paint`, `stats`, `station`
   (a `city.station.Station` or None: `facade`, `tracks`, `precinct`, `corridor`, `district`, `core`), `port`
@@ -559,7 +563,7 @@ breakwater lines, basins, lighthouses) when it has a harbor, `props` (`kind`, `x
 | `tiles/tile_<i>_<j>.glb` | 3D tile covering x `i*512..(i+1)*512`, y `j*512..(j+1)*512` |
 | `tiles/tile_<i>_<j>_lod1.glb` | the same tile for distant views (prompt 40): merged blocks, low-poly landmarks, 32 m terrain, flat colors |
 | `tiles/textures/*.png` | base-color images shared by the tiles (`[tiles] textures = "shared"`, the default) |
-| `tiles/index.json` | `citygen-tiles/1`: tile list (bytes, unique and drawn triangles, dressing pieces, `lod1`: file, bytes, triangles; `files`: shared textures and the lod1 file), `"parapets": true` when the tiles carry their own roof parapets, `focus` point, camera `views` (street, souk, and cathedral, theatre, station, port and corniche when the city has them), `cities` (name, plan file, bounds) |
+| `tiles/index.json` | `citygen-tiles/1`: tile list (bytes, unique and drawn triangles, dressing pieces, `lod1`: file, bytes, triangles; `files`: shared textures and the lod1 file), `"parapets": true` when the tiles carry their own roof parapets, `focus` point (the box center with its ground height for `box:` builds since prompt 60, so the viewer loads the box's tiles; else the focus settlement's center), camera `views` (street, souk, and cathedral, theatre, station, port and corniche when the city has them), `cities` (name, plan file, bounds) |
 | `summary.json` | counts and timings (read this instead of big files); `settings`: the merged settings of the build (prompt 45), from which `interior` rebuilds world and plans |
 | `interiors/<city>-<k>/` | made on demand by `python -m citygen interior` (SPEC 6c "Output"), never by a build: `tiles/interior.glb`, `tiles/index.json`, `rooms.json`; `tools/fingerprint.py` skips the folder |
 

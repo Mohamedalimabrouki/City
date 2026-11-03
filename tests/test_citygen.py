@@ -5024,3 +5024,15 @@ def test_flats_wet_door_by_a_corner(new_districts):
             if group not in ("slab", "colonial"):
                 assert not any("hinge" in o.to_json() for o in interior.openings)
     assert hinged
+
+
+def test_box_builds_focus_on_the_box_center():
+    """Prompt 60: a box build's viewer focus (and tile order) is the box center, not the nearest settlement."""
+    from types import SimpleNamespace
+
+    from shapely.geometry import box as rect
+
+    from citygen.build import focus_xy
+    town = SimpleNamespace(x=100.0, y=200.0)
+    assert focus_xy("box:1,2,3,4", rect(1000.0, 2000.0, 3000.0, 4000.0), town) == (2000.0, 3000.0)
+    assert focus_xy("capital", rect(0.0, 0.0, 1.0, 1.0), town) == (100.0, 200.0)
