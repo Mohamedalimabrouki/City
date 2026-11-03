@@ -1753,6 +1753,8 @@ its floor landing (`palier`, unit `common`) against the door's wall, the flights
   faults it. A salle a manger no window lights is left out of the flat's program (the salon serves). A room over
   its `most` names its flat for these second plans. Flats round G: a clean bay plan is judged with its rooms as
   `nooks` will grow them; a block of flats puts its roof newel's door on the side the droj shares with the palier.
+  Flats round H: on floor 0 of a block of flats whose stair well stands beside the street door, the palier reaches the
+  door over the steps and their landing, its sides `clear` of the door: the street door opens on the common stair.
 
 **Stairs** (`[interiors.stairs]`, records prompts 46-47, geometry prompt 49). Rule (tested): every
 point of every tread on the walking line has at least `headroom` (2.0 m) clear above it. Risers: the

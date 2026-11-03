@@ -4933,3 +4933,32 @@ def test_bay_clean_nooks_and_newel_door():
     north = door_side(square, [floor, palier], 0.0)
     assert east[0] > 1.9 and abs(east[1] - 1.0) < 1e-9
     assert abs(north[1] - 2.0) < 1e-9 and abs(north[0] - 1.0) < 1e-9
+
+
+def test_slab_entry_hall_reaches_the_well():
+    """A ladder well slid along the door wall off the entry steps: on floor 0 the palier reaches the street
+    door over the steps and their landing, its side `clear` of the door, so the street door opens on the
+    common stair and not into a flat's hall; a core the door already opens on keeps its way in (47.2 flats
+    round H). Hand-made, 0.01 s."""
+    from types import SimpleNamespace as NS
+
+    from shapely.geometry import box
+
+    from citygen.interior.flats import Core, entry_hall
+    from citygen.interior.spine import door_entry, door_frame
+
+    spot = NS(x=0.0, y=-0.3, z=0.0, nx=0.0, ny=-1.0)
+    door = NS(kind="door", floor=0, x=0.0, y=-0.3, width=1.5, id=0, rooms=(1, -1))
+    job = NS(interior=NS(openings=[door], high=1.1), stairs={}, ext=0.3, clear=0.3, half=0.05, spot=spot,
+             free=lambda *a, **k: None)
+    fd = door_frame(door_entry(job, spot))
+    well = box(0.9, 0.25, 2.1, 1.45)
+    poly = box(-8.0, 0.0, 8.0, 8.0).difference(well)
+    core = Core(well, {"across": 1.2, "landing": 1.2, "length": 1.2, "ladder": True}, fd, 1.5, 0.25, 4, spot)
+    gap = box(0.9, 0.0, 2.1, 0.25)
+    hall = entry_hall(job, core, poly, gap)
+    x0, y0, x1, y1 = hall.bounds
+    assert abs(x0 + 1.1) < 1e-6 and abs(x1 - 2.1) < 1e-6 and abs(y1 - 3.0) < 1e-6   # 7 risers of 0.3 + 0.9
+    assert hall.contains(box(-0.85, 0.0, 0.85, 3.0).buffer(-1e-3)) and hall.distance(well) < 1e-9
+    centred = Core(box(-1.15, 0.25, 1.15, 4.9), {"across": 2.3, "landing": 1.35, "length": 4.65}, fd, 0.0, 0.25, 4, spot)
+    assert entry_hall(job, centred, poly, gap) is gap

@@ -1143,6 +1143,10 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`, and how the le
   its middle. A run of units starts at a corner when its wall has no window, and each next unit tries beside, round
   the corner, then another corner. Try another place (`else`) before a smaller piece. A narrow wc or sdb whose door
   stands in the middle of a long wall cannot hold its fixtures: the planners should put that door near a corner.
+- **The street door opens on the stair, whatever stair it is** (47.2 flats round H): a ladder well that the entry
+  steps pushed along the door wall left the street door in front of a flat's hall (six slab blocks failed by that
+  alone). Build the entry hall from the door, not from the box: the door's width plus `clear`, the steps' depth plus
+  their landing, then join the palier. A sunk door is a different problem (the steps' head must land at the well).
 - **Furnishing design** (prompt 51, SPEC 6d): facts that shaped it. Furniture is interior-only: if its
   pieces went into `kit.make_kit`, every build would make them, the fingerprint would list them and their
   materials would need `[palette]`; as `home/<piece>` in `citygen/interior/` (out of the build key) no tile

@@ -96,6 +96,27 @@ Entry format:
   the chain run (`.venv-sdk/credit_chain.sh`, 10:42-13:12) stopped with "Credit balance is too low"
   (its session recorded about $42), so that route needs new credit first (checked 3 November).
 
+## 2026-11-03 - Open item 47.2, flats round H (the street door opens on the palier of a ladder well beside it)
+- Commit: (lead commits) | Model: Opus 5.5, high (flats helper, worktree /tmp/claude-501/flats-h, about 35 min)
+- Changed: citygen/interior/flats.py (`entry_hall`: on floor 0 of a slab block, a core slid inward off the entry steps
+  whose box does not span the street door, a ladder well beside the door, gets a palier that reaches the door over the
+  steps' floor: as wide as the door plus `clear` and a half partition each side, clear of the openings' zones, as deep
+  as the steps and their landing or the well; not for sunk doors), tests (`test_slab_entry_hall_reaches_the_well`,
+  0.05 s).
+- Counts (every check; HEAD 104cd57 copy against the tree, rooms.json hashes): slab 245 -> 247 of 353 (won No. 1183,
+  1227; lost 0; 7 blocks changed, all failing at HEAD; faults 807 -> 777), colonial 3/270 (every rooms.json identical);
+  the old town, villas and maisons identical. Every passing interior 0 `mesh.faults`, 0 step faults.
+- Times (CPU, HEAD and tree alternated): No. 1324 3.8 s both; No. 1183 1.00 -> 0.55 s (one plan, not two); No. 1211
+  +4%; every slab block 575 -> 573 s.
+- Measured and removed: the same hall for a well on the door wall (No. 1371: one flat wrapped round the palier, day
+  rooms through a chambre); sunk doors beside a ladder well (No. 1065, 1109: the well must stand at the steps' head;
+  `slide_most` 6.0 m is shorter than No. 1065's 6.3 m of steps and landing).
+- Left: the way home (9 slab blocks) and blind chambres (6): planner work in `spine` / `bayplan`.
+- Checks: `pytest -q` 156 passed in the helper's tree; `build --quick`; fingerprint 0 changed.
+- Look: output/checks/472-h-flats.png (worktree; No. 1183 and 1227: the street door on the palier with its steps and
+  the ladder well beside them).
+- Lead: verified with the lead's survey and merged on prompt 54 round 2.
+
 ## 2026-11-03 - Prompt 54 H2c Furnishing, round 2 (kitchens, baths, villas and maisons)
 - Commit: (lead commits) | Model: Opus 5.5, high (furnishing helper, worktree wip/furn-54b, about 1 h 15 min)
 - Changed: citygen/interior/furnish.py (slot keys `ends`: slide from a wall's ends inward, also for a sink on a wall

@@ -314,6 +314,8 @@ def run(job, cores: list, kind: str) -> None:
                 if c.y > 0.05 and f in c.paliers and (f == 0 or c.keep):   # every floor over entry steps (49)
                     gap = clip(poly, c.fd.rect(c.x - c.size["across"] / 2, -1.0, c.x + c.size["across"] / 2, c.y + 1e-6))
                     rise = deep_door(job, c.spot) if f == 0 and not gap.is_empty else None
+                    if f == 0 and rise is None and c.keep:   # a well beside the door: the palier reaches it
+                        gap = entry_hall(job, c, poly, gap)
                     if rise is not None:                  # a door under floor 0: its own sunken entry room
                         room = P.add_rooms(job, [Cell(gap, "couloir")], 0, "common")[0]
                         P.arch(job, room, c.paliers[0])
@@ -723,6 +725,38 @@ def allee(job, core: Core, poly, x0: float, x1: float, deep: float) -> tuple:
         got = job.free(strip, fd, 0, at, [0], at, at + 1.2)
         x1 = got if got is not None else at
     return x0, x1
+
+
+def entry_hall(job, core: Core, poly, gap):
+    """Floor 0 of a slab core slid along the door wall off the entry steps (a ladder well beside the door):
+    the palier reaches the street door over the steps' floor, as wide as the door keeps `clear` of the
+    partitions and as deep as the steps and their landing (`entry_keep`), the street door opening on the
+    common stair, not into a flat's hall (47.2 flats round H); `gap` when the door already opens on it."""
+    door = D.main_opening(job.interior, core.spot)
+    if door is None:
+        return gap
+    fd, half = core.fd, core.size["across"] / 2
+    xd, w = float(fd.local((door.x, door.y))[0]), door.width / 2
+    x0, x1 = core.x - half, core.x + half
+    if x0 <= xd - w and xd + w <= x1:
+        return gap
+    e = P.door_entry(job, core.spot)
+    keep = entry_keep(job, core.spot, e) if e is not None else None
+    if keep is None:
+        return gap
+    reach = w + job.clear + job.half
+    deep = max(keep[1], core.y + core.size["length"])
+    strip = clip(poly, fd.rect(-BIG, -1.0, BIG, deep))
+    if xd - w < x0:
+        at = xd - reach
+        got = job.free(strip, fd, 0, at, [0], at - 1.2, at)
+        x0 = got if got is not None else at
+    if xd + w > x1:
+        at = xd + reach
+        got = job.free(strip, fd, 0, at, [0], at, at + 1.2)
+        x1 = got if got is not None else at
+    hall = clip(poly, fd.rect(x0, -1.0, x1, deep))
+    return hall if not hall.is_empty else gap
 
 
 def pier_at(job, fd: Frame, sgn: float) -> float | None:
