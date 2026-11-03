@@ -71,7 +71,8 @@ def test_home_kit_budget(home, tmp_path):
 def test_weave_images(style):
     from citygen.interior import weave
     spec = style["interiors"]["textures"]
-    for name in ("klim_red", "klim_indigo", "mergoum", "zarbia", "hasira", "ticking", "painted", "sajjada", "mink"):
+    for name in ("klim_red", "klim_indigo", "mergoum", "zarbia", "hasira", "ticking", "painted", "sajjada", "mink",
+                 "fleece", "net"):
         a = np.asarray(weave.texture(name, 42, spec[name]), dtype=np.float64)
         assert a.shape == (256, 256, 3), name
         rows = (np.abs(a[1] - a[0]).mean() + np.abs(a[-1] - a[-2]).mean()) / 2 + 0.5   # the neighbour rows' difference

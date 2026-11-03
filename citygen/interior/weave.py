@@ -380,9 +380,34 @@ def _goods(rng, n: int, s: dict) -> np.ndarray:
     return out * grain[:, :, None]
 
 
+def _fleece(rng, n: int, s: dict) -> np.ndarray:
+    """A sheepskin's wool: crimped locks (rings of a tiled noise field), warm cream on their crowns and a
+    darker honey in the hollows between them."""
+    cream, hollow = _col(s, "cream"), _col(s, "hollow")
+    locks = _noise(rng, n, int(s.get("locks", 16)), 2)
+    crimp = 0.5 + 0.5 * np.sin(2 * np.pi * float(s.get("crimp", 5)) * locks)
+    t = np.clip(crimp ** 0.5 * (0.75 + 0.5 * (_noise(rng, n, 8, 2) - 0.5) * 2.0 * s["mottle"]), 0.0, 1.0)
+    return hollow + (cream - hollow) * t[:, :, None]
+
+
+def _net(rng, n: int, s: dict) -> np.ndarray:
+    """A fishing net in a heap: diamond meshes of cords with a knot at each crossing, the folds below
+    showing dark through the holes."""
+    x, y = _grid(n)
+    cord, knot, gap = _col(s, "cord"), _col(s, "knot"), _col(s, "gap")
+    p = n / int(s.get("cells", 16))                          # a whole number of meshes across: it wraps
+    u, v = (x + y) / p, (x - y) / p
+    du, dv = np.abs(u - np.round(u)) * p, np.abs(v - np.round(v)) * p
+    half = float(s.get("cord_width", 2.0)) / 2
+    out = np.broadcast_to(gap, (n, n, 3)) * (0.8 + 0.4 * _noise(rng, n, 4, 2))[:, :, None]
+    tone = 0.85 + 0.3 * s["mottle"] * _noise(rng, n, 8, 2)
+    out = np.where(((du < half) | (dv < half))[:, :, None], cord * tone[:, :, None], out)
+    return _paint(out, (du < half * 1.6) & (dv < half * 1.6), knot)
+
+
 MAKERS = {"klim_red": _klim, "klim_indigo": _klim, "mergoum": _mergoum, "zarbia": _zarbia, "hasira": _hasira,
           "ticking": _ticking, "painted": _painted, "sajjada": _sajjada, "mink": _mink,
-          "rug_floral": _rug_floral, "spines": _spines, "goods": _goods}
+          "rug_floral": _rug_floral, "spines": _spines, "goods": _goods, "fleece": _fleece, "net": _net}
 
 
 def texture(name: str, seed: int, spec: dict | None = None) -> Image.Image:

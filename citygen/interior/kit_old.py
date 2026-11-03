@@ -135,15 +135,17 @@ def _prism(mb: MeshBuilder, prof, x0: float, x1: float, mats, cap: str | None) -
                 add_triangles(mb, [_oriented([(x, y, z) for y, z in tri], (nx, 0, 0))], cap)
 
 
-def _smooth(mb: MeshBuilder, mat: str, pos, tris) -> None:
-    """Triangles sharing their corners, with area-weighted smooth normals (cushions, sacks, the net)."""
+def _smooth(mb: MeshBuilder, mat: str, pos, tris, uv=None) -> None:
+    """Triangles sharing their corners, with area-weighted smooth normals (cushions, sacks, the net);
+    meter UVs (x + y, -z) unless `uv` gives them."""
     pos, tris = np.asarray(pos, dtype=np.float64), np.asarray(tris, dtype=np.int64)
     n = np.zeros_like(pos)
     face = np.cross(pos[tris[:, 1]] - pos[tris[:, 0]], pos[tris[:, 2]] - pos[tris[:, 0]])
     for k in range(3):
         np.add.at(n, tris[:, k], face)
     n /= np.maximum(np.linalg.norm(n, axis=1), 1e-12)[:, None]
-    mb.add(mat, pos, n, np.stack([pos[:, 0] + pos[:, 1], -pos[:, 2]], axis=1), tris)
+    uv = np.stack([pos[:, 0] + pos[:, 1], -pos[:, 2]], axis=1) if uv is None else uv
+    mb.add(mat, pos, n, uv, tris)
 
 
 def _ring(cx, cy, cz, rx, ry, count: int, phase: float = 0.0) -> np.ndarray:
@@ -837,33 +839,43 @@ def klim(s, v, rng):
 
 
 def hidoura(s, v, rng):
-    """The sheepskin of the Aid: a hide outline with its four legs, neck and tail, the fleece thick in the
-    middle and thin at the edges, a little lumpy (24 triangles)."""
+    """The sheepskin of the Aid: a hide outline with its four legs, neck and tail and four shaggy tufts on
+    the flanks, every point a little in or out; the fleece domed to its full height in the middle and thin
+    at the ragged edge; wool locks in the image (22 triangles)."""
     w, d, h = s
-    out = np.array([(0.0, 0.5), (0.2, 0.38), (0.5, 0.30), (0.30, 0.02), (0.5, -0.36), (0.06, -0.5),
-                    (-0.5, -0.36), (-0.30, 0.02), (-0.5, 0.30), (-0.2, 0.38)])
-    out = out + rng.uniform(-0.03, 0.03, out.shape)
+    hide = [(0.0, 0.5), (0.2, 0.38), (0.5, 0.30), (0.30, 0.02), (0.5, -0.36), (0.06, -0.5),
+            (-0.5, -0.36), (-0.30, 0.02), (-0.5, 0.30), (-0.2, 0.38)]
+    out = []
+    for i, p in enumerate(hide):                          # a tuft halfway along each flank, between the legs
+        out.append(p)
+        if i in (2, 3, 6, 7):
+            q = hide[i + 1]
+            out.append(((p[0] + q[0]) / 2 * rng.uniform(1.05, 1.18), (p[1] + q[1]) / 2))
+    out = np.array(out) + rng.uniform(-0.035, 0.035, (len(out), 2))
     out = (out - out.min(axis=0)) / (out.max(axis=0) - out.min(axis=0)) - 0.5
-    inner = np.array([(0.0, 0.30), (0.22, 0.12), (0.2, -0.2), (-0.2, -0.2), (-0.22, 0.12)]) + rng.uniform(-0.03, 0.03, (5, 2))
-    lift = rng.uniform(0.0, 0.003, 5)
-    pos = np.concatenate([np.c_[out * [w, d], np.full(10, RUG_Z + 0.002)],
-                          np.c_[inner * [w, d], RUG_Z + h - 0.008 + lift], [[0.0, 0.0, RUG_Z + h - 0.005]]])
-    near = [int(np.argmin(np.linalg.norm(inner - o, axis=1))) for o in out]     # each outer point's inner one
+    m = len(out)
+    corner = np.pi / 4 + np.arange(4) * np.pi / 2           # the woolly middle: four points round the crown
+    inner = np.c_[0.2 * np.cos(corner), 0.24 * np.sin(corner)] + rng.uniform(-0.03, 0.03, (4, 2))
+    edge = RUG_Z + rng.uniform(0.0015, 0.004, m)              # the ragged hem, some locks lifted
+    crown = RUG_Z + h - 0.005
+    pos = np.concatenate([np.c_[out * [w, d], edge], np.c_[inner * [w, d], crown - rng.uniform(0.003, 0.006, 4)],
+                          [[0.0, 0.0, crown]]])
+    near = (np.floor((np.arctan2(out[:, 1], out[:, 0]) % (2 * np.pi)) / (np.pi / 2)).astype(int)) % 4
     tris = []
-    for i in range(10):
-        j = (i + 1) % 10
-        a, b = 10 + near[i], 10 + near[j]
+    for i in range(m):
+        j = (i + 1) % m
+        a, b = m + near[i], m + near[j]
         tris.append([i, j, b])
         if a != b:
             tris.append([i, b, a])
-    tris += [[10 + i, 10 + (i + 1) % 5, 15] for i in range(5)]
+    tris += [[m + i, m + (i + 1) % 4, m + 4] for i in range(4)]
     tris = np.array(tris)
     for n in range(len(tris)):
         p0, p1, p2 = pos[tris[n]]
         if np.cross(p1 - p0, p2 - p0)[2] < 0:
             tris[n] = tris[n][::-1]
     mb = MeshBuilder()
-    _smooth(mb, "fleece", pos, tris)
+    _smooth(mb, "fleece", pos, tris, uv=np.stack([pos[:, 0], -pos[:, 1]], axis=1))
     return mb
 
 
@@ -1023,7 +1035,7 @@ def pots_stack(s, v, rng):
 
 def net_pile(s, v, rng):
     """A heap of green fishing net: radial folds draped from a high middle to a wavy hem on the floor,
-    with a few red floats caught in it (smooth normals)."""
+    its cords and dark holes in the image, with four red floats caught in it (smooth normals)."""
     w, d, h = s
     k = 8
     radii = [0.0, 0.35, 0.68, 1.0]
@@ -1050,8 +1062,8 @@ def net_pile(s, v, rng):
         if np.cross(p1 - p0, p2 - p0)[2] < 0:
             tris[n] = tris[n][::-1]
     mb = MeshBuilder()
-    _smooth(mb, "net_green", pos, tris)
-    for i in (1, 4, 6):                                   # floats on the second ring's ridges
+    _smooth(mb, "net_green", pos, tris, uv=np.stack([pos[:, 0], -(pos[:, 1] + pos[:, 2])], axis=1))   # the meshes
+    for i in (1, 3, 4, 6):                                # floats on the second ring's ridges
         x, y, z = pos[1 + k + i]
         _pyramid(mb, _ring(x, y, z + 0.025, 0.04, 0.03, 4), (x, y, z + 0.06), "plastic_red")
         _pyramid(mb, _ring(x, y, z + 0.025, 0.04, 0.03, 4), (x, y, z - 0.005), "plastic_red")
