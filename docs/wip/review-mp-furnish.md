@@ -48,3 +48,10 @@ No code changed by this review.
 54 can be ticked: no, because the "side" mode offset (furnish.py:944) is a real bug in the new code, the full
 capital is still at 2.2% warned (above the 2% target) and the 2% test covers only sparse; fix the offset, re-run
 the two surveys, and tick it when quick and full are both at or under 2%.
+
+## Left (not checked in the time)
+- Not run: no test was run (review only); the side-mode bug is shown by reading furnish.py:937-945 with slide()
+  (furnish.py:1057, which returns centres) and Run.point (furnish.py:83), not by a rendered room.
+- Not checked: tie-breaks inside household `best` (determinism of equal areas); whether `full` places extra
+  pieces before some `need` ones (the densities question above); kit_new.py hand_basin / shower_small sizes
+  against SPEC 6d.
