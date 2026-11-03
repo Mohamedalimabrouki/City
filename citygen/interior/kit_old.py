@@ -635,7 +635,7 @@ def ibrik(s, v, rng):
     w, d, h = s
     r = w / 2
     mb = MeshBuilder()
-    _lathed(mb, [(r * 0.55, 0.0), (r, 0.10), (r * 0.9, 0.10), (0.0, 0.04)], "copper", 8)
+    _lathed(mb, [(r * 0.55, 0.0), (r, 0.10), (r * 0.9, 0.10), (0.0, 0.04)], "copper_ware", 8)
     _lathed(mb, [(0.045, 0.045), (0.085, 0.16), (0.03, 0.27), (0.042, h)], "brass", 8)
     _tube(mb, (0.06, 0.0, 0.17), (0.16, 0.0, 0.31), (0.009, 0.009), "brass")
     _tube(mb, (-0.035, 0.0, 0.33), (-0.11, 0.0, 0.27), (0.006, 0.012), "brass")
@@ -649,11 +649,11 @@ def kanoun(s, v, rng):
     r = w / 2
     mb = MeshBuilder()
     _lathed(mb, [(r * 0.65, 0.0), (r * 0.75, h * 0.40), (r, h), (r * 0.78, h - 0.015), (0.0, h - 0.05)],
-            ["terracotta", "terracotta", "terracotta", "charcoal"], 8)
+            ["clay_red", "clay_red", "clay_red", "charcoal"], 8)
     for k in range(3):
         a = k * 2 * math.pi / 3 + 0.3
         c = np.array([math.cos(a), math.sin(a), 0.0]) * r * 0.86 + [0, 0, h - 0.01]
-        _pyramid(mb, _ring(c[0], c[1], c[2], 0.02, 0.02, 3), c + [0, 0, 0.035 - 0.025], "terracotta")
+        _pyramid(mb, _ring(c[0], c[1], c[2], 0.02, 0.02, 3), c + [0, 0, 0.035 - 0.025], "clay_red")
     return mb
 
 
@@ -787,7 +787,7 @@ def khabia(s, v, rng):
     w, d, h = s
     r = w / 2
     mb = MeshBuilder()
-    low, high = "terracotta", ("glaze_green" if v == "glazed" else "terracotta")
+    low, high = "clay_red", ("glaze_green" if v == "glazed" else "clay_red")
     prof = [(r * 0.42, 0.0), (r * 0.90, h * 0.24), (r, h * 0.47), (r * 0.80, h * 0.76), (r * 0.40, h * 0.90),
             (r * 0.44, h), (r * 0.32, h * 0.98)]
     _lathed(mb, prof, [low, low, high, high, high, high], 8)
@@ -816,7 +816,7 @@ def tabouna(s, v, rng):
     r = w / 2
     mb = MeshBuilder()
     _lathed(mb, [(r, 0.0), (r * 0.98, h * 0.50), (r * 0.85, h * 0.88), (r * 0.62, h), (r * 0.52, h * 0.93),
-                 (0.0, h * 0.70)], ["plaster_inner", "plaster_inner", "terracotta", "terracotta", "charcoal"], 10)
+                 (0.0, h * 0.70)], ["plaster_inner", "plaster_inner", "clay_red", "clay_red", "charcoal"], 10)
     _faces(mb, [_oriented([(-0.07, r + 0.004, 0.03), (0.07, r + 0.004, 0.03), (0.07, r + 0.004, 0.13), (-0.07, r + 0.004, 0.13)], (0, 1, 0))], "charcoal")
     return mb
 
@@ -1010,14 +1010,14 @@ def pots_stack(s, v, rng):
     w, d, h = s
     mb = MeshBuilder()
     j = rng.uniform(-0.008, 0.008, (4, 2))
-    pots = [((-0.16, -0.17), 0.14, 0.44, "terracotta"), ((0.16, -0.17), 0.14, 0.38, "terracotta"),
+    pots = [((-0.16, -0.17), 0.14, 0.44, "clay_red"), ((0.16, -0.17), 0.14, 0.38, "clay_red"),
             ((0.15, 0.17), 0.14, h, "glaze_green")]
     for k, ((x, y), r, ph, mat) in enumerate(pots):
         x, y = x + j[k, 0], y + j[k, 1]
         _lathed(mb, [(r * 0.6, 0.0), (r, ph * 0.45), (r * 0.42, ph * 0.86), (r * 0.55, ph)], mat, 6, at=(x, y, 0.0))
     bx, by = -0.17 + j[3, 0], 0.18 + j[3, 1]
     for z, r in ((0.0, 0.13), (0.055, 0.125)):           # two bowls, mouth up, one in the other
-        _lathed(mb, [(r * 0.5, z), (r, z + 0.08), (0.0, z + 0.03)], "terracotta", 6, at=(bx, by, 0.0))
+        _lathed(mb, [(r * 0.5, z), (r, z + 0.08), (0.0, z + 0.03)], "clay_red", 6, at=(bx, by, 0.0))
     return mb
 
 
@@ -1050,7 +1050,7 @@ def net_pile(s, v, rng):
         if np.cross(p1 - p0, p2 - p0)[2] < 0:
             tris[n] = tris[n][::-1]
     mb = MeshBuilder()
-    _smooth(mb, "net_green", pos, tris)
+    _smooth(mb, "twine_green", pos, tris)
     for i in (1, 4, 6):                                   # floats on the second ring's ridges
         x, y, z = pos[1 + k + i]
         _pyramid(mb, _ring(x, y, z + 0.025, 0.04, 0.03, 4), (x, y, z + 0.06), "plastic_red")

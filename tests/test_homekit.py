@@ -17,9 +17,29 @@ def home(style):
 
 
 @pytest.fixture(scope="module")
-def city(style):
+def city_kit(style):
     from citygen.kit import make_kit
-    return set(make_kit(42, load_config(), style).pieces)
+    return make_kit(42, load_config(), style)
+
+
+@pytest.fixture(scope="module")
+def city(city_kit):
+    return set(city_kit.pieces)
+
+
+def test_interior_keeps_both_kits_materials(style, home, city_kit):
+    """Review of 3 November, finding 0: the interior GLB's materials (`export.interior_materials`) keep every
+    city kit material as its tiles draw it (a shop front, a boat, a pot plant seen from inside) and every
+    `[interiors.palette]` one as the shell and the furniture want it; no name is both (the home kit's
+    `copper`, `terracotta` and `net_green` once recoloured the city's)."""
+    from citygen.interior.export import interior_materials
+    got = interior_materials(city_kit.materials, home.materials)
+    inner = style["interiors"]["palette"]
+    assert not set(inner) & set(city_kit.materials)
+    assert all(got[m] == spec for m, spec in city_kit.materials.items())
+    assert all(got[m] == spec for m, spec in inner.items())
+    used = {m for pc in home.pieces.values() for m in pc.parts}
+    assert all(got[m] == home.materials[m] for m in used)
 
 
 def _check_table(home, style, city, module):
