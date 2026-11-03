@@ -5,7 +5,7 @@ styles/maghreb.toml, tests/test_citygen.py. weave.py: not touched by merge-prep 
 No code changed by this review.
 
 ## Findings (file:line, severity, one-line fix)
-- citygen/interior/furnish.py:944, medium (real bug, quality not faults): place mode "side" centres the piece
+- citygen/interior/furnish.py:944, high (real bug; quality, not faults): place mode "side" centres the piece
   twice. `slide(D/2, length - D/2)` already gives the centre s along the run, then `q = r.point(s) + ... + e*(D/2)`
   moves it another D/2 along the wall (e = n turned -90 deg = +-d). So the bed spans [s, s+D] (or [s-D, s]): it is
   never flush with one corner, half the slide positions overhang the run end (rejected later, so wasted), and a
@@ -14,6 +14,8 @@ No code changed by this review.
   Also the yielded `s` (furnish.py:945) is then D/2 off the piece's real centre, so a piece hung on a "side" host
   (`host.s +- host.width/2`, furnish.py:922) is bounded over the wrong span (for example a tap `hang:wc`,
   styles/maghreb.toml:3060, if that wc slot ever gets "side"). The same one-line fix cures both.
+  It blocks the very case SPEC.md:2545 names (a sedda along a maqsura's back wall): a 2.0 m piece needs a 3.0 m
+  run instead of 2.0 m, and the notes' maqsuras are 2.3-2.7 m square.
 - citygen/interior/furnish.py:937-945, low: "side" has no `r.clear(...)` test of the run's openings (wall mode has
   it for blind/hang); a bed along a window wall relies only on the keeps. Fix: skip spans whose
   `r.clear(s - D/2, s + D/2, spec.z[1])` fails when the slot is `blind`, as wall mode does.
