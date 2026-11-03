@@ -27,6 +27,10 @@ Started 20:33 UTC on 3 November, saved at 20:52 (weekly usage reset at 21:00). P
   capital does). So the full build's `world`, `gazetteer`, `plan/*`, `tiles/*` and `maps/*` all change; town
   names and ids move (any canon pin by id would land on another place).
 - Country step still about 1.1 s for the 64 km world here.
+- Box build check (20:41): `build --area box:48.54,45.97,49.74,47.17 --out output/box` (20 s, 16 tiles) around
+  Zaouiet Rakeska (id 67, village, radius 230 m, a lake 242 m from its center: the only place whose land ring
+  meets a lake): `index.json` focus = the box center (49140, 46570) with z 295.2 from the ground; its city map
+  is fine (city maps do not draw lakes yet).
 
 ## Tests
 - `tests/test_hydro.py::test_settlements_and_roads_keep_off_lakes` (64 km world, about 1 s): no settlement
