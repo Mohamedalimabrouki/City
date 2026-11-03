@@ -25,6 +25,11 @@ and care as the last one: keep this file up to date when you learn something tha
   the best use of what is left; plan heavy work (checkpoints) for the start of a week. A long session
   costs more per message, so one fresh session per prompt (or small batch) is cheaper: this file exists
   so a fresh session loses nothing.
+- The 5-hour limit cuts running helpers off mid-work when it reaches 100% (Ali, 3 November): while
+  helpers run, check `get_usage` about every 30 minutes (a background `sleep 1800` wakes the lead); at
+  about 80% with more than half an hour to its reset, have each helper save its state and report, then
+  resume it after the reset with SendMessage; start new helpers right after a reset, never just before
+  one. Measured on 3 November: three Opus helpers and the lead used about 27% of the window per hour.
 - Where he wants to go: the 100 prompts, then two tracks (prompts 101-120,
   `docs/prompts/10-life-and-polish.md`): every asset polished to hero quality, and a city with life.
 
