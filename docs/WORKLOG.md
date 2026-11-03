@@ -16,6 +16,10 @@ Entry format:
 ```
 
 ## 2026-10-29 - Resume here (paused after prompt 47)
+- 3 November (Tuesday; the week resets at 21:00 UTC): Ali said "use as much as possible, only pause when you
+  reach 90% of weekly usage" (64% at 10:15 UTC), for this day: after the reset ask him before going over 55%
+  again. Plan: two helpers in parallel, flats (colonial blocks, slabs) in this folder and houses (maisons,
+  villas) in a worktree, each group kept byte-identical by the other; the lead reviews, merges and commits.
 - State: prompts 1-50 are done (branch `claude/procedural-city-generator-xop72h`; CP4, prompt 43, on 25
   October; the interiors 44-47 on 29 October, 48 (walls and openings) on 30-31 October). Continue when Ali
   says (for example "Do prompt 49." or "continue the playbook").
