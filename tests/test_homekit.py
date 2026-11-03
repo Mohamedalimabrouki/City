@@ -78,6 +78,10 @@ def test_home_pieces_life(home, style, city):
         assert on.parts["lamp_glow"] is pc.parts["lamp_glass"], name
         assert all(on.parts[m] is p for m, p in pc.parts.items() if m != "lamp_glass"), name
         assert home.specs[name + "_on"] == home.specs[name], name
+    for name in ("brass_plate", "clock_wall"):            # wall discs turned to face the room (glTF -z)
+        lo, hi = home.pieces[f"home/{name}"].bounds
+        assert lo[2] < -0.01 and hi[2] <= 0.005, name
+        assert abs((hi[0] - lo[0]) - (hi[1] - lo[1])) <= 0.02, name   # round, not squashed
 
 
 def test_home_kit_budget(home, tmp_path):

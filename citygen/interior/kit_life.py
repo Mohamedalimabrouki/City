@@ -14,7 +14,7 @@ import math
 from ..mesh.builder import MeshBuilder
 from ..rng import stream
 from .kit_new import _front
-from .kit_old import _box, _lathed
+from .kit_old import SWAP_YZ, _box, _lathed, _moved
 
 # name: (category, anchor, (W, D, H), tris, extra), as kit_old.TABLE
 TABLE = {
@@ -36,6 +36,11 @@ TABLE = {
     "khomsa": ("decor", "wall", (0.16, 0.02, 0.20), 24, {"z0": 1.80}),
     "shoes": ("small", "floor", (0.32, 0.30, 0.10), 40, {}),
     "schoolbag": ("small", "floor", (0.32, 0.18, 0.40), 40, {}),
+    "brass_plate": ("decor", "wall", (0.50, 0.02, 0.50), 32, {"z0": 1.50}),
+    "clock_wall": ("decor", "wall", (0.32, 0.04, 0.32), 40, {"z0": 1.80}),
+    "birdcage": ("decor", "ceiling", (0.35, 0.35, 0.55), 140, {"z0": -0.55}),
+    "slippers": ("small", "floor", (0.30, 0.28, 0.04), 24, {}),
+    "water_pack": ("small", "floor", (0.30, 0.20, 0.33), 60, {}),
 }
 VARIANTS: dict = {}
 SIZES = {b: row[2] for b, row in TABLE.items()}   # `[interiors.furnish.sizes]` overrides
@@ -258,11 +263,75 @@ def schoolbag(s, v, rng):
     return mb
 
 
+def _wall_disc(mb: MeshBuilder, prof, mats, z: float, n: int = 8) -> None:
+    """A round thing on the wall around height `z`: `prof` is lathed as (radius, distance out from the
+    wall), then turned to face the room (+y)."""
+    tmp = MeshBuilder()
+    _lathed(tmp, prof, mats, n)
+    _moved(mb, tmp, SWAP_YZ, (0.0, 0.0, z))
+
+
+def brass_plate(s, v, rng):
+    """A hammered brass plate hung on the wall of a rich traditional room (three in a coppersmith's home)."""
+    w, d, h = s
+    z0 = TABLE["brass_plate"][4]["z0"]
+    mb = MeshBuilder()
+    _wall_disc(mb, [(w / 2, 0.0), (w / 2, d), (0.0, d * 0.5)], "brass", z0 + h / 2)
+    return mb
+
+
+def clock_wall(s, v, rng):
+    """The round white clock of a lived-in modern room, its two black hands at ten past two."""
+    w, d, h = s
+    z0 = TABLE["clock_wall"][4]["z0"]
+    c = z0 + h / 2
+    mb = MeshBuilder()
+    _wall_disc(mb, [(w / 2, 0.0), (w / 2, d), (0.0, d - 0.008)], "plastic_white", c)
+    _front(mb, -0.006, 0.006, c, c + 0.08, d, "iron_black")
+    _front(mb, 0.0, 0.11, c - 0.004, c + 0.004, d, "iron_black")
+    return mb
+
+
+def birdcage(s, v, rng):
+    """The white and blue cage of a canary on its hook in the court or on the balcony: a blue tray, the
+    white body and dome (drawn closed for now, no bars), the hook."""
+    w, d, h = s
+    r = w / 2
+    mb = MeshBuilder()
+    _lathed(mb, [(0.004, -0.12), (0.004, 0.0)], "iron_white", 3)
+    prof = [(0.0, -h), (r, -h), (r, -h + 0.05), (r - 0.01, -h + 0.06), (r - 0.01, -0.30), (0.0, -0.12)]
+    _lathed(mb, prof, ["door_blue", "door_blue", "door_blue", "iron_white", "iron_white"], 8)
+    return mb
+
+
+def slippers(s, v, rng):
+    """A pair of blue plastic slippers at the door of a room with rugs: the soles and a brown band."""
+    w, d, h = s
+    mb = MeshBuilder()
+    for x0, x1 in ((-w / 2, -0.015), (0.015, w / 2)):
+        _box(mb, x0, x1, -d / 2, d / 2, 0.0, 0.02, "plastic_blue")
+        _box(mb, x0 + 0.005, x1 - 0.005, d / 2 - 0.11, d / 2 - 0.03, h - 0.001, h, "leather_brown", "bfklr")
+    return mb
+
+
+def water_pack(s, v, rng):
+    """The six-pack of mineral water by the fridge: the wrapped bottles and their blue caps."""
+    w, d, h = s
+    body = h - 0.08
+    mb = MeshBuilder()
+    _box(mb, -w / 2, w / 2, -d / 2, d / 2, 0.0, body, "glass_inner")
+    for x in (-w / 3, 0.0, w / 3):
+        for y in (-d / 4, d / 4):
+            _lathed(mb, [(0.035, body), (0.0, h)], "plastic_blue", 3, at=(x, y, 0.0))
+    return mb
+
+
 MAKERS = {"fanous": fanous, "lantern_table": lantern_table, "ceiling_lamp": ceiling_lamp, "chandelier": chandelier,
           "neon": neon, "bulb_bare": bulb_bare, "lamp_bedside": lamp_bedside, "pot_geranium": pot_geranium,
           "pot_basil": pot_basil, "plates_stack": plates_stack, "fruit_bowl": fruit_bowl, "oil_bidon": oil_bidon,
           "pot_jasmine": pot_jasmine, "vase_flowers": vase_flowers, "photo_frame": photo_frame, "khomsa": khomsa,
-          "shoes": shoes, "schoolbag": schoolbag}
+          "shoes": shoes, "schoolbag": schoolbag, "brass_plate": brass_plate, "clock_wall": clock_wall,
+          "birdcage": birdcage, "slippers": slippers, "water_pack": water_pack}
 
 
 def names() -> list:
