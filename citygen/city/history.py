@@ -89,12 +89,13 @@ def _history(ctx, style, facts, d) -> str:
     rng = ctx.rng("history", d.id)
     kind = d.kind
     place = {"capital": "city"}.get(ctx.s.kind, ctx.s.kind)
-    fields = {"name": d.name, "city": ctx.s.name, "era": facts.era(style, kind), "where": _where(facts, d),
-              "place": place, "folk": "the village" if kind == "village" else "the neighborhood"}
+    era = facts.era(style, kind)
+    fields = {"name": d.name, "city": ctx.s.name, "era": _era_in(style, era), "since": _era_since(style, era),
+              "where": _where(facts, d), "place": place, "folk": "the village" if kind == "village" else "the neighborhood"}
     origin = style.get("origin", {}).get(kind) or style.get("origin", {}).get("residential", ["{name}."])
-    if kind == "port" and facts.medina is not None and fields["era"] and facts.founded < facts.eras.index(fields["era"]):
+    if kind == "port" and facts.medina is not None and era and facts.founded < facts.eras.index(era):
         origin = style.get("origin", {}).get("port_old", origin)
-        fields["old"] = facts.eras[facts.founded]
+        fields["old_since"] = _era_since(style, facts.eras[facts.founded])
     sentences = [_pick(rng, origin).format(**fields)]
     known = _facts(rng, style, facts, d, fields, ctx.s)
     keep = int(style.get("facts", 2))
@@ -120,7 +121,9 @@ def _facts(rng, style, facts, d, fields, s) -> list:
         by[m.kind].append(m.name)
     if by["gate"] and "gates" in t:
         gates = by["gate"]
-        out.append(("gates", t["gates"].format(n=_number(len(gates)), some=_join(gates[:2]), **fields)))
+        key = {1: "gate", 2: "gates_all"}.get(len(gates), "gates")
+        key = key if key in t else "gates"
+        out.append(("gates", t[key].format(n=_number(len(gates)), some=_join(gates[:2]), **fields)))
     if by["kasbah"] and "kasbah" in t:
         out.append(("kasbah", t["kasbah"].format(kasbah=by["kasbah"][0], **fields)))
     if by["cathedral"] and by["theatre"] and "boulevard" in t:
@@ -136,7 +139,8 @@ def _facts(rng, style, facts, d, fields, s) -> list:
     if souks and "souks" in t:
         out.append(("souks", t["souks"].format(souks=_join(list(souks.values())[:3]), **fields)))
     if facts.shrines.get(d.id) and "shrines" in t:
-        out.append(("shrines", t["shrines"].format(n=_number(facts.shrines[d.id]), **fields)))
+        key = "shrine" if facts.shrines[d.id] == 1 and "shrine" in t else "shrines"
+        out.append(("shrines", t[key].format(n=_number(facts.shrines[d.id]), **fields)))
     if facts.quays.get(d.id, 0.0) > 0 and "quays" in t:
         text = t["quays"].format(quay=f"{facts.quays[d.id]:,.0f}", **fields)
         if d.id in facts.lights and "light" in t:
@@ -160,6 +164,16 @@ def _where(facts, d) -> str:
     word = COMPASS[int(round(math.atan2(b.y - a.y, b.x - a.x) / (math.pi / 4))) % 8]
     near = "just " if d.polygon.buffer(5.0).intersects(m.polygon) else ""
     return f", {near}{word} of the medina"
+
+
+def _era_in(style, era: str) -> str:
+    """The era as a time phrase ("in the Caravan Age"), from the style's `era_in`; "" for no era."""
+    return str(style.get("era_in", {}).get(era, f"in the time of {era}")) if era else ""
+
+
+def _era_since(style, era: str) -> str:
+    """The era as a "since" phrase ("since the Caravan Age"), from the style's `era_since`; "" for no era."""
+    return str(style.get("era_since", {}).get(era, f"since the time of {era}")) if era else ""
 
 
 def _pick(rng, seq):

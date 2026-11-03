@@ -1609,7 +1609,7 @@ def test_district_histories(world, plan):
         sentences = re.findall(r"[^.]+\.", d.history)
         assert 2 <= len(sentences) <= 4, d.history
         assert "\u2014" not in d.history and "{" not in d.history
-        assert all(eras.index(e) >= founded for e in eras if f"time of {e}" in d.history)
+        assert all(eras.index(e) >= founded for e in eras if e in d.history)
     medina = next(d for d in plan.districts if d.kind == "medina")
     assert plan.settlement.founded in medina.history   # the old town is as old as its city
     names = {m.name for m in plan.landmarks}
