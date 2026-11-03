@@ -11,7 +11,8 @@ no mesh is touched, so normals, UVs, one-sided faces and piece names do not appl
    `h_tin`, `h_stack`, `h_jar`, `h_bottle` keys on the goods line (shape fractions inside each kind can
    stay in code, as in the nearby makers).
 3. citygen/interior/weave.py:355-356, low: if every `w_*` is 0, `weights / weights.sum()` divides by zero
-   (NaN cuts, every product becomes a "stack"); fix: fall back to equal weights when the sum is 0.
+   (NaN cuts; run: no error, every product silently falls into one kind); fix: fall back to equal
+   weights when the sum is 0.
 4. citygen/interior/weave.py:362, low: `rng.choice(len(colors), 2, replace=False)` raises ValueError for a
    style with fewer than 2 `color_*`; fix: `replace=len(colors) < 2`.
 5. Determinism, OK: all draws are on `stream(seed, "texture", "goods")` (weave.py:432), the texture's own
@@ -28,4 +29,8 @@ no mesh is touched, so normals, UVs, one-sided faces and piece names do not appl
 ## Left (no time in 4 minutes)
 - Sizes against SPEC 6: items are now wider (wmin 16, wmax 34 px, was 10, 26), so fewer products per
   row; check at the shelf's texture scale that a carton is not wider than a real one (about 0.25 m).
-- Rendering the texture once to look at it (no image made); tests were not run by me.
+- Looking at the texture (no image made); the full tests were not run by me.
+
+## Checked by running it
+- `_goods` with the maghreb values: a 256 x 256 image, the same bytes twice for seed 1, values 0.108
+  to 1.014 before the caller's clip to 0..1 (weave.py:432), so the small overshoot is harmless.
