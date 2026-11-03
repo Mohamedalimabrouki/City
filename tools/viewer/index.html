@@ -1050,7 +1050,8 @@ function frame(now) {
 
 // ---------------------------------------------------------------- night
 // A dark blue sky and moonlight; lamps and lanterns glow (their emissive turned up, with a soft
-// bloom), and the lamps nearest to the orbit target light the walls around them.
+// bloom; a home's switched-on lights are lamp_glow, emissive in the palette like lantern_glow),
+// and the lamps nearest to the orbit target light the walls around them.
 let night = false;
 let lampPoints = null;          // centers of every glowing piece, three.js axes, built on demand
 const glowMeshes = [];          // instanced meshes of the shown tiles drawn with a glowing material
@@ -1065,7 +1066,7 @@ const LIT_AT_NIGHT = { glass_lit: [0xffa64a, 0.75] };
 const nightOnly = [];           // the lit panes of the shown tiles' kit windows, hidden by day
 // lights seen from afar: at night the fog would mix them toward the dark sky (pale dots from the
 // air), so these stay out of it while the buildings fade; by day they keep the fog as before
-const CLEAR_AT_NIGHT = new Set(['glass_lit', 'lantern_glow', 'tr_glow']);
+const CLEAR_AT_NIGHT = new Set(['glass_lit', 'lantern_glow', 'lamp_glow', 'tr_glow']);
 
 function glow(m) {
   if (!m.userData.glows) return;

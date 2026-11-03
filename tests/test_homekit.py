@@ -64,11 +64,17 @@ def test_home_pieces_modern(home, style, city):
 
 def test_home_pieces_life(home, style, city):
     """Prompt 55: the lights (first slice of the life table); every `light` piece has its `_on` twin, the
-    same parts with `lamp_glass` as `lamp_glow`, and `lamp_glow` is an exact copy of `lamp_glass`."""
+    same parts with `lamp_glass` as `lamp_glow`, and `lamp_glow` is `lamp_glass` plus a warm emissive, which
+    the glTF export writes (the viewer turns emissive materials up at night)."""
     from citygen.interior import kit_life
+    from citygen.mesh.gltf import _material
     _check_table(home, style, city, kit_life)
     inner = style["interiors"]["palette"]
-    assert inner["lamp_glow"] == inner["lamp_glass"]
+    glass, glow = inner["lamp_glass"], inner["lamp_glow"]
+    assert glow != glass and "emissive" not in glass and glow["emissive"]
+    assert {k: v for k, v in glow.items() if k != "emissive"} == glass
+    assert "emissiveFactor" not in _material("lamp_glass", glass)
+    assert max(_material("lamp_glow", glow)["emissiveFactor"]) > 0.5
     lights = [n for n, pc in home.pieces.items() if pc.category == "light" and not n.endswith("_on")]
     assert lights
     for name in lights:

@@ -3,7 +3,7 @@ plants and clutter").
 
 Same frame and rules as `kit_old`: x along the wall, front +y, z up, meters. A `ceiling` piece hangs from
 z 0 down to z -H (its spec's z0 is -H). Every piece of category `light` gets from `home_kit` its `_on`
-twin (`lamp_glass` drawn as `lamp_glow`, which the viewer lights at night). Round things are lathed; the
+twin (`lamp_glass` drawn as `lamp_glow`, the same glass with a warm emissive). Round things are lathed; the
 lathe's ring has a vertex at angle 0, so its widths hold the table's sizes. The rest of the same table (wall
 decor and textiles, the curtain, more plants and clutter) comes next (docs/wip/furn-55.md).
 """

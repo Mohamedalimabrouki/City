@@ -1930,9 +1930,10 @@ goods_copper = { color = "#D58A56", roughness = 0.4, metallic = 0.3, texture = "
 goods_chechia = { color = "#D2524A", roughness = 0.8, texture = "goods", texture_size = [0.8, 0.32] }
 goods_fruit = { color = "#E8B25A", roughness = 0.7, texture = "goods", texture_size = [0.8, 0.32] }
 goods_cloth = { color = "#C98A8A", roughness = 0.9, texture = "goods", texture_size = [0.8, 0.32] }
-# prompt 55: lamp_glow is an exact copy of lamp_glass (the `_on` twins of the lights; the viewer lights it at night)
+# prompt 55: lamp_glow is lamp_glass switched on (the `_on` twins of the lights): the same plus a warm emissive,
+# which the glTF export writes as emissiveFactor and the viewer turns up at night like lantern_glow
 lamp_glass = { color = "#F3E6C8", roughness = 0.3 }
-lamp_glow = { color = "#F3E6C8", roughness = 0.3 }
+lamp_glow = { color = "#F3E6C8", roughness = 0.3, emissive = "#FFC77A" }
 voile = { color = "#F4F1EA", roughness = 0.9, alpha = 0.5, double_sided = true }   # the sheer curtains of modern rooms
 iron_white = { color = "#EDEBE6", roughness = 0.5, metallic = 0.3 }   # the canary's cage
 glaze_blue = { color = "#2F5F9E", roughness = 0.25 }
