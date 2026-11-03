@@ -1105,6 +1105,10 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`, and how the le
   bounds test fails: give the piece its full H and set `top` to the working surface. A strongly transparent glass
   vanishes in a z-buffer contact sheet and nearly in the viewer: a glass part that must read takes a coloured
   glossy material.
+- **An upper floor is a floor with a hall at the landing** (47.2 houses round 3): cutting upper floors with no hall
+  let the couloir be any band piece; cut from a hall at the stair landing that becomes the couloir, the upper floor's
+  way starts where a real house's does. Applied to every plan it changes most passing plans (193) and loses some:
+  keep it as a last pass, gated by a cheap test on the plan in hand (the couloirs share no arch with the palier).
 - **Furnishing design** (prompt 51, SPEC 6d): facts that shaped it. Furniture is interior-only: if its
   pieces went into `kit.make_kit`, every build would make them, the fingerprint would list them and their
   materials would need `[palette]`; as `home/<piece>` in `citygen/interior/` (out of the build key) no tile

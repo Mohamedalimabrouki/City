@@ -72,6 +72,9 @@ def plan_interior(outside, style: dict) -> Interior:
         carve(interior, style)                        # (a plan the first carve saw: no second)
     if carved is not None and (check(interior) or dim(interior, style) > carved[1]):
         _hold(interior, carved[0])
+    if layout in style.get("interiors", {}).get("villa", {}).get("landing_way", ()) and any(
+            f.endswith(WAY) for f in check(interior)) and off_landing(interior):
+        landing_way(interior, outside, style, layout, before)
     if layout in style.get("interiors", {}).get("villa", {}).get("nooks", ()) and any(
             f.endswith(WAY) for f in check(interior)):
         interior.nooks = True                         # the last trade: a kitchen nook joins a chambre (`nook`)
@@ -176,6 +179,37 @@ def flat_faults(interior: Interior, faults: list) -> dict:
         for i in got:
             out[i] = out.get(i, 0) + 1
     return out
+
+
+def off_landing(interior: Interior) -> bool:
+    """An upper floor whose couloirs all miss its stair palier (no arch's length shared with it)."""
+    from .cuts import shared
+    from .spine import ARCH
+    for f in range(1, interior.floors):
+        cors = [r for r in interior.rooms if r.floor == f and r.type == "couloir"]
+        pals = [r for r in interior.rooms if r.floor == f and r.type == "palier"]
+        if cors and pals and not any(shared(c.polygon, p.polygon) >= ARCH for c in cors for p in pals):
+            return True
+    return False
+
+
+def landing_way(interior: Interior, outside, style: dict, layout: str, before: dict) -> None:
+    """A house whose way in still faults and whose upper floor's couloir misses the stair palier
+    (`off_landing`) is planned once more with every upper floor cut from a hall at the landing that becomes
+    the couloir's first piece (`spine.landing_way`), then a carve; kept when `rooms.check` finds fewer faults
+    and the home no more dark rooms. A last pass, so every passing plan stays as it was (47.2 houses round 3)."""
+    first, faults, dark = _held(interior), len(check(interior)), dim(interior, style)
+    _hold(interior, before)
+    interior.landing_way = True
+    try:
+        _plan(interior, outside, style, layout)
+        interior.__dict__.pop("way_moved", None)
+        if any(f.endswith(WAY) for f in check(interior)):
+            carve(interior, style)
+    finally:
+        del interior.landing_way
+    if len(check(interior)) >= faults or dim(interior, style) > dark:
+        _hold(interior, first)
 
 
 def redraw(interior: Interior, outside, style: dict, layout: str, before: dict) -> bool:

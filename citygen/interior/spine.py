@@ -153,7 +153,10 @@ def search(job, region, entry: Entry, program: list, floor: int, key: tuple, hal
                         if first is not None:
                             return first[0]
                         return late_bays(job, best, floor, hall, hard)   # time: the best of the first variants
-                    cells, spine = cut_region(job, region, entry, floor, cfg, d, w, cell, hall, turn, place)
+                    up = not hall and landing_way(job)  # the landing pass: an upper floor's couloir starts at
+                    cells, spine = cut_region(job, region, entry, floor, cfg, d, w, cell, hall or up, turn, place)
+                    if up:                              # the landing as the hall below does (47.2 houses round 3)
+                        cells, spine = as_couloir(cells, spine)
                     sig = tuple(sorted(round(c.poly.area, 2) for c in cells))
                     if sig in seen:
                         continue                        # the same cells as a variant already tried
@@ -164,6 +167,8 @@ def search(job, region, entry: Entry, program: list, floor: int, key: tuple, hal
                         score = len(missing) * 3 * hard + bays(job, cells, floor, hall, hard, score - len(missing) * 3 * hard)
                     if way:
                         score += hard * astray(job, cells, entry) + dark(job, cells, floor) / 100.0
+                    elif up:                            # a couloir off the landing weighs as a fault
+                        score += hard * astray(job, cells, entry)
                     elif (score == 0 and not hall and not job.interior.__dict__.get("way_plain")
                           and (first is not None or astray(job, cells, entry))):
                         if astray(job, cells, entry) == 0 and dark(job, cells, floor) <= first[1]:
@@ -180,6 +185,23 @@ def search(job, region, entry: Entry, program: list, floor: int, key: tuple, hal
     if first is not None:
         return first[0]
     return late_bays(job, best, floor, hall, hard)
+
+
+def landing_way(job) -> bool:
+    """A house's upper floors in its landing pass (`layout.landing_way`): the couloir starts at the stair
+    landing, as in a real house (`[interiors.villa] landing_way` lists the layouts; 47.2 houses round 3)."""
+    return (job.interior.__dict__.get("landing_way", False)
+            and job.interior.layout in job.cfg.get("villa", {}).get("landing_way", ()))
+
+
+def as_couloir(cells: list, spine: dict) -> tuple:
+    """An upper floor cut with a hall at the landing: the hall becomes the couloir's first piece."""
+    for c in cells:
+        if c.type == "hall":
+            c.type = "couloir"
+    cells = join_spine(cells)
+    ways = [c.poly for c in cells if c.type == "couloir"]
+    return cells, {**spine, "couloir": ways[0] if ways else None, "hall": None, "ways": ways}
 
 
 def dark(job, cells: list, floor: int) -> int:

@@ -4634,6 +4634,36 @@ def test_kitchen_nook():
     assert [o.rooms for o in it.openings] == [(0, -1), (0, 1), (1, -1)]   # the nook's inner door gone
 
 
+def test_landing_way():
+    """An upper floor whose couloir misses the stair palier is found (`layout.off_landing`, the gate of the
+    landing pass); in that pass only (`spine.landing_way`), the hall cut at the landing becomes the couloir's
+    first piece and joins the band (`spine.as_couloir`). Hand-made, 0.01 s (47.2 houses round 3)."""
+    from types import SimpleNamespace as NS
+
+    from shapely.geometry import box
+
+    from citygen.interior.layout import off_landing
+    from citygen.interior.model import Interior, Room
+    from citygen.interior.spine import Cell, as_couloir, landing_way
+
+    it = Interior(1, "x", 1, 1, "house", "maison", "x", 0.0, 3.0, None, {})
+    it.storeys = [None, None]
+    floor1 = [("palier", box(0, 0, 2.6, 5)), ("chambre", box(2.6, 0, 7, 4)), ("couloir", box(2.6, 4, 9, 5.15))]
+    it.rooms = [Room(i, 1, t, p, 3.0, 6.0) for i, (t, p) in enumerate(floor1)]
+    assert not off_landing(it)                                     # the couloir opens on the palier
+    it.rooms[2].polygon = box(7, 4, 9, 5.15)
+    assert off_landing(it)                                         # only through the chambre: the pass runs
+    job = NS(interior=it, cfg={"villa": {"landing_way": ["maison"]}})
+    assert not landing_way(job)                                    # never outside the landing pass
+    it.landing_way = True
+    assert landing_way(job)
+    cells = [Cell(box(2.6, 0, 4, 5.15), "hall", "spine", "hall"), Cell(box(4, 4, 9, 5.15), "couloir", "spine", "couloir"),
+             Cell(box(4, 0, 9, 4), "chambre", "A", "4.00")]
+    cells, spine = as_couloir(cells, {"F": None, "hall": cells[0].poly})
+    assert [c.type for c in cells] == ["couloir", "chambre"] and spine["hall"] is None
+    assert abs(spine["couloir"].area - (1.4 * 5.15 + 5 * 1.15)) < 1e-6 and len(spine["ways"]) == 1
+
+
 def test_relit_repartition():
     """A blind chambre beside a chambre holding two windows: the pair is cut again so both keep a window and
     a door's length on the couloir (`villa.repartition`, the cut nearest the middle first); a pair with one

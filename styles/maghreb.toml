@@ -2025,6 +2025,7 @@ dining_area = 110.0      # m2: a villa's floor 0 over this has a salle a manger
 largest = { cuisine = 16.0, sdb = 8.0, wc = 3.0 }   # m2: a bigger cell gives the service its couloir end
 redraws = 1              # a villa or maison the plan check faults is planned again with fresh draws up to this many times (47.1 round 8; 2 until round 11: the second won 1 maison for 0.6 s)
 nooks = ["villa", "maison"]   # a day room traded for a chambre too small for one joins the chambre beside it (47.2 houses round 2)
+landing_way = ["villa", "maison"]   # a house whose way in still faults and whose upper couloir misses the stair landing is planned again with each upper floor cut from a hall at the stair landing that becomes the couloir's first piece (47.2 houses round 3)
 way_swaps = 6            # a home whose day rooms lie off its way in trades a day room with a chambre on it, up to this many tries (47.1 + 48.1 round 10)
 carves = 2               # a home whose couloir or day room its entry reaches only through a chambre, cuisine or sdb gets up to this many couloirs cut through one (47.1 + 48.1 round 11)
 carve_scrap = 2.0        # m2: a piece of the room left beside such a cut up to this joins the couloir (a nook)

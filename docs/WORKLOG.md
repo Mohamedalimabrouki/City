@@ -96,6 +96,39 @@ Entry format:
   the chain run (`.venv-sdk/credit_chain.sh`, 10:42-13:12) stopped with "Credit balance is too low"
   (its session recorded about $42), so that route needs new credit first (checked 3 November).
 
+## 2026-11-03 - Open item 47.2, houses round 3 (the upper-floor couloir starts at the landing)
+- Commit: (lead commits) | Model: Opus 5.5, high (houses helper, worktree /tmp/claude-501/houses-r3, about 2 h in
+  two parts: paused once for the 5-hour limit and resumed)
+- The cause: upper floors are cut with no hall (`spine.cut_region`, hall False): the couloir band is placed by the
+  windows, not by the landing, a stub joins them only in some cases, and with no hall the couloir is simply the
+  largest band piece (`H is None or ...` makes every piece count as touching). Where a court, a droj square or a
+  slanted wall splits the band, the stub lands on a piece that is not the couloir or stops short (No. 962).
+- Changed: citygen/interior/spine.py (`landing_way`, `as_couloir`: in the landing pass an upper floor is cut with a
+  hall at the landing, as floor 0 is, and that hall becomes the couloir's first piece; a variant whose way misses the
+  landing scores `astray` as a fault), citygen/interior/layout.py (`off_landing`: an upper floor whose couloirs share
+  less than an arch with its palier; `landing_way`: a last pass, only for a villa or maison whose way still faults and
+  `off_landing`: one `_plan` with the flag and a carve, kept when fewer faults and no more `dim`), styles/maghreb.toml
+  (`[interiors.villa] landing_way`), tests (`test_landing_way`, 0.04 s).
+- Measured and removed: the stub always, for every plan (193 passing plans changed, 8 lost); the pass as full stages
+  (499 but No. 923 +55% time); the flag inside the existing bays retry (no extra time, but 496, No. 649 lost, 43
+  passing plans changed); half the variants (493); no carve (496); `halved` with the palier as a way (0 won).
+- Counts with every check (HEAD -> now, rooms.json hashes): maison 490 -> 497 of 616 (won No. 435, 532, 605, 639, 863,
+  918, 981; none lost; 8 changed, all failing at HEAD), villa 166 -> 167 (No. 281). `dim` on plans passing in both
+  unchanged. Couloir only through a chambre 40 -> 32. Every passing interior 0 `mesh.faults`, 0 step faults; the
+  old town and every capital home identical.
+- Times (CPU, warm, alternated, 3 runs each): No. 923 4.24-4.29 -> 5.24-5.30 s (+24%), No. 765 3.93-4.00 -> 5.09-5.23 s
+  (+30%): both still fail with an upper couloir off the landing, so they pay one more plan (about 1.1 s); No. 332
+  unchanged (the pass does not run). Over the lead's 15% for those two.
+- Look: output/checks/472-h3-plans.png (worktree; No. 981, 639, 532: upper floors with the couloir from the palier to
+  the rooms).
+- Left: couloir only through a chambre 32 (No. 923, 962, 974: in the pass the landing hall lies apart from the band in
+  half their variants, so `join_spine` drops the band: a link from the landing hall to the band in `cut_region` is
+  next); the patio-house planner (not started); tiny one-floor maisons; chambres over their most; villas 167 -> 170.
+- Lead (after houses round 3): committed as progress, merged on flats round E and prompts 52-53 (one conflict in
+  layout.py, both rounds' new functions kept; they are gated by layout). The lead's survey of the helper's first part
+  agreed (499, then the cheaper pass gives 497); the final tree is checked below. The time over 15% is accepted:
+  only houses that still fail and miss the landing pay it, every passing plan is unchanged and faster ones lost wins.
+
 ## 2026-11-03 - Prompt 53 H2b Modern furniture pieces
 - Commit: (lead commits) | Model: Opus 5.5, high (helper in worktree wip/furn-53; the lead reviewed and committed)
 - Changed: new citygen/interior/kit_new.py (54 bases, 95 pieces with variants: salon set, sedari, TV stand, flat

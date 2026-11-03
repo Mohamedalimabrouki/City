@@ -1620,6 +1620,9 @@ Built (prompt 47, `interior/spine.py`, `interior/villa.py`). Rules the code sett
   the openings (`[interiors.villa] relight`). A plan whose way still faults after the redraws and carves trades
   its day rooms once more, a day room traded for a chambre too small for one (a kitchen nook) joining the
   chambre beside it within its `most` (`nooks`; 47.2 houses round 2).
+- A house whose way in still faults and whose upper couloirs miss the stair palier is planned once more with each
+  upper floor cut from a hall at the landing that becomes the couloir's first piece; kept when the plan check finds
+  fewer faults and the home no more dark rooms (`[interiors.villa] landing_way`; 47.2 houses round 3).
 - Programs (`[interiors.villa] programs` may replace them): villa floor 0 salon, salle a manger (over
   `dining_area`), cuisine, wc, chambres; maison floor 0 salon, cuisine, wc, chambres; upper floors chambre,
   sdb, chambres; one storey: salon, (salle a manger,) cuisine, chambre, sdb, (wc,) chambres. A maison gets a
