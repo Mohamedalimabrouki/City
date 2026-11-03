@@ -4,7 +4,7 @@ Scope: `git diff e871984..HEAD` (kit_life.py, homekit.py, maghreb.toml, test_hom
 Severity: high = wrong output or a test that lies; medium = visible defect or a claim that is not true; low = polish.
 
 ## Findings (file:line, severity, one-line fix)
-- citygen/interior/kit_life.py:212-214, medium: vase_flowers has no stems; the heads float at z 0.33-0.40 over a vase mouth at z 0.20 (13 cm of air). Fix: three thin leaf_green stems (3-segment lathe, 6 tris each) and balls at n=3, which keeps 78 <= 80 tris.
+- citygen/interior/kit_life.py:212-214, medium: vase_flowers has no stems; the heads float at z 0.33-0.40 over a vase mouth at z 0.20 (13 cm of air). Fix: three thin leaf_green stems (3-segment lathe, 6 tris each); the piece is 48 tris now, so 66 <= 80.
 - citygen/interior/kit_life.py:201-203, medium: pot_jasmine puts its flowers at radius r - 0.05 = 0.175, inside the bush (bush radius 0.19-0.22 at z 0.62-0.86): flowers k=0, 1, 2 are fully hidden, only 3 of 6 show. Fix: place each ball at the bush profile's radius at its z (interpolate the lathe profile) plus 0.01.
 - maghreb.toml:1933 and kit_life.py:6, medium: "the viewer lights it at night" is not true yet; tools/viewer/index.html:1064 `LIT_AT_NIGHT` has only `glass_lit`, nothing reads `lamp_glow`. Fix: add `lamp_glow` to LIT_AT_NIGHT (and CLEAR_AT_NIGHT at 1068 if wanted) in the step that places `_on` pieces, or reword the comment to "will light".
 - citygen/interior/kit_life.py:245-247, low: shoes have no upper over the front 9 cm (the toe is a bare 2.5 cm black sole), while the docstring says "the uppers lower at the toe". Fix: a low toe box (z 0.025-0.06) or one wedge per shoe; mind the 40-tri budget (now 4 boxes x 10 = 40, so a wedge in place of the upper box).
@@ -22,5 +22,8 @@ Severity: high = wrong output or a test that lies; medium = visible defect or a 
 - Determinism: each piece has its own `stream(seed, "piece", "home/<name>")`, no maker draws from it, TABLE and MAKERS are dicts in fixed order, no sets iterated. Nothing is added to an old stream.
 - Tests: the count test in test_home_pieces_traditional now adds `lights` from home.pieces, correct for twins from any module; the disjoint-names assert covers kit_life. The new test would fail on a missing twin, a renamed part or a palette drift.
 
+## Run here
+- `pytest -q tests/test_homekit.py`: 5 passed (1 slow deselected), 2.9 s. Tris now: vase_flowers 48/80, shoes 40/40, pot_jasmine 128/220, fruit_bowl 64/70, chandelier 312/400.
+
 ## Not done (time)
-- Did not run pytest or a build in this folder; did not look at a render (shot-55 does that).
+- No full pytest, no build, no render looked at (shot-55 does the render).
