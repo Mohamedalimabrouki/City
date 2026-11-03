@@ -1,0 +1,1 @@
+kit-brass (3 November): pots_stack bowls are now two open nested bowls (glazed rim ring and glazed hollow, 150 of 150 tris); tray_brass has a steeper narrow rim; ibrik has a flared mouth and a long tapering spout; tea_set has a long tapering spout. Not looked at in a render (no plotting library in the venv); look at a snapshot before merging.

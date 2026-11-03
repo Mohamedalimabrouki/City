@@ -39,7 +39,7 @@ TABLE = {
     "khzana": ("storage", "wall", (1.20, 0.45, 2.05), 160, {"use": 0.6}),
     "shelf_wall": ("storage", "wall", (1.0, 0.25, 0.25), 36, {"stretch": (0.6, 2.4), "z0": 1.70, "top": 1.86}),
     "mirror_carved": ("decor", "wall", (0.65, 0.05, 0.90), 120, {"z0": 1.15}),
-    "tray_brass": ("small", "on", (0.60, 0.60, 0.03), 48, {"top": 0.01}),
+    "tray_brass": ("small", "on", (0.60, 0.60, 0.03), 80, {"top": 0.01}),
     "tea_set": ("small", "on", (0.35, 0.25, 0.22), 160, {}),
     "ibrik": ("small", "floor", (0.35, 0.35, 0.40), 120, {}),
     "kanoun": ("kitchen", "floor", (0.34, 0.34, 0.24), 80, {"top": 0.24}),
@@ -66,7 +66,7 @@ TABLE = {
     "sewing_machine": ("work", "wall", (0.90, 0.50, 0.95), 260, {"use": 0.6}),
     "dummy": ("work", "floor", (0.40, 0.35, 1.55), 120, {}),
     "chechia_forms": ("work", "wall", (0.80, 0.40, 0.95), 160, {"use": 0.6}),
-    "pots_stack": ("work", "floor", (0.60, 0.60, 0.70), 150, {}),
+    "pots_stack": ("work", "floor", (0.60, 0.60, 0.70), 180, {}),
     "net_pile": ("work", "floor", (1.00, 0.80, 0.35), 80, {}),
     "skifa_bench": ("seat", "wall", (1.0, 0.45, 0.45), 24, {"stretch": (0.8, 3.0), "use": 0.4}),
     "wc_turkish": ("bath", "wall", (0.50, 0.70, 0.05), 40, {}),
@@ -600,11 +600,13 @@ def mirror_carved(s, v, rng):
 
 
 def tray_brass(s, v, rng):
-    """The brass tray of the meida: a slanted rim round a flat 16-sided centre (48 triangles)."""
+    """The brass tray of the meida: a steep narrow rim (so its edge reads crisp from across a room) with an
+    outer skin (brass is one-sided, so the near rim stays seen from a standing view) round a flat 16-sided
+    centre (80 triangles)."""
     w, d, h = s
     r = w / 2
     mb = MeshBuilder()
-    _lathed(mb, [(r, h), (r - 0.04, 0.004), (0.0, 0.003)], "brass", 16)
+    _lathed(mb, [(r - 0.006, 0.0), (r, h), (r - 0.018, 0.004), (0.0, 0.003)], "brass", 16)
     return mb
 
 
@@ -620,7 +622,7 @@ def tea_set(s, v, rng):
     tray[0][-1][:, :2] *= [w, d]
     px, py = w * 0.25, 0.0
     _lathed(mb, [(0.035, 0.004), (0.060, 0.07), (0.0, h)], metal, 5, at=(px, py, 0.0))
-    _tube(mb, (px - 0.045, py, 0.05), (px - 0.11, py, 0.13), (0.007, 0.007), metal)
+    _tube(mb, (px - 0.05, py, 0.035), (px - 0.125, py, 0.15), (0.009, 0.003), metal)   # long tapering spout
     _tube(mb, (px + 0.04, py, 0.12), (px + 0.075, py, 0.05), (0.005, 0.010), metal)
     spots = [(x, y) for x in (-0.135, -0.08, -0.025) for y in (-0.055, 0.045)]
     for k in rng.permutation(len(spots)):
@@ -638,8 +640,8 @@ def ibrik(s, v, rng):
     r = w / 2
     mb = MeshBuilder()
     _lathed(mb, [(r * 0.55, 0.0), (r, 0.10), (r * 0.9, 0.10), (0.0, 0.04)], "copper_ware", 8)
-    _lathed(mb, [(0.045, 0.045), (0.085, 0.16), (0.03, 0.27), (0.042, h)], "brass", 8)
-    _tube(mb, (0.06, 0.0, 0.17), (0.16, 0.0, 0.31), (0.009, 0.009), "brass")
+    _lathed(mb, [(0.045, 0.045), (0.085, 0.16), (0.026, 0.28), (0.052, h)], "brass", 8)   # flared mouth
+    _tube(mb, (0.07, 0.0, 0.17), (0.165, 0.0, 0.34), (0.012, 0.004), "brass")             # tapering spout
     _tube(mb, (-0.035, 0.0, 0.33), (-0.11, 0.0, 0.27), (0.006, 0.012), "brass")
     _tube(mb, (-0.11, 0.0, 0.27), (-0.07, 0.0, 0.16), (0.006, 0.012), "brass")
     return mb
@@ -1013,8 +1015,9 @@ def chechia_forms(s, v, rng):
 
 
 def pots_stack(s, v, rng):
-    """The potter's stock: two jars at the back, a tall green-glazed jug in front, a stack of two bowls
-    beside it, each set a little at random."""
+    """The potter's stock: two jars at the back, a tall green-glazed jug in front, a stack of two open bowls
+    beside it (the lower one's glazed rim ring round the upper one, the upper one's glazed hollow showing),
+    each set a little at random."""
     w, d, h = s
     mb = MeshBuilder()
     j = rng.uniform(-0.008, 0.008, (4, 2))
@@ -1024,8 +1027,11 @@ def pots_stack(s, v, rng):
         x, y = x + j[k, 0], y + j[k, 1]
         _lathed(mb, [(r * 0.6, 0.0), (r, ph * 0.45), (r * 0.42, ph * 0.86), (r * 0.55, ph)], mat, 6, at=(x, y, 0.0))
     bx, by = -0.17 + j[3, 0], 0.18 + j[3, 1]
-    for z, r in ((0.0, 0.13), (0.055, 0.125)):           # two bowls, mouth up, one in the other
-        _lathed(mb, [(r * 0.5, z), (r, z + 0.08), (0.0, z + 0.03)], "clay_red", 6, at=(bx, by, 0.0))
+    r1, r2, zr, z2 = 0.13, 0.125, 0.08, 0.035          # radii, the lower rim's height, the upper bowl's foot
+    ri = r2 * (0.5 + 0.5 * (zr - z2) / 0.08)            # the upper bowl's wall where the lower rim meets it
+    _lathed(mb, [(r1 * 0.5, 0.0), (r1, zr), (ri, zr)], ["clay_red", "glaze_green"], 8, at=(bx, by, 0.0))
+    _lathed(mb, [(ri, zr), (r2, z2 + 0.08), (r2 * 0.5, z2 + 0.03), (0.0, z2 + 0.025)], ["clay_red", "glaze_green", "glaze_green"],
+            8, at=(bx, by, 0.0))   # 8 sides and a flat-bottomed hollow: open, not a peaked lid
     return mb
 
 
