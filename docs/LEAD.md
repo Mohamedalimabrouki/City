@@ -142,6 +142,8 @@ More in the auto-memory note on the Mac environment.
   `~/.claude/projects/` like any other, for review. Without a chat window Claude stops background
   helpers 10 minutes after the lead's turn ends (prompt 48's first helper died so, unnoticed by its
   lead): the launcher sets `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0` to wait for them.
+  The credit ran out on 31 October: the chain run (`.venv-sdk/credit_chain.sh`) stopped at 13:12 with
+  "Credit balance is too low", so this route needs new credit first (checked 3 November).
 
 ## 5. Where the decisions are
 

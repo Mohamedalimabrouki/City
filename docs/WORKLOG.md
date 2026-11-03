@@ -78,7 +78,9 @@ Entry format:
   cypress that won a model duel, and the plan of two tracks after prompt 100 (entries below).
 - 30 October: Ali wants his promotional API credit ($86.51, expires 14 November) spent before his weekly
   limit. It does not pay for Claude Code, so `tools/run_on_credit.py` runs a prompt through the Agent SDK
-  instead (a billing test passed); how to use it: `docs/LEAD.md`, section 4.
+  instead (a billing test passed); how to use it: `docs/LEAD.md`, section 4. Used up since 31 October:
+  the chain run (`.venv-sdk/credit_chain.sh`, 10:42-13:12) stopped with "Credit balance is too low"
+  (its session recorded about $42), so that route needs new credit first (checked 3 November).
 
 ## 2026-10-31 - Open items 47.1 + 48.1 Plan faults and colonial flats
 - Commit: rounds 1-4 by the lead, 31 October (part 1 goes on: under the bar) | Model: Opus 5.5, high |

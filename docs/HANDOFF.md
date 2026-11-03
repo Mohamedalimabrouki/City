@@ -95,10 +95,10 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`, and how the le
   the kasbah, covered souks, cathedral and theatre, the station with its tracks, quays with a
   breakwater and lighthouse, boats and cranes, the corniche promenade, seaside cafes, the
   Blender kit export, lighter tiles (quantized, -45%), lod1 tiles and the viewer's level of
-  detail (whole capital shown in 0.8 s from the air). Not yet reviewed by a checkpoint: CP4
-  (prompt 43) does that. The work paused on 24 October 2026 (Ali at 60% of his weekly limit);
-  prompt 42 refreshed the phone page on 25 October. The "Resume here" entry at the top of
-  `docs/WORKLOG.md` lists what is next and what CP4 must check. Next: prompt 43 (CP4).
+  detail (whole capital shown in 0.8 s from the air). CP4 (prompt 43) reviewed them on 25 October
+  (above); prompt 42 refreshed the phone page on 25 October. Prompts 44-50 (interiors) followed up to
+  31 October. Where the work stands now and what is next: always the "Resume here" entry at the top
+  of `docs/WORKLOG.md`.
 - Seed 42 makes the country **Bodjantouna** with the capital **Goumosbane**.
   `python -m citygen build --quick` writes it to `output/bodjantouna-42/` in about 10 seconds on
   Ali's Mac (20 seconds in the cloud).
