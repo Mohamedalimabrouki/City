@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from shapely.geometry import Point
 
 from ..rng import stream
+from .rooms import PASS
 
 TRAD = ("dar", "compact", "small", "koubba")
 FIXED = {"skifa": "entry", "wast_ed_dar": "court", "bortal": "gallery", "matbakh": "kitchen", "cuisine": "kitchen",
@@ -127,8 +128,9 @@ def lit_rooms(interior) -> set:
     return {i for o in interior.openings if o.kind in LIT for i in o.rooms}
 
 
-def functions(interior, unit: str, prof: Profile) -> dict:
-    """{room id: function} for the rooms of one unit (SPEC 6d "Room functions")."""
+def functions(interior, unit: str, prof: Profile, least: float = 4.5) -> dict:
+    """{room id: function} for the rooms of one unit (SPEC 6d "Room functions"); `least`: the m2 of a one-door
+    maqsura that takes a traditional couple before a ghorfa (`[interiors.furnish] couple_maqsura`)."""
     rooms = [r for r in interior.rooms if r.unit == unit]
     out = {}
     for r in rooms:
@@ -162,8 +164,11 @@ def functions(interior, unit: str, prof: Profile) -> dict:
         if r is not None:
             take(r, "reception")
     if prof.adults >= 1:
-        if trad:
-            r = (best([r for r in free if r.type == "maqsura"]) or best([r for r in free if r.type == "ghorfa"])
+        if trad:     # a maqsura with one way in (two doors in two walls leave no wall for the bed), a ghorfa
+            ways = lambda r: sum(1 for o in interior.openings if o.kind in PASS and r.id in o.rooms)
+            maqs = [r for r in free if r.type == "maqsura"]
+            r = (best([r for r in maqs if ways(r) <= 1 and area(r) >= least])
+                 or best([r for r in free if r.type == "ghorfa"]) or best(maqs)
                  or best([r for r in free if r.type == "bit"]))
         else:
             r = best([r for r in free if r.type == "chambre"]) or best(free)

@@ -61,8 +61,10 @@ TABLE = {
     "piano": ("decor", "wall", (1.45, 0.60, 1.25), 180, {"top": 1.25, "use": 0.7}),
     "wc_seat": ("bath", "wall", (0.40, 0.70, 0.80), 160, {"use": 0.5}),
     "basin": ("bath", "wall", (0.55, 0.45, 0.85), 120, {"use": 0.5}),
+    "hand_basin": ("bath", "wall", (0.40, 0.30, 0.43), 140, {"use": 0.45, "z0": 0.42}),   # a narrow room's lave-mains
     "mirror_bath": ("decor", "wall", (0.50, 0.04, 0.60), 20, {"z0": 1.25}),
     "shower": ("bath", "wall", (0.80, 0.80, 2.00), 90, {"use": 0.5}),
+    "shower_small": ("bath", "wall", (0.70, 0.70, 2.00), 90, {"use": 0.5}),   # a 70 cm tray for a narrow sdb
     "bathtub": ("bath", "wall", (1.60, 0.70, 0.55), 140, {"use": 0.5}),
     "water_heater": ("bath", "wall", (0.35, 0.25, 0.65), 80, {"z0": 1.40}),
     "washing_machine": ("bath", "wall", (0.60, 0.60, 0.85), 90, {"top": 0.85, "use": 0.6}),
@@ -849,6 +851,21 @@ def basin(s, v, rng):
     return mb
 
 
+def hand_basin(s, v, rng):
+    """The small wall-hung hand basin of a narrow sdb or wc (a lave-mains): an oval bowl on the wall, its chrome
+    trap back into the wall, a tap on its back deck; nothing stands on the floor."""
+    w, d, h = s
+    z0 = TABLE["hand_basin"][4]["z0"]
+    mb = MeshBuilder()
+    bowl = [(0.05, z0 + 0.14), (0.13, z0 + 0.20), (w / 2, z0 + 0.36), (w / 2, z0 + 0.38), (w / 2 - 0.04, z0 + 0.38),
+            (0.0, z0 + 0.31)]
+    _lathed(mb, bowl, "ceramic_white", 8, at=(0.0, d / 2, 0.0), scale=(1.0, d / w))
+    _tube(mb, (0.0, d / 2, z0 + 0.14), (0.0, d / 2, z0 + 0.02), (0.016, 0.016), "chrome")
+    _tube(mb, (0.0, d / 2, z0 + 0.02), (0.0, 0.0, z0 + 0.02), (0.016, 0.016), "chrome")
+    _tap(mb, 0.0, 0.035, z0 + 0.38, 0.06, h - 0.38)
+    return mb
+
+
 def mirror_bath(s, v, rng):
     """The mirror over the basin: a mirror on a chrome-edged backing, held by two clips."""
     w, d, h = s
@@ -1176,7 +1193,8 @@ MAKERS = {"sofa_3": _sofa(3), "sofa_2": _sofa(2), "armchair": _sofa(1), "sedari"
           "table_formica": table_formica, "bed_double": bed_double, "nightstand": nightstand, "wardrobe": wardrobe,
           "coiffeuse": coiffeuse, "bed_single": bed_single, "bunk_bed": bunk_bed, "cot": cot, "desk": desk,
           "desk_chair": desk_chair, "bookcase": bookcase, "piano": piano, "wc_seat": wc_seat, "basin": basin,
-          "mirror_bath": mirror_bath, "shower": shower, "bathtub": bathtub, "water_heater": water_heater,
+          "hand_basin": hand_basin, "mirror_bath": mirror_bath, "shower": shower, "shower_small": shower,
+          "bathtub": bathtub, "water_heater": water_heater,
           "washing_machine": washing_machine, "drying_rack": drying_rack, "shoe_cabinet": shoe_cabinet,
           "coat_hooks": coat_hooks, "doormat": doormat, "rug_floral": rug_floral, "shop_counter": shop_counter,
           "shop_shelves": shop_shelves, "scale": scale, "drinks_fridge": drinks_fridge, "espresso": espresso,

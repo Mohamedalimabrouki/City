@@ -428,19 +428,27 @@ def free(job, poly, F: Frame, axis: int, at: float, floor: int, lo=-math.inf, hi
     a place no zone reaches within half a partition is clear without building its partition (time)."""
     if poly.is_empty:
         return None
-    b0, b1 = F.bounds(poly)[axis], F.bounds(poly)[axis + 2]
     pts, ids = zone_points(job, floor)
-    if len(pts):
+    spans = job.__dict__.setdefault("free_spans", {})   # the zones' spans along the axis, per frame (time)
+    sk = (*F.c.tolist(), F.angle, axis, floor, job.half)
+    if sk not in spans and len(pts):
         t = (pts - F.c) @ (F.u if axis == 0 else F.v)
         lo_z = np.full(int(ids.max()) + 1, np.inf)
         hi_z = np.full(int(ids.max()) + 1, -np.inf)
         np.minimum.at(lo_z, ids, t)
         np.maximum.at(hi_z, ids, t)
-        lo_z, hi_z = lo_z - job.half - 0.01, hi_z + job.half + 0.01
+        spans[sk] = (lo_z - job.half - 0.01, hi_z + job.half + 0.01)
+    if len(pts):
+        lo_z, hi_z = spans[sk]
     zones = None
-    convex = poly.area > 0.995 * poly.convex_hull.area     # a line across it meets every zone on its walls
     memo = job.__dict__.setdefault("free_memo", {})     # the variants ask the same cuts again (time)
-    seen = memo.setdefault((shapely.to_wkb(poly), *F.c.tolist(), F.angle, axis, floor), {})
+    mk = (shapely.to_wkb(poly), *F.c.tolist(), F.angle, axis, floor)
+    seen = memo.setdefault(mk, {})
+    shape = job.__dict__.setdefault("free_shape", {})
+    if mk not in shape:
+        bb = F.bounds(poly)
+        shape[mk] = (bb[axis], bb[axis + 2], poly.area > 0.995 * poly.convex_hull.area)
+    b0, b1, convex = shape[mk]      # convex: a line across it meets every zone on its walls
     for d in offsets(job.shift, job.step):
         a = at + d
         if not lo <= a <= hi:

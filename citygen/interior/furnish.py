@@ -339,6 +339,8 @@ class Prepared:
     def _keeps(self, room, ops, F) -> tuple:
         it, cfg = self.interior, self.cfg
         door_keep = float(cfg.get("door_keep", 0.8))
+        if room.type in cfg.get("wc_rooms", ()):     # a tiny wc: one steps in and turns (`wc_keep`)
+            door_keep = float(cfg.get("wc_keep", door_keep))
         window_keep = float(cfg.get("window_keep", 0.25))
         stair_keep = float(cfg.get("stair_keep", 0.9))
         keeps, inner = [], []
@@ -462,7 +464,7 @@ class Furnisher:
         self.profiles = {u: H.profile(interior, u, style, outside) for u in H.units(interior)}
         self.functions = {}
         for u, prof in self.profiles.items():
-            self.functions.update(H.functions(interior, u, prof))
+            self.functions.update(H.functions(interior, u, prof, float(self.cfg.get("couple_maqsura", 4.5))))
         self.kids = self._kids()
         self._rtags: dict = {}
         self.pending: dict = {}
@@ -671,8 +673,10 @@ class Furnisher:
     # --- placing one piece -----------------------------------------------------------------------------
     def place(self, room, sp, prof, slot, i, role, name, u_place, level):
         """The piece at the slot's place, then at its `else` places (a cot by a window wall when no blind wall
-        is left), before the next smaller piece."""
-        alts = [slot] + [dict(slot, place=pl) for pl in slot.get("else", ())]
+        is left; a table such as { place = "wall", most = 1.2 } also overrides the slot's keys), before the next
+        smaller piece."""
+        alts = [slot] + [dict(slot, **pl) if isinstance(pl, dict) else dict(slot, place=pl)
+                         for pl in slot.get("else", ())]
         for nm in self.chain(name):
             nm = self._known(nm)
             if nm is None:
@@ -930,6 +934,15 @@ class Furnisher:
                         if anchor == "floor":
                             q = q + r.n * (D / 2)
                         yield (float(q[0]), float(q[1]), yaw_facing(r.n), L, r.index, s, w)
+        elif mode == "side":     # a bed lengthwise along a wall, as a sedda fills a maqsura's back wall
+            for r in self.ranked(sp, mode, host, spec):
+                if D > r.length + 1e-6:
+                    continue
+                e = np.array([r.n[1], -r.n[0]])
+                yaw = yaw_facing(r.n) + math.pi / 2
+                for s in self.slide(D / 2, r.length - D / 2, step, mode, r, D, slot, host):
+                    q = r.point(s) + r.n * (W / 2) + e * (D / 2)
+                    yield (float(q[0]), float(q[1]), yaw, 1.0, r.index, s, D)
         elif mode == "front" and host is not None:
             hs = self.kit.specs.get(host.piece)
             f = np.array([-math.sin(host.yaw), math.cos(host.yaw)])

@@ -124,9 +124,19 @@ def polygonal(geom):
     return geom if geom.geom_type in ("Polygon", "MultiPolygon") else solid(geom)
 
 
+_CLIPS: dict = {}
+
+
 def clip(a, b):
-    """`a` inside `b`, polygons only (lines and points of the overlay, and of its inputs, dropped)."""
-    return solid(shapely.intersection(polygonal(a), polygonal(b), grid_size=GRID))
+    """`a` inside `b`, polygons only (lines and points of the overlay, and of its inputs, dropped);
+    remembered per pair of shapes (time)."""
+    key = (shapely.to_wkb(a), shapely.to_wkb(b), shapely.get_precision(a), shapely.get_precision(b))
+    got = _CLIPS.get(key)
+    if got is None:
+        if len(_CLIPS) > 20000:
+            _CLIPS.clear()
+        got = _CLIPS[key] = solid(shapely.intersection(polygonal(a), polygonal(b), grid_size=GRID))
+    return got
 
 
 _CUTS: dict = {}
@@ -186,11 +196,22 @@ def near(a, b) -> bool:
     return ax0 <= bx1 + TOUCH and bx0 <= ax1 + TOUCH and ay0 <= by1 + TOUCH and by0 <= ay1 + TOUCH
 
 
+_SHARED: dict = {}     # the memos below key a shape by its bytes and its grid (a snapped shape overlays on it)
+
+
 def shared(a, b) -> float:
-    """Length of the boundary two polygons share."""
-    if not near(a, b) or a.distance(b) > TOUCH:
+    """Length of the boundary two polygons share; remembered per pair of shapes (the spine's variants and
+    the checks ask the same pairs again: time)."""
+    if not near(a, b):
         return 0.0
-    return float(a.boundary.intersection(b.buffer(TOUCH, quad_segs=1)).length)
+    key = (shapely.to_wkb(a), shapely.to_wkb(b), shapely.get_precision(a), shapely.get_precision(b))
+    got = _SHARED.get(key)
+    if got is None:
+        if len(_SHARED) > 20000:
+            _SHARED.clear()
+        got = 0.0 if a.distance(b) > TOUCH else float(a.boundary.intersection(b.buffer(TOUCH, quad_segs=1)).length)
+        _SHARED[key] = got
+    return got
 
 
 def zone(o, thickness: float, clear: float, front: float = 0.0):
@@ -217,9 +238,22 @@ def zone(o, thickness: float, clear: float, front: float = 0.0):
     return shapely.union_all([out, deep])
 
 
+_PARTITIONS: dict = {}
+
+
 def partition(poly, frame: Frame, axis: int, at: float, half: float):
     """The partition a cut would build: the line inside `poly` (not along its edges), `half` thick each side.
-    None when the line misses the polygon's inside."""
+    None when the line misses the polygon's inside. Remembered per shape and line (time)."""
+    key = (shapely.to_wkb(poly), shapely.get_precision(poly), *frame.c.tolist(), frame.angle, axis, at, half)
+    if key in _PARTITIONS:
+        return _PARTITIONS[key]
+    if len(_PARTITIONS) > 20000:
+        _PARTITIONS.clear()
+    got = _PARTITIONS[key] = _partition(poly, frame, axis, at, half)
+    return got
+
+
+def _partition(poly, frame: Frame, axis: int, at: float, half: float):
     inside = shapely.intersection(frame.line(axis, at), poly)
     segs = [g for g in getattr(inside, "geoms", [inside]) if g.geom_type == "LineString" and g.length > 1e-6]
     keep = [g for g in segs if poly.boundary.distance(g.interpolate(0.5, normalized=True)) > 1e-4]
@@ -295,19 +329,13 @@ def trim(cells: list, keep: tuple = (), takes: tuple = (), thin: float = 0.4) ->
     skifa (whose strips keep its bend) gives only its hair strips, thinner than 2 x `HAIR`, and any room but a
     court takes one (47.1/48.1)."""
     for c in [c for c in cells if c.type not in takes + ("well", "wast_ed_dar", "skifa")]:   # a skifa keeps its bend
-        t = HAIR if c.type in keep else thin
-        core = c.poly.buffer(-t, join_style="mitre").buffer(t, join_style="mitre").intersection(c.poly)
-        core_parts = parts(snap(core))
-        if not core_parts:
+        got = arms_of(c.poly, HAIR if c.type in keep else thin)
+        if got is None:
             continue
-        body = max(core_parts, key=lambda p: p.area)
-        arms = parts(shapely.difference(c.poly, body, grid_size=GRID))
-        for arm in sorted(arms, key=lambda p: (-p.area, p.centroid.x, p.centroid.y)):
-            if arm.area < 0.005:                      # long hair-thin arms too (a wall would swallow them)
-                continue
+        body, arms = got
+        for arm, hair in arms:
             own = shared(arm, body)
             best, length = None, own + 1e-3
-            hair = arm.buffer(-HAIR, join_style="mitre").is_empty
             for o in cells:
                 if o is c or (o.type in keep and o.type not in takes and not (hair and o.type not in VOID_TYPES)):
                     continue                          # any room but a court takes a hair strip beside it
@@ -322,6 +350,31 @@ def trim(cells: list, keep: tuple = (), takes: tuple = (), thin: float = 0.4) ->
                 continue
             best.poly, c.poly = grown, rest[0]
     return cells
+
+
+_ARMS: dict = {}
+
+
+def arms_of(poly, t: float):
+    """(body, ((arm, hair), ...)) of `trim`: the largest part of `poly` opened by `t` and the arms around it
+    of 0.005 m2 or more, largest first, each with whether a hair strip; None when nothing is left of the
+    opening. Remembered per shape (time)."""
+    key = (shapely.to_wkb(poly), shapely.get_precision(poly), t)
+    if key in _ARMS:
+        return _ARMS[key]
+    if len(_ARMS) > 20000:
+        _ARMS.clear()
+    core = poly.buffer(-t, join_style="mitre").buffer(t, join_style="mitre").intersection(poly)
+    core_parts = parts(snap(core))
+    got = None
+    if core_parts:
+        body = max(core_parts, key=lambda p: p.area)
+        arms = parts(shapely.difference(poly, body, grid_size=GRID))
+        got = (body, tuple((arm, arm.buffer(-HAIR, join_style="mitre").is_empty)
+                           for arm in sorted(arms, key=lambda p: (-p.area, p.centroid.x, p.centroid.y))
+                           if arm.area >= 0.005))      # long hair-thin arms too (a wall would swallow them)
+    _ARMS[key] = got
+    return got
 
 
 def absorb(cells: list, minimums: dict, keep: tuple = (), piece: float = 0.5, takes: tuple = (),
@@ -409,11 +462,21 @@ def straight(lines, tol: float = 1e-3) -> list:
     return [s for s in out if math.dist(*s) > 1e-6]
 
 
+_CONTACTS: dict = {}
+
+
 def contact(a, b) -> list:
-    """Straight pieces of the boundary polygons `a` and `b` share."""
-    if not near(a, b) or a.distance(b) > TOUCH:
+    """Straight pieces of the boundary polygons `a` and `b` share; remembered per pair of shapes (time)."""
+    if not near(a, b):
         return []
-    return straight(lines_of(a.boundary.intersection(b.buffer(TOUCH, quad_segs=1))))
+    key = (shapely.to_wkb(a), shapely.to_wkb(b), shapely.get_precision(a), shapely.get_precision(b))
+    got = _CONTACTS.get(key)
+    if got is None:
+        if len(_CONTACTS) > 10000:
+            _CONTACTS.clear()
+        got = () if a.distance(b) > TOUCH else tuple(straight(lines_of(a.boundary.intersection(b.buffer(TOUCH, quad_segs=1)))))
+        _CONTACTS[key] = got
+    return list(got)
 
 
 def lines_of(geom):
