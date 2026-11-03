@@ -5219,3 +5219,21 @@ def test_box_room_roomy():
     middle, side = box(2.0, 0.5, 4.1, 6.0), box(3.9, 0.5, 6.0, 6.0)
     assert roomy(job, side, [0, 1], 2.6) > roomy(job, middle, [0, 1], 2.6) + 10.0
     assert roomy(job, middle, [0, 1], 2.6) < 1.0                  # 1.9 and 2.0 m strips: no room is that thin
+
+
+@pytest.mark.slow
+def test_villa_369_plan_is_valid(world):
+    """Villa No. 369 of the villa town (quick world, settlement 3, as the `villas` fixture) passes the plan
+    check since 47.2 villas round O (the little plan for villas, the roof stair off the hall): this locks in
+    that round's gain, which only an off-line survey had shown. About 3 s."""
+    from citygen.interior import rooms
+    from citygen.interior.context import BuildContext, city_plan, layout_of
+    from citygen.interior.layout import plan_interior
+    from citygen.interior.outside import Outside
+    town = plan_city(world, world.settlements[3])
+    ctx = BuildContext(world, [town], town.settlement)
+    plan = city_plan(ctx)
+    assert layout_of(plan, plan.buildings[369], world.style) == "villa"
+    interior = plan_interior(Outside(ctx, plan, 369), world.style)
+    assert interior.layout == "villa", interior.layout
+    assert rooms.check(interior) == [], rooms.check(interior)[:3]
