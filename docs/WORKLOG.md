@@ -35,6 +35,12 @@ Entry format:
   commits: `docs/wip/2026-11-03-review.md` (first: `interior/export.py:59`'s material order may let the home
   kit or interior palette override city colours, check before fixing; `villa.little` has no size cap; the
   furnishing check reuses the placer's rules). The fingerprint baseline was re-saved at 3b1e4c0.
+  Last hour (also pushed `wip/<name>` branches with `docs/wip/<name>.md`): fix-materials (the export bug confirmed
+  and fixed: three furniture materials renamed, a failing-before test), fix-little and merge-prep (see their notes),
+  furn-55 (prompt 55 started on furnish-m), rivers-60 (prompt 60 started on rivers-59: lakes count as water, BUT on
+  the 64 km world 127 of 131 settlements move and their names shift: protect the canon names before merging),
+  lead-notes (LEAD.md lessons of the day), review-70, review-81, review-94 (independent reviews of those branches:
+  fix their findings before merging), kit-hide, kit-brass, kit-textile, kit-goods (home-kit touch-ups on furnish-m).
 - State: prompts 1-50 are done (branch `claude/procedural-city-generator-xop72h`; CP4, prompt 43, on 25
   October; the interiors 44-47 on 29 October, 48 (walls and openings) on 30-31 October). Continue when Ali
   says (for example "Do prompt 49." or "continue the playbook").
