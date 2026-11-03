@@ -18,3 +18,8 @@ of wip/fix-materials first). Then steps 2-6 of docs/wip/furn-55.md.
 
 ## To look at
 None of these pieces is looked at on the kit sheet yet (`python -m citygen kit-sheet --home`).
+
+## Checks
+- Full `pytest -q`: 164 passed, 11 deselected (75 s, with other helpers running).
+- `build --quick`, then `tools/fingerprint.py compare before55b --allow ""` (before = this commit with the
+  base `kit_life.py`): 282 parts, 0 changed (the home kit is never in the build).
