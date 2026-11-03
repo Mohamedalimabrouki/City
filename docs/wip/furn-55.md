@@ -4,11 +4,12 @@ Built on wip/furnish-m e871984 (prompt 54 round 3, not merged yet). Started 20:3
 ## Built (step 1 and 2 in part)
 - `citygen/interior/kit_life.py` (new, same pattern as `kit_new`: TABLE, VARIANTS, SIZES, MAKERS, names(), pieces()):
   the 7 lights `fanous`, `lantern_table`, `ceiling_lamp`, `chandelier`, `neon`, `bulb_bare`, `lamp_bedside`,
-  and 9 more `pot_geranium`, `pot_basil`, `pot_jasmine`, `plates_stack`, `fruit_bowl`, `oil_bidon`,
-  `vase_flowers`, `photo_frame`, `khomsa` (no `glaze_blue` variant yet), sizes and tris as the SPEC 6d table.
+  and 11 more `pot_geranium`, `pot_basil`, `pot_jasmine`, `plates_stack`, `fruit_bowl`, `oil_bidon`,
+  `vase_flowers`, `photo_frame`, `khomsa` (no `glaze_blue` variant yet), `shoes`, `schoolbag`, sizes and
+  tris as the SPEC 6d table.
   Ceiling pieces hang from z 0 down to z -H (spec `z0` = -H, as the test's ceiling rule `hi <= 0.005` wants). Helpers `_ball` (fruit, flower head) and `_pot` (terracotta pot, 32 tris).
 - `homekit.MODULES` gains `kit_life`; the `_on` twins were already made by `home_kit` (category `light`):
-  16 pieces + 7 twins new in the home kit.
+  18 pieces + 7 twins new in the home kit.
 - `styles/maghreb.toml` `[interiors.palette]`: `lamp_glass` #F3E6C8 and `lamp_glow` (exact copy), `voile`
   (alpha 0.5, double sided), `iron_white`, `glaze_blue`, `leaf_green`, `photo_sepia`, `bread`, `plastic_yellow`
   (first values for Ali to judge on the kit sheet).
@@ -17,7 +18,7 @@ Built on wip/furnish-m e871984 (prompt 54 round 3, not merged yet). Started 20:3
   `test_home_pieces_traditional` counts kit_life names plus the twins.
 
 ## Checks
-- `pytest -q tests/test_homekit.py`: 5 passed (3.4 s). Full `pytest -q`: 164 passed, 11 deselected (68 s, after the last pieces).
+- `pytest -q tests/test_homekit.py`: 5 passed (3.4 s). Full `pytest -q`: 164 passed, 11 deselected (after the last pieces).
 - `build --quick` 13.9 s; fingerprint `compare life55 --allow ""` against the base commit: 282 parts, 0 changed
   (the home kit is never in the build).
 - Not looked at yet (no time): the new pieces on the kit sheet (`python -m citygen kit-sheet --home`).
@@ -28,7 +29,7 @@ Built on wip/furnish-m e871984 (prompt 54 round 3, not merged yet). Started 20:3
    (wall discs facing +y: use `kit_old.SWAP_YZ` / `_moved` as kit_old's wall round pieces do),
    `mergoum_wall` (UV quad like `kit_old._rug`, `mergoum`), `curtain` (anchor `window`, stretch [0.8, 3.5],
    H = head + 0.15, `fabric_*` / `voile`: `homekit._spec` and the test need the `window` anchor),
-   `birdcage`, `slippers`, `shoes`, `books_stack` (`spines`, UVs as
+   `birdcage`, `slippers`, `books_stack` (`spines`, UVs as
    `kit_new._row`), `bread_basket` (`hasira`, `bread`), `water_pack`, `schoolbag`, `blanket_folded` (`mink`),
    `laundry_line` (stretch [2.0, 5.0]), `broom`, `pots_hanging`. Budget: test_home_kit_budget (60,000 tris).
 2. `weave.py`: maker `verse` (abstract gold strokes on deep green, never real or imitated script, SPEC 6d

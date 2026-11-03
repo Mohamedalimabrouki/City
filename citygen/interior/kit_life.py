@@ -34,6 +34,8 @@ TABLE = {
     "vase_flowers": ("small", "on", (0.15, 0.15, 0.40), 80, {}),
     "photo_frame": ("decor", "wall", (0.30, 0.02, 0.40), 12, {"z0": 1.50}),
     "khomsa": ("decor", "wall", (0.16, 0.02, 0.20), 24, {"z0": 1.80}),
+    "shoes": ("small", "floor", (0.32, 0.30, 0.10), 40, {}),
+    "schoolbag": ("small", "floor", (0.32, 0.18, 0.40), 40, {}),
 }
 VARIANTS: dict = {}
 SIZES = {b: row[2] for b, row in TABLE.items()}   # `[interiors.furnish.sizes]` overrides
@@ -236,10 +238,31 @@ def khomsa(s, v, rng):
     return mb
 
 
+def shoes(s, v, rng):
+    """A pair of brown shoes inside the main door: black soles, the uppers lower at the toe."""
+    w, d, h = s
+    mb = MeshBuilder()
+    for x0, x1 in ((-w / 2, -0.02), (0.02, w / 2)):
+        _box(mb, x0, x1, -d / 2, d / 2, 0.0, 0.025, "plastic_black")
+        _box(mb, x0 + 0.01, x1 - 0.01, -d / 2 + 0.01, d / 2 - 0.09, 0.025, h, "leather_brown")
+    return mb
+
+
+def schoolbag(s, v, rng):
+    """A child's blue school bag set down by the bed: the body, a red front pocket, the handle."""
+    w, d, h = s
+    mb = MeshBuilder()
+    _box(mb, -w / 2, w / 2, -d / 2, d / 2 - 0.05, 0.0, h - 0.04, "plastic_blue")
+    _box(mb, -w / 2 + 0.04, w / 2 - 0.04, d / 2 - 0.05, d / 2, 0.03, h * 0.5, "velvet_red", "bk")
+    _box(mb, -0.06, 0.06, -0.01, 0.01, h - 0.04, h, "plastic_blue")
+    return mb
+
+
 MAKERS = {"fanous": fanous, "lantern_table": lantern_table, "ceiling_lamp": ceiling_lamp, "chandelier": chandelier,
           "neon": neon, "bulb_bare": bulb_bare, "lamp_bedside": lamp_bedside, "pot_geranium": pot_geranium,
           "pot_basil": pot_basil, "plates_stack": plates_stack, "fruit_bowl": fruit_bowl, "oil_bidon": oil_bidon,
-          "pot_jasmine": pot_jasmine, "vase_flowers": vase_flowers, "photo_frame": photo_frame, "khomsa": khomsa}
+          "pot_jasmine": pot_jasmine, "vase_flowers": vase_flowers, "photo_frame": photo_frame, "khomsa": khomsa,
+          "shoes": shoes, "schoolbag": schoolbag}
 
 
 def names() -> list:
