@@ -584,7 +584,8 @@ def ground(job: Job, ring, pos: dict, poly) -> tuple:
     out = [c for c in cells if c.band == "x"]
     plan = None
     if entry is not None and polys[entry]:
-        host = min(polys[entry], key=lambda p: (p.distance(probe), -p.area))
+        k = min(range(len(polys[entry])), key=lambda i: (polys[entry][i].distance(probe), -polys[entry][i].area))
+        host = polys[entry][k]
         plan = plan_skifa(job, ring, entry, host)
         if plan is None or not plan["hidden"]:
             plan = l_skifa(job, ring, entry, host, polys) or plan
@@ -595,10 +596,10 @@ def ground(job: Job, ring, pos: dict, poly) -> tuple:
             if len(plan["skifa"]) != 1 or "turn" in plan:
                 plan = None
         if plan is not None:
-            polys[entry] = [p for p in polys[entry] if p is not host] + plan["others"]
+            polys[entry] = drop(polys[entry], k) + plan["others"]
             if "turn" in plan:
-                other, piece, rest = plan["turn"]
-                polys[other] = [p for p in polys[other] if p is not piece] + rest
+                other, at, rest = plan["turn"]
+                polys[other] = drop(polys[other], at) + rest
             bands_of = [entry, plan["turn"][0]] if "turn" in plan else [entry] * len(plan["skifa"])
             halves = [Cell(p, "skifa", b, "skifa") for p, b in zip(plan["skifa"], bands_of)]
             if plan["arch"] is not None:
@@ -610,6 +611,12 @@ def ground(job: Job, ring, pos: dict, poly) -> tuple:
         if polys[band]:
             out += band_cells(job, ring, band, polys[band], band == main)
     return out, plan
+
+
+def drop(items: list, i: int) -> list:
+    """`items` less its element at position `i`. By position, not identity: the cut memos hand out one
+    shared object for equal inputs, so an identity filter could drop two equal pieces."""
+    return items[:i] + items[i + 1:]
 
 
 def l_skifa(job: Job, ring, entry: str, host, polys: dict) -> dict | None:
@@ -630,7 +637,8 @@ def l_skifa(job: Job, ring, entry: str, host, polys: dict) -> dict | None:
         touching = sorted(((shared(p, host), i) for i, p in enumerate(polys[other])), reverse=True)
         if not touching or touching[0][0] < 1.0:
             continue
-        piece = polys[other][touching[0][1]]
+        at = touching[0][1]
+        piece = polys[other][at]
         sgn = 1.0 if fr.local(piece.centroid.coords[0])[0] > t_d else -1.0
         start = t_d - sgn * margin
         b0, b1 = fr.bounds(host)[0], fr.bounds(host)[2]
@@ -644,14 +652,15 @@ def l_skifa(job: Job, ring, entry: str, host, polys: dict) -> dict | None:
             rest_host = far_part + [p for p in near_part if p.distance(probe) >= 1e-6]
         if len(outer) != 1 or shared(outer[0], piece) < 1.0 or any(outer[0].contains(p) for p in job.fronts):
             continue
-        got = turn(job, ring, other, piece, outer[0], rest_host)
+        got = turn(job, ring, other, piece, outer[0], rest_host, at)
         if got is not None:
             return got
     return None
 
 
-def turn(job: Job, ring, other: str, piece, outer, rest_host: list) -> dict | None:
-    """The second leg of an L-shaped skifa in band `other` (see `l_skifa`)."""
+def turn(job: Job, ring, other: str, piece, outer, rest_host: list, at: int) -> dict | None:
+    """The second leg of an L-shaped skifa in band `other` (see `l_skifa`); `piece` sits at position `at`
+    of that band's list."""
     fo = ring.frames[other]
     b0, b1 = fo.bounds(piece)[0], fo.bounds(piece)[2]
     dirn = 1.0 if abs(fo.local(outer.centroid.coords[0])[0] - b0) < abs(fo.local(outer.centroid.coords[0])[0] - b1) else -1.0
@@ -695,7 +704,7 @@ def turn(job: Job, ring, other: str, piece, outer, rest_host: list) -> dict | No
         if arch < float(job.dar.get("arch_min", 0.8)):
             continue
         toward = np.asarray(inner.centroid.coords[0]) - np.asarray(outer.centroid.coords[0])
-        got = {"skifa": (outer, inner), "others": rest_host, "turn": (other, piece, rest), "span": None,
+        got = {"skifa": (outer, inner), "others": rest_host, "turn": (other, at, rest), "span": None,
                "arch": (b - (b - a) / depth * arch / 2, arch, toward / max(float(np.hypot(*toward)), 1e-9)),
                "door": (door_at, job.door, -fo.v), "baffle": None}
         got["hidden"] = skifa_hidden(job, ring, got)
