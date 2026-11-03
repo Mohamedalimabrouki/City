@@ -4908,3 +4908,28 @@ def test_furnish_budget(interior_build, interior_ctx, tmp_path):
         drawn = sum(sum(len(q["idx"]) // 3 for q in kit.pieces[p["piece"]].parts.values())
                     for p in furniture["pieces"] if p["piece"] in kit.pieces)
         assert unique <= 60_000 and drawn <= 1_500_000, (layout, unique, drawn)
+
+
+def test_bay_clean_nooks_and_newel_door():
+    """A bay plan is judged with the rooms its scraps grow by `spine.nooks` (a couloir scrap joins the couloir);
+    the roof newel's door of a block of flats goes on a side its square shares with the palier, not on the side
+    facing the roof door where the palier meets it only at a corner (47.2 flats round G). Hand-made, 0.01 s."""
+    from types import SimpleNamespace as NS
+
+    from shapely.geometry import box
+
+    from citygen.interior.bayplan import nooked
+    from citygen.interior.cuts import Cell
+    from citygen.interior.stairs import door_side
+
+    job = NS(minimums={"hall": (2.5, 1.1), "chambre": (8.0, 2.4)}, fits=lambda poly, t: poly.area >= 2.5)
+    cells = [Cell(box(0, 0, 10, 2.95), "couloir"), Cell(box(10, 0, 10.6, 1.1), "couloir"),
+             Cell(box(0, 2.95, 4, 6), "chambre")]
+    got = dict(nooked(job, cells))
+    assert abs(got["couloir"] - (29.5 + 0.66)) < 1e-6 and len(nooked(job, cells)) == 2
+    square = box(0, 0, 2, 2)
+    floor, palier = box(-5, -5, 7, 7).difference(square), box(-1, 2, 3, 6)   # the palier north of the square
+    east = door_side(square, [floor], 0.0)
+    north = door_side(square, [floor, palier], 0.0)
+    assert east[0] > 1.9 and abs(east[1] - 1.0) < 1e-9
+    assert abs(north[1] - 2.0) < 1e-9 and abs(north[0] - 1.0) < 1e-9

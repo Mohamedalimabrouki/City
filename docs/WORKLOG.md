@@ -96,6 +96,34 @@ Entry format:
   the chain run (`.venv-sdk/credit_chain.sh`, 10:42-13:12) stopped with "Credit balance is too low"
   (its session recorded about $42), so that route needs new credit first (checked 3 November).
 
+## 2026-11-03 - Open item 47.2, flats round G (the roof newel's door on the palier, bay plans judged after `nooks`)
+- Commit: (lead commits) | Model: Opus 5.5, high (flats helper, worktree /tmp/claude-501/flats-g, about 45 min)
+- Changed: citygen/interior/spine.py (`newel_rooms(..., door_to="")`: with a room type, the door goes on a side of the
+  square whose outside lies in the room of that type it shares most with, when one does; else as before),
+  citygen/interior/flats.py (blocks of flats pass `"palier"`; villas and koubbas call it as before), citygen/interior/
+  bayplan.py (`clean`: the rooms judged against their `most` as `spine.nooks` will grow them, `nooked` stand-ins),
+  tests (`test_bay_clean_nooks_and_newel_door`, under 0.01 s).
+- Counts (every check; HEAD e5dc628 copy against the tree, rooms.json hashes): slab 242 -> 245 of 353 (flats 4,538 ->
+  4,547, faults 819 -> 807; won No. 1172, 1180, 1243; lost 0; no flat newly faulty), colonial 3/270 (every rooms.json
+  identical). Slab faults by kind: couloir over its most 6 -> 0, inner not in its partition 5 -> 1, cuisine through a
+  private room 102 -> 95, blind chambre 302 -> 307 (in blocks that fail at HEAD too). Every passing interior 0
+  `mesh.faults`, 0 step faults; the old town, villas and maisons identical.
+- Times (CPU, HEAD and tree alternated, two runs each, load about 38): No. 1048 1.41 / 1.20 -> 1.07 / 0.93 s (-23%:
+  one plan, not two); No. 1324, 958, 1345, 914 as at HEAD; every slab block 569 -> 552 s CPU (-3%). No. 914 plans
+  once already: its time is the spine's search (7 of 9 s).
+- What still sends a block to a second plan (23 slab blocks): arches "narrowed" (20) and "not in its partition"
+  (13), inner doors not in their partition (13), and the way home (27: the hall meets the couloir only through a
+  scrap under an arch's 0.8 m). A cell-level test of the ways' joints lost blocks the whole check passes (two
+  attempts, 2-4 lost): arches and doors are known only after `spine.doors` and `plancheck.settle`. Measured and
+  removed.
+- Left: 20 slab blocks with one faulty flat (five by the floor-0 entry: No. 1065, 1084, 1109, 1183, 1227; seven by the
+  way home; four by a blind chambre; three over a most); the colonial deep middle.
+- Checks: `pytest -q` 155 passed in the helper's tree; `build --quick`; fingerprint 0 changed.
+- Look: output/checks/472-g-plans.png (worktree; No. 1172 newly passes, No. 1048 now one plan, No. 1324).
+- Lead: verified with the lead's survey: slab 242 -> 245 (25 changed: 3 won, 0 lost); 13 colonial plans changed too
+  (the helper's survey said none: the newel's door moves in colonial blocks as well, by design), each with the same
+  fault count (185 -> 185), no pass won or lost. Merged on houses round 4 (its test kept beside prompt 54's).
+
 ## 2026-11-03 - Open item 47.2, houses round 4 (a chambre from the hall; the landing link measured)
 - Commit: (lead commits) | Model: Opus 5.5, high (houses helper, worktree /tmp/claude-501/houses-r4, about 1 h 20 min)
 - Kept: citygen/interior/villa.py (`way_room`, `cut_two`, gated by `[interiors.villa] way_room`: a home with no

@@ -398,7 +398,7 @@ def run(job, cores: list, kind: str) -> None:
         stair.rooms = [c.paliers[f].id for f in sorted(c.paliers)]
         interior.stairs.append(stair)
     if square is not None and droj is not None:
-        P.newel_rooms(job, square, droj)
+        P.newel_rooms(job, square, droj, "palier")
         droj.unit = "common"
     if not cores and floors > 1:
         interior.warnings.append("no stair core fits: a ladder goes up")

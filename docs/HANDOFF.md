@@ -1132,6 +1132,12 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`, and how the le
   new rule wins, and keep a guard for what the check does not ask (`off_landing(bare=True)`: no pass plan whose
   upper floor has no couloir on its palier). Tiny one-floor maisons need a program without a couloir (rooms off
   the salon), not one more cut.
+- **Judge a plan by the rooms it will become** (47.2 flats round G): a check run on cells must see what the steps after
+  it do to them. `spine.nooks` joins scraps to their neighbours (a 0.66 m2 couloir scrap made No. 1048's couloir 30.1
+  m2, over its most 30.0, and every flat went to a second plan): run it on stand-ins (`bayplan.nooked`) inside
+  `clean`. What cells cannot show: arches and doors, placed by `spine.doors` and moved by `plancheck.settle`; a test of
+  the ways' joints on cells loses blocks the whole check passes. A roof newel's door goes where its square shares a
+  side with the palier, not where it faces the roof door across a corner (`newel_rooms(door_to=)`, flats only).
 - **Furnishing design** (prompt 51, SPEC 6d): facts that shaped it. Furniture is interior-only: if its
   pieces went into `kit.make_kit`, every build would make them, the fingerprint would list them and their
   materials would need `[palette]`; as `home/<piece>` in `citygen/interior/` (out of the build key) no tile

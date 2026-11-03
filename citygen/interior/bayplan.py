@@ -329,12 +329,23 @@ def clean(job, cells: list, prog: list, floor: int) -> bool:
     most = job.cfg.get("rooms", {}).get("most", {})
     if any(c.poly.area > float(most.get(c.type, 1e9)) + 0.01 for c in cells):   # (a hall or couloir too)
         return False
+    if any(a > float(most.get(t, 1e9)) + 0.01 for t, a in nooked(job, cells)):  # as the rooms grow by `nooks`
+        return False
     if P.faults(job, cells, floor, True, 2):
         return False
     sun = P.lights(job, floor)
     if any(c.type in LIT and not P.lit(c.poly, sun) for c in cells):
         return False
     return strip_ok(job, cells) and all(door_on_way(job, c, cells) for c in cells if c.type not in P.SPINE)
+
+
+def nooked(job, cells: list) -> list:
+    """(type, area) of the rooms the cells become once `spine.nooks` has joined their scraps to their
+    neighbours (a couloir scrap to the couloir: 47.2 flats round G), on stand-ins for the rooms."""
+    from types import SimpleNamespace as NS
+    rooms = [NS(id=i, type=c.type, polygon=c.poly) for i, c in enumerate(cells)]
+    P.nooks(NS(interior=NS(rooms=list(rooms)), minimums=job.minimums, fits=job.fits), rooms)
+    return [(r.type, r.polygon.area) for r in rooms]
 
 
 def strip_ok(job, cells: list) -> bool:
