@@ -1,0 +1,1 @@
+- 3 November: fix-94 applied review-94 must-fix: the `[styles.settlements]` and `[styles.kinds]` headers in worlds/example.toml are now comments, so load_config has no empty styles table and the example build key is unchanged; tests/test_styles.py 2 passed (1 slow deselected).
