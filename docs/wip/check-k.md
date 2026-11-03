@@ -1,0 +1,2 @@
+# check-k: does wip/colonial-k change any slab plan? (3 November, 20:50 UTC)
+- Ran round G's `hm_dump.py --groups slab --j 6` (input build `/tmp/claude-501/flats-g/output/bodjantouna-42`) on a copy of this tree (62bd76f) and on a `git archive` copy of c48fb1e. Results: 353 slab buildings on each side, 0 crashes, 247 pass rooms.check, 0 pass_but_bad. Rooms.json hashes: 353 the same, 0 different, and rooms.check faults the same for all 353. The claim holds: no slab plan changed. Raw output: scratchpad `ck/tree.json`, `ck/head.json`.
