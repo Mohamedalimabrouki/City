@@ -218,7 +218,8 @@ def little(job, region, entry, f: int) -> list | None:
     rotated rectangle) into four rooms, the salon's at the door (room for a hall too), then the smallest hall
     at the door cut from the salon; every room within its minimum and most, the salon, chambre and cuisine windowed, every room
     with a door's length on the salon (or the hall), no partition within `clear` of an opening; the plan whose
-    smaller of salon and chambre (to 12 and 9 m2) is largest first. None when no cut gives one."""
+    smaller of salon and chambre (to 12 and 9 m2) is largest first. None when no cut gives one, or at once when
+    the rotated rectangle is over `little_most` m2 (no little house; the review of 3 November)."""
     import itertools
     import math
     from functools import lru_cache
@@ -235,6 +236,8 @@ def little(job, region, entry, f: int) -> list | None:
     angle = math.degrees(math.atan2(xy[1][1] - xy[0][1], xy[1][0] - xy[0][0]))
     flat = affinity.rotate(region, -angle, origin=(0, 0))
     x0, y0, x1, y1 = flat.bounds
+    if (x1 - x0) * (y1 - y0) > float(job.cfg.get("villa", {}).get("little_most", 1e9)):
+        return None                                   # no little house: the search grows as its grid's cube
     grid = [[lo + k * step for k in range(int((hi - lo) / step) + 1)] + [hi] for lo, hi in ((x0, x1), (y0, y1))]
     grid = [g[:-2] + [g[-1]] if g[-1] - g[-2] < step / 2 else g for g in grid]
 

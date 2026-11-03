@@ -4720,6 +4720,47 @@ def test_little_house(monkeypatch):
     assert all(job.fits(c.poly, c.type) for c in cells)
 
 
+def test_little_house_large_floor(monkeypatch):
+    """A one-floor house whose rotated rectangle is over `[interiors.villa] little_most` m2 is no little house:
+    `little` gives None at once instead of trying every 4-room cut on its 0.5 m grid (a 15 x 20 m floor lit
+    on three walls took about 3 s, the independent review of 3 November finding 2); a floor under it still
+    gets its plan. Hand-made, about 0.3 s."""
+    import time
+    import tomllib
+    from pathlib import Path
+    from types import SimpleNamespace as NS
+
+    from shapely import affinity
+    from shapely.geometry import Point, box
+
+    from citygen.interior import villa as V
+    from citygen.interior.cuts import width
+
+    style = tomllib.loads((Path(__file__).resolve().parents[1] / "styles" / "maghreb.toml").read_text(encoding="utf-8"))
+    most = float(style["interiors"]["villa"]["little_most"])
+    assert 48.0 < most < 15 * 20
+    least = {"hall": (2.5, 1.1), "salon": (12.0, 2.4), "chambre": (8.0, 2.4), "cuisine": (5.0, 1.7), "sdb": (3.0, 1.4)}
+
+    def job(step):
+        return NS(door=0.9, half=0.05, clear=0.3, cfg={"rooms": {"most": {"salon": 30.0, "chambre": 18.0, "cuisine": 14.0,
+                                                                      "sdb": 8.0}},
+                                                   "villa": {"little_step": step, "little_most": most}},
+                  minimums=least, interior=NS(rules={"inner_clear": 0.15}), zs=lambda floors: [],
+                  fits=lambda p, t: p.area >= least[t][0] - 1e-6 and width(p) >= least[t][1] - 0.03)
+    w, h = 15.0, 20.0
+    sun = ([Point(x, 0.05) for x in range(1, int(w))] + [Point(0.05, y) for y in range(1, int(h))]
+           + [Point(w - 0.05, y) for y in range(1, int(h))])
+    monkeypatch.setattr(V.P, "lights", lambda job, f: sun)
+    t = time.perf_counter()
+    assert V.little(job(0.5), box(0, 0, w, h), V.P.Entry(w / 2, 0.0, 1.0, 0.0), 0) is None
+    turned = affinity.rotate(box(0, 0, w, h), 30.0, origin=(0, 0))      # the bound is on the rotated rectangle
+    assert V.little(job(0.5), turned, V.P.Entry(*turned.exterior.coords[0], 1.0, 0.0), 0) is None
+    assert time.perf_counter() - t < 1.0
+    sun = [Point(1.5, 0.05), Point(6.5, 0.05), Point(0.05, 4.5), Point(7.95, 4.5), Point(4.0, 5.95)]
+    monkeypatch.setattr(V.P, "lights", lambda job, f: sun)
+    cells = V.little(job(1.0), box(0, 0, 8, 6), V.P.Entry(4.0, 0.0, 1.0, 0.0), 0)
+    assert cells is not None and sorted(c.type for c in cells) == ["chambre", "cuisine", "hall", "salon", "sdb"]
+
 def test_relit_repartition():
     """A blind chambre beside a chambre holding two windows: the pair is cut again so both keep a window and
     a door's length on the couloir (`villa.repartition`, the cut nearest the middle first); a pair with one
