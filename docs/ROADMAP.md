@@ -66,7 +66,7 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
 - [x] 49 H1e Floors, stairs, roof terrace (slabs with wells and light slots, beams, terrazzo and tiles, newel/U/steps/ladders, hollow roof rooms, paved court; slab cores slide past entry steps)
 - [x] 50 H1f Interiors in the viewer (Open interior on a dwelling's card, Cut menu, rooms named on click, gallery lists interiors)
 - [x] 51 H2 Furnishing: the design (SPEC 6d: interior-only home kit `home/<piece>`, catalog per era with sizes, budgets and who gets each piece; households to tags and room functions; recipes; placement, keep-outs and fit; density passes; budgets; furniture.json; prompts 52-55 rewritten)
-- [ ] 52 H2a Traditional furniture
+- [x] 52 H2a Traditional furniture (home kit: 71 traditional pieces, 9 woven images, the home sheet)
 - [ ] 53 H2b Modern furniture
 - [ ] 54 H2c Furnishing rules
 - [ ] 55 H2d Light, textiles, clutter

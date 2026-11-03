@@ -2,6 +2,7 @@
 
     python tools/before_after.py --view street [--ref HEAD] [--out output/checks/NAME.png]
     python tools/before_after.py --interior pick:dar [--city NAME] [--view interior|overview]
+    python tools/before_after.py --home-sheet [--frame home/<piece>]   (the interiors' home kit, prompt 52)
 
 Both sides run `citygen build --quick`, then tools/snapshot.py. With --interior, each side then runs
 `citygen interior SPEC --folder <its build>` and pictures that interior folder (a side without the
@@ -94,6 +95,20 @@ def _kit_sheet(tree: Path) -> Path:
     return out
 
 
+def _home_sheet(tree: Path, required: bool) -> Path | None:
+    """`citygen kit-sheet --home` in `tree`; a tree without the home kit (prompt 52) gives None, unless
+    `required`."""
+    out = tree / "output" / "home-sheet"
+    done = subprocess.run([sys.executable, "-m", "citygen", "kit-sheet", "--home", "--out", str(out)], cwd=tree,
+                          capture_output=True, text=True)
+    if done.returncode != 0 or not (out / "tiles" / "index.json").is_file():
+        if required:
+            tail = "\n".join((done.stdout + done.stderr).strip().splitlines()[-4:])
+            raise ToolError(f"citygen kit-sheet --home failed in {tree}:\n{tail}")
+        return None
+    return out
+
+
 def _frame_camera(sheet: Path, piece: str) -> str:
     """Viewer query that looks at one kit-sheet piece (pieces face north, so stand north of it)."""
     for line in (sheet / "pieces.txt").read_text(encoding="utf-8").splitlines():
@@ -172,12 +187,15 @@ def run(args) -> float:
     CHECKS.mkdir(parents=True, exist_ok=True)
     work = CHECKS / "_tmp_before"
     shutil.rmtree(work, ignore_errors=True)
-    args.view = args.view or ("sheet" if args.kit_sheet else "interior" if args.interior else "aerial")
+    sheet = args.kit_sheet or args.home_sheet
+    args.view = args.view or ("sheet" if sheet else "interior" if args.interior else "aerial")
     out = Path(args.out) if args.out else CHECKS / f"before-after-{args.view}.png"
     try:
         short = _export_ref(args.ref, work / "before")
         if args.kit_sheet:
             b_dir, a_dir = _kit_sheet(work / "before"), _kit_sheet(ROOT)
+        elif args.home_sheet:
+            b_dir, a_dir = _home_sheet(work / "before", False), _home_sheet(ROOT, True)
         else:
             b_dir = _build(work / "before", args.build_args)
             a_dir = a_dir_for(args)
@@ -196,9 +214,9 @@ def run(args) -> float:
         shots = work / "shots"
         shots.mkdir()
         label = f"Before ({args.ref} {short}){note}"
-        if b_dir is None:                      # --interior: the ref has no interior command yet
+        if b_dir is None:                      # --interior / --home-sheet: the ref cannot make it yet
             _grey(shots / "b.png", half)
-            label = "Before: no interior yet"
+            label = "Before: no home kit yet" if args.home_sheet else "Before: no interior yet"
         else:
             _snapshot(work / "before", b_dir, shots / "b.png", before_view, query, half, args.timeout)
         _snapshot(ROOT, a_dir, shots / "a.png", args.view, query, half, args.timeout)
@@ -232,7 +250,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--build-args", default="", help='extra "citygen build --quick" arguments, e.g. "--out output/full"')
     ap.add_argument("--no-build", action="store_true", help="reuse the latest build of the working tree")
     ap.add_argument("--kit-sheet", action="store_true", help="compare kit sheets instead of the city")
-    ap.add_argument("--frame", default=None, metavar="PIECE", help="with --kit-sheet: camera on one piece")
+    ap.add_argument("--home-sheet", action="store_true", help="compare the interiors' home kit sheets (prompt 52)")
+    ap.add_argument("--frame", default=None, metavar="PIECE", help="with --kit-sheet or --home-sheet: camera on one piece")
     ap.add_argument("--interior", default=None, metavar="SPEC",
                     help="picture one dwelling's interior (a number or pick:LAYOUT[:FLOORS]) on both sides")
     ap.add_argument("--city", default=None, help="with --interior: a city of the build (default: its main city)")
@@ -242,10 +261,10 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
     if bool(args.cam) != bool(args.look):
         ap.error("--cam and --look go together")
-    if args.frame and not args.kit_sheet:
-        ap.error("--frame needs --kit-sheet")
-    if args.interior and args.kit_sheet:
-        ap.error("--interior and --kit-sheet do not go together")
+    if args.frame and not (args.kit_sheet or args.home_sheet):
+        ap.error("--frame needs --kit-sheet or --home-sheet")
+    if sum(map(bool, (args.interior, args.kit_sheet, args.home_sheet))) > 1:
+        ap.error("--interior, --kit-sheet and --home-sheet do not go together")
     if args.city and not args.interior:
         ap.error("--city needs --interior")
     try:

@@ -71,7 +71,8 @@ def main(argv=None) -> None:
     sn.add_argument("--height", type=int, default=900)
 
     ks = sub.add_parser("kit-sheet", help="every 3D piece (doors, shops, goods...) in one viewable grid")
-    ks.add_argument("--out", default="output/kit-sheet")
+    ks.add_argument("--out", default=None, help="default output/kit-sheet (output/home-sheet with --home)")
+    ks.add_argument("--home", action="store_true", help="the interiors' home kit (furniture, prompt 52)")
     ks.add_argument("--kits", nargs="+", default=None, metavar="KIT",
                     help="kit names or folders to show (default: [build] kits)")
 
@@ -117,7 +118,13 @@ def main(argv=None) -> None:
         snapshot(folder, png, view=args.view, width=args.width, height=args.height)
     elif args.cmd == "kit-sheet":
         from .kitsheet import kit_sheet
-        print(kit_sheet(args.out, kits=args.kits))
+        if args.home:
+            from .interior.homekit import home_kit
+            cfg = load_config()
+            kit = home_kit(cfg["world"]["seed"], load_style(cfg["world"]["style"]))
+            print(kit_sheet(args.out or "output/home-sheet", seed=cfg["world"]["seed"], kit=kit))
+        else:
+            print(kit_sheet(args.out or "output/kit-sheet", kits=args.kits))
     elif args.cmd == "texture-sheet":
         from .texturesheet import texture_sheet
         cfg = load_config()

@@ -1074,6 +1074,15 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`, and how the le
   ring's direction: a clockwise hole (shapely `orient(sign=1.0)`) faces into the hole, a counter-clockwise exterior
   faces out. Prove facing with numbers (a point a hair in front of each triangle), not by eye; a 0.05 m step
   falsely flags walls in front of deck crumbs narrower than that (553 triangles in the full city).
+- **Home kit pieces** (prompt 52, `interior/kit_old.py`): budgets of 10-50 triangles leave no room for bottoms and
+  backs: `_prism` sweeps a (y, z) profile and skips edges marked None (the floor), `_box(skip=)` drops hidden
+  faces. A lathe's UVs run round the axis, so a painted top needs its own planar disc (`_disc`), and a lathe is
+  smooth only round its axis: weld it (`_soft`) where its profile must read smooth (the dress form showed
+  bands). Texture seams: a band edge, stripe or hatch must be centred on the image edge or have a period dividing
+  256 px. Fully metallic materials render black in the viewer (nothing to reflect): metals at 0.4-0.6. The kit
+  sheet's 3.2 m walls hid whole rows of small furniture: a ready kit's walls stand 0.4 m over their piece. Check
+  pieces with a throwaway z-buffer contact sheet first (about 2 s for 71 pieces, interpolated normals so smooth
+  shading shows), then the browser; the lead's first look sent back six pieces a contact sheet showed plainly.
 - **Furnishing design** (prompt 51, SPEC 6d): facts that shaped it. Furniture is interior-only: if its
   pieces went into `kit.make_kit`, every build would make them, the fingerprint would list them and their
   materials would need `[palette]`; as `home/<piece>` in `citygen/interior/` (out of the build key) no tile

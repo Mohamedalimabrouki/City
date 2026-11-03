@@ -2040,6 +2040,19 @@ Sizes W x D x H in meters (stretch pieces: nominal 1.0 m and the range); tris = 
 | `lota` | bath | floor | 0.15 x 0.15 x 0.22 | 40 | `plastic_red` | the water jug beside every toilet |
 | `basin_washing` | bath | floor | 0.65 x 0.65 x 0.22 | 48 | `aluminium` | the laundry basin |
 
+Built in prompt 52 (`interior/kit_old.py`, 71 pieces with their variants, each within its tris): the
+rules the code settled. Stretch pieces are drawn 1.0 m long; rugs (`klim`, `mergoum`, `zarbia`, `sajjada`)
+map their whole top to exactly one image repeat whatever their size, `hasira` and `ticking` tile in meters;
+a painted round top is a flat disc with planar UVs (a lathe's UVs run round and smear a pattern); hidden
+faces (bottoms on the floor, backs on the wall) are never drawn. Metals stand at half: `brass` and
+`copper` metallic 0.5, `aluminium` 0.4, `chrome` 0.6, `mirror` 0.55 (roughness 0.08), since fully
+metallic surfaces read black in the viewer, which has nothing to reflect; `tea_amber` (#7A3E16) is the
+tea in the tea set's glasses. The woven images tile: every band edge, stripe and hatch is centred on the
+image edge or has a period dividing 256 px (`test_weave_images` compares the edge rows and columns with
+their own neighbours). `[interiors.furnish]` holds Decisions 1, 3 and 6 (`period`, `density`, `qibla`).
+On the home sheet the wall behind a wall piece stands 0.4 m over the piece (1.0 to 3.2 m), so it hides
+no other row.
+
 **Catalog: modern homes, shops and cafes** (prompt 53; `villa`, `maison`, `colonial`, `slab`, any hanout,
 makhzen and qahwa).
 

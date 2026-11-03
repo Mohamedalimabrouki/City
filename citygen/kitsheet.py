@@ -12,11 +12,15 @@ from .mesh.builder import MeshBuilder, add_cap, extrude, rectangle
 from .mesh.gltf import write_glb
 
 
-def kit_sheet(out_dir, kits=None, seed: int = 42, columns: int = 8, spacing: float = 4.0) -> Path:
-    cfg = load_config()
-    if kits is not None:
-        cfg["build"]["kits"] = list(kits)
-    kit = make_kit(seed, cfg, load_style(cfg["world"]["style"]))
+def kit_sheet(out_dir, kits=None, seed: int = 42, columns: int = 8, spacing: float = 4.0, kit=None) -> Path:
+    """`kit`: a ready kit (the interiors' home kit, prompt 52) instead of the city's; its `images`, if it
+    has them, are embedded as an interior embeds them."""
+    low = kit is not None    # a ready kit's walls stand just over each piece, so they hide no other row
+    if kit is None:
+        cfg = load_config()
+        if kits is not None:
+            cfg["build"]["kits"] = list(kits)
+        kit = make_kit(seed, cfg, load_style(cfg["world"]["style"]))
     names = sorted(kit.pieces, key=lambda n: (kit.pieces[n].source != "procedural", kit.pieces[n].category, n))
     rows = (len(names) + columns - 1) // columns
     width, depth = columns * spacing, rows * spacing
@@ -27,13 +31,15 @@ def kit_sheet(out_dir, kits=None, seed: int = 42, columns: int = 8, spacing: flo
         x, y = (k % columns + 0.5) * spacing, depth - (k // columns + 0.5) * spacing
         piece = kit.pieces[name]
         if piece.anchor == "wall":  # a short wall behind wall pieces, so they read as mounted
-            extrude(mb, rectangle(x, y - 0.15, 3.2, 0.3, 0.0), 0.0, 3.2, "lime_white", "roof_white")
+            high = min(3.2, max(1.0, piece.top + 0.4)) if low else 3.2
+            extrude(mb, rectangle(x, y - 0.15, 3.2, 0.3, 0.0), 0.0, high, "lime_white", "roof_white")
         lift = max(0.0, -piece.bottom)   # hanging pieces (lamps, awnings) shown above the ground
         instances.append({"name": name, "parts": piece.parts, "t": np.array([[x, lift, -y]]),
                           "r": np.array([[0.0, 0.0, 0.0, 1.0]]), "s": np.ones((1, 3))})
     folder = Path(out_dir) / "tiles"
     folder.mkdir(parents=True, exist_ok=True)
-    size = write_glb(folder / "sheet.glb", mb.gltf_parts(), kit.materials, name="kit", instances=instances)
+    size = write_glb(folder / "sheet.glb", mb.gltf_parts(), kit.materials, name="kit", instances=instances,
+                     images=getattr(kit, "images", None))
     write_json(folder / "index.json", {
         "format": "citygen-tiles/1", "seed": seed, "world_name": "Kit sheet", "tile_size": max(width, depth) + 8,
         "focus": {"x": width / 2, "y": depth / 2, "z": 0.0, "name": f"{len(names)} pieces"},

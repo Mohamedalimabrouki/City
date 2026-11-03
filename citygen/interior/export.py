@@ -20,6 +20,7 @@ from ..mesh.gltf import write_glb
 from ..mesh.textures import DEFAULTS, encoded, image_names, spec_for
 from ..mesh.props import tree_mesh
 from ..mesh.tile import building_tops, instance_groups, ring_heights
+from . import weave
 from .floors import floors_mesh, paving_z, roof_drawer, settings
 from .mesh import stairs_mesh, walls_mesh
 
@@ -105,14 +106,15 @@ def court_trees(interior, outside, mb) -> list:
 
 def used_images(style: dict, seed: int, materials: dict, names) -> dict:
     """Embedded images for the textures these materials use, and no other (`mesh/textures.encoded`); an
-    interior-only texture (zellige) takes its numbers from `[interiors.textures]`."""
+    interior-only texture (zellige) takes its numbers from `[interiors.textures]`; the home kit's textiles
+    (`weave.MAKERS`, prompt 52) come from `interior/weave.py`."""
     own = style.get("interiors", {}).get("textures", {})
     known = set(image_names(style)) | set(own)
     wanted = sorted({materials.get(m, {}).get("texture") for m in names} & known)
     out = {}
     for name in wanted:
         spec = {**DEFAULTS, **own[name]} if name in own else spec_for(style, name)
-        enc = encoded(name, seed, spec)
+        enc = weave.encoded(name, seed, spec) if name in weave.MAKERS else encoded(name, seed, spec)
         out[name] = {"bytes": enc.data, "mime": enc.mime}
     return out
 

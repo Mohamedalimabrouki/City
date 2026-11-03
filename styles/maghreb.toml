@@ -1868,11 +1868,62 @@ beam_blue = { color = "#3E6A8C", roughness = 0.7 }          # painted beams (str
 beam_green = { color = "#4C7A5A", roughness = 0.7 }
 beam_red = { color = "#9A3F33", roughness = 0.7 }
 beam_ochre = { color = "#B88A3E", roughness = 0.7 }
+# the home kit (prompt 52, SPEC 6d): plain colors, no UVs; the textured ones keep meter UVs
+wood_walnut = { color = "#5A3A24", roughness = 0.55 }
+wood_beech = { color = "#C49A6C", roughness = 0.6 }
+wood_painted_green = { color = "#3F6B4F", roughness = 0.6 }
+wood_painted_red = { color = "#8E3B2F", roughness = 0.6 }
+brass = { color = "#B08D3C", roughness = 0.4, metallic = 0.5 }   # metals at half: fully metallic reads black in the viewer
+copper = { color = "#B5653A", roughness = 0.4, metallic = 0.5 }
+aluminium = { color = "#B9BDC2", roughness = 0.4, metallic = 0.4 }
+iron_black = { color = "#2B2A28", roughness = 0.55, metallic = 0.4 }
+terracotta = { color = "#B5653F", roughness = 0.9 }
+glaze_green = { color = "#3D6B3A", roughness = 0.25 }
+clay_pale = { color = "#E3D9C6", roughness = 0.9 }
+charcoal = { color = "#2A2522", roughness = 0.95 }
+velvet_red = { color = "#7E1F24", roughness = 0.85 }
+velvet_green = { color = "#1F4E3A", roughness = 0.85 }
+velvet_blue = { color = "#23406E", roughness = 0.85 }
+velvet_gold = { color = "#B38B3A", roughness = 0.6 }
+cotton_white = { color = "#EFEDE6", roughness = 0.9 }
+wool_cream = { color = "#E6DCC4", roughness = 0.95 }
+fleece = { color = "#E9E1CF", roughness = 1.0 }
+jute = { color = "#A88A5C", roughness = 0.95 }
+leather_brown = { color = "#7A4B2A", roughness = 0.6 }
+ceramic_white = { color = "#F4F4F2", roughness = 0.15 }
+enamel_white = { color = "#ECEDEA", roughness = 0.3 }
+chrome = { color = "#D8DADC", roughness = 0.2, metallic = 0.6 }
+mirror = { color = "#C8CDD0", roughness = 0.08, metallic = 0.55 }   # fully metallic read black in the viewer (no reflections to show)
+plastic_blue = { color = "#2F6FB8", roughness = 0.45 }
+plastic_red = { color = "#C0392B", roughness = 0.45 }
+butane_bottle = { color = "#3B6FB6", roughness = 0.4 }    # Ali's choice (SPEC 6d Decisions): the blue bottle
+net_green = { color = "#3E7A55", roughness = 0.9 }
+book_green = { color = "#2F5B3C", roughness = 0.7 }
+tea_amber = { color = "#7A3E16", roughness = 0.1 }   # the tea in the tea set's glasses
+klim_red = { color = "#FFFFFF", roughness = 0.95, texture = "klim_red", texture_size = [1.4, 2.2] }   # the images hold the colors
+klim_indigo = { color = "#FFFFFF", roughness = 0.95, texture = "klim_indigo", texture_size = [1.4, 2.2] }
+mergoum = { color = "#FFFFFF", roughness = 0.95, texture = "mergoum", texture_size = [1.2, 2.0] }
+zarbia = { color = "#FFFFFF", roughness = 1.0, texture = "zarbia", texture_size = [2.0, 3.0] }
+hasira = { color = "#FFFFFF", roughness = 0.9, texture = "hasira", texture_size = [0.6, 0.6] }
+ticking = { color = "#FFFFFF", roughness = 0.9, texture = "ticking", texture_size = [0.5, 0.5] }
+painted = { color = "#FFFFFF", roughness = 0.6, texture = "painted", texture_size = [0.6, 0.6] }
+sajjada = { color = "#FFFFFF", roughness = 0.95, texture = "sajjada", texture_size = [0.65, 1.15] }
+mink = { color = "#FFFFFF", roughness = 1.0, texture = "mink", texture_size = [0.9, 0.9] }
 
 [interiors.textures]  # images only interiors use (mesh/textures.py makes them; the build never writes them)
 terrazzo = { pixels = 256, chips = 1400, grain = 0.5, mottle = 0.4, field = "#D9D3C7", chip_1 = "#8E877B", chip_2 = "#4F4A44", chip_3 = "#B9A687", chip_4 = "#F1EDE6", chip_5 = "#9A6B55" }
 tiles = { pixels = 256, cells = 4, grain = 0.6, mottle = 0.4, grout_width = 0.03, glaze = "#E9E1D0", glaze_2 = "#7C3B2E", grout = "#9C9286" }
 zellige = { pixels = 256, cells = 2, star = 0.35, heart = 0.08, grout_width = 0.018, grain = 0.5, mottle = 0.5, glaze = "#1E4F8F", glaze_2 = "#2B7A55", field = "#EEE7D6", heart_glaze = "#D9A632", grout = "#4E4A44" }
+# the home kit's textiles and painted wood (prompt 52, interior/weave.py): 256 px, colors in the image
+klim_red = { pixels = 256, step = 4, diamonds = 5, triangles = 9, combs = 16, mottle = 0.5, field = "#9E2B25", second = "#2E3E6E", ochre = "#C8922F", black = "#231F1C", cream = "#E9DFC8" }
+klim_indigo = { pixels = 256, step = 4, diamonds = 4, triangles = 8, combs = 14, mottle = 0.5, field = "#2B3A66", second = "#9E2B25", ochre = "#C8922F", black = "#1E1B19", cream = "#E9DFC8" }
+mergoum = { pixels = 256, rows = 10, across = 7, mottle = 0.4, field = "#A3282A", black = "#1F1B19", white = "#EDE6D6", accent = "#C9962E" }
+zarbia = { pixels = 256, border = 0.13, mottle = 0.5, field = "#E4D8BE", brown = "#6E4A2E", indigo = "#2C3B63", red = "#9A3A2C" }
+hasira = { pixels = 256, bands = 8, pitch = 8, mottle = 0.5, straw = "#CDB27A", dark = "#7A6338", dyed = "#8E3B2F" }
+ticking = { pixels = 256, repeats = 8, mottle = 0.3, cream = "#E8E0CC", red = "#A33A32", blue = "#2E4E86" }
+painted = { pixels = 256, flowers = 9, mottle = 0.5, ground = "#3F6B4F", red = "#B53A2E", yellow = "#E0B23E", white = "#F1EBDD", leaf = "#7FA05A" }
+sajjada = { pixels = 256, mottle = 0.4, field = "#7E1F24", arch = "#1F4E3A", border = "#B38B3A", line = "#E9DFC8" }
+mink = { pixels = 256, flowers = 4, mottle = 0.6, ground = "#3A2432", rose = "#B23A48", rose_2 = "#E07A84", leaf = "#3E6B47" }
 
 [interiors.rooms]  # [least area m2, least width m] (width: twice the largest inscribed circle's radius)
 piece = 0.5        # m2: a smaller piece always joins its neighbour
@@ -2043,3 +2094,11 @@ majel = [0.6, 0.4]       # meters, the cistern mouth's curb across and high
 fesqiya = 1.4            # meters across, the octagonal basin
 dome_wall = 0.25         # meters, a koubba's drum and dome seen from inside
 skylight_curb = 0.2      # meters, the curb under a skylight's glass
+
+[interiors.furnish]   # furnishing (SPEC 6d; prompts 52-55); Ali's choices of prompt 51, the recommended defaults
+period = "today"      # "today": the old town as lived in now (gas ring, fridge, television); "heritage": story scenes
+density = "lived-in"  # sparse, lived-in or full
+qibla = 112.0         # degrees from north that prayer mats face (Tunis to Mecca)
+
+[interiors.furnish.sizes]   # home kit sizes by piece name (without `home/`), overriding `SIZES` of interior/kit_*.py,
+                            # e.g. sendouk = [1.10, 0.55, 0.62] (W, D, H in meters); empty: the tables of SPEC 6d

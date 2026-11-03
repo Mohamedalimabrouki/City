@@ -86,6 +86,40 @@ Entry format:
   the chain run (`.venv-sdk/credit_chain.sh`, 10:42-13:12) stopped with "Credit balance is too low"
   (its session recorded about $42), so that route needs new credit first (checked 3 November).
 
+## 2026-11-03 - Prompt 52 H2a Traditional furniture pieces
+- Commit: (lead commits) | Model: Opus 5.5, high (helper in worktree wip/furn-52, paused once for the 5-hour
+  limit and resumed; the lead reviewed and committed)
+- Changed: new citygen/interior/homekit.py (HomeSpec, HomeKit, `home_kit` cached per seed and style, `_on` twins
+  for lights), interior/kit_old.py (the 49 traditional bases, 71 pieces with variants), interior/weave.py (9
+  seamless 256 px images), tests/test_homekit.py; interior/export.py (`used_images` asks weave first),
+  kitsheet.py (`kit=` hook: images embedded, walls just over each piece), __main__.py (`kit-sheet --home`),
+  tools/before_after.py (`--home-sheet`, `--frame` with it), styles/maghreb.toml ([interiors.palette] 40 entries
+  incl. `tea_amber`, [interiors.textures] 9 images, [interiors.furnish] period, density, qibla,
+  [interiors.furnish.sizes] empty), docs/SPEC.md 6d (built notes).
+- Checks: `pytest -q` 149 passed (+2, about 1.7 s; the slow two-process determinism test passes); `build --quick`;
+  fingerprint `--allow ""`: 282 parts, 0 changed. Home sheet glb 738,588 bytes.
+- Triangles / budget: doukkana 24/24, mattress 26/30, cushion 40/40, mattress_floor 26/30, mattress_stack 40/60,
+  sedda 517/520, sedda_plain 119/180, meida 48/96 (painted 88), tray_table 128/140, pouf 56/64, sendouk 200/220,
+  khzana 85/160, shelf_wall 30/36, mirror_carved 61/120, tray_brass 48/48, tea_set 159/160, ibrik 112/120, kanoun
+  65/80, couscoussier 124/140, counter_masonry 26/30, gas_ring 66/70, butane 60/64, sink_stone 34/60, qolla
+  102/110, gsaa 48/48, kursi 34/40, khabia 112/120, grain_sacks 90/90, tabouna 92/110, klim, mergoum, zarbia,
+  hasira and sajjada 10/10, hidoura 20/24, rahla 40/70, loom 200/300, wool_basket 80/80, sewing_machine 202/260,
+  dummy 120/120, chechia_forms 138/160, pots_stack 144/150, net_pile 64/80, skifa_bench 20/24, wc_turkish 34/40,
+  tap_wall 30/30, bucket 48/48, lota 40/40, basin_washing 40/48.
+- Look: output/checks/52.png (worktree /tmp/claude-501/furn-52: 10 close viewer shots of the home sheet),
+  output/checks/52-sedda.png (the prompt's `--frame` command); every piece also on a z-buffer contact sheet
+  (/tmp/claude-501/r_all.png, before the fixes of the second session).
+- Beyond the prompt's wording (the lead keeps both): metals (brass, copper, aluminium, chrome, mirror) at half
+  metallic, since fully metallic read black in the viewer (nothing to reflect), written into SPEC 6d; the home
+  sheet's walls stand 0.4 m over each piece (the 3.2 m walls hid whole rows), only for a ready kit passed in.
+- Weak, honest: the hidoura reads as a pale flat hide (the 0.02 m rug height limit); the net heap has no mesh
+  texture; the pots_stack bowls read as a lidded pot; small brass pieces are tiny on the sheet. Hero versions
+  come with track K.
+- Lead: looked at both pictures and the contact sheet (first pass: cushions, tea glasses, hidoura, net pile, bowl
+  and dummy sent back; the second pass fixed them within their budgets); checked that every piece draws on its
+  own `stream(seed, "piece", "home/<piece>")` and every image on `stream(seed, "texture", name)`, and that Ali's
+  choices sit once each in `[interiors.furnish]`.
+
 ## 2026-11-03 - Fix: parapet copings that faced away from the roof deck
 - Commit: (lead commits) | Model: Opus 5.5, high (helper of the lead, worktree /tmp/claude-501/coping, about 20 min)
 - Changed: citygen/mesh/tile.py (`_coping`), tests/test_citygen.py (`test_unpaired_coping_faces_its_inner_walls_to_the_deck`,
