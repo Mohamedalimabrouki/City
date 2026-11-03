@@ -1126,6 +1126,12 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`, and how the le
   (judge against the empty room). An opening's (x, y) is the wall's centre (facade: the outer face): inner points and
   walk boxes start at the wall's face on the room's side (`mesh.depths`). Keep per-room piece lists and a per-storey
   STRtree for the free floor: the first slab took 16 s at full, then 5 s.
+- **A plan the check passes is not always one a family would live in** (47.2 houses round 4): a couloir-wide link
+  from the landing hall to the band made No. 974 pass with an upper floor that has no couloir at all (palier ->
+  chambre, the others through the droj and one chambre after another). Look at the plan pictures of every house a
+  new rule wins, and keep a guard for what the check does not ask (`off_landing(bare=True)`: no pass plan whose
+  upper floor has no couloir on its palier). Tiny one-floor maisons need a program without a couloir (rooms off
+  the salon), not one more cut.
 - **Furnishing design** (prompt 51, SPEC 6d): facts that shaped it. Furniture is interior-only: if its
   pieces went into `kit.make_kit`, every build would make them, the fingerprint would list them and their
   materials would need `[palette]`; as `home/<piece>` in `citygen/interior/` (out of the build key) no tile

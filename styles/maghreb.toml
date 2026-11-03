@@ -2034,6 +2034,7 @@ bay_depth = 0.7          # meters: villas and maisons trade window bays as flats
 halve = ["maison"]       # these houses cut a chambre, salle a manger or salon over its most in two, as flats do (47.2 round C)
 relight = ["villa", "maison"]    # a blind chambre or salle a manger and a room beside it holding two windows or more are cut again so both keep one (47.2 houses round 2)
 relight_step = 0.25      # meters between the partitions tried
+way_room = ["villa", "maison"]   # a home with no chambre on its top floor cuts one from its hall or couloir (47.2 houses round 4)
 complete = ["villa", "maison"]   # a floor 0 with no salon, a one-floor home with no chambre, cuts one from its largest room (47.2 round C)
 
 [interiors.flats]   # flats in colonial blocks and slabs (SPEC 6c "Flats")

@@ -96,6 +96,32 @@ Entry format:
   the chain run (`.venv-sdk/credit_chain.sh`, 10:42-13:12) stopped with "Credit balance is too low"
   (its session recorded about $42), so that route needs new credit first (checked 3 November).
 
+## 2026-11-03 - Open item 47.2, houses round 4 (a chambre from the hall; the landing link measured)
+- Commit: (lead commits) | Model: Opus 5.5, high (houses helper, worktree /tmp/claude-501/houses-r4, about 1 h 20 min)
+- Kept: citygen/interior/villa.py (`way_room`, `cut_two`, gated by `[interiors.villa] way_room`: a home with no
+  chambre on its top floor cuts one from its hall or couloir by one straight partition, the chambre windowed within
+  its minimum and most, the way keeping its minimum, its doors and the landing), citygen/interior/layout.py (the
+  landing pass keeps no plan whose upper floor has no couloir on its palier: `off_landing(interior, bare=True)`, a
+  no-op today), styles/maghreb.toml, tests (`test_way_room_cut_and_bare_landing`, 0.01 s).
+- Counts with every check (HEAD -> now, rooms.json hashes): maison 497 -> 498 of 616 (won No. 526: a 12.3 m2 hall
+  gives a 3 x 3 m chambre; 1 changed, none lost), villa 167 -> 167. Every passing interior 0 `mesh.faults`, 0 step
+  faults; the old town and every capital home identical. Times: passing houses unchanged; No. 526 0.83 -> 0.90 s
+  (it now passes); the slowest plans No. 923 5.2 s and 765 5.1 s, as at HEAD.
+- Measured and removed (patch in the scratchpad `hl/hl_link.patch`): `spine.hall_link`, a couloir-wide way of one to
+  three legs from the landing hall to the band: it made No. 974 pass with an upper floor that has no couloir at all
+  (palier -> chambre, the rest through the droj and one chambre after another): the check passes it, a family would
+  not; guarded, it won nothing and slowed No. 765 (+10%). `way_light` (a blind room and the windowed hall or couloir
+  beside it cut again): 501 inline but a passing house got darker; as a last pass +1 with 25 failing houses slower.
+  A cuisine turned chambre with the way giving a cuisine (ways are 1.2-1.5 m wide, under the cuisine's 1.7): 0.
+- Why the rest stays: No. 923 (a triangle: the stair well and the slanted wall leave no couloir-wide way from the
+  landing to the band: its upper floor needs its couloir cut from the landing); the tiny one-floor maisons (No. 642,
+  726, 744, 985: a hall and a couloir for four rooms: a small house's program without a couloir, its rooms off the
+  salon, is next); 45 maisons fault only on blind rooms: the patio-house planner (not built).
+- Checks: `pytest -q` 154 passed in the helper's tree; `build --quick`; fingerprint 0 changed.
+- Look: output/checks/472-h4-plans.png (worktree; No. 526 before and after).
+- Lead: a small round (+1), committed for its safe fix and for what it measured: a plan the check passes is not
+  always one a family would live in (No. 974): judge new planners by their pictures too.
+
 ## 2026-11-03 - Prompt 54 H2c Furnishing rules and density (partly done)
 - Commit: (lead commits) | Model: Opus 5.5, high (helper in worktree wip/furn-54, about 1 h 10 min; the lead
   reviewed and committed)

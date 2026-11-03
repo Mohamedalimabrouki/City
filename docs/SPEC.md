@@ -1622,7 +1622,10 @@ Built (prompt 47, `interior/spine.py`, `interior/villa.py`). Rules the code sett
   chambre beside it within its `most` (`nooks`; 47.2 houses round 2).
 - A house whose way in still faults and whose upper couloirs miss the stair palier is planned once more with each
   upper floor cut from a hall at the landing that becomes the couloir's first piece; kept when the plan check finds
-  fewer faults and the home no more dark rooms (`[interiors.villa] landing_way`; 47.2 houses round 3).
+  fewer faults and the home no more dark rooms (`[interiors.villa] landing_way`; 47.2 houses round 3); a pass plan
+  whose upper floor has no couloir on its palier is never kept. A home with no chambre on its top floor cuts one from
+  its hall or couloir by one straight partition, the chambre windowed and the way keeping its minimum and its doors
+  (`[interiors.villa] way_room`; 47.2 houses round 4).
 - Programs (`[interiors.villa] programs` may replace them): villa floor 0 salon, salle a manger (over
   `dining_area`), cuisine, wc, chambres; maison floor 0 salon, cuisine, wc, chambres; upper floors chambre,
   sdb, chambres; one storey: salon, (salle a manger,) cuisine, chambre, sdb, (wc,) chambres. A maison gets a

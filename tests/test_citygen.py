@@ -4671,6 +4671,26 @@ def test_landing_way():
     assert abs(spine["couloir"].area - (1.4 * 5.15 + 5 * 1.15)) < 1e-6 and len(spine["ways"]) == 1
 
 
+def test_way_room_cut_and_bare_landing():
+    """`villa.cut_two` cuts a shape in two by the straight partition nearest the middle that its test takes
+    (a home with no chambre cuts one from its hall or couloir, `villa.way_room`); an upper floor with no
+    couloir counts as off the landing for the landing pass's keep (`layout.off_landing`). Hand-made, 0.01 s
+    (47.2 houses round 4)."""
+    from shapely.geometry import box
+
+    from citygen.interior.layout import off_landing
+    from citygen.interior.model import Interior, Room
+    from citygen.interior.villa import cut_two
+
+    one, two = cut_two(box(0, 0, 6, 3), 0.25, lambda a, b: a.area >= 10)
+    assert abs(one.area - 10.5) < 1e-6 and abs(two.area - 7.5) < 1e-6
+    assert cut_two(box(0, 0, 6, 3), 0.25, lambda a, b: a.area >= 18) is None
+    it = Interior(1, "x", 1, 1, "house", "maison", "x", 0.0, 3.0, None, {})
+    it.storeys = [None, None]
+    it.rooms = [Room(0, 1, "palier", box(0, 0, 2.6, 5), 3.0, 6.0), Room(1, 1, "chambre", box(2.6, 0, 7, 5), 3.0, 6.0)]
+    assert not off_landing(it) and off_landing(it, True)          # no couloir: the landing pass keeps no such floor
+
+
 def test_relit_repartition():
     """A blind chambre beside a chambre holding two windows: the pair is cut again so both keep a window and
     a door's length on the couloir (`villa.repartition`, the cut nearest the middle first); a pair with one

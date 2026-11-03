@@ -185,14 +185,16 @@ def flat_faults(interior: Interior, faults: list) -> dict:
     return out
 
 
-def off_landing(interior: Interior) -> bool:
-    """An upper floor whose couloirs all miss its stair palier (no arch's length shared with it)."""
+def off_landing(interior: Interior, bare: bool = False) -> bool:
+    """An upper floor whose couloirs all miss its stair palier (no arch's length shared with it); `bare`:
+    an upper floor with no couloir counts too (the landing pass keeps no plan whose rooms open one into
+    another from the palier, 47.2 houses round 4)."""
     from .cuts import shared
     from .spine import ARCH
     for f in range(1, interior.floors):
         cors = [r for r in interior.rooms if r.floor == f and r.type == "couloir"]
         pals = [r for r in interior.rooms if r.floor == f and r.type == "palier"]
-        if cors and pals and not any(shared(c.polygon, p.polygon) >= ARCH for c in cors for p in pals):
+        if (cors or bare) and pals and not any(shared(c.polygon, p.polygon) >= ARCH for c in cors for p in pals):
             return True
     return False
 
@@ -212,7 +214,7 @@ def landing_way(interior: Interior, outside, style: dict, layout: str, before: d
             carve(interior, style)
     finally:
         del interior.landing_way
-    if len(check(interior)) >= faults or dim(interior, style) > dark:
+    if len(check(interior)) >= faults or dim(interior, style) > dark or off_landing(interior, True):
         _hold(interior, first)
 
 

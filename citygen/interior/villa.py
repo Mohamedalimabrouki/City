@@ -94,6 +94,9 @@ def plan(interior, outside, style: dict, kind: str) -> None:
             completed(job, largest(region), cells, f, floors)
         if kind in job.cfg.get("villa", {}).get("relight", ()):
             relit(job, cells, f)
+        if (kind in job.cfg.get("villa", {}).get("way_room", ()) and f == top and "chambre" in progs[f]
+                and not any(c.type == "chambre" for c in list(cells) + interior.rooms)):
+            way_room(job, cells, f, e, landing)       # a home with no chambre: one from its hall or couloir
         if landing is not None:
             landing = to_landing(job, cells, landing, f)
         rest = [Cellish(p) for p in parts(snap(region.difference(largest(region))))] if len(parts(region)) > 1 else []
@@ -160,6 +163,77 @@ def completed(job, region, cells: list, f: int, floors: int) -> None:
                 break
             c.poly = old                                  # the half is too small for a salon: undone
             cells.remove(new)
+
+
+def way_room(job, cells: list, f: int, entry, landing) -> None:
+    """A home with no chambre on its top floor (a small house, or an upper floor whose couloir rings the
+    stair): its hall or couloir, largest first, cut by one straight partition (the cuts of `repartition`)
+    into a chambre and the way it keeps: the chambre windowed, within its minimum and most, with no
+    corridor-like arm and a door's length on the way; the way keeping its minimum, the door or landing it
+    starts from and a door's length on every room it served; the partition clear of the openings (47.2
+    houses round 4)."""
+    from shapely.geometry import Point
+    from .cuts import shared
+    sun = P.lights(job, f)
+    most = job.cfg.get("rooms", {}).get("most", {})
+    wide, thin = (float(v) for v in job.cfg.get("flats", {}).get("strip", (1.6, 3.0)))
+    zones = job.zs([f])
+    step = float(job.cfg.get("villa", {}).get("relight_step", 0.25))
+    door, at = P.need(job), Point(entry.x, entry.y)
+    lit = lambda poly: any(poly.distance(p) < 0.05 for p in sun)   # noqa: E731
+    for c in sorted((c for c in cells if c.type in ("hall", "couloir")), key=lambda c: -c.poly.area):
+        others = [x.poly for x in cells if x is not c and x.type in ("hall", "couloir")]
+        served = [x.poly for x in cells if x is not c and shared(x.poly, c.poly) >= door
+                  and not any(shared(x.poly, w) >= door for w in others)]
+        if landing is not None and shared(landing, c.poly) >= door:
+            served.append(landing)
+        start = c.poly.distance(at) < 0.3
+
+        def fine(room, way):
+            if not (job.fits(room, "chambre") and lit(room) and room.area <= float(most.get("chambre", 1e9))
+                    and P.strip(room, wide) <= thin and job.fits(way, c.type)):
+                return False
+            if max([shared(room, way)] + [shared(room, w) for w in others]) < door:
+                return False
+            if start and way.distance(at) > 0.05 or any(shared(x, way) < door for x in served):
+                return False
+            return not R.clash_polys(room, way, zones, 2 * job.half)
+        got = cut_two(c.poly, step, fine)
+        if got is not None:
+            c.poly = got[1]
+            cells.append(P.Cell(got[0], "chambre", c.band, c.part))
+            return
+
+
+def cut_two(u, step: float, fine):
+    """(one part, the other) of `u` cut by one straight partition across or along its rotated rectangle,
+    the cut nearest the middle first, the first pair `fine` takes (either way round); None when none."""
+    import math
+    from shapely import affinity
+    from shapely.geometry import box
+    from .cuts import snap
+    rect = u.minimum_rotated_rectangle
+    xy = list(rect.exterior.coords)
+    angle = math.degrees(math.atan2(xy[1][1] - xy[0][1], xy[1][0] - xy[0][0]))
+    flat = affinity.rotate(u, -angle, origin=(0, 0))
+    x0, y0, x1, y1 = flat.bounds
+    tries = []
+    for axis, lo, hi in ((0, x0, x1), (1, y0, y1)):
+        n = int((hi - lo) / step)
+        tries += [(abs(k - n / 2), axis, lo + k * step) for k in range(1, n)]
+    back = lambda g: affinity.rotate(g, angle, origin=(0, 0))   # noqa: E731
+    for _, axis, at in sorted(tries):
+        if axis == 0:
+            a, b = box(x0 - 1, y0 - 1, at, y1 + 1), box(at, y0 - 1, x1 + 1, y1 + 1)
+        else:
+            a, b = box(x0 - 1, y0 - 1, x1 + 1, at), box(x0 - 1, at, x1 + 1, y1 + 1)
+        pa, pb = parts(snap(back(flat.intersection(a)))), parts(snap(back(flat.intersection(b))))
+        if len(pa) != 1 or len(pb) != 1:
+            continue
+        for one, two in ((pa[0], pb[0]), (pb[0], pa[0])):
+            if fine(one, two):
+                return one, two
+    return None
 
 
 def relit(job, cells: list, f: int) -> None:
