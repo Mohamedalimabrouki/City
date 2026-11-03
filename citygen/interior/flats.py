@@ -365,9 +365,10 @@ def run(job, cores: list, kind: str) -> None:
                   if core is not None else [])
             es = es or [P.Entry(*region.representative_point().coords[0], 1.0, 0.0)]
             prog = program(job, ftype, area, lit)
-            cells = bay_cells(job, region, es[0], prog, f, place)
-            if cells is None:
-                cells = spine_cells(job, region, es, prog, f, place)
+            cells = flat_cells(job, region, es, prog, f, place)
+            if any(c.type == "salle_a_manger" and not P.lit(c.poly, P.lights(job, f)) for c in cells):
+                prog = [t for t in prog if t != "salle_a_manger"]   # no window lights the dining room: none
+                cells = flat_cells(job, region, es, prog, f, place)   # (the salon serves; round F)
             rooms = P.add_rooms(job, cells, f, unit)
             rooms = P.nooks(job, rooms)
             P.doors(job, rooms)
@@ -438,6 +439,24 @@ def best_lay(job, region, entries: list, prog: list, f: int, key: tuple) -> list
     if done > 1:
         memo[base] = memo.get(base, False) or best[1] is not first
     return best[1]
+
+
+def flat_cells(job, region, entries: list, prog: list, f: int, place: int) -> list:
+    """The flat's cells: bay by bay where `bay_cells` gives them, else by the spine (`spine_cells`); in a
+    block's first plan, a flat whose spine plan the search itself scores faulty (`flat_score`) is planned bay
+    by bay at once where that plan is clean (`bayplan.first`: one plan, not two; 47.2 flats round F)."""
+    cells = bay_cells(job, region, entries[0], prog, f, place)
+    if cells is not None:
+        return cells
+    cells = spine_cells(job, region, entries, prog, f, place)
+    interior = job.interior
+    if (BP.on(job) and BP.first(job) and interior.__dict__.get("bay_use") is None and job.fits(region, "chambre")
+            and flat_score(job, cells, prog, f) > 0):
+        got = BP.lay(job, region, entries[0], prog, f, ("flat", place))
+        if got is not None:
+            interior.__dict__.setdefault("bay_first", {})[(f, place)] = got
+            return [Cell(c.poly, c.type, c.band, c.part) for c in got]
+    return cells
 
 
 def bay_cells(job, region, entry, prog: list, f: int, place: int):

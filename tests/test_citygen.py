@@ -4705,3 +4705,17 @@ def test_flat_type_by_bays():
     assert bays([win(1.0), win(2.5)], 0.7) == 1                  # a 0.3 m pier: one room
     assert bays([win(1.0), NS(kind="court_window", wall=None, x=5.0, y=5.0, width=1.0),
                  NS(kind="inner", wall=None, x=0.0, y=0.0, width=0.9)], 0.7) == 2
+
+
+def test_flat_faults_and_bay_first():
+    """A room over its most names its flat (so `layout.flat_bays` mends it); a block's first plan plans a flat
+    bay by bay at once by `[interiors.flats] bay_plan.first` (47.2 flats round F). Hand-made, 0.01 s."""
+    from types import SimpleNamespace as NS
+
+    from citygen.interior.bayplan import first
+    from citygen.interior.layout import flat_faults
+
+    it = NS(rooms=[NS(id=7, unit="flat 2"), NS(id=9, unit="common")], openings=[NS(id=4, rooms=(7, 9))])
+    assert flat_faults(it, ["the chambre 7 has 40.0 m2, over the most 36.0", "the inner 4 on floor 1 is not in its "
+                            "partition", "the stair is steep"]) == {2: 2, -1: 1}
+    assert first(NS(cfg={"flats": {"bay_plan": {"first": True}}})) and not first(NS(cfg={"flats": {}}))

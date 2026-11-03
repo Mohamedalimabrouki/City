@@ -96,6 +96,44 @@ Entry format:
   the chain run (`.venv-sdk/credit_chain.sh`, 10:42-13:12) stopped with "Credit balance is too low"
   (its session recorded about $42), so that route needs new credit first (checked 3 November).
 
+## 2026-11-03 - Open item 47.2, flats round F (the first plan takes the bay plans, a dining room no window lights)
+- Commit: (lead commits) | Model: Opus 5.5, high (flats helper, worktree /tmp/claude-501/flats-f, about 1 h 30 min)
+- Changed: citygen/interior/flats.py (`flat_cells`: in a block's first plan a flat whose spine plan the search
+  itself scores faulty, `flat_score` > 0, takes its clean bay plan at once; a salle a manger no window lights is
+  dropped and the flat planned again without it, the salon serving), citygen/interior/layout.py (`flat_bays`: a
+  faulty flat the first plan planned bay by bay goes back to the spine's plan it made first, the spine's faulty
+  flats with clean bay plans go bay by bay, as in round E; `flat_faults`: "the <room> N has X m2, over the most"
+  now names its flat), citygen/interior/bayplan.py (`first`; `lay`: a failed search is not run again for a floor
+  whose windows stand at the same places; `clean`: every cell, hall and couloir too, within its `most`),
+  styles/maghreb.toml (`bay_plan.first = true`), tests (`test_flat_faults_and_bay_first`, 0.01 s).
+- Counts (every check; HEAD 70fc537 copy against the tree, rooms.json hashes): slab 233 -> 242 of 353 (flats 4,467
+  -> 4,538 of 5,147, faults 892 -> 819; won No. 1098, 1113, 1169, 1175, 1182, 1219, 1226, 1242, 1334; lost 0, no
+  flat newly faulty), colonial 3 -> 3 of 270 (flats 368 -> 387, faults 3,559 -> 3,448; lost 0). Blind salle a
+  manger: slab 105 -> 58, colonial 180 -> 83. Every passing interior 0 `mesh.faults`, 0 step faults; the old town
+  and Ain Chilel's villas and maisons identical.
+- Times (CPU, HEAD and tree alternated, two runs each, the machine shared): slab No. 1324 6.75 / 6.07 -> 5.04 / 4.40
+  s (-27%; about 3.4 s on a quiet spell, bar 2.5 s not met), colonial No. 958 as at HEAD (about 7.5 s quiet); slower:
+  No. 1048 0.6 -> 1.4 s, No. 1345 2.8 -> 4.2 s, No. 914 4.6 -> 6.3 s (their early bay plans fault the whole check by
+  arches and doors, so a second plan sends them back to the spine).
+- Measured and left out (diffs in the scratchpad `hi/`): every clean bay plan at once (No. 1324 -39% but 305 slab
+  blocks changed, 22 lost until the fallback, blocks that passed in one plan took two); the next floor's flat taking
+  the bay plan without the spine's search (No. 1263 lost); the ring planner (couloir along the court walls turning
+  with the ring): colonial sample flats 67 -> 66, removed.
+- Why colonial stays (39-block sample): of 231 faulty flats, 21 have fewer bays than an S+1 needs, 82 no bay to
+  spare; most are not thin strips but L and U masses 6-10 m deep from the street with the court offset, so the deep
+  middle has no window; the bay planner fails mostly because the lit pieces are fewer than the lit rooms its type
+  asks (a window in the hall or a couloir end, two windows under 2.4 m apart in one piece). Next: plan the deep blind
+  middle (baths, the couloir, a cuisine on the court) and give each window its own room before the hall takes one,
+  or let the type leave one bay spare.
+- Found, not fixed: 3 slab blocks (No. 1172, 1180, 1243) fail only by the roof newel's door ("the inner N on floor F
+  is not in its partition"): `spine.newel_rooms` puts the droj's door on the square's door side where it touches the
+  palier only at a corner.
+- Checks: `pytest -q` 151 passed in the helper's tree; `build --quick`; fingerprint 0 changed.
+- Look: output/checks/472-f-plans.png (worktree; No. 1113 newly passes, No. 871 with three flats won, No. 1324).
+- Lead (after flats round F): committed as progress, merged cleanly on houses round 3; checked below with the lead's
+  survey of the merged tree. The slower blocks are accepted for now (no pass lost; the time goes with the next
+  round's cleaner bay plans: test arches and doors in `bayplan.clean` so a clean plan does not fault the whole check).
+
 ## 2026-11-03 - Open item 47.2, houses round 3 (the upper-floor couloir starts at the landing)
 - Commit: (lead commits) | Model: Opus 5.5, high (houses helper, worktree /tmp/claude-501/houses-r3, about 2 h in
   two parts: paused once for the 5-hour limit and resumed)

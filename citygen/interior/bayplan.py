@@ -44,13 +44,25 @@ def on(job) -> bool:
     return job.interior.layout in job.cfg.get("flats", {}).get("bay_plan", {}).get("layouts", [])
 
 
+def first(job) -> bool:
+    """True when a block's first plan plans every flat bay by bay at once where that plan is clean
+    (`[interiors.flats] bay_plan.first`; else only a flat the check faults, in a second plan): one plan
+    instead of two, and the rooms on the bays (47.2 flats round F)."""
+    return bool(job.cfg.get("flats", {}).get("bay_plan", {}).get("first", False))
+
+
 def lay(job, region, entry, prog: list, floor: int, key: tuple):
     """The cells of a clean bay plan of a flat region, or None. Stacked flats repeat (a memo per region,
-    entrance, program and facade, as `spine.typical`)."""
+    entrance, program and facade, as `spine.typical`; a search that failed is not run again for a floor whose
+    windows stand at the same places, balcony doors or windows: 47.2 flats round F)."""
     memo = job.__dict__.setdefault("bay_memo", {})
     tk = P.typical_key(job, region, entry, prog, floor, key, True)
     if tk not in memo:
-        memo[tk] = search(job, region, entry, prog, floor)
+        miss = job.__dict__.setdefault("bay_miss", set())   # a floor below with the windows in the same
+        lk = tk[:5] + (tuple(sorted(("light" if k in ("window", "balcony") else k, *rest) for k, *rest in tk[5])),)
+        memo[tk] = None if lk in miss else search(job, region, entry, prog, floor)   # places (a balcony door
+        if memo[tk] is None:                                                      # for a window) failed: no
+            miss.add(lk)                                                          # second search (time)
     got = memo[tk]
     return None if got is None else [Cell(c.poly, c.type, c.band, c.part) for c in got]
 
@@ -313,6 +325,9 @@ def clean(job, cells: list, prog: list, floor: int) -> bool:
     if sum(max(0, prog.count(t) - sum(c.type == t for c in cells)) for t in sorted(set(prog))):
         return False
     if any(c.type == "hall" and not job.fits(c.poly, "hall") for c in cells):
+        return False
+    most = job.cfg.get("rooms", {}).get("most", {})
+    if any(c.poly.area > float(most.get(c.type, 1e9)) + 0.01 for c in cells):   # (a hall or couloir too)
         return False
     if P.faults(job, cells, floor, True, 2):
         return False

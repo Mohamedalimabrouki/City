@@ -124,22 +124,26 @@ FLATS = ("colonial", "slab")
 
 
 def flat_bays(interior: Interior, outside, style: dict, layout: str, before: dict) -> None:
-    """A block whose flats the plan check faults is planned again with every faulty flat that has a clean
-    bay plan (`bayplan`, kept by the first plan) planned bay by bay, the spine's plans of the others replayed
-    (`flats.spine_cells`); a flat keeps its bay plan when it then passes, and the second plan is kept only when no flat
-    that passed fails and the check finds less (a third plan holds only the bay plans that passed; 47.2
-    flats round E)."""
+    """A block whose flats the plan check faults is planned again with every faulty flat changed: one the
+    spine planned that has a clean bay plan (`bayplan`, kept by the first plan) planned bay by bay, one the
+    first plan planned bay by bay at once (`flats.flat_cells`) by the spine's plan it made first; the plans of
+    the others replayed (`flats.spine_cells`, the bay memo). A changed flat keeps its new plan when it then
+    passes, and the second plan is kept only when no flat that passed fails and the check finds less (a third
+    plan holds only the changes that passed; 47.2 flats rounds E and F)."""
     from .flats import bay_plans
     first = check(interior) if interior.__dict__.get("bay_args") else []
     keys = interior.__dict__.get("flat_keys", {})
+    early = interior.__dict__.get("bay_first", {})
     bad = flat_faults(interior, first)
-    kept = bay_plans(interior, {keys[i] for i in bad if i >= 0 and keys.get(i) is not None}) if first else {}
-    use = {keys[i] for i in bad if i >= 0 and keys.get(i) in kept}
+    wrong = {keys[i] for i in bad if i >= 0 and keys.get(i) is not None}
+    kept = bay_plans(interior, wrong - set(early)) if first else {}
+    flip = {k for k in wrong if k in kept or k in early}
+    kept.update(early)
     best, faults, base = None, len(first), {i for i in bad}
-    held = dict(_held(interior), piers=list(interior.piers)) if use else None
-    while use:
+    held = dict(_held(interior), piers=list(interior.piers)) if flip else None
+    while flip:
         _hold(interior, before)
-        interior.bay_use, interior.bay_kept = use, kept
+        interior.bay_use, interior.bay_kept = set(early) ^ flip, kept   # the bay plans of this plan
         try:
             _stages(interior, outside, style, layout, before)
         finally:
@@ -149,13 +153,13 @@ def flat_bays(interior: Interior, outside, style: dict, layout: str, before: dic
         keys = interior.__dict__.get("flat_keys", {})
         if set(now) <= base and len(got) < faults:
             best, faults = dict(_held(interior), piers=list(interior.piers)), len(got)
-        won = {keys[i] for i in keys if keys[i] in use and i not in now}
-        if won == use or not won:
+        won = {keys[i] for i in keys if keys[i] in flip and i not in now}
+        if won == flip or not won:
             break
-        use = won
+        flip = won
     if held is not None:
         _hold(interior, best if best is not None else held)
-    for k in ("flat_keys", "flat_place", "spine_kept", "bay_args", "bay_job"):
+    for k in ("flat_keys", "flat_place", "spine_kept", "bay_args", "bay_job", "bay_first"):
         interior.__dict__.pop(k, None)
 
 
@@ -172,7 +176,7 @@ def flat_faults(interior: Interior, faults: list) -> dict:
             got = {int(m.group(1))}
         else:
             ids = [int(x) for x in re.findall(r"rooms? (\d+)", f)] + [int(x) for x in re.findall(r"and (\d+) \(", f)]
-            ids += [int(x) for x in re.findall(r"the [a-z_]+ (\d+) on floor", f)]
+            ids += [int(x) for x in re.findall(r"the [a-z_]+ (\d+) (?:on floor|has)", f)]   # (a room over its most)
             for x in re.findall(r"the (?:window|inner|arch|door|balcony|court_window|court_door|shop) (\d+)", f):
                 ids += [i for i in ops.get(int(x), ()) if i >= 0]
             got = {int(unit[i].split()[1]) for i in ids if i in unit and unit[i].startswith("flat ")} or {-1}

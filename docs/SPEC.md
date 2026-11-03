@@ -1744,7 +1744,11 @@ its floor landing (`palier`, unit `common`) against the door's wall, the flights
   a clean bay plan laid bay by bay (`bayplan`: rooms along the lit walls with the couloir behind them, or the
   spine's couloir with its bands cut at the piers; one room per bay, the baths in the blind pieces or carved from
   a room's corner on the couloir), the spine's cells of the others replayed; kept when no flat that passed fails
-  and the check finds less (`layout.flat_bays`, `[interiors.flats] bay_plan`).
+  and the check finds less (`layout.flat_bays`, `[interiors.flats] bay_plan`). Flats round F (47.2): in a block's
+  first plan, a flat whose spine plan its search scores faulty takes its clean bay plan at once
+  (`[interiors.flats] bay_plan.first`); the second plan sends such a flat back to its spine plan when the check
+  faults it. A salle a manger no window lights is left out of the flat's program (the salon serves). A room over
+  its `most` names its flat for these second plans.
 
 **Stairs** (`[interiors.stairs]`, records prompts 46-47, geometry prompt 49). Rule (tested): every
 point of every tread on the walking line has at least `headroom` (2.0 m) clear above it. Risers: the

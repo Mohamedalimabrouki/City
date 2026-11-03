@@ -1109,6 +1109,14 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`, and how the le
   let the couloir be any band piece; cut from a hall at the stair landing that becomes the couloir, the upper floor's
   way starts where a real house's does. Applied to every plan it changes most passing plans (193) and loses some:
   keep it as a last pass, gated by a cheap test on the plan in hand (the couloirs share no arch with the palier).
+- **A first plan that takes the bay plans** (47.2 flats round F): a block planned twice costs a second plan; plan the
+  faulty flats bay by bay in the first plan, chosen by the spine's own score (`flat_score` > 0), and keep the spine's
+  cells so a bay plan the whole check faults goes back to them in the second plan, unchanged (a flat sent back
+  without its spine cells is searched without the stacked plans of the floors below and comes out other: No. 1263
+  lost). Taking every clean bay plan at once saves more time but changes 305 passing blocks: bay plans clean by
+  themselves still fault the whole check by their arches and doors (not in the partition, narrowed) and by `nooks`
+  growing the couloir; `bayplan.clean` should test those before it can be trusted alone. A dining room no window
+  lights is better dropped than kept blind (the check asks none of a flat).
 - **Furnishing design** (prompt 51, SPEC 6d): facts that shaped it. Furniture is interior-only: if its
   pieces went into `kit.make_kit`, every build would make them, the fingerprint would list them and their
   materials would need `[palette]`; as `home/<piece>` in `citygen/interior/` (out of the build key) no tile
