@@ -96,6 +96,49 @@ Entry format:
   the chain run (`.venv-sdk/credit_chain.sh`, 10:42-13:12) stopped with "Credit balance is too low"
   (its session recorded about $42), so that route needs new credit first (checked 3 November).
 
+## 2026-11-03 - Prompt 54 H2c Furnishing rules and density (partly done)
+- Commit: (lead commits) | Model: Opus 5.5, high (helper in worktree wip/furn-54, about 1 h 10 min; the lead
+  reviewed and committed)
+- Changed: new citygen/interior/household.py (`profile`: the family on stream ("furnish", "family", unit): adults,
+  elders, children small, school and teen, tags era, layout, district, band, period, couple, children, elders, big,
+  trade:<trade> and the trade groups; `functions`: fixed types and the flexible rooms in SPEC 6d's order); new
+  citygen/interior/furnish.py (`Prepared` per interior; `RoomSpace`: wall runs with their openings, the main door,
+  inner points, keep-outs, walk strips, ceiling; `Furnisher`: three density passes, slots with four draws each on
+  stream(seed, "interior", city_id, k, "furnish", room, slot, role), the place modes, `smaller` chains, the
+  mattress stack where beds sleep fewer than the members, room budgets; `why`/`fits`; `reaches`; `check`;
+  `placements`); export.write_folder(..., density, furniture): the furniture as instances, furniture.json and
+  index.json interior.density; command.make_interior(..., density=); `interior --density`; view.Interiors and
+  `api/interior?density=`; styles/maghreb.toml (`[interiors.furnish]` numbers, trade_tags, smaller, 100 roles, the
+  recipes of 23 room functions); tests (test_furnish_no_overlap, _every_layout slow, _required, _household,
+  _density, _density_slab slow, _budget slow; the two-process test also runs --density full and compares
+  furniture.json); SPEC 6d.
+- Checks: `pytest -q` 156 passed in the helper's tree (the slow furnish tests and the two-process test pass);
+  `build --quick`; fingerprint 0 changed; rooms.json byte-identical with HEAD (furnishing reads the plan).
+- Survey (quick capital, 25 per layout: colonial, compact 17, dar, koubba 22, slab, small; 6,095 rooms): 0 overlap,
+  wall, clearance, ceiling and reach faults at sparse, lived-in and full. Need warnings in 7.4% of rooms (target
+  2%: NOT met): sdb no shower 228, wc no toilet 110, cuisine no fridge 64, no cooker 19, no sink 14, hanout no
+  counter 11. Household problems 18 (sparse) / 35 (lived-in, full): a small child's cot gives way to a floor
+  mattress, a weaver's loom finds no blind wall by a window. Time mean / max at lived-in: dar 0.29 / 0.51 s, slab
+  0.97 / 2.35 s; the largest slab (No. 1169, 1,588 pieces) about 5 s at full. Pieces per interior at lived-in: dar
+  91, compact 48, small 24, koubba 45, colonial 242, slab 443. Budgets: the slow budget test passes.
+- Rules the code settled (SPEC 6d "Built in prompt 54"): kitchens are runs of 1 m units (sink under the window,
+  unit, cooker, butane; never one piece stretched); a door's swing is the quarter disc at its hinge; walk strips
+  only in rooms with two ways or more; reach judged against the empty room; wet rooms keep only the door's own width
+  free; a bed's use strip is one long side; the hanout counter's is behind it.
+- Look (worktree /tmp/claude-501/furn-54): output/checks/54-dar-rooms.png (the Labidi dar: a maqsura with its bed
+  and sendouk, the T room's doukkana and klim, the matbakh with gas ring, couscoussier and stone sink),
+  output/checks/54-flats-rooms.png (slab No. 1264 and colonial No. 867: kitchens with cooker, butane and fridge, a
+  children's room with cot and desk, salons with sofa set and rug, a couple's room), output/checks/54.png,
+  output/checks/54-slab.png. Blender: output/bodjantouna-42/interiors/goumosbane-599/dar-labidi.blend (worktree).
+- Open (why 54 is not ticked): (1) the flats' wet rooms: the plans put the door in the middle of a 1.0-1.7 m wide
+  wc or sdb, so no shower or toilet clears the leaf (a planner matter: wet-room doors near a corner, or a 0.7 m
+  shower tray); (2) no villa or maison in the quick capital, so their recipes ran on flats only; (3) a rich dar's
+  maqsura may fall back from the sedda to a single bed (try sedda_plain before bed_single for traditional homes);
+  (4) the 2% warned-rooms slow test is not written (it would fail); (5) the full capital's 30-house survey.
+- Lead: looked at both room pictures (they read as lived-in Tunisian homes; two of the flats' frames missed their
+  room: a floor corner and a black frame, the picture tool, not the furnishing) and merged it on flats round F (the
+  new tests kept beside round F's at the end of the file). Not ticked: its own Check line (2%) is not met.
+
 ## 2026-11-03 - Open item 47.2, flats round F (the first plan takes the bay plans, a dining room no window lights)
 - Commit: (lead commits) | Model: Opus 5.5, high (flats helper, worktree /tmp/claude-501/flats-f, about 1 h 30 min)
 - Changed: citygen/interior/flats.py (`flat_cells`: in a block's first plan a flat whose spine plan the search

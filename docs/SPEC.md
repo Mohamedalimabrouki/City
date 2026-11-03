@@ -2207,7 +2207,7 @@ textured ones (`klim_red`... named like their image); 53 `fabric_beige`, `fabric
 `voile` (alpha 0.5, double sided), `iron_white`, `glaze_blue`, `leaf_green`, `photo_sepia`, `bread`,
 `plastic_yellow`. Colours are first values for Ali to judge on the kit sheet.
 
-**Who lives here** (prompt 54, `interior/household.py`, `profile(interior, unit, style) -> Profile`).
+**Who lives here** (prompt 54, built, `interior/household.py`, `profile(interior, unit, style) -> Profile`).
 - The household of a unit: `home` takes `Interior.household`; `flat <n>` its `Flat.household` (flat 0
   the plan's, the others their derived occupants); `shop` and `cafe` have none (the hanout's trade is the
   souk's of its front street, `plan.souks` by the main door's street, else `grocer`; a qahwa's `cafe
@@ -2502,6 +2502,52 @@ surveys, like `rooms.check`):
   and the counts grow;
 - determinism: the folder's bytes (glb, rooms.json, furniture.json, index.json) are the same in two
   processes with different PYTHONHASHSEED (slow test).
+
+Built in prompt 54 (`interior/household.py`, `interior/furnish.py`, the recipes and roles in `styles/maghreb.toml`
+`[interiors.furnish]`; `export.write_folder(..., density, furniture)`, `interior --density`, `api/interior?density=`):
+the rules the code settled.
+- Recipes are slot tables in placing order with `role` (the slot's name, by which later slots find their host),
+  `alias` (the `[roles]` key when it differs), `place`, `density`, `need`, `when`, `chance` (a number or the name of
+  a style number: `hidoura`, `sewing`, `piano`), `count` ([least, most], `chairs`, `children`, `cots`, `doors`,
+  `area`), `spread`, `most` (a stretch piece's longest length), `with` (a set's own parts: a doukkana's
+  `mattress` on its top and its `cushions` every `cushion_step` along its back), `unless` (skip when the room
+  already holds that role: a shower after a bathtub, a cooker on another wall), `no_room` (skip when the unit has
+  a room of that function: the loom of a weaver without a work room goes to the reception, the gallery or the
+  court) and `cross` (the hanout's counter may lie across the walk). Role entries name pieces with the room's
+  colours as `{velvet}`, `{fabric}`, `{paint}`, `{klim}`, `{cover}`, `{single}`, `{unit}`, `{bunk}` (drawn on the
+  room's `colour` stream) and `{goods}` (the hanout's trade).
+- Room tags join the unit's: `sedari` or `sofas` (a salon tunisien by `[interiors.furnish] sedari`, on the room's
+  `salon` stream), `nowc`, `nodining`, `elders2`. Children are dealt to the children's rooms in draw order; a small
+  child without a children's room gets a cot by the parents' bed (`count = "cots"`).
+- Modern kitchens are runs of 1 m units, never one stretched piece: the sink under the window (a kitchen
+  piece's window test uses its worktop height, so the tap may rise before a sill at 0.95 m and more), a
+  `kitchen_run` unit beside it, the cooker beside that (else on another wall), the butane beside the cooker, a
+  second unit at lived-in, the wall cabinets over the units only.
+- Keep-outs: a door's walk box is its width + 0.2 m (its own width in the wet rooms `wet`), `door_keep` deep from
+  the wall's face on the room's side; its leaf's swing is the quarter disc at the hinge `mesh.leaves` draws (read
+  from the leaf's own `doors` stream, no draw added), not a square. The walk strips run only in rooms with two
+  ways or more (one way in: its box and the reach test suffice), and beds, seats, tables and rugs (`walk_cross`)
+  may lie across them; storage, kitchens, baths and work pieces may not.
+- Reach is judged against the empty room: the ways in and the use strips that the empty room's floor shrunk by
+  `path` / 2 joins must stay joined (a room whose own floor has a neck narrower than `path` is not asked to join
+  what its walls part), and a use strip its own set stands on (the meida in front of its doukkana) is not asked.
+  A bed's use strip is one of its long sides; the hanout counter's is behind it (the shopkeeper's side).
+- `furnish.check` tests every piece again in placing order with the same rules as `fits` (`Furnisher.why`), then
+  each room's walk with all its pieces, the need roles (or their warnings), sleeping places, the household (a
+  weaver's loom, a tailor's sewing machine, a chechia maker's forms, a reader's books, a cot per small child)
+  and the room budgets (`NEED_SLACK` 2,000 triangles over, for need slots).
+- `furniture.json` pieces also carry `host` (the index of the piece they stand on or by, -1) and `density` (the
+  pass that placed them); `profiles` carry the children's ages and the trade.
+
+Measured (quick capital, 25 houses per layout where it has them, no villa or maison; 6,095 rooms; this machine
+under a load of about 40, other helpers running): no overlap, wall, clearance, ceiling or reach fault at any
+density; rooms with a `need` warning 7.4% at each density (the target was 2%): showers in 228 flat baths,
+toilets in 110 flat wcs, fridges in 64 flat kitchens; the flats' wet rooms are 1.0-1.7 m wide with the door in
+the middle of a long wall, so no shower or toilet clears the leaf's swing (a plan matter). Household problems
+18 (sparse) to 35: a small child's cot gives way to a floor mattress beside another bed, a weaver's loom finds
+no blind wall by a window. Time per interior (mean / max): dar 0.14 / 0.33 s sparse, 0.29 / 0.51 s lived-in,
+0.34 / 0.59 s full; slab 0.61 / 1.33, 0.97 / 2.35, 1.16 / 2.50 s; the largest slab (No. 1169, 1,588 pieces) at
+full about 5 s. Pieces per interior at lived-in: dar 91, compact 48, small 24, koubba 45, colonial 242, slab 443.
 
 ## 7. Style pack (`styles/<name>.toml`)
 

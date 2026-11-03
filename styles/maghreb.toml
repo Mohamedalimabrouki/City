@@ -2127,6 +2127,1058 @@ skylight_curb = 0.2      # meters, the curb under a skylight's glass
 period = "today"      # "today": the old town as lived in now (gas ring, fridge, television); "heritage": story scenes
 density = "lived-in"  # sparse, lived-in or full
 qibla = 112.0         # degrees from north that prayer mats face (Tunis to Mecca)
+step = 0.1            # meters between candidate poses along a wall (prompt 54, SPEC 6d "Places")
+wall_gap = 0.01       # meters between a piece's back and its wall face
+walk = 0.7            # meters, the walk strips joining a room's doors through its middle (traditional)
+walk_modern = 0.8
+path = 0.5            # meters of free floor that must join a room's doors and every use strip (traditional)
+path_modern = 0.6
+door_keep = 0.8       # meters kept free in front of a door, on the room's side
+window_keep = 0.25    # meters kept free in front of a window, from under its sill to its head
+stair_keep = 0.9      # meters kept free round a stair's door side
+tree_keep = 0.6       # meters round a court tree's trunk
+court_keep = 1.2      # meters: the court's middle (its polygon shrunk by this) stays free
+front_gap = 0.25      # meters between seats and the table in front of them (a doukkana, a sedari)
+front_gap_sofa = 0.40
+wet = ["wc", "sdb", "bit_el_ma"]   # wet rooms: a door keeps only its own width free (the toilet stands beside its swing)
+walk_cross = ["bed", "seat", "table", "rug"]   # categories that may lie across a walk strip (the reach test still holds)
+cushion_step = 0.6    # meters between cushions along a doukkana
+cafe_pitch = 1.6      # meters between the qahwa's table sets
+cafe_area = 4.0       # m2 of qahwa floor per table set
+bands = { poor = 0.35, rich = 0.65 }   # wealth bands of a household
+elder_share = [0.45, 0.30]             # chance of an elder in a home of 4 or more (traditional, modern)
+elder_two = 0.25                       # chance of a second in a home of 6 or more
+room_triangles = [1500, 4000, 8000]    # drawn triangles per room at sparse, lived-in, full (courts, stah, shops x2)
+hidoura = [0.5, 0.25]                  # chance of the Aid sheepskin (traditional, modern)
+sewing = 0.15                          # chance of a sewing machine in any home
+piano = 0.3                            # chance of a piano in a rich colonial salon
+lamps_max = 64                         # lamps lit at night (prompt 55)
+sedari = { other = 0.5, rich = 0.3, colonial = 0.2 }   # share of salons with a salon tunisien instead of sofas
+places = { sedda = 2, bed_double = 2, bunk_bed = 2, bed_single = 1, cot = 1, mattress_floor = 1, doukkana = 1, sedari = 1, sofa_3 = 1 }
+chairs = { dining_table_4 = 4, dining_table_6 = 6, dining_table_8 = 8, table_formica = 2, plastic_table = 4 }
+child_beds = { small = "home/cot", bunk = "home/bunk_bed_{bunk}", bunk_when = "poor|middle", single = "home/bed_single_{single}", single_when = "modern", floor = "home/mattress_floor_mink" }
+household_check = { weaver = "home/loom", tailor = "home/sewing_machine", "chechia maker" = "home/chechia_forms" }
 
 [interiors.furnish.sizes]   # home kit sizes by piece name (without `home/`), overriding `SIZES` of interior/kit_*.py,
                             # e.g. sendouk = [1.10, 0.55, 0.62] (W, D, H in meters); empty: the tables of SPEC 6d
+
+[interiors.furnish.trade_tags]   # groups of trades the recipes test (SPEC 6d "Who lives here")
+reader = ["teacher", "professor", "student", "imam", "bookseller", "calligrapher", "journalist", "lawyer", "doctor",
+          "pharmacist", "engineer", "architect", "civil servant"]
+craft = ["weaver", "tailor", "potter", "coppersmith", "chechia maker", "shoemaker", "carpenter", "jeweler", "calligrapher"]
+land = ["farmer", "shepherd", "olive presser"]
+sea = ["fisherman"]
+
+[interiors.furnish.smaller]   # what a piece gives way to when no pose passes (stretch pieces shorten by themselves)
+sofa_3_beige = "sofa_2_beige"
+sofa_3_grey = "sofa_2_grey"
+sofa_3_red = "sofa_2_red"
+sofa_2_beige = "armchair_beige"
+sofa_2_grey = "armchair_grey"
+sofa_2_red = "armchair_red"
+bed_double_160_mink = "bed_double_140_mink"
+bed_double_160_white = "bed_double_140_white"
+bed_double_140_mink = "bed_single_mink"
+bed_double_140_white = "bed_single_blue"
+bed_single_mink = "mattress_floor_mink"
+bed_single_blue = "mattress_floor_mink"
+bed_single_pink = "mattress_floor_mink"
+bunk_bed_iron = "bed_single_blue"
+bunk_bed_wood = "bed_single_pink"
+sedda_walnut = "sedda_painted"
+sedda_painted = "sedda_plain"
+sedda_plain = "mattress_floor_mink"
+cot = "mattress_floor_mink"
+wardrobe_4 = "wardrobe_3"
+wardrobe_mirror = "wardrobe_3"
+wardrobe_3 = "wardrobe_2"
+khzana_walnut = "sendouk_walnut"
+dining_table_8 = "dining_table_6"
+dining_table_6 = "dining_table_4"
+fridge_tall = "fridge_small"
+klim_large_red = "klim_red"
+klim_large_indigo = "klim_indigo"
+zarbia = "klim_large_red"
+rug_floral_large = "rug_floral_medium"
+hasira = "klim_red"
+tv_flat_large = "tv_flat_small"
+buffet_carved = "buffet_walnut"
+mattress_stack = "mattress_floor_mink"
+loom = "sewing_machine"
+
+[interiors.furnish.roles]   # role = [[piece, weight, tags], ...]; {velvet} {fabric} {paint} {klim} {cover} {single} {unit} {goods}: the room's colours
+seats = [["home/doukkana_plain", 1, "!rich"], ["home/doukkana_zellige", 1, "rich"]]
+meida = [["home/meida_walnut", 1, "!rich !big"], ["home/meida_painted", 1, "!rich !big"], ["home/meida_large", 1, "big !rich"], ["home/tray_table", 1, "rich"]]
+rug = [["home/klim_large_{klim}", 2, "!poor"], ["home/mergoum", 1, "middle"], ["home/zarbia", 2, "rich"], ["home/hasira", 1, "poor"], ["home/klim_{klim}", 1, "poor"]]
+klim = [["home/klim_{klim}", 1, ""]]
+sendouk = [["home/sendouk_{paint}", 1, "!rich"], ["home/sendouk_walnut", 1, "rich"]]
+khzana = [["home/khzana_{paint}", 1, "!rich"], ["home/khzana_walnut", 1, "rich"]]
+mirror = [["home/mirror_carved_painted", 1, "!rich"], ["home/mirror_carved_gilt", 1, "rich"]]
+tray = [["home/tray_brass", 1, ""]]
+tea = [["home/tea_set_brass", 1, "!poor"], ["home/tea_set_alu", 1, "poor"]]
+tv = [["home/tv_crt", 1, "poor"], ["home/tv_flat_small", 1, "middle trad"], ["home/tv_flat_large", 1, "modern !poor"], ["home/tv_flat_large", 1, "trad rich"]]
+tv_stand = [["home/tv_stand_walnut", 1, ""], ["home/tv_stand_beech", 1, ""]]
+receiver = [["home/receiver", 1, ""]]
+pouf = [["home/pouf", 1, ""]]
+ibrik = [["home/ibrik", 1, ""]]
+hidoura = [["home/hidoura", 1, ""]]
+sajjada = [["home/sajjada", 1, ""]]
+rahla = [["home/rahla", 1, ""]]
+bed = [["home/sedda_painted", 6, "trad middle"], ["home/sedda_walnut", 6, "trad rich"], ["home/sedda_plain", 1, "trad poor"],
+       ["home/bed_double_140_{cover}", 4, "trad today middle"], ["home/bed_double_160_{cover}", 4, "trad today rich"],
+       ["home/bed_double_140_{cover}", 1, "modern !rich"], ["home/bed_double_160_{cover}", 1, "modern rich"]]
+elder_bed = [["home/bed_single_{single}", 1, "modern !elders2"], ["home/bed_double_140_mink", 1, "modern elders2"],
+             ["home/sedda_plain", 1, "trad !poor"], ["home/mattress_floor_mink", 1, "trad poor !elders2"], ["home/sedda_plain", 1, "trad poor elders2"]]
+nightstand = [["home/nightstand", 1, ""]]
+cot = [["home/cot", 1, ""]]
+wardrobe = [["home/wardrobe_3", 1, "!rich !colonial"], ["home/wardrobe_4", 1, "rich !colonial"], ["home/wardrobe_mirror", 1, "colonial"]]
+wardrobe_small = [["home/wardrobe_2", 1, ""]]
+coiffeuse = [["home/coiffeuse", 1, ""]]
+rug_floral = [["home/rug_floral_large", 1, "!rich"], ["home/zarbia", 1, "rich"]]
+rug_small = [["home/rug_floral_medium", 1, ""]]
+desk = [["home/desk", 1, ""]]
+desk_chair = [["home/desk_chair", 1, ""]]
+bookcase = [["home/bookcase_full", 1, "reader"], ["home/bookcase_half", 1, "!reader"]]
+bookcase_full = [["home/bookcase_full", 1, ""]]
+loom = [["home/loom", 1, ""]]
+wool_basket = [["home/wool_basket", 1, ""]]
+hasira = [["home/hasira", 1, ""]]
+sewing_machine = [["home/sewing_machine", 1, ""]]
+dummy = [["home/dummy", 1, ""]]
+chechia_forms = [["home/chechia_forms", 1, ""]]
+pots_stack = [["home/pots_stack", 1, ""]]
+net_pile = [["home/net_pile", 1, ""]]
+grain_sacks = [["home/grain_sacks", 1, ""]]
+khabia = [["home/khabia_large", 2, ""], ["home/khabia_glazed", 1, "!poor"]]
+khabia_small = [["home/khabia_small", 1, ""]]
+tabouna = [["home/tabouna", 1, ""]]
+counter = [["home/counter_masonry", 1, ""]]
+gas_ring = [["home/gas_ring", 1, ""]]
+kanoun = [["home/kanoun", 1, ""]]
+butane = [["home/butane", 1, ""]]
+water = [["home/sink_stone", 3, "today"], ["home/sink_stone", 1, "heritage !poor"], ["home/qolla", 1, "heritage"], ["home/qolla", 1, "today poor"]]
+qolla = [["home/qolla", 1, ""]]
+couscoussier = [["home/couscoussier", 1, ""]]
+kursi = [["home/kursi", 1, ""]]
+fridge_small = [["home/fridge_small", 1, ""]]
+shelf = [["home/shelf_wall", 1, ""]]
+gsaa = [["home/gsaa", 1, ""]]
+sink = [["home/kitchen_sink_{unit}", 1, ""]]
+run = [["home/kitchen_run_{unit}", 1, ""]]
+cooker = [["home/cooker_white", 1, "!rich"], ["home/cooker_steel", 1, "rich"]]
+fridge = [["home/fridge_tall", 1, "!poor"], ["home/fridge_small", 1, "poor"]]
+wall_cabinet = [["home/wall_cabinet_{unit}", 1, ""]]
+kitchen_table = [["home/table_formica", 1, ""]]
+stool = [["home/stool", 1, ""]]
+microwave = [["home/microwave", 1, ""]]
+washing_machine = [["home/washing_machine", 1, ""]]
+salon_seats = [["home/sofa_3_{fabric}", 1, "sofas"], ["home/sedari_{velvet}", 1, "sedari"]]
+salon_side = [["home/armchair_{fabric}", 1, "sofas"], ["home/sedari_{velvet}", 1, "sedari"]]
+coffee_table = [["home/coffee_table_wood", 1, "!rich"], ["home/coffee_table_glass", 1, "rich"]]
+buffet = [["home/buffet_walnut", 1, "!colonial"], ["home/buffet_modern", 1, "!colonial !rich"], ["home/buffet_carved", 1, "colonial"]]
+piano = [["home/piano", 1, ""]]
+side_table = [["home/side_table", 1, ""]]
+dining_table = [["home/dining_table_8", 1, "big"], ["home/dining_table_8", 1, "rich !big"], ["home/dining_table_6", 1, "!big !rich"]]
+dining_chair = [["home/dining_chair_wood", 1, "!colonial"], ["home/dining_chair_carved", 1, "colonial"]]
+basin = [["home/basin", 1, ""]]
+mirror_bath = [["home/mirror_bath", 1, ""]]
+wash = [["home/bathtub", 1, ""]]
+shower = [["home/shower", 1, ""]]
+wc = [["home/wc_seat", 1, "!poor"], ["home/wc_seat", 3, "poor !slab"], ["home/wc_turkish", 2, "poor slab"]]
+wc_turkish = [["home/wc_turkish", 1, ""]]
+tap = [["home/tap_wall", 1, ""]]
+heater = [["home/water_heater_gas", 1, "!rich"], ["home/water_heater_electric", 1, "rich"]]
+heater_gas = [["home/water_heater_gas", 1, ""]]
+bucket = [["home/bucket", 1, ""]]
+lota = [["home/lota", 1, ""]]
+basin_washing = [["home/basin_washing", 1, ""]]
+skifa_bench = [["home/skifa_bench", 1, ""]]
+shoe_cabinet = [["home/shoe_cabinet", 1, ""]]
+coat_hooks = [["home/coat_hooks", 1, ""]]
+hall_mirror = [["home/mirror_bath", 1, ""]]
+plastic_chair = [["home/plastic_chair", 1, ""]]
+plastic_table = [["home/plastic_table", 1, ""]]
+drying_rack = [["home/drying_rack", 1, ""]]
+doormat = [["home/doormat", 1, ""]]
+mattress_stack = [["home/mattress_stack", 1, ""]]
+shop_counter = [["home/shop_counter_hanout", 1, ""]]
+shop_shelves = [["home/shop_shelves_{goods}", 1, ""]]
+scale = [["home/scale", 1, ""]]
+drinks_fridge = [["home/drinks_fridge", 1, ""]]
+cafe_counter = [["home/shop_counter_cafe", 1, ""]]
+espresso = [["home/espresso", 1, ""]]
+cafe_set = [["city/cafe_set", 1, ""]]
+tv_bracket = [["home/tv_bracket", 1, ""]]
+chicha = [["home/chicha", 1, ""]]
+crate_stack = [["home/crate_stack", 1, ""]]
+
+# the recipes (SPEC 6d "Recipes"): one table per slot, in placing order. role: the slot's name (hosts are found
+# by it); alias: the [roles] key when it differs; place: SPEC 6d "Places"; density: the least that places it;
+# need: the room must hold it; when: a tag expression; with: a set's own parts (a doukkana's mattress, cushions).
+[[interiors.furnish.rooms.reception]]
+role = "seats"
+place = "facing_door"
+density = "sparse"
+need = true
+with = ["mattress", "cushions"]
+[[interiors.furnish.rooms.reception]]
+role = "seats_side"
+place = "next:seats"
+density = "lived-in"
+with = ["mattress", "cushions"]
+alias = "seats"
+[[interiors.furnish.rooms.reception]]
+role = "cot"
+place = "wall"
+density = "sparse"
+count = "cots"
+no_room = "sleep_couple"
+
+[[interiors.furnish.rooms.reception]]
+role = "meida"
+place = "front:seats"
+density = "sparse"
+[[interiors.furnish.rooms.reception]]
+role = "rug"
+place = "under:meida"
+density = "lived-in"
+[[interiors.furnish.rooms.reception]]
+role = "sendouk"
+place = "blind"
+density = "lived-in"
+spread = true
+[[interiors.furnish.rooms.reception]]
+role = "mirror"
+place = "hang:sendouk"
+density = "lived-in"
+[[interiors.furnish.rooms.reception]]
+role = "tray"
+place = "on:meida"
+density = "lived-in"
+[[interiors.furnish.rooms.reception]]
+role = "tea"
+place = "on:tray"
+density = "lived-in"
+[[interiors.furnish.rooms.reception]]
+role = "tv"
+place = "on:sendouk"
+density = "lived-in"
+when = "today"
+chance = 0.85
+[[interiors.furnish.rooms.reception]]
+role = "rahla"
+place = "free"
+density = "lived-in"
+when = "reader"
+[[interiors.furnish.rooms.reception]]
+role = "loom"
+place = "window_wall"
+density = "lived-in"
+when = "trade:weaver"
+no_room = "work"
+blind = true
+[[interiors.furnish.rooms.reception]]
+role = "sewing_machine"
+place = "window_wall"
+density = "lived-in"
+when = "trade:tailor"
+no_room = "work"
+[[interiors.furnish.rooms.reception]]
+role = "chechia_forms"
+place = "wall"
+density = "lived-in"
+when = "trade:chechia_maker"
+no_room = "work"
+[[interiors.furnish.rooms.reception]]
+role = "khzana"
+place = "blind"
+density = "full"
+[[interiors.furnish.rooms.reception]]
+role = "pouf"
+place = "free"
+density = "full"
+count = [1, 2]
+[[interiors.furnish.rooms.reception]]
+role = "ibrik"
+place = "free"
+density = "full"
+when = "rich"
+[[interiors.furnish.rooms.reception]]
+role = "hidoura"
+place = "free"
+density = "lived-in"
+chance = "hidoura"
+[[interiors.furnish.rooms.reception]]
+role = "sewing_machine"
+place = "window_wall"
+density = "lived-in"
+when = "!trade:tailor"
+chance = "sewing"
+alias = "sewing_extra"
+[[interiors.furnish.rooms.sleep_couple]]
+role = "bed"
+place = "head"
+density = "sparse"
+need = true
+[[interiors.furnish.rooms.sleep_couple]]
+role = "cot"
+place = "wall"
+density = "sparse"
+count = "cots"
+
+[[interiors.furnish.rooms.sleep_couple]]
+role = "nightstand"
+place = "beside:bed"
+density = "lived-in"
+when = "modern"
+count = 2
+[[interiors.furnish.rooms.sleep_couple]]
+role = "sendouk"
+place = "blind"
+density = "lived-in"
+when = "trad"
+spread = true
+[[interiors.furnish.rooms.sleep_couple]]
+role = "khzana"
+place = "blind"
+density = "lived-in"
+when = "trad heritage"
+[[interiors.furnish.rooms.sleep_couple]]
+role = "wardrobe"
+place = "blind"
+density = "lived-in"
+when = "modern|today"
+[[interiors.furnish.rooms.sleep_couple]]
+role = "coiffeuse"
+place = "blind"
+density = "lived-in"
+when = "modern middle|rich"
+[[interiors.furnish.rooms.sleep_couple]]
+role = "mirror"
+place = "hang"
+density = "lived-in"
+when = "trad"
+[[interiors.furnish.rooms.sleep_couple]]
+role = "klim"
+place = "free"
+density = "lived-in"
+when = "trad"
+[[interiors.furnish.rooms.sleep_couple]]
+role = "rug_small"
+place = "free"
+density = "lived-in"
+when = "modern"
+[[interiors.furnish.rooms.sleep_couple]]
+role = "bookcase_full"
+place = "blind"
+density = "lived-in"
+when = "reader modern"
+no_room = "study"
+
+[[interiors.furnish.rooms.sleep_couple]]
+role = "rahla"
+place = "free"
+density = "lived-in"
+when = "reader trad"
+
+[[interiors.furnish.rooms.sleep_couple]]
+role = "sajjada"
+place = "free"
+density = "full"
+[[interiors.furnish.rooms.sleep_children]]
+role = "child_bed"
+place = "head"
+density = "sparse"
+need = true
+count = "children"
+[[interiors.furnish.rooms.sleep_children]]
+role = "sendouk"
+place = "blind"
+density = "lived-in"
+when = "trad"
+spread = true
+[[interiors.furnish.rooms.sleep_children]]
+role = "wardrobe_small"
+place = "blind"
+density = "lived-in"
+when = "modern"
+[[interiors.furnish.rooms.sleep_children]]
+role = "desk"
+place = "window_wall"
+density = "lived-in"
+when = "modern school"
+[[interiors.furnish.rooms.sleep_children]]
+role = "desk_chair"
+place = "front:desk"
+density = "lived-in"
+when = "modern school"
+[[interiors.furnish.rooms.sleep_children]]
+role = "klim"
+place = "free"
+density = "full"
+when = "trad"
+[[interiors.furnish.rooms.sleep_elder]]
+role = "elder_bed"
+place = "head"
+density = "sparse"
+need = true
+[[interiors.furnish.rooms.sleep_elder]]
+role = "sajjada"
+place = "free"
+density = "lived-in"
+[[interiors.furnish.rooms.sleep_elder]]
+role = "rahla"
+place = "beside:elder_bed"
+density = "lived-in"
+when = "trad"
+[[interiors.furnish.rooms.sleep_elder]]
+role = "sendouk"
+place = "blind"
+density = "lived-in"
+when = "trad"
+spread = true
+[[interiors.furnish.rooms.sleep_elder]]
+role = "wardrobe_small"
+place = "blind"
+density = "lived-in"
+when = "modern"
+[[interiors.furnish.rooms.family]]
+role = "tv_stand"
+place = "blind"
+density = "sparse"
+[[interiors.furnish.rooms.family]]
+role = "tv"
+place = "on:tv_stand"
+density = "sparse"
+[[interiors.furnish.rooms.family]]
+role = "seats"
+place = "facing:tv_stand"
+density = "sparse"
+with = ["mattress", "cushions"]
+[[interiors.furnish.rooms.family]]
+role = "meida"
+place = "front:seats"
+density = "lived-in"
+[[interiors.furnish.rooms.family]]
+role = "rug"
+place = "under:meida"
+density = "lived-in"
+[[interiors.furnish.rooms.family]]
+role = "sendouk"
+place = "blind"
+density = "full"
+spread = true
+[[interiors.furnish.rooms.work]]
+role = "loom"
+place = "window_wall"
+density = "lived-in"
+need = true
+when = "trade:weaver"
+blind = true
+[[interiors.furnish.rooms.work]]
+role = "wool_basket"
+place = "beside:loom"
+density = "lived-in"
+when = "trade:weaver"
+[[interiors.furnish.rooms.work]]
+role = "hasira"
+place = "under:loom"
+density = "lived-in"
+when = "trade:weaver"
+[[interiors.furnish.rooms.work]]
+role = "sewing_machine"
+place = "window_wall"
+density = "lived-in"
+need = true
+when = "trade:tailor"
+[[interiors.furnish.rooms.work]]
+role = "dummy"
+place = "free"
+density = "full"
+when = "trade:tailor"
+[[interiors.furnish.rooms.work]]
+role = "chechia_forms"
+place = "window_wall"
+density = "lived-in"
+need = true
+when = "trade:chechia_maker"
+[[interiors.furnish.rooms.work]]
+role = "pots_stack"
+place = "wall"
+density = "lived-in"
+need = true
+when = "trade:potter"
+count = 2
+spread = true
+[[interiors.furnish.rooms.work]]
+role = "kursi"
+place = "free"
+density = "lived-in"
+[[interiors.furnish.rooms.work]]
+role = "sendouk"
+place = "blind"
+density = "full"
+spread = true
+[[interiors.furnish.rooms.study]]
+role = "desk"
+place = "window_wall"
+density = "sparse"
+[[interiors.furnish.rooms.study]]
+role = "desk_chair"
+place = "front:desk"
+density = "sparse"
+[[interiors.furnish.rooms.study]]
+role = "bookcase"
+place = "blind"
+density = "lived-in"
+[[interiors.furnish.rooms.study]]
+role = "bed_guest"
+place = "head"
+density = "full"
+alias = "elder_bed"
+[[interiors.furnish.rooms.guest]]
+role = "seats"
+place = "facing_door"
+density = "sparse"
+when = "trad"
+with = ["mattress", "cushions"]
+[[interiors.furnish.rooms.guest]]
+role = "meida"
+place = "front:seats"
+density = "lived-in"
+when = "trad"
+[[interiors.furnish.rooms.guest]]
+role = "rug"
+place = "under:meida"
+density = "lived-in"
+when = "trad"
+[[interiors.furnish.rooms.guest]]
+role = "elder_bed"
+place = "head"
+density = "sparse"
+when = "modern"
+[[interiors.furnish.rooms.guest]]
+role = "desk"
+place = "window_wall"
+density = "lived-in"
+when = "modern"
+[[interiors.furnish.rooms.guest]]
+role = "sendouk"
+place = "blind"
+density = "lived-in"
+when = "trad"
+spread = true
+[[interiors.furnish.rooms.guest]]
+role = "wardrobe_small"
+place = "blind"
+density = "full"
+when = "modern"
+[[interiors.furnish.rooms.kitchen]]
+role = "counter"
+place = "blind"
+density = "sparse"
+when = "trad"
+most = 2.4
+[[interiors.furnish.rooms.kitchen]]
+role = "gas_ring"
+place = "on:counter"
+density = "sparse"
+need = true
+when = "trad today"
+[[interiors.furnish.rooms.kitchen]]
+role = "kanoun"
+place = "free"
+density = "sparse"
+need = true
+when = "trad heritage"
+[[interiors.furnish.rooms.kitchen]]
+role = "butane"
+place = "beside:counter"
+density = "sparse"
+when = "trad today"
+[[interiors.furnish.rooms.kitchen]]
+role = "water"
+place = "wall"
+density = "sparse"
+need = true
+when = "trad"
+[[interiors.furnish.rooms.kitchen]]
+role = "couscoussier"
+place = "on:counter"
+density = "lived-in"
+when = "trad"
+[[interiors.furnish.rooms.kitchen]]
+role = "kursi"
+place = "free"
+density = "lived-in"
+when = "trad"
+[[interiors.furnish.rooms.kitchen]]
+role = "fridge_small"
+place = "wall"
+density = "lived-in"
+when = "trad today !poor"
+[[interiors.furnish.rooms.kitchen]]
+role = "shelf"
+place = "hang"
+density = "lived-in"
+when = "trad"
+most = 1.6
+[[interiors.furnish.rooms.kitchen]]
+role = "qolla"
+place = "free"
+density = "full"
+when = "trad"
+unless = "qolla"
+[[interiors.furnish.rooms.kitchen]]
+role = "khabia_small"
+place = "wall"
+density = "full"
+when = "trad"
+[[interiors.furnish.rooms.kitchen]]
+role = "sink"
+place = "window_wall"
+density = "sparse"
+need = true
+when = "modern"
+[[interiors.furnish.rooms.kitchen]]
+role = "run"
+place = "beside:sink"
+density = "sparse"
+when = "modern"
+[[interiors.furnish.rooms.kitchen]]
+role = "cooker"
+place = "beside:run"
+density = "sparse"
+need = true
+when = "modern"
+[[interiors.furnish.rooms.kitchen]]
+role = "cooker"
+place = "wall"
+density = "sparse"
+need = true
+when = "modern"
+unless = "cooker"
+[[interiors.furnish.rooms.kitchen]]
+role = "butane"
+place = "beside:cooker"
+density = "sparse"
+when = "modern !rich"
+[[interiors.furnish.rooms.kitchen]]
+role = "fridge"
+place = "wall"
+density = "sparse"
+need = true
+when = "modern"
+[[interiors.furnish.rooms.kitchen]]
+role = "run2"
+place = "beside:sink"
+density = "lived-in"
+when = "modern"
+alias = "run"
+[[interiors.furnish.rooms.kitchen]]
+role = "wall_cabinet"
+place = "hang:run"
+density = "lived-in"
+when = "modern !poor"
+[[interiors.furnish.rooms.kitchen]]
+role = "kitchen_table"
+place = "free"
+density = "lived-in"
+when = "modern"
+min_area = 8.0
+[[interiors.furnish.rooms.kitchen]]
+role = "stool"
+place = "around:kitchen_table"
+density = "lived-in"
+when = "modern"
+count = "chairs"
+[[interiors.furnish.rooms.kitchen]]
+role = "couscoussier"
+place = "on:cooker"
+density = "lived-in"
+when = "modern"
+[[interiors.furnish.rooms.kitchen]]
+role = "microwave"
+place = "on:run"
+density = "full"
+when = "modern rich"
+[[interiors.furnish.rooms.salon]]
+role = "seats"
+place = "facing_door"
+density = "sparse"
+need = true
+alias = "salon_seats"
+most = 3.2
+[[interiors.furnish.rooms.salon]]
+role = "seats_side"
+place = "next:seats"
+density = "sparse"
+alias = "salon_side"
+most = 3.0
+[[interiors.furnish.rooms.salon]]
+role = "seats_side2"
+place = "next:seats"
+density = "lived-in"
+when = "sofas"
+alias = "salon_side"
+[[interiors.furnish.rooms.salon]]
+role = "cot"
+place = "wall"
+density = "sparse"
+count = "cots"
+no_room = "sleep_couple"
+
+[[interiors.furnish.rooms.salon]]
+role = "coffee_table"
+place = "front:seats"
+density = "sparse"
+[[interiors.furnish.rooms.salon]]
+role = "tv_stand"
+place = "facing:seats"
+density = "lived-in"
+[[interiors.furnish.rooms.salon]]
+role = "tv"
+place = "on:tv_stand"
+density = "lived-in"
+[[interiors.furnish.rooms.salon]]
+role = "receiver"
+place = "on:tv_stand"
+density = "lived-in"
+[[interiors.furnish.rooms.salon]]
+role = "rug_floral"
+place = "under:coffee_table"
+density = "lived-in"
+[[interiors.furnish.rooms.salon]]
+role = "buffet"
+place = "blind"
+density = "lived-in"
+when = "nodining"
+[[interiors.furnish.rooms.salon]]
+role = "piano"
+place = "blind"
+density = "lived-in"
+when = "colonial rich"
+chance = "piano"
+[[interiors.furnish.rooms.salon]]
+role = "bookcase_full"
+place = "blind"
+density = "lived-in"
+when = "reader"
+[[interiors.furnish.rooms.salon]]
+role = "side_table"
+place = "beside:seats_side"
+density = "full"
+when = "sofas"
+[[interiors.furnish.rooms.salon]]
+role = "sajjada"
+place = "free"
+density = "full"
+[[interiors.furnish.rooms.salon]]
+role = "hidoura"
+place = "free"
+density = "full"
+chance = "hidoura"
+[[interiors.furnish.rooms.dining]]
+role = "dining_table"
+place = "free"
+density = "sparse"
+need = true
+[[interiors.furnish.rooms.dining]]
+role = "dining_chair"
+place = "around:dining_table"
+density = "sparse"
+count = "chairs"
+[[interiors.furnish.rooms.dining]]
+role = "buffet"
+place = "blind"
+density = "lived-in"
+[[interiors.furnish.rooms.dining]]
+role = "rug_floral"
+place = "under:dining_table"
+density = "lived-in"
+[[interiors.furnish.rooms.bath]]
+role = "basin"
+place = "wall"
+density = "sparse"
+need = true
+[[interiors.furnish.rooms.bath]]
+role = "mirror_bath"
+place = "hang:basin"
+density = "sparse"
+[[interiors.furnish.rooms.bath]]
+role = "wash"
+place = "blind"
+density = "sparse"
+when = "!poor"
+[[interiors.furnish.rooms.bath]]
+role = "wash"
+place = "corner"
+density = "sparse"
+need = true
+unless = "wash"
+alias = "shower"
+[[interiors.furnish.rooms.bath]]
+role = "wash"
+place = "wall"
+density = "sparse"
+need = true
+unless = "wash"
+alias = "shower"
+[[interiors.furnish.rooms.bath]]
+role = "wc"
+place = "wall"
+density = "sparse"
+need = true
+when = "nowc"
+[[interiors.furnish.rooms.bath]]
+role = "heater"
+place = "hang"
+density = "lived-in"
+[[interiors.furnish.rooms.bath]]
+role = "washing_machine"
+place = "wall"
+density = "lived-in"
+when = "!poor"
+[[interiors.furnish.rooms.bath]]
+role = "bucket"
+place = "free"
+density = "full"
+[[interiors.furnish.rooms.wc]]
+role = "wc"
+place = "facing_door"
+density = "sparse"
+need = true
+[[interiors.furnish.rooms.wc]]
+role = "lota"
+place = "beside:wc"
+density = "lived-in"
+[[interiors.furnish.rooms.washroom]]
+role = "wc"
+place = "wall"
+density = "sparse"
+need = true
+alias = "wc_turkish"
+[[interiors.furnish.rooms.washroom]]
+role = "tap"
+place = "hang:wc"
+density = "sparse"
+[[interiors.furnish.rooms.washroom]]
+role = "lota"
+place = "beside:wc"
+density = "lived-in"
+[[interiors.furnish.rooms.washroom]]
+role = "bucket"
+place = "free"
+density = "lived-in"
+[[interiors.furnish.rooms.washroom]]
+role = "basin_washing"
+place = "free"
+density = "lived-in"
+[[interiors.furnish.rooms.washroom]]
+role = "heater_gas"
+place = "hang"
+density = "lived-in"
+when = "today"
+[[interiors.furnish.rooms.washroom]]
+role = "kursi"
+place = "free"
+density = "full"
+[[interiors.furnish.rooms.washroom]]
+role = "washing_machine"
+place = "wall"
+density = "full"
+when = "today !poor"
+[[interiors.furnish.rooms.store]]
+role = "khabia"
+place = "wall"
+density = "sparse"
+count = [1, 3]
+spread = true
+[[interiors.furnish.rooms.store]]
+role = "grain_sacks"
+place = "blind"
+density = "sparse"
+when = "land"
+[[interiors.furnish.rooms.store]]
+role = "shelf"
+place = "hang"
+density = "sparse"
+most = 1.6
+[[interiors.furnish.rooms.store]]
+role = "grain_sacks"
+place = "blind"
+density = "lived-in"
+when = "!land"
+alias = "grain_sacks"
+[[interiors.furnish.rooms.store]]
+role = "couscoussier"
+place = "free"
+density = "lived-in"
+[[interiors.furnish.rooms.store]]
+role = "crate_stack"
+place = "wall"
+density = "lived-in"
+count = [1, 2]
+spread = true
+[[interiors.furnish.rooms.entry]]
+role = "skifa_bench"
+place = "blind"
+density = "lived-in"
+count = 2
+most = 2.0
+[[interiors.furnish.rooms.hall]]
+role = "shoe_cabinet"
+place = "blind"
+density = "lived-in"
+[[interiors.furnish.rooms.hall]]
+role = "coat_hooks"
+place = "hang"
+density = "lived-in"
+[[interiors.furnish.rooms.hall]]
+role = "hall_mirror"
+place = "hang"
+density = "full"
+[[interiors.furnish.rooms.court]]
+role = "qolla"
+place = "court_edge"
+density = "lived-in"
+spread = true
+[[interiors.furnish.rooms.court]]
+role = "plastic_chair"
+place = "court_edge"
+density = "lived-in"
+when = "today"
+count = 2
+spread = true
+[[interiors.furnish.rooms.court]]
+role = "loom"
+place = "court_edge"
+density = "lived-in"
+when = "trade:weaver"
+no_room = "work"
+unless = "loom"
+
+[[interiors.furnish.rooms.court]]
+role = "pots_stack"
+place = "court_edge"
+density = "lived-in"
+when = "trade:potter"
+no_room = "work"
+count = 2
+[[interiors.furnish.rooms.court]]
+role = "tabouna"
+place = "court_edge"
+density = "lived-in"
+when = "trade:baker|village"
+[[interiors.furnish.rooms.court]]
+role = "basin_washing"
+place = "court_edge"
+density = "full"
+spread = true
+[[interiors.furnish.rooms.court]]
+role = "drying_rack"
+place = "court_edge"
+density = "full"
+[[interiors.furnish.rooms.gallery]]
+role = "loom"
+place = "blind"
+density = "lived-in"
+when = "trade:weaver"
+no_room = "work"
+[[interiors.furnish.rooms.gallery]]
+role = "seats"
+place = "blind"
+density = "lived-in"
+with = ["mattress", "cushions"]
+[[interiors.furnish.rooms.terrace]]
+role = "plastic_table"
+place = "free"
+density = "lived-in"
+[[interiors.furnish.rooms.terrace]]
+role = "plastic_chair"
+place = "around:plastic_table"
+density = "lived-in"
+count = [2, 4]
+[[interiors.furnish.rooms.terrace]]
+role = "drying_rack"
+place = "free"
+density = "lived-in"
+[[interiors.furnish.rooms.terrace]]
+role = "net_pile"
+place = "free"
+density = "lived-in"
+when = "trade:fisherman"
+[[interiors.furnish.rooms.terrace]]
+role = "tabouna"
+place = "free"
+density = "lived-in"
+when = "trade:baker"
+[[interiors.furnish.rooms.terrace]]
+role = "kanoun"
+place = "free"
+density = "full"
+[[interiors.furnish.rooms.passage]]
+role = "doormat"
+place = "doormat"
+density = "lived-in"
+count = "doors"
+[[interiors.furnish.rooms.shop]]
+role = "counter"
+place = "shopfront"
+cross = true
+density = "sparse"
+need = true
+alias = "shop_counter"
+most = 2.4
+[[interiors.furnish.rooms.shop]]
+role = "shelves"
+place = "blind"
+density = "sparse"
+need = true
+alias = "shop_shelves"
+most = 3.0
+count = 2
+[[interiors.furnish.rooms.shop]]
+role = "scale"
+place = "on:counter"
+density = "lived-in"
+[[interiors.furnish.rooms.shop]]
+role = "drinks_fridge"
+place = "wall"
+density = "lived-in"
+when = "today"
+[[interiors.furnish.rooms.shop]]
+role = "stool"
+place = "free"
+density = "lived-in"
+[[interiors.furnish.rooms.shop]]
+role = "crate_stack"
+place = "wall"
+density = "full"
+[[interiors.furnish.rooms.cafe]]
+role = "counter"
+place = "blind"
+density = "sparse"
+need = true
+alias = "cafe_counter"
+most = 3.0
+[[interiors.furnish.rooms.cafe]]
+role = "espresso"
+place = "on:counter"
+density = "sparse"
+[[interiors.furnish.rooms.cafe]]
+role = "cafe_set"
+place = "grid"
+density = "sparse"
+need = true
+count = "area"
+[[interiors.furnish.rooms.cafe]]
+role = "tv_bracket"
+place = "hang"
+density = "lived-in"
+when = "today"
+[[interiors.furnish.rooms.cafe]]
+role = "chicha"
+place = "free"
+density = "full"
+count = 2

@@ -27,8 +27,12 @@ from .mesh import stairs_mesh, walls_mesh
 HOMES = ("house", "domed", "villa")   # "Dar <family>", as the viewer's card names them
 
 
-def write_folder(interior, outside, out) -> Path:
-    """Write the interior's folder at `out`; returns it."""
+def write_folder(interior, outside, out, density: str | None = None, furniture=None) -> Path:
+    """Write the interior's folder at `out`; returns it. The furniture (prompt 54) at `density` (default the
+    style's `[interiors.furnish] density`) goes in as instances after the bridge's, and to `furniture.json`."""
+    from types import SimpleNamespace
+    from .furnish import furnish, placements
+    from .homekit import home_kit
     out = Path(out)
     world, b = outside.ctx.world, outside.b
     cfg = world.style.get("interiors", {})
@@ -46,8 +50,13 @@ def write_folder(interior, outside, out) -> Path:
     for g in instances:
         if outside.kit.pieces[g["name"]].category in SEEN_THROUGH:
             g["parts"] = seen_from_inside(g["parts"])
+    if furniture is None:
+        furniture = furnish(interior, outside, world.style, density)
+    home = home_kit(world.seed, world.style)
+    view = SimpleNamespace(kit=SimpleNamespace(pieces={**outside.kit.pieces, **home.pieces}))
+    instances += instance_groups(view, placements(furniture), x0, y0)
     parts = mb.gltf_parts()
-    materials = {**outside.kit.materials, **cfg.get("palette", {})}
+    materials = {**outside.kit.materials, **home.materials, **cfg.get("palette", {})}
     images = used_images(world.style, world.seed, materials, [*parts, *(m for g in instances for m in g["parts"])])
     tiles = out / "tiles"
     tiles.mkdir(parents=True, exist_ok=True)
@@ -59,9 +68,11 @@ def write_folder(interior, outside, out) -> Path:
     os.replace(part, glb)
     triangles = mb.triangles + sum(len(part["idx"]) // 3 for g in instances for part in g["parts"].values())
     _write_json(out / "rooms.json", interior.to_json())
-    _write_json(tiles / "index.json", index_of(interior, outside, cfg, x0, y0, max(maxx - minx, maxy - miny),
-                                               {"i": 0, "j": 0, "file": glb.name, "x0": x0, "y0": y0,
-                                                "triangles": triangles, "bytes": size}))
+    _write_json(out / "furniture.json", furniture.to_json())
+    index = index_of(interior, outside, cfg, x0, y0, max(maxx - minx, maxy - miny),
+                     {"i": 0, "j": 0, "file": glb.name, "x0": x0, "y0": y0, "triangles": triangles, "bytes": size})
+    index["interior"]["density"] = furniture.density
+    _write_json(tiles / "index.json", index)
     return out
 
 

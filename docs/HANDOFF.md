@@ -1117,6 +1117,15 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`, and how the le
   themselves still fault the whole check by their arches and doors (not in the partition, narrowed) and by `nooks`
   growing the couloir; `bayplan.clean` should test those before it can be trusted alone. A dining room no window
   lights is better dropped than kept blind (the check asks none of a flat).
+- **Furnishing rules** (prompt 54, `interior/furnish.py`): test a finished furnishing with the very rules that placed
+  it (`Furnisher.why` replayed in placing order), or check and placer drift apart (the first check flagged
+  mattresses and walk strips the placer allowed). Strict SPEC rules met real plans badly in three places: a walk
+  strip from a one-door room's door to its middle forbids the toilet facing the door and the bed across the room
+  (the reach test already keeps everything walkable), a door's swept square instead of its quarter disc blocks the
+  corner beside the leaf, and a reach test on a room whose own floor has a neck narrower than the path never passes
+  (judge against the empty room). An opening's (x, y) is the wall's centre (facade: the outer face): inner points and
+  walk boxes start at the wall's face on the room's side (`mesh.depths`). Keep per-room piece lists and a per-storey
+  STRtree for the free floor: the first slab took 16 s at full, then 5 s.
 - **Furnishing design** (prompt 51, SPEC 6d): facts that shaped it. Furniture is interior-only: if its
   pieces went into `kit.make_kit`, every build would make them, the fingerprint would list them and their
   materials would need `[palette]`; as `home/<piece>` in `citygen/interior/` (out of the build key) no tile

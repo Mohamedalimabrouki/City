@@ -31,6 +31,7 @@ DATA_PREFIX = "/data"
 PICTURES = (".png", ".jpg", ".jpeg")
 LATEST_PICTURES = 24          # the gallery shows this many of the newest pictures in output/checks
 HIDDEN_VIEW = re.compile(r"^rows\d+$")   # the kit sheet's row cameras: too many for buttons
+DENSITIES = ("sparse", "lived-in", "full")   # the furniture's (prompt 54, `api/interior?density=`)
 INTERIOR_FOLDER = re.compile(r"^interiors/[a-z0-9-]+$")   # the only sub folders the viewer may open
 BUILDING_NUMBER = re.compile(r"^\d{1,7}$")
 CITY_NAME_MAX = 120
@@ -58,7 +59,7 @@ class Interiors:
         folder = Path(folder).resolve()
         self.contexts[folder] = (self._stamp(folder), ctx)
 
-    def make(self, folder, city: str | None, building: str, log=print) -> str:
+    def make(self, folder, city: str | None, building: str, log=print, density: str | None = None) -> str:
         """Make building k's interior in the build at `folder`; returns its folder relative to the build.
         Raises `InteriorError` with a plain message for anything the command refuses."""
         from .interior.command import make_interior
@@ -69,7 +70,7 @@ class Interiors:
             kept = self.contexts.get(folder)
             if kept is None or kept[0] != stamp:
                 self.contexts[folder] = kept = (stamp, load_build(folder, log))
-            out = make_interior(folder, building, city, log=log, ctx=kept[1])
+            out = make_interior(folder, building, city, log=log, ctx=kept[1], density=density)
         rel = out.resolve().relative_to(folder).as_posix()
         if not INTERIOR_FOLDER.match(rel):
             raise RuntimeError(f"unexpected interior folder {rel!r}")
@@ -116,6 +117,10 @@ class _Handler(SimpleHTTPRequestHandler):
         query = parse_qs(urlsplit(self.path).query)
         building = (query.get("building") or [""])[0].strip()
         city = (query.get("city") or [""])[0].strip() or None
+        density = (query.get("density") or [""])[0].strip() or None
+        if density is not None and density not in DENSITIES:
+            self.send_json({"error": "density is sparse, lived-in or full."}, 400)
+            return
         if not building and city is None:
             self.send_json({"ok": True})
             return
@@ -126,7 +131,7 @@ class _Handler(SimpleHTTPRequestHandler):
             self.send_json({"error": "That is not a city name."}, 400)
             return
         try:
-            self.send_json({"folder": self.interiors.make(folder, city, building)})
+            self.send_json({"folder": self.interiors.make(folder, city, building, density=density)})
         except InteriorError as err:
             self.send_json({"error": str(err)}, 400)
         except Exception as err:                       # a bug: say so on the card and in the server's window

@@ -86,6 +86,8 @@ def main(argv=None) -> None:
     it.add_argument("--folder", help="a built world folder (default: the latest build)")
     it.add_argument("--city", help="a city of that build, by name (default: the build's main city)")
     it.add_argument("--out", help="output folder (default: <build>/interiors/<city>-<number>)")
+    it.add_argument("--density", choices=("sparse", "lived-in", "full"),
+                    help="how much furniture (default: the style's, lived-in)")
 
     st = sub.add_parser("stats", help="short summary of a built world (cheap for agents to read)")
     st.add_argument("folder", nargs="?", help="a built world folder (default: the latest build)")
@@ -136,7 +138,7 @@ def main(argv=None) -> None:
         from .interior.command import make_interior
         try:
             make_interior(_latest(args.folder), args.building, city=args.city, out=args.out,
-                          log=lambda msg: print(msg, flush=True))
+                          log=lambda msg: print(msg, flush=True), density=args.density)
         except InteriorError as exc:
             print(exc, file=sys.stderr)
             sys.exit(2)

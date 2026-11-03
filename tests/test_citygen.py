@@ -3744,6 +3744,13 @@ def test_interior_two_processes(interior_build, tmp_path):
                         "--out", str(tmp_path / name)], cwd=root, env={**os.environ, "PYTHONHASHSEED": seed},
                        check=True, capture_output=True)
     assert all((tmp_path / "a" / f).read_bytes() == (tmp_path / "b" / f).read_bytes() for f in INTERIOR_FILES)
+    for name, seed in (("c", "1"), ("d", "2")):            # the furniture at full (prompt 54)
+        subprocess.run([sys.executable, "-m", "citygen", "interior", "pick:dar", "--folder", str(interior_build),
+                        "--out", str(tmp_path / name), "--density", "full"], cwd=root,
+                       env={**os.environ, "PYTHONHASHSEED": seed}, check=True, capture_output=True)
+    for f in (*INTERIOR_FILES, "furniture.json"):
+        assert (tmp_path / "c" / f).read_bytes() == (tmp_path / "d" / f).read_bytes(), f
+    assert json.loads((tmp_path / "c" / "furniture.json").read_text())["density"] == "full"
 
 
 # --- old-town interiors (prompt 46, SPEC 6c) --------------------------------------------------------
@@ -4719,3 +4726,165 @@ def test_flat_faults_and_bay_first():
     assert flat_faults(it, ["the chambre 7 has 40.0 m2, over the most 36.0", "the inner 4 on floor 1 is not in its "
                             "partition", "the stair is steep"]) == {2: 2, -1: 1}
     assert first(NS(cfg={"flats": {"bay_plan": {"first": True}}})) and not first(NS(cfg={"flats": {}}))
+
+
+# --- furnishing (prompt 54, SPEC 6d) ------------------------------------------------------------------------
+FURNISH_FAULTS = ("overlap", "walls", "clearance", "reach", "ceiling")
+
+
+FURNISH_SPECS = ("pick:dar", "pick:dar:2", "pick:compact", "pick:small", "pick:koubba", "pick:colonial", "pick:slab",
+                 "pick:villa", "pick:maison")
+
+
+class _Homes(dict):
+    """{spec: (interior, outside)}, each planned on first use (None when the quick capital has no such house)."""
+
+    def __init__(self, ctx):
+        super().__init__()
+        self.ctx = ctx
+
+    def __missing__(self, spec):
+        from citygen.interior import InteriorError
+        from citygen.interior.context import city_plan, resolve
+        from citygen.interior.layout import plan_interior
+        from citygen.interior.outside import Outside
+        plan = city_plan(self.ctx)
+        try:
+            outside = Outside(self.ctx, plan, resolve(self.ctx, plan, spec))
+            self[spec] = (plan_interior(outside, self.ctx.world.style), outside)
+        except InteriorError:
+            self[spec] = None
+        return self[spec]
+
+
+@pytest.fixture(scope="module")
+def furnish_homes(interior_ctx):
+    return _Homes(interior_ctx)
+
+
+def _faults(problems: list) -> list:
+    return [p for p in problems if p.split(":")[0] in FURNISH_FAULTS]
+
+
+def test_furnish_no_overlap(furnish_homes, interior_ctx):
+    from citygen.interior import furnish as FU
+    style = interior_ctx.world.style
+    for spec in ("pick:dar", "pick:compact"):
+        interior, outside = furnish_homes[spec]
+        fu = FU.furnish(interior, outside, style, "full")
+        assert fu.pieces and not _faults(FU.check(interior, fu, style, outside)), spec
+
+
+@pytest.mark.slow
+def test_furnish_no_overlap_every_layout(furnish_homes, interior_ctx):
+    from citygen.interior import furnish as FU
+    style = interior_ctx.world.style
+    for spec in FURNISH_SPECS:
+        if furnish_homes[spec] is None:
+            continue
+        interior, outside = furnish_homes[spec]
+        fu = FU.furnish(interior, outside, style, "full")
+        assert not _faults(FU.check(interior, fu, style, outside)), spec
+
+
+def test_furnish_required(furnish_homes, interior_ctx):
+    from citygen.interior import furnish as FU
+    style = interior_ctx.world.style
+    for spec in ("pick:dar", "pick:compact"):
+        interior, outside = furnish_homes[spec]
+        fu = FU.furnish(interior, outside, style, "sparse")
+        problems = FU.check(interior, fu, style, outside)
+        assert not [p for p in problems if p.split(":")[0] in ("required", "sleep")], (spec, problems)
+        for unit, prof in fu.profiles.items():
+            if prof.members:
+                assert sum(p.places for p in fu.pieces if p.unit == unit) >= prof.members, (spec, unit)
+
+
+def test_furnish_household(furnish_homes, interior_ctx):
+    """A weaver's dar has its loom, a tailor's home its sewing machine, a teacher's home its books, and the
+    children their beds (a cot for each small child)."""
+    import copy
+    from citygen.interior import furnish as FU
+    style = interior_ctx.world.style
+    for spec, trade, piece in (("pick:dar", "weaver", "home/loom"), ("pick:dar:2", "tailor", "home/sewing_machine"),
+                               ("pick:compact", "teacher", "home/rahla")):
+        interior, outside = furnish_homes[spec]
+        home = copy.copy(interior)
+        home.household = {**(interior.household or {"members": 4, "wealth": 0.5}), "trade": trade, "members": 6}
+        fu = FU.furnish(home, outside, style, "lived-in")
+        names = [p.piece for p in fu.pieces if p.unit == "home"]
+        assert piece in names, (spec, trade)
+        prof = fu.profiles["home"]
+        beds = [p for p in fu.pieces if p.unit == "home" and p.role in ("child_bed", "cot")]
+        assert sum(p.piece == "home/cot" for p in beds) == prof.children.count("small"), (spec, prof.children)
+        assert sum(p.places for p in fu.pieces if p.unit == "home") >= prof.members, spec   # seats sleep the rest
+
+
+def test_furnish_density(furnish_homes, interior_ctx):
+    _density(furnish_homes, interior_ctx, ("pick:dar",))
+
+
+@pytest.mark.slow
+def test_furnish_density_slab(furnish_homes, interior_ctx):
+    """The slab and colonial flats' densities, and a teacher's flat with its bookcase."""
+    import copy
+    from citygen.interior import furnish as FU
+    style = interior_ctx.world.style
+    _density(furnish_homes, interior_ctx, ("pick:slab", "pick:colonial"))
+    interior, outside = furnish_homes["pick:slab"]
+    flat = copy.deepcopy(interior)
+    flat.flats[0].household = {**(flat.flats[0].household or {}), "trade": "teacher", "members": 4, "wealth": 0.5}
+    fu = FU.furnish(flat, outside, style, "lived-in")
+    assert "home/bookcase_full" in [p.piece for p in fu.pieces if p.unit == f"flat {flat.flats[0].id}"]
+
+
+
+def _density(furnish_homes, interior_ctx, specs):
+    from citygen.interior import furnish as FU
+    style = interior_ctx.world.style
+    budgets = style["interiors"]["furnish"]["room_triangles"]
+    kit = FU.home_kit(interior_ctx.world.seed, style)
+    for spec in specs:
+        interior, outside = furnish_homes[spec]
+        got = [FU.furnish(interior, outside, style, d) for d in FU.DENSITIES]
+        keys = [{(p.piece, round(p.x, 3), round(p.y, 3), round(p.yaw, 3)) for p in fu.pieces} for fu in got]
+        assert keys[0] <= keys[1] <= keys[2] and len(keys[0]) < len(keys[1]) < len(keys[2]), spec
+        for level, fu in enumerate(got):
+            tris: dict = {}
+            for p in fu.pieces:
+                if p.piece in kit.pieces:
+                    tris[p.room] = tris.get(p.room, 0) + sum(len(q["idx"]) // 3 for q in kit.pieces[p.piece].parts.values())
+            rooms = {r.id: r for r in interior.rooms}
+            for rid, t in tris.items():
+                double = rooms[rid].type in ("wast_ed_dar", "stah", "qahwa", "hanout")
+                assert t <= budgets[level] * (2 if double else 1) + 2000, (spec, rid, t)   # need slots may pass it
+
+
+@pytest.mark.slow
+def test_furnish_budget(interior_build, interior_ctx, tmp_path):
+    """The largest slab and the largest dar at full: furniture triangles and bytes within SPEC 6d's budget."""
+    import time
+    from citygen.interior.command import make_interior
+    from citygen.interior.context import city_plan, layout_of
+    plan = city_plan(interior_ctx)
+    style = interior_ctx.world.style
+    for layout in ("slab", "dar"):
+        ks = [k for k, b in enumerate(plan.buildings) if b.kind in ("house", "apartments")
+              and layout_of(plan, b, style) == layout]
+        k = max(ks, key=lambda k: (plan.buildings[k].footprint.area * plan.buildings[k].floors, -k))
+        t = time.perf_counter()
+        out = make_interior(interior_build, str(k), out=tmp_path / layout, log=lambda m: None, ctx=interior_ctx,
+                            density="full")
+        print(f"{layout} No. {k} at full: {time.perf_counter() - t:.1f} s")
+        gltf, _ = read_glb(out / "tiles" / "interior.glb")
+        index = json.loads((out / "tiles" / "index.json").read_text())
+        assert index["interior"]["density"] == "full"
+        assert index["tiles"][0]["bytes"] <= 25_000_000 + 6_000_000
+        furniture = json.loads((out / "furniture.json").read_text())
+        names = {p["piece"] for p in furniture["pieces"]}
+        from citygen.interior.homekit import home_kit
+        kit = home_kit(interior_ctx.world.seed, style)
+        unique = sum(sum(len(q["idx"]) // 3 for q in kit.pieces[n].parts.values()) for n in names if n in kit.pieces)
+        drawn = sum(sum(len(q["idx"]) // 3 for q in kit.pieces[p["piece"]].parts.values())
+                    for p in furniture["pieces"] if p["piece"] in kit.pieces)
+        assert unique <= 60_000 and drawn <= 1_500_000, (layout, unique, drawn)
