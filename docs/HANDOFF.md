@@ -1065,6 +1065,15 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`, and how the le
   first stages also makes some first plans pass that the redraw used to replace by better ones (the dark-room
   guard got worse on 4 houses); run it only in a last pass on plans that still fail, and passing plans stay
   byte-identical.
+- **Coping rings** (3 November, `mesh/tile.py` `_coping`): a parapet band has two kinds of rings. The building's
+  rings (the outline, and a court's ring, whose walls rise to z_top already) are the high side; the deck's rings
+  are the low side and need a face looking at the deck. The band around a court has the deck *outside* its
+  exterior ring, so there the hole is the high ring (until 3 November every court house, the old town's included,
+  had its court coping sloped the wrong way). The fallback is not rare (about 9,600 bands in the full capital,
+  mostly merged court bands and outlines with one more point than their inset). `add_walls` faces the right of the
+  ring's direction: a clockwise hole (shapely `orient(sign=1.0)`) faces into the hole, a counter-clockwise exterior
+  faces out. Prove facing with numbers (a point a hair in front of each triangle), not by eye; a 0.05 m step
+  falsely flags walls in front of deck crumbs narrower than that (553 triangles in the full city).
 - **Furnishing design** (prompt 51, SPEC 6d): facts that shaped it. Furniture is interior-only: if its
   pieces went into `kit.make_kit`, every build would make them, the fingerprint would list them and their
   materials would need `[palette]`; as `home/<piece>` in `citygen/interior/` (out of the build key) no tile

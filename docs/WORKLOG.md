@@ -86,6 +86,33 @@ Entry format:
   the chain run (`.venv-sdk/credit_chain.sh`, 10:42-13:12) stopped with "Credit balance is too low"
   (its session recorded about $42), so that route needs new credit first (checked 3 November).
 
+## 2026-11-03 - Fix: parapet copings that faced away from the roof deck
+- Commit: (lead commits) | Model: Opus 5.5, high (helper of the lead, worktree /tmp/claude-501/coping, about 20 min)
+- Changed: citygen/mesh/tile.py (`_coping`), tests/test_citygen.py (`test_unpaired_coping_faces_its_inner_walls_to_the_deck`,
+  under 0.01 s; it fails on the old code)
+- Found (the houses round's note, checked over the whole city): two faults in `_coping`, both making a parapet's
+  inner face see-through from the deck. (1) The fallback (a band the offset cannot pair, mostly an outline with
+  one more point than its inset) drew every deck hole's wall reversed (facing into the parapet): 117 bands in the
+  quick capital, 815 in the full capital (plus 8,756 merged court bands already right since the houses round); all
+  1,464 / 8,947 of those wall triangles faced into the parapet before, every one faces into its hole (the deck)
+  after (217,456 hole-wall triangles checked a micrometer in front). The band around a court alone (42 in the full
+  capital) drew a reversed wall on the court ring, which the court wall already covers, and no wall on its deck
+  side: now no court-ring wall and a deck-facing wall on its outer ring. (2) The paired coping around a court (514
+  bands quick, 17,922 full capital: every court house, the old town's included) sloped the wrong way: at deck
+  height at the court ring, under the court wall's top, and 0.85-0.9 m high at the deck edge with no face below
+  it. Now high at the court ring, down to the deck, as the outer parapets are (prompt 15).
+- Checks: `pytest -q` 145 passed in the helper's tree; `build --quick` 9.5 s; fingerprint 7 parts: `tiles/index` and
+  tiles 12_23, 13_23, 13_24, 14_22, 14_23, 14_24 (the tiles with court houses or unpaired parapets); triangles
+  unchanged except tile 13_23 +6 (three court bands, outer ring one point longer than the court ring).
+- Look: output/checks/coping-fallback.png (helper folder /tmp/claude-501/coping): top, an apartments roof (before:
+  the deck ends in a see-through edge; after: the parapet's inner face); bottom, a court house roof (before: no
+  near parapet, the far court wall seen through; after: the coping rising to the court wall).
+- Doubts and questions for Ali: none.
+- Lead: looked at the picture and read the diff (24 lines): both fixes follow prompt 15's rule (the building's
+  rings high, the deck's rings low and facing the deck); fix (2) went beyond the brief and is kept, since every
+  court house of the old town showed the fault. Merged on houses round 2; the lead's own fingerprint and tests
+  below; Blender refreshed with `tools/make_blend.py`.
+
 ## 2026-11-03 - Open items 47.1 + 48.1 + 47.2, houses round 2 (the window count, kitchen nooks)
 - Commit: (lead commits) | Model: Opus 5.5, high (houses helper, worktree /tmp/claude-501/houses-r2, about 40 min)
 - Changed: citygen/interior/layout.py (`nook`: in `way_home`'s trades, a day room traded for a chambre that is

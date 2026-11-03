@@ -571,10 +571,11 @@ def _opening(mb: MeshBuilder, spot: tuple, z0: float, z1: float, width: float, m
 
 
 def _coping(mb: MeshBuilder, b, band, z: float, z_top: float, roof: str | None = None) -> None:
-    """The sloped top of one parapet band: from its outer ring at z_top down to its inner ring at z.
+    """The sloped top of one parapet band: from the building's ring at z_top down to the deck's ring at z.
 
     The outer face of the parapet is the building wall itself, drawn up to z_top, so only this
     coping strip is new geometry: 2 triangles per edge, which keeps a dense old town affordable.
+    The band around a court has the deck outside it: its high ring is the court's (hole) ring.
     """
     band = orient(band, sign=1.0)
     outer = np.asarray(band.exterior.coords)[:, :2]
@@ -582,21 +583,20 @@ def _coping(mb: MeshBuilder, b, band, z: float, z_top: float, roof: str | None =
     outer = outer[:-1] if closed(outer) else outer
     holes = [h[:-1] if closed(h) else h for h in holes]
     roof = b.roof if roof is None else roof
+    courts = [Polygon(h) for h in b.footprint.interiors]
+    own = [any(Polygon(h).symmetric_difference(c).area < 1e-6 for c in courts) for h in band.interiors]
     if len(holes) != 1 or len(holes[0]) != len(outer):
-        add_cap(mb, band, z_top, roof)                   # rare outline the offset could not pair
-        courts = [Polygon(h) for h in b.footprint.interiors]
-        own = [any(Polygon(h).symmetric_difference(c).area < 1e-6 for c in courts) for h in band.interiors]
-        merged = any(own) and len(own) > 1
-        for hole, court in zip(band.interiors, own):
-            if merged:                   # a court against a party wall (47.2 round C) merged its parapet with
-                if not court:            # the outer one: the court's walls already rise to the coping, the
-                    add_walls(mb, hole.coords, z, z_top, b.wall, z)   # roof's inner face looks at the deck
-                continue
-            add_walls(mb, hole.coords[::-1], z, z_top, b.wall, z)
+        add_cap(mb, band, z_top, roof)                   # an outline the offset could not pair
+        for hole, court in zip(band.interiors, own):     # a court's own walls already rise to the coping
+            if not court:                                # a clockwise hole: the inner face looks at the deck
+                add_walls(mb, hole.coords, z, z_top, b.wall, z)
+        if own and all(own):             # the band around a court alone: the deck lies outside its ring
+            add_walls(mb, band.exterior.coords, z, z_top, b.wall, z)
         return
     inner = holes[0][::-1]                               # same direction as the counter-clockwise outer ring
     k = int(np.argmin(((inner - outer[0]) ** 2).sum(axis=1)))
-    add_loft(mb, np.roll(inner, -k, axis=0), z, outer, z_top, roof)
+    z_in, z_out = (z_top, z) if own[0] else (z, z_top)   # around a court the deck is the outer ring
+    add_loft(mb, np.roll(inner, -k, axis=0), z_in, outer, z_out, roof)
 
 
 def span_mesh(mb: MeshBuilder, span, placements: list) -> None:

@@ -1250,6 +1250,39 @@ def test_parapets_and_stair_rooms_follow_the_style(world, plan):
     assert 0.45 < np.mean(seen["apartments"]) < 0.72
 
 
+def test_unpaired_coping_faces_its_inner_walls_to_the_deck():
+    """`_coping`'s fallback (a band the offset could not pair) draws a flat cap and walls on the band's rings
+    that border the deck: each wall's front must face the deck, or the parapet is see-through from the roof.
+    Three hand-made bands: a deck split in two, the band around a court (the deck lies outside it, its outer
+    ring has a fifth point) and a court merged with the outer band (47.2 round C, the court's walls exist)."""
+    from types import SimpleNamespace
+    from shapely.geometry import Point, Polygon, box
+    from citygen.mesh.tile import _coping
+    court = box(4.0, 4.0, 6.0, 6.0)
+    side = box(0.3, 4.0, 2.0, 6.0)
+    cases = [   # (footprint, band, wall triangles)
+        (box(0, 0, 12, 4), box(0, 0, 12, 4).difference(box(0.2, 0.2, 5.9, 3.8).union(box(6.1, 0.2, 11.8, 3.8))),
+         2 * 4 * 2),
+        (box(0, 0, 10, 10).difference(court),
+         Polygon([(3.8, 3.8), (5.0, 3.8), (6.2, 3.8), (6.2, 6.2), (3.8, 6.2)], [court.exterior.coords]), 5 * 2),
+        (box(0, 0, 10, 10).difference(side),
+         Polygon(box(0, 0, 10, 10).exterior.coords, [box(2.2, 0.2, 9.8, 9.8).exterior.coords, side.exterior.coords]),
+         4 * 2),
+    ]
+    for footprint, band, walls in cases:
+        mb = MeshBuilder()
+        _coping(mb, SimpleNamespace(footprint=footprint, roof="roof", wall="wall"), band, 10.0, 10.7)
+        (pos, tris), = [(p, t) for m, p, t, _f in mb.arrays() if m == "wall"]
+        assert len(tris) == walls
+        courts = [Polygon(h) for h in footprint.interiors]
+        for t in tris:
+            p = pos[t]
+            n = np.cross(p[1] - p[0], p[2] - p[0])[:2]
+            q = Point(*(p.mean(axis=0)[:2] + 0.05 * n / np.linalg.norm(n)))   # a step in front of the wall
+            assert footprint.contains(q) and not band.contains(q), "a parapet's inner wall faces away from the deck"
+            assert not any(c.contains(q) for c in courts)
+
+
 def test_roof_props_stay_inside_the_parapet_and_off_the_stair_room(world, plan, built_tile):
     from citygen.city.dressing import building_highs
     from citygen.city.roofs import roof_layout, roof_stream
