@@ -3641,6 +3641,33 @@ def test_interior_bytes_repeat(interior_build, interior_ctx, world, plan, tmp_pa
     assert all((a / f).read_bytes() == (b / f).read_bytes() for f in INTERIOR_FILES)
 
 
+def test_warm_memos_plan_the_same_rooms(interior_ctx, tmp_path):
+    """The shape memos of `cuts` (speed round N) never change a plan: each home planned from empty memos
+    and again with warm ones (its own and the other homes' entries, in the other order) writes the same
+    rooms.json bytes."""
+    from citygen.interior import cuts
+    from citygen.interior.context import city_plan, resolve
+    from citygen.interior.export import _write_json
+    from citygen.interior.layout import plan_interior
+    from citygen.interior.outside import Outside
+    plan, style = city_plan(interior_ctx), interior_ctx.world.style
+    memos = [v for k, v in vars(cuts).items() if k.startswith("_") and k.isupper() and isinstance(v, dict)]
+    homes = [resolve(interior_ctx, plan, s) for s in ("pick:small", "pick:compact")]
+
+    def rooms_bytes(k):
+        _write_json(tmp_path / "rooms.json", plan_interior(Outside(interior_ctx, plan, k), style).to_json())
+        return (tmp_path / "rooms.json").read_bytes()
+
+    cold = {}
+    for k in homes:
+        for memo in memos:
+            memo.clear()
+        cold[k] = rooms_bytes(k)
+    assert len(memos) >= 7 and sum(map(len, memos)) > 0      # the homes did use the memos
+    for k in reversed(homes):
+        assert rooms_bytes(k) == cold[k], k
+
+
 def test_interior_refuses_what_it_cannot_do(interior_ctx, tmp_path):
     from citygen.interior import InteriorError
     from citygen.interior.context import city_plan, load_build, resolve
