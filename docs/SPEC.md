@@ -2025,7 +2025,7 @@ Sizes W x D x H in meters (stretch pieces: nominal 1.0 m and the range); tris = 
 | `khzana` | storage | wall | 1.20 x 0.45 x 2.05 | 160 | `wood_painted_*` + `painted`, `wood_walnut` | the two-door wall cupboard: `_green`, `_red`, `_walnut` |
 | `shelf_wall` | storage | wall, z 1.70-1.95 | 1.0 [0.6-2.4] x 0.25 x 0.25 | 36 | `wood_painted_*`, `wood_walnut` | the carved rfouf shelf; holds plates and brass (`on`) |
 | `mirror_carved` | decor | wall, z 1.15-2.05 | 0.65 x 0.05 x 0.90 | 120 | `mirror`, `brass` (gilt) or `wood_painted_*` | `_gilt` (`rich`), `_painted` |
-| `tray_brass` | small | on | 0.60 x 0.60 x 0.03 | 48 | `brass` | on the meida |
+| `tray_brass` | small | on | 0.60 x 0.60 x 0.03 | 80 | `brass` | on the meida |
 | `tea_set` | small | on | 0.35 x 0.25 x 0.22 | 160 | `brass` or `aluminium`, `glass_inner` | teapot and six glasses on a small tray: `_brass` (`middle`+), `_alu` |
 | `ibrik` | small | floor | 0.35 x 0.35 x 0.40 | 120 | `copper_ware`, `brass` | ewer and basin for washing hands: `rich` |
 | `kanoun` | kitchen | floor | 0.34 x 0.34 x 0.24 | 80 | `clay_red`, `charcoal` | clay brazier: `heritage`, `poor`, the stah's grill |
@@ -2052,7 +2052,7 @@ Sizes W x D x H in meters (stretch pieces: nominal 1.0 m and the range); tris = 
 | `sewing_machine` | work | wall | 0.90 x 0.50 x 0.95 | 260 | `iron_black`, `wood_walnut` | treadle table: `trade:tailor`; chance `sewing` 0.15 any home |
 | `dummy` | work | floor | 0.40 x 0.35 x 1.55 | 120 | `cotton_white`, `wood_walnut` | tailor, full |
 | `chechia_forms` | work | wall | 0.80 x 0.40 x 0.95 | 160 | `wood_beech`, `chechia_red` | `trade:chechia_maker` |
-| `pots_stack` | work | floor | 0.60 x 0.60 x 0.70 | 150 | `clay_red`, `glaze_green` | `trade:potter` |
+| `pots_stack` | work | floor | 0.60 x 0.60 x 0.70 | 180 | `clay_red`, `glaze_green` | `trade:potter` |
 | `net_pile` | work | floor | 1.00 x 0.80 x 0.35 | 80 | `twine_green` | `trade:fisherman` |
 | `skifa_bench` | seat | wall | 1.0 [0.8-3.0] x 0.45 x 0.45 | 24 | `step_stone` | the skifa's stone benches |
 | `wc_turkish` | bath | wall | 0.50 x 0.70 x 0.05 | 40 | `ceramic_white` | trad washrooms; `poor` slab wc (chance 0.4) |
@@ -2066,7 +2066,7 @@ rules the code settled. Stretch pieces are drawn 1.0 m long; rugs (`klim`, `merg
 map their whole top to exactly one image repeat whatever their size, `hasira` and `ticking` tile in meters;
 a painted round top is a flat disc with planar UVs (a lathe's UVs run round and smear a pattern); hidden
 faces (bottoms on the floor, backs on the wall) are never drawn. Metals stand at half: `brass` and
-`copper` metallic 0.5, `aluminium` 0.4, `chrome` 0.6, `mirror` 0.55 (roughness 0.08), since fully
+`copper_ware` metallic 0.5, `aluminium` 0.4, `chrome` 0.6, `mirror` 0.55 (roughness 0.08), since fully
 metallic surfaces read black in the viewer, which has nothing to reflect; `tea_amber` (#7A3E16) is the
 tea in the tea set's glasses. The woven images tile: every band edge, stripe and hatch is centred on the
 image edge or has a period dividing 256 px (`test_weave_images` compares the edge rows and columns with
@@ -2186,7 +2186,7 @@ invisible). The bunk bed's ladder stands at its +x side near the foot.
 | `blanket_folded` | small | on | 0.60 x 0.45 x 0.15 | 20 | `mink` | on mattresses and beds, full |
 | `laundry_line` | textile | floor | 1.0 [2.0-5.0] x 0.10 x 1.80 | 160 | `iron_black`, `cotton_*` | two posts and a line with washing: stah, court |
 | `broom` | small | wall | 0.25 x 0.10 x 1.20 | 30 | `hasira`, `wood_beech` | kitchens, courts, leaning on the wall |
-| `pots_hanging` | kitchen | wall, z 1.40-1.90 | 0.90 x 0.20 x 0.50 | 120 | `copper`, `iron_black` | the rail of pans over a counter: traditional |
+| `pots_hanging` | kitchen | wall, z 1.40-1.90 | 0.90 x 0.20 x 0.50 | 120 | `copper_ware`, `iron_black` | the rail of pans over a counter: traditional |
 
 **Textures and materials.** Generated 256 px seamless images in `interior/weave.py` (makers reuse the noise
 helpers of `mesh/textures.py`; `export.used_images` asks `weave.MAKERS` first, so `mesh/textures.py` is

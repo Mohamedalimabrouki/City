@@ -96,9 +96,9 @@ Entry format:
     balcony is a salon or chambre (a kitchen for a service balcony, never a bath) and furniture keeps the door
     clear. The mashrabiya on a window stays. Do it after merge-3d, in one facade round with the extra windows;
     the same round checks the large cream panels standing out of walls on the right of his screenshot.
-  - merge-3d (started 21:20 UTC, branch `wip/merge-3d`): merge-prep and its small fixes, fix-materials, the four kit
-    fixes, colonial-k, villas-o, fix-little, plus the rug fold, cord normals and bowl size fixes; gates: all tests,
-    fingerprint explained, no survey group worse. The lead reviews it, then main moves, then make_blend.
+  - merge-3d is merged into main (5f4e99e, the entry below). Not merged yet: arabic-87 + fix-87, rivers-59 + fix-59
+    (with Ali's answers above), graph-70 + fix-70, lore-81 + fix-81b, prompt 55 (furn-55, furn-55b, fix-55,
+    fix-glow), rivers-60 (after the names fix), godot-72, styles-94; houses-patio is dropped.
 - State: prompts 1-50 are done (branch `claude/procedural-city-generator-xop72h`; CP4, prompt 43, on 25
   October; the interiors 44-47 on 29 October, 48 (walls and openings) on 30-31 October). Continue when Ali
   says (for example "Do prompt 49." or "continue the playbook").
@@ -164,6 +164,22 @@ Entry format:
   instead (a billing test passed); how to use it: `docs/LEAD.md`, section 4. Used up since 31 October:
   the chain run (`.venv-sdk/credit_chain.sh`, 10:42-13:12) stopped with "Credit balance is too low"
   (its session recorded about $42), so that route needs new credit first (checked 3 November).
+
+## 2026-11-03 - Merge of 14 reviewed branches (merge-3d): prompt 54 round 3, furniture fixes, colonial-k, villas-o
+- Commit: 5f4e99e (merges `wip/merge-3d` 41eae7c) | Model: Opus 5.5, high (merge helper in a worktree, about 55 min)
+- Merged: merge-prep (speed-n, flats-j, furnish-m), fix-side-54, test-scrap-hall, test-cache-warm, fix-dar-is,
+  fix-materials, fix-hide, fix-brass, fix-goods, fix-textile (with their kit-* and shot-* commits), colonial-k,
+  villas-o, test-villa-369, fix-little; and three review fixes, each with a test that fails before: the hidoura
+  fold (41 of 200 seeds -> 0 of 3000), the cushion cord's normals (24 of 96 facing away -> 0), pots_stack inside
+  its 0.30 m half-size. Conflicts and their answers: `docs/wip/merge-3d.md` (one `twine_green` with kit-hide's
+  values; the brass shapes use `copper_ware` and `clay_red`; both sides' makers in `weave.MAKERS`).
+- Checks: `pytest -q` 176 passed (the lead, on main after the merge); `-m slow` 11 passed, 1 xfail (47.1's, also on
+  main); `build --quick` finishes; fingerprint 0 of 282 parts changed (a build runs no interior code: no make_blend).
+- Survey (helper; its baseline matched this log): colonial 3 -> 5/270, slab 247 -> 253/353, villa 167 -> 168/178,
+  maison 499/616 and the old town unchanged; warned rooms 4.2% -> 1.9% (lived-in, 25 homes per layout).
+- Lead: SPEC lines updated (tray_brass 80 and pots_stack 180 triangles, `copper_ware` twice). Open: colonial-k's
+  chambres 4,895 -> 4,577 is not explained; 54 still needs the full-capital survey, its two look pictures and
+  Ali's look; Ali looks at the rug, cushions, brass and shop shelves in the interior view.
 
 ## 2026-11-03 - Open item 47.2, flats round I (a narrow wet room's door by a corner)
 - Commit: (lead commits) | Model: Opus 5.5, high (flats helper, worktree /tmp/claude-501/flats-i, about 45 min)
