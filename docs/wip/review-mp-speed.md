@@ -31,6 +31,10 @@ a memo (only get, set and clear), and a cleared memo only costs time. The survey
 - citygen/interior/cuts.py:248 and spine.py:433, very low, float keys treat -0.0 and 0.0 as one key; a frame
   centred exactly on 0 could reuse a result whose coordinates carry the other sign of zero (only the printed
   "-0.0" could differ) - no action unless a byte diff ever shows "-0.0".
+- citygen/interior/dar.py:598 and 601, low, `[p for p in polys[...] if p is not host/piece]` filters shapes by
+  identity; memos now hand out one shared object for equal inputs, so two equal pieces in one list (only a
+  duplicate piece, which a sound plan never has) would both be dropped where HEAD dropped one - filter by
+  index instead (`del lst[i]`), or keep as is and note it.
 - tests, medium (missing guard), no test compares a plan made with warm memos (another home first) against a
   cold one; the survey did this once by hand - add a small test: plan home B alone, then plan A then B in one
   process, compare the rooms bytes.
