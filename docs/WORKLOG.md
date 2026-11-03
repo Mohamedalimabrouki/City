@@ -77,6 +77,17 @@ Entry format:
     houses-patio (review-patio: fixes 1 house of 66 and costs up to 3.6 s per failing house: gate it or drop it),
     villas (test-villa-ties: only villas 307 and 388 tie; a tolerance changes 388), godot-72 (review-godot: no high).
   - After the reset (21:00 UTC) the new week counts: ask Ali before going over 55% weekly.
+  - Ali's answers (about 21:30 UTC, to the questions-ali list): Godot not now; patio planner dropped (branch kept);
+    prompt 60: first make names follow places (own streams, names by grid cell, a test), one rename accepted, then
+    merge; prompt 59: the lead's advice (dry hollows over 3 m and 0.5 km2 stay salt lakes, fix the two-pocket bug,
+    towns by salt lakes are fine, min_flow stays 3.0); Arabic: a describing word after a core in ة is feminine (if
+    the Latin must follow, those names change once); long a: keep today's mix; lamps glow only at night; histories:
+    show Ali before/after examples of review-81 items 5 and 9 first; SPEC 6d home kit defaults confirmed (today,
+    lived-in, 112 degrees, abstract verse, blue butane, low-poly now); flats: add windows on court walls and blank
+    street walls (a city change) to reach the bars. To judge in 3D after merge-3d: cushions, rug, prompt 55 pieces.
+  - merge-3d (started 21:20 UTC, branch `wip/merge-3d`): merge-prep and its small fixes, fix-materials, the four kit
+    fixes, colonial-k, villas-o, fix-little, plus the rug fold, cord normals and bowl size fixes; gates: all tests,
+    fingerprint explained, no survey group worse. The lead reviews it, then main moves, then make_blend.
 - State: prompts 1-50 are done (branch `claude/procedural-city-generator-xop72h`; CP4, prompt 43, on 25
   October; the interiors 44-47 on 29 October, 48 (walls and openings) on 30-31 October). Continue when Ali
   says (for example "Do prompt 49." or "continue the playbook").
