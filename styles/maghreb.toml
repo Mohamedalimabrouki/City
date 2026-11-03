@@ -86,6 +86,7 @@ compass = ["east", "north-east", "north", "north-west", "west", "south-west", "s
 numbers = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"]
 plural = { man = "men" }
 plural_default = "s"
+great_mosque_kinds = ["medina", "village"]   # the mosque in these districts is the great mosque, never "its own mosque"
 era.medina = ""          # "": the era the city was founded in
 era.village = ""
 era.cemetery = ""

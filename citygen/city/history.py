@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import collections
 import math
+import warnings
 
 from shapely.geometry import Point
 
@@ -21,6 +22,9 @@ def histories(ctx, plan) -> None:
         return
     canon = ctx.world.cfg.get("canon", {}).get("histories", {}).get(ctx.s.name, {})
     facts = _Facts(ctx, plan, style)
+    unknown = sorted(set(canon) - {d.name for d in plan.districts})
+    if unknown:
+        warnings.warn(f"[canon.histories.{ctx.s.name!r}] names no district of the city: {', '.join(unknown)}")
     for d in plan.districts:
         if d.name in canon:
             d.history = str(canon[d.name])
@@ -133,7 +137,7 @@ def _facts(rng, style, facts, d, fields, s) -> list:
         out.append(("civic", t["civic"].format(civic=(by["cathedral"] + by["theatre"])[0], **fields)))
     if by["station"] and "station" in t:
         out.append(("station", t["station"].format(station=by["station"][0], **fields)))
-    mosques = [n for n in by["mosque"] if not n.startswith("Great Mosque")]
+    mosques = [] if d.kind in style.get("great_mosque_kinds", []) else by["mosque"]   # not the great mosque
     if mosques and "mosque" in t:
         out.append(("mosque", t["mosque"].format(mosque=mosques[0], **fields)))
     souks = facts.souks.get(d.id, {})
