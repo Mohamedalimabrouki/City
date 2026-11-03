@@ -41,13 +41,16 @@ black in the viewer).
   test_citygen's newel and court tests, untouched here); `pytest -q -m slow -k furnish`: 3 passed.
 - `build --quick` then `fingerprint compare before --allow ""`: 282 parts, 0 changed (the build never
   reads `[interiors.palette]`).
-- Interiors written from the quick build: `pick:dar` and `pick:compact` GLBs hold `clay_red` #B5653F
-  r0.9 (the furniture unchanged). No quick-build interior I tried (dar, compact, colonial, slab, small)
-  shows a city piece using copper, net_green or terracotta, so the city-side change is proven by the
-  unit test, not yet seen in a GLB.
+- Interiors written from the quick build (to $TMPDIR, never output/): `pick:dar` and `pick:compact` GLBs
+  hold `clay_red` #B5653F r0.9 (the furniture unchanged); dar, compact, colonial, slab and small show no
+  colliding city piece. Building 32 (Goumosbane, a house with a pots shop: `pot_plant`,
+  `shop_front_pots` in its placements) shows the bug and the fix in its GLB: old code `terracotta`
+  #B5653F (the furniture's), new code `terracotta` #B8643C (the city's, as in its tile) and the jars
+  `clay_red` #B5653F. Roughness 0.9 in all (the city entry has none; the GLB default is 0.9).
+  Scripts: scratchpad `collide.py` (the table above), `glbmats.py` (GLB values), `findcity.py`.
 
 ## Next step
 
-Lead: review the diff and merge `wip/fix-materials`. Optional proof in a GLB: on a full build, write an
-interior near a copper or pots shop, or a fisherman's house by the boats, and check the GLB's `copper`
-is #B8733A r0.35 m0.8 (or `net_green` #3E6B57 r0.95). WORKLOG and HANDOFF entries are left to the lead.
+Lead: review the diff and merge `wip/fix-materials`. Nothing else is open for this finding; WORKLOG
+and HANDOFF entries are left to the lead (lesson: an `[interiors.palette]` name must be new, the test
+now says so).
