@@ -61,3 +61,4 @@ Extra check: furnish-m, flats-j and speed-n are already fully inside merge-prep 
 
 - Pairs with the three old-base branches (step 9) were not checked; do it after they are rebased.
 - The order says where files collide, not whether the merged code passes: run `pytest -q` and `build --quick` after each step.
+- Branches pushed after 20:55 UTC (the helpers started at 20:52: furn-55b, shot-55, review-55, review-mats, review-mp-*, review-patio, review-villas, review-godot, and this one) are not in the table. To redo it: fetch the wip refs, then `python docs/wip/merge-map-1.py a.json`, `python docs/wip/merge-map-2.py a.json b.json`, `python docs/wip/merge-map-3.py a.json b.json` (run from the repository; the second makes temporary unreferenced commits only).
