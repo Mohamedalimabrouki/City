@@ -27,10 +27,12 @@ and care as the last one: keep this file up to date when you learn something tha
   so a fresh session loses nothing.
 - The 5-hour limit cuts running helpers off mid-work when it reaches 100% (Ali, 3 November): while
   helpers run, check `get_usage` about every 30 minutes (a background `sleep 1800` wakes the lead); at
-  about 80% with more than half an hour to its reset, have each helper save its state and report, then
-  resume it after the reset with SendMessage; start new helpers right after a reset, never just before
-  one. Measured on 3 November: the account (three Opus helpers, the lead and Ali's own other sessions,
-  which share the limits) used about 27% of the window per hour; steer by the live percentages.
+  about 80% with more than half an hour to its reset, send each helper the "save now" message (section
+  2, step 8), then resume it after the reset with SendMessage; start new helpers right after a reset,
+  never just before one. Measured on 3 November: with three Opus helpers, the lead and Ali's own other
+  sessions (which share the limits) the account used about 27-37% of the window per hour. A helper's
+  early reading (CLAUDE.md, its prompt, the code it touches) is its heaviest part, so do not start many
+  helpers in the same few minutes; steer by the live percentages.
 - Where he wants to go: the 100 prompts, then two tracks (prompts 101-120,
   `docs/prompts/10-life-and-polish.md`): every asset polished to hero quality, and a city with life.
 
@@ -65,6 +67,25 @@ and care as the last one: keep this file up to date when you learn something tha
    the picture.
 7. Checkpoints add an independent Opus reviewer that reads only the committed history with git (it can
    run beside a builder), then a fix round; CP3 also ran a speed round with byte-identical output.
+8. Many helpers at once (3 November: up to 13 ran together). What kept it clean:
+   - One git worktree per helper, under `/tmp/claude-501/<name>` (the sandbox refuses `git worktree
+     add` inside `.claude/worktrees/`). Each helper has its own branch, its own notes file and its own
+     prefix for scratch scripts (the scratchpad folder is shared, section 4).
+   - Helpers in worktrees never edit `docs/WORKLOG.md`, `docs/ROADMAP.md`, `docs/HANDOFF.md` or
+     `docs/SPEC.md`: they write their notes file, and the lead moves what matters into those files when
+     it merges. So two helpers never conflict on the docs.
+   - The lead merges one helper at a time with `git cherry-pick -n <commit>`, reviews as in step 4, and
+     commits before the next. The usual conflict is new tests added at the end of the same test file:
+     keep both. Check each merged tree with your own survey, not the helper's: a lead script, written
+     while the helpers work, that hashes every dwelling's `rooms.json` by group. The groups the helper
+     changed must show the counts it reported for that round, and every other group must be unchanged.
+   - Work not finished is saved, not merged: the helper commits on its branch, the branch is pushed as
+     `wip/<name>`, and its notes go in `docs/wip/<name>.md` (what it reached, what is left, what to
+     check). List each one in the "Resume here" entry; review, test and survey each before merging it.
+   - "Save now", near a usage limit or the end of a session: send each helper (SendMessage) one short
+     message: stop at a safe point, commit on your branch, write your notes file, report in a few lines.
+     Then push its `wip/<name>` branch and note it in "Resume here". A helper that saves before the
+     limit cuts it off loses nothing; one cut off mid-edit leaves half-made work to sort out.
 
 ## 3. Review techniques that worked
 
