@@ -1874,10 +1874,10 @@ wood_beech = { color = "#C49A6C", roughness = 0.6 }
 wood_painted_green = { color = "#3F6B4F", roughness = 0.6 }
 wood_painted_red = { color = "#8E3B2F", roughness = 0.6 }
 brass = { color = "#B08D3C", roughness = 0.4, metallic = 0.5 }   # metals at half: fully metallic reads black in the viewer
-copper = { color = "#B5653A", roughness = 0.4, metallic = 0.5 }
+copper_ware = { color = "#B5653A", roughness = 0.4, metallic = 0.5 }
 aluminium = { color = "#B9BDC2", roughness = 0.4, metallic = 0.4 }
 iron_black = { color = "#2B2A28", roughness = 0.55, metallic = 0.4 }
-terracotta = { color = "#B5653F", roughness = 0.9 }
+clay_red = { color = "#B5653F", roughness = 0.9 }
 glaze_green = { color = "#3D6B3A", roughness = 0.25 }
 clay_pale = { color = "#E3D9C6", roughness = 0.9 }
 charcoal = { color = "#2A2522", roughness = 0.95 }
@@ -1897,7 +1897,7 @@ mirror = { color = "#C8CDD0", roughness = 0.08, metallic = 0.55 }   # fully meta
 plastic_blue = { color = "#2F6FB8", roughness = 0.45 }
 plastic_red = { color = "#C0392B", roughness = 0.45 }
 butane_bottle = { color = "#3B6FB6", roughness = 0.4 }    # Ali's choice (SPEC 6d Decisions): the blue bottle
-net_green = { color = "#3E7A55", roughness = 0.9 }
+twine_green = { color = "#3E7A55", roughness = 0.9 }
 book_green = { color = "#2F5B3C", roughness = 0.7 }
 tea_amber = { color = "#7A3E16", roughness = 0.1 }   # the tea in the tea set's glasses
 klim_red = { color = "#FFFFFF", roughness = 0.95, texture = "klim_red", texture_size = [1.4, 2.2] }   # the images hold the colors

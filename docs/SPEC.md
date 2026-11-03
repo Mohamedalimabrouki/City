@@ -2027,8 +2027,8 @@ Sizes W x D x H in meters (stretch pieces: nominal 1.0 m and the range); tris = 
 | `mirror_carved` | decor | wall, z 1.15-2.05 | 0.65 x 0.05 x 0.90 | 120 | `mirror`, `brass` (gilt) or `wood_painted_*` | `_gilt` (`rich`), `_painted` |
 | `tray_brass` | small | on | 0.60 x 0.60 x 0.03 | 48 | `brass` | on the meida |
 | `tea_set` | small | on | 0.35 x 0.25 x 0.22 | 160 | `brass` or `aluminium`, `glass_inner` | teapot and six glasses on a small tray: `_brass` (`middle`+), `_alu` |
-| `ibrik` | small | floor | 0.35 x 0.35 x 0.40 | 120 | `copper`, `brass` | ewer and basin for washing hands: `rich` |
-| `kanoun` | kitchen | floor | 0.34 x 0.34 x 0.24 | 80 | `terracotta`, `charcoal` | clay brazier: `heritage`, `poor`, the stah's grill |
+| `ibrik` | small | floor | 0.35 x 0.35 x 0.40 | 120 | `copper_ware`, `brass` | ewer and basin for washing hands: `rich` |
+| `kanoun` | kitchen | floor | 0.34 x 0.34 x 0.24 | 80 | `clay_red`, `charcoal` | clay brazier: `heritage`, `poor`, the stah's grill |
 | `couscoussier` | kitchen | on / floor | 0.34 x 0.34 x 0.52 | 140 | `aluminium` | every traditional kitchen; modern ones at lived-in |
 | `counter_masonry` | kitchen | wall | 1.0 [0.8-3.0] x 0.55 x 0.80 | 30 | `plaster_inner`, `floor_tiles` top | the built counter of a matbakh |
 | `gas_ring` | kitchen | on (counter) | 0.60 x 0.35 x 0.12 | 70 | `enamel_white`, `iron_black` | the two-burner rechaud: `today` |
@@ -2037,9 +2037,9 @@ Sizes W x D x H in meters (stretch pieces: nominal 1.0 m and the range); tris = 
 | `qolla` | kitchen | floor | 0.35 x 0.35 x 0.75 | 110 | `clay_pale`, `iron_black` | the porous water jar on its stand, with a cup |
 | `gsaa` | kitchen | on / floor | 0.60 x 0.60 x 0.12 | 48 | `wood_beech` | the wide bowl for rolling couscous |
 | `kursi` | seat | floor | 0.32 x 0.32 x 0.22 | 40 | `wood_beech`, `hasira` seat | the low stool of kitchen and washroom |
-| `khabia` | storage | floor | 0.55 x 0.55 x 0.85 | 120 | `terracotta`; `glaze_green` | oil jar: `_large`, `_small` (0.38 x 0.55), `_glazed` |
+| `khabia` | storage | floor | 0.55 x 0.55 x 0.85 | 120 | `clay_red`; `glaze_green` | oil jar: `_large`, `_small` (0.38 x 0.55), `_glazed` |
 | `grain_sacks` | storage | wall | 0.90 x 0.50 x 0.70 | 90 | `jute` | semolina and wheat; farmers, shepherds, olive pressers, stores |
-| `tabouna` | kitchen | floor | 0.70 x 0.70 x 0.60 | 110 | `terracotta`, `plaster_inner` | the clay bread oven: `village`, bakers; court or stah |
+| `tabouna` | kitchen | floor | 0.70 x 0.70 x 0.60 | 110 | `clay_red`, `plaster_inner` | the clay bread oven: `village`, bakers; court or stah |
 | `klim` | rug | floor | 1.40 x 2.20 x 0.01 | 10 | `klim_red`, `klim_indigo` | `_red`, `_indigo`; `_large_*` 2.00 x 3.00 |
 | `mergoum` | rug | floor | 1.20 x 2.00 x 0.01 | 10 | `mergoum` | `middle`+ |
 | `zarbia` | rug | floor | 2.00 x 3.00 x 0.015 | 10 | `zarbia` | the knotted Kairouan carpet: `rich` reception |
@@ -2052,8 +2052,8 @@ Sizes W x D x H in meters (stretch pieces: nominal 1.0 m and the range); tris = 
 | `sewing_machine` | work | wall | 0.90 x 0.50 x 0.95 | 260 | `iron_black`, `wood_walnut` | treadle table: `trade:tailor`; chance `sewing` 0.15 any home |
 | `dummy` | work | floor | 0.40 x 0.35 x 1.55 | 120 | `cotton_white`, `wood_walnut` | tailor, full |
 | `chechia_forms` | work | wall | 0.80 x 0.40 x 0.95 | 160 | `wood_beech`, `chechia_red` | `trade:chechia_maker` |
-| `pots_stack` | work | floor | 0.60 x 0.60 x 0.70 | 150 | `terracotta`, `glaze_green` | `trade:potter` |
-| `net_pile` | work | floor | 1.00 x 0.80 x 0.35 | 80 | `net_green` | `trade:fisherman` |
+| `pots_stack` | work | floor | 0.60 x 0.60 x 0.70 | 150 | `clay_red`, `glaze_green` | `trade:potter` |
+| `net_pile` | work | floor | 1.00 x 0.80 x 0.35 | 80 | `twine_green` | `trade:fisherman` |
 | `skifa_bench` | seat | wall | 1.0 [0.8-3.0] x 0.45 x 0.45 | 24 | `step_stone` | the skifa's stone benches |
 | `wc_turkish` | bath | wall | 0.50 x 0.70 x 0.05 | 40 | `ceramic_white` | trad washrooms; `poor` slab wc (chance 0.4) |
 | `tap_wall` | bath | wall, z 0.55-0.70 | 0.10 x 0.12 x 0.15 | 30 | `chrome` | over every turkish wc and stone sink |
@@ -2170,9 +2170,9 @@ invisible). The bunk bed's ladder stands at its +x side near the foot.
 | `mergoum_wall` | textile | wall, z 0.95-2.35 | 1.20 x 0.02 x 1.40 | 10 | `mergoum`, `klim_*` | over a doukkana: traditional full |
 | `curtain` | textile | window | 1.0 [0.8-3.5] x 0.08 x (head + 0.15) | 60 | `fabric_*`, `voile` | each window and balcony door of modern rooms (sill to floor for balcony doors) |
 | `birdcage` | decor | ceiling / wall hook | 0.35 x 0.35 x 0.55 | 140 | `iron_white`, `door_blue` | the white and blue cage of a canary: court, balcony; full |
-| `pot_jasmine` | plant | floor | 0.45 x 0.45 x 1.20 | 220 | `terracotta`, `leaf_green`, `cotton_white` flowers | court corners, stah, balcony |
-| `pot_geranium` | plant | floor | 0.35 x 0.35 x 0.50 | 120 | `terracotta`, `leaf_green`, `awning_red` | court edge, stah |
-| `pot_basil` | plant | floor / on | 0.25 x 0.25 x 0.30 | 80 | `terracotta`, `leaf_green` | basil and mint by the kitchen, on a court sill |
+| `pot_jasmine` | plant | floor | 0.45 x 0.45 x 1.20 | 220 | `clay_red`, `leaf_green`, `cotton_white` flowers | court corners, stah, balcony |
+| `pot_geranium` | plant | floor | 0.35 x 0.35 x 0.50 | 120 | `clay_red`, `leaf_green`, `awning_red` | court edge, stah |
+| `pot_basil` | plant | floor / on | 0.25 x 0.25 x 0.30 | 80 | `clay_red`, `leaf_green` | basil and mint by the kitchen, on a court sill |
 | `vase_flowers` | small | on | 0.15 x 0.15 x 0.40 | 80 | `glass_inner`, `awning_red`, `leaf_green` | plastic flowers on a coffee table or buffet |
 | `slippers` | small | floor | 0.30 x 0.28 x 0.04 | 24 | `plastic_*`, `leather_brown` | at doors into rooms with rugs (shoes come off) |
 | `shoes` | small | floor | 0.32 x 0.30 x 0.10 | 40 | `leather_brown`, `plastic_black` | inside the main door; outside flat doors, full |
@@ -2201,17 +2201,21 @@ white on green, the painted wood of Tunis chests and beds), `sajjada` (a mihrab 
 colours), `goods` (rows of tins, boxes and bottles) in 53; `verse` (abstract gold strokes on deep
 green) in 55. New `[interiors.palette]` entries: 52 `wood_walnut` #5A3A24, `wood_beech` #C49A6C,
 `wood_painted_green` #3F6B4F, `wood_painted_red` #8E3B2F, `brass` #B08D3C (metallic 0.9, roughness
-0.35), `copper` #B5653A (metallic), `aluminium` #B9BDC2, `iron_black` #2B2A28, `terracotta` #B5653F,
+0.35), `copper_ware` #B5653A (metallic), `aluminium` #B9BDC2, `iron_black` #2B2A28, `clay_red` #B5653F,
 `glaze_green` #3D6B3A, `clay_pale` #E3D9C6, `charcoal` #2A2522, `velvet_red` #7E1F24, `velvet_green`
 #1F4E3A, `velvet_blue` #23406E, `velvet_gold` #B38B3A, `cotton_white` #EFEDE6, `wool_cream` #E6DCC4,
 `fleece` #E9E1CF, `jute` #A88A5C, `leather_brown` #7A4B2A, `ceramic_white` #F4F4F2 (roughness 0.15),
 `enamel_white` #ECEDEA, `chrome` (metallic 1, roughness 0.15), `mirror` #C8CDD0 (metallic 1, roughness
-0.03), `plastic_blue`, `plastic_red`, `butane_bottle` #3B6FB6, `net_green`, `book_green`, and the
+0.03), `plastic_blue`, `plastic_red`, `butane_bottle` #3B6FB6, `twine_green`, `book_green`, and the
 textured ones (`klim_red`... named like their image); 53 `fabric_beige`, `fabric_grey`, `formica_white`,
 `worktop`, `steel`, `screen_black` (roughness 0.15), `plastic_black`, `plastic_grey`, `cotton_blue`,
 `cotton_pink`; 55 `lamp_glass` #F3E6C8 and `lamp_glow` (the same; the viewer's night lights it),
 `voile` (alpha 0.5, double sided), `iron_white`, `glaze_blue`, `leaf_green`, `photo_sepia`, `bread`,
-`plastic_yellow`. Colours are first values for Ali to judge on the kit sheet.
+`plastic_yellow`. Colours are first values for Ali to judge on the kit sheet. No `[interiors.palette]`
+name is also a city material (`[palette]` or a kit manifest): the interior GLB holds both palettes, the
+city's winning a shared name, so a shared name would recolour the furniture or the city pieces seen from
+inside (the home kit's `copper`, `terracotta` and `net_green` became `copper_ware`, `clay_red` and
+`twine_green` for that; `tests/test_homekit.py` checks it).
 
 **Who lives here** (prompt 54, built, `interior/household.py`, `profile(interior, unit, style) -> Profile`).
 - The household of a unit: `home` takes `Interior.household`; `flat <n>` its `Flat.household` (flat 0

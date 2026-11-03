@@ -56,7 +56,7 @@ def write_folder(interior, outside, out, density: str | None = None, furniture=N
     view = SimpleNamespace(kit=SimpleNamespace(pieces={**outside.kit.pieces, **home.pieces}))
     instances += instance_groups(view, placements(furniture), x0, y0)
     parts = mb.gltf_parts()
-    materials = {**outside.kit.materials, **home.materials, **cfg.get("palette", {})}
+    materials = interior_materials(outside.kit.materials, home.materials)
     images = used_images(world.style, world.seed, materials, [*parts, *(m for g in instances for m in g["parts"])])
     tiles = out / "tiles"
     tiles.mkdir(parents=True, exist_ok=True)
@@ -74,6 +74,14 @@ def write_folder(interior, outside, out, density: str | None = None, furniture=N
     index["interior"]["density"] = furniture.density
     _write_json(tiles / "index.json", index)
     return out
+
+
+def interior_materials(city: dict, home: dict) -> dict:
+    """The interior GLB's materials: the home kit's (`[palette]` and `[interiors.palette]`, the shell's and
+    the furniture's) and the city kit's, the city's winning a shared name, so a kit or bridge piece looks
+    as in its tile. `[interiors.palette]` names no city material (tests/test_homekit.py), so the
+    furniture keeps its own colours too."""
+    return {**home, **city}
 
 
 SEEN_THROUGH = ("window", "balcony")   # pieces whose hole a room looks out through
