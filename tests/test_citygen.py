@@ -1618,6 +1618,10 @@ def test_district_histories(world, plan):
             if m.name in d.history and m.kind != "gate":
                 assert d.polygon.buffer(1.0).contains(shapely.Point(m.x, m.y)), (m.name, d.name)
     assert names
+    from citygen.export.lore import gazetteer, plan_json
+    assert [o.get("history") for o in plan_json(plan)["districts"]] == [d.history for d in plan.districts]
+    text = gazetteer(world, [plan])
+    assert all(d.history in text for d in plan.districts)   # the output carries every history
     ctx = CityContext(world, plan.settlement)
     again = copy.copy(plan)
     again.districts = [copy.copy(d) for d in plan.districts]

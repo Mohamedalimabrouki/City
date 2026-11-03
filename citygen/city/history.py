@@ -14,9 +14,6 @@ import math
 
 from shapely.geometry import Point
 
-COMPASS = ["east", "north-east", "north", "north-west", "west", "south-west", "south", "south-east"]
-
-
 def histories(ctx, plan) -> None:
     """Set `history` on every district of the plan."""
     style = ctx.style.get("history", {})
@@ -36,6 +33,7 @@ class _Facts:
 
     def __init__(self, ctx, plan, style):
         self.plan = plan
+        self.inside = float(style.get("inside_m", 1.0))   # a point this close to a district counts as in it
         self.eras = [str(e) for e in ctx.style.get("lore", {}).get("eras", [])]
         self.founded = self.eras.index(ctx.s.founded) if ctx.s.founded in self.eras else 0
         self.medina = next((d for d in plan.districts if d.kind == "medina"), None)
@@ -70,7 +68,7 @@ class _Facts:
     def district_at(self, x, y):
         p = Point(x, y)
         for d in self.plan.districts:
-            if d.polygon.buffer(1.0).contains(p):
+            if d.polygon.buffer(self.inside).contains(p):
                 return d.id
         return None
 
@@ -88,11 +86,14 @@ class _Facts:
 def _history(ctx, style, facts, d) -> str:
     rng = ctx.rng("history", d.id)
     kind = d.kind
-    place = {"capital": "city"}.get(ctx.s.kind, ctx.s.kind)
+    place = str(style.get("place", {}).get(ctx.s.kind, ctx.s.kind))
+    folk = style.get("folk", {})
     era = facts.era(style, kind)
     fields = {"name": d.name, "city": ctx.s.name, "era": _era_in(style, era), "since": _era_since(style, era),
-              "where": _where(facts, d), "place": place, "folk": "the village" if kind == "village" else "the neighborhood"}
+              "where": _where(style, facts, d), "place": place, "folk": str(folk.get(kind, folk.get("default", "")))}
     origin = style.get("origin", {}).get(kind) or style.get("origin", {}).get("residential", ["{name}."])
+    if kind == "medina" and not ctx.kc.get("walls", True):   # an old town without walls: no ramparts in its story
+        origin = style.get("origin", {}).get("medina_open", origin)
     if kind == "port" and facts.medina is not None and era and facts.founded < facts.eras.index(era):
         origin = style.get("origin", {}).get("port_old", origin)
         fields["old_since"] = _era_since(style, facts.eras[facts.founded])
@@ -104,11 +105,11 @@ def _history(ctx, style, facts, d) -> str:
         idx = rng.choice(len(known), size=keep, replace=False, p=[v / sum(w) for v in w])
         known = [known[i] for i in sorted(int(i) for i in idx)]
     sentences += [text for _key, text in known]
-    if len(sentences) < 3:
+    if len(sentences) < int(style.get("min_sentences", 3)):
         today = style.get("today", {}).get(kind)
         if today:
             sentences.append(_pick(rng, today).format(**fields))
-    return " ".join(_capital(s) for s in sentences[:4])
+    return " ".join(_capital(s) for s in sentences[:int(style.get("max_sentences", 4))])
 
 
 def _facts(rng, style, facts, d, fields, s) -> list:
@@ -123,7 +124,7 @@ def _facts(rng, style, facts, d, fields, s) -> list:
         gates = by["gate"]
         key = {1: "gate", 2: "gates_all"}.get(len(gates), "gates")
         key = key if key in t else "gates"
-        out.append(("gates", t[key].format(n=_number(len(gates)), some=_join(gates[:2]), **fields)))
+        out.append(("gates", t[key].format(n=_number(style, len(gates)), some=_join(gates[:2]), **fields)))
     if by["kasbah"] and "kasbah" in t:
         out.append(("kasbah", t["kasbah"].format(kasbah=by["kasbah"][0], **fields)))
     if by["cathedral"] and by["theatre"] and "boulevard" in t:
@@ -140,7 +141,7 @@ def _facts(rng, style, facts, d, fields, s) -> list:
         out.append(("souks", t["souks"].format(souks=_join(list(souks.values())[:3]), **fields)))
     if facts.shrines.get(d.id) and "shrines" in t:
         key = "shrine" if facts.shrines[d.id] == 1 and "shrine" in t else "shrines"
-        out.append(("shrines", t[key].format(n=_number(facts.shrines[d.id]), **fields)))
+        out.append(("shrines", t[key].format(n=_number(style, facts.shrines[d.id]), **fields)))
     if facts.quays.get(d.id, 0.0) > 0 and "quays" in t:
         text = t["quays"].format(quay=f"{facts.quays[d.id]:,.0f}", **fields)
         if d.id in facts.lights and "light" in t:
@@ -151,19 +152,21 @@ def _facts(rng, style, facts, d, fields, s) -> list:
             out.append(("known", t["known"].format(known=coast[0], **fields)))
     trades = [w for w, _n in facts.trades.get(d.id, collections.Counter()).most_common(3)]
     if len(trades) == 3 and "trades" in t:
-        out.append(("trades", t["trades"].format(trades=_join([_plural(w) for w in trades]), **fields)))
+        out.append(("trades", t["trades"].format(trades=_join([_plural(style, w) for w in trades]), **fields)))
     return out
 
 
-def _where(facts, d) -> str:
+def _where(style, facts, d) -> str:
     """Where the district lies from the old town, to end a clause (", just east of the medina"), or ""."""
     m = facts.medina
-    if m is None or d is m:
+    compass = style.get("compass", [])
+    if m is None or d is m or not compass:
         return ""
     a, b = m.polygon.centroid, d.polygon.centroid
-    word = COMPASS[int(round(math.atan2(b.y - a.y, b.x - a.x) / (math.pi / 4))) % 8]
-    near = "just " if d.polygon.buffer(5.0).intersects(m.polygon) else ""
-    return f", {near}{word} of the medina"
+    turn = math.atan2(b.y - a.y, b.x - a.x) / (2 * math.pi / len(compass))
+    word = compass[int(round(turn)) % len(compass)]
+    near = str(style.get("near_word", "")) if d.polygon.buffer(float(style.get("near_m", 5.0))).intersects(m.polygon) else ""
+    return str(style.get("where", "")).format(near=near, dir=word)
 
 
 def _era_in(style, era: str) -> str:
@@ -180,9 +183,10 @@ def _pick(rng, seq):
     return str(seq[int(rng.integers(len(seq)))])
 
 
-def _number(n: int) -> str:
-    words = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"]
-    return words[n] if n < len(words) else str(n)
+def _number(style, n: int) -> str:
+    """A count in words from the style's `numbers` (0 first), digits past its end."""
+    words = style.get("numbers", [])
+    return str(words[n]) if n < len(words) else str(n)
 
 
 def _join(items: list) -> str:
@@ -192,8 +196,12 @@ def _join(items: list) -> str:
     return ", ".join(items[:-1]) + " and " + items[-1]
 
 
-def _plural(word: str) -> str:
-    return word[:-3] + "men" if word.endswith("man") else word + "s"
+def _plural(style, word: str) -> str:
+    """The plural of a trade: the first `plural` ending that fits is swapped, else `plural_default` is added."""
+    for end, plural in style.get("plural", {}).items():
+        if word.endswith(end):
+            return word[:-len(end)] + str(plural)
+    return word + str(style.get("plural_default", "s"))
 
 
 def _capital(sentence: str) -> str:

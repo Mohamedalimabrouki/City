@@ -71,6 +71,21 @@ products.mountain = ["cork", "marble", "pine honey", "goat cheese"]
 # A world file's [canon.histories."<city>"] "<district>" = "..." replaces a generated text.
 [history]
 facts = 2
+min_sentences = 3      # a "today" sentence is added below this many
+max_sentences = 4
+inside_m = 1.0         # a landmark this close to a district counts as in it
+near_m = 5.0           # a district this close to the medina lies "just" east of it
+# The words of the sentences: {place} by settlement kind (else the kind itself), {folk} by district
+# kind (else `default`), {where} from `where` ({near} = `near_word` when near, {dir} from `compass`,
+# counter-clockwise from east), counts in words, and trade plurals (first matching ending swapped).
+place = { capital = "city" }
+folk = { village = "the village", default = "the neighborhood" }
+where = ", {near}{dir} of the medina"
+near_word = "just "
+compass = ["east", "north-east", "north", "north-west", "west", "south-west", "south", "south-east"]
+numbers = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"]
+plural = { man = "men" }
+plural_default = "s"
 era.medina = ""          # "": the era the city was founded in
 era.village = ""
 era.cemetery = ""
@@ -91,6 +106,10 @@ harbor_trades = ["fishing", "sponge diving", "boat building", "sea trade"]
 origin.medina = ["The {name} is the oldest part of the {place}: its first walls went up {era}.",
                  "{city} began here, inside walls raised {era}; its ramparts still stand.",
                  "The {name} grew up {era}, a tight weave of courtyard houses, alleys and dead ends."]
+# An old town whose settlement kind has walls = false: no walls in its story
+origin.medina_open = ["The {name} is the oldest part of the {place}: its first houses went up {era}.",
+                      "{city} began here {era}, around its great mosque and its market.",
+                      "The {name} grew up {era}, a tight weave of courtyard houses, alleys and dead ends."]
 origin.village = ["{name} grew up {era} around its wells and its fields.",
                   "Families have lived in {name} {since}, in houses built around their courtyards."]
 origin.colonial = ["{name} was laid out {era}{where}, on straight streets of tall houses with balconies.",
