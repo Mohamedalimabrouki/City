@@ -15,7 +15,7 @@ Line numbers are those in merge-prep 3099981.
 - tests/test_citygen.py:4996-5027 (test_slab_scrap_hall_tries_other_doors), MEDIUM: the "real hall is kept"
   case passes only because its score is 0 (the `score <= 1` break), never through `scrap_hall` returning False;
   and no case has a couloir/salon touching the hall, so the 0.8 m narrowing (the step 7 fix for lost No. 1086,
-  1279) is untested: deleting it keeps the test green. Fix: add a slab case with a faulty plan (faults 2) whose
+  1279) is untested: proved with a mutant (scrap_hall without the 0.8 m check, monkeypatched): the test still passes. Fix: add a slab case with a faulty plan (faults 2) whose
   hall is a real hall, and one whose scrap hall meets a couloir by 1.1 m; both must try only the first door.
 - flats.py:599-608 (duplex, ladder moved into the couloir), MEDIUM: nothing checks the clear width left beside the
   ladder. `S.ladder` lays the 1.2 m long side against the way's edge, so it stands 0.6 m into the couloir, plus
@@ -43,5 +43,5 @@ Line numbers are those in merge-prep 3099981.
   the luck is in the unit test above (score 0 hides the branch).
 
 ## Left (time)
-- Did not re-run the survey or pytest here (time). Checked: spine.ARCH is 0.8 m; `cuts.solid` returns an empty
+- Ran here: the two new tests pass in merge-prep (2 passed, 2.1 s). Not re-run: the survey and the full pytest (time). Checked: spine.ARCH is 0.8 m; `cuts.solid` returns an empty
   Polygon when there is nothing, so the empty-way case is safe.
