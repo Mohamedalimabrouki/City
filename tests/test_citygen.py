@@ -4849,6 +4849,37 @@ def test_furnish_required(furnish_homes, interior_ctx):
                 assert sum(p.places for p in fu.pieces if p.unit == unit) >= prof.members, (spec, unit)
 
 
+@pytest.mark.slow
+def test_furnish_required_share(interior_ctx):
+    """At most 2% of the rooms miss a `need` piece (warned) over a quick-capital sample, the 8 homes of each
+    layout nearest the centre, at sparse (prompt 54); no placement fault."""
+    import numpy as np
+    import shapely
+    from citygen.interior import furnish as FU
+    from citygen.interior.context import HOUSING, city_plan, layout_of
+    from citygen.interior.layout import plan_interior
+    from citygen.interior.outside import Outside
+    plan, style = city_plan(interior_ctx), interior_ctx.world.style
+    centers = shapely.get_coordinates(shapely.centroid([b.footprint for b in plan.buildings]))
+    d = np.hypot(centers[:, 0] - plan.settlement.x, centers[:, 1] - plan.settlement.y)
+    got: dict = {}
+    for k in np.lexsort((np.arange(len(d)), d)).tolist():
+        b = plan.buildings[k]
+        lay = layout_of(plan, b, style) if b.kind in HOUSING else None
+        if lay is not None and len(got.setdefault(lay, [])) < 8:
+            got[lay].append(k)
+    rooms = warned = 0
+    for lay, ks in sorted(got.items()):
+        for k in ks:
+            outside = Outside(interior_ctx, plan, k)
+            interior = plan_interior(outside, style)
+            fu = FU.furnish(interior, outside, style, "sparse")
+            assert not _faults(FU.check(interior, fu, style, outside)), (lay, k)
+            rooms += len(fu.functions)
+            warned += len({w.split()[2] for w in fu.warnings if " has no " in w})
+    assert rooms and warned <= 0.02 * rooms, (warned, rooms)
+
+
 def test_furnish_household(furnish_homes, interior_ctx):
     """A weaver's dar has its loom, a tailor's home its sewing machine, a teacher's home its books, and the
     children their beds (a cot for each small child)."""

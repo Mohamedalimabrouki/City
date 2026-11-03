@@ -2539,6 +2539,20 @@ the rules the code settled.
 - Baths: the bathtub (blind wall, sdb of `min_area` 3.6 m2 and more) or the shower tray (a corner, else a wall
   from its ends) first, then the basin from a wall's ends; a shower tray is stepped into from its front or either
   side. The rooms left warned are mostly the planners' (the door in the middle of a 0.9-1.75 m wide wc or sdb).
+- Round 3 (smaller pieces and other places): `smaller` gives a pedestal basin way to a wall-hung `hand_basin`
+  (0.40 x 0.30 m, from 0.42 m up), an 80 cm shower tray to a 70 cm `shower_small`, a wc seat to a squat
+  `wc_turkish` (a tiny wc, a la turque), a stone sink to a `qolla` (a small matbakh's water jar). The place mode
+  `side` lays a piece lengthwise along a wall (turned a quarter turn: a sedda along a maqsura's back wall), tried
+  after `head` and `wall` for every bed and for the wc. An `else` entry may be a table that also overrides the
+  slot's keys (the hanout counter: across the shop, else `{ place = "wall", most = 1.4, ends = true }`). A wc's
+  door keeps `wc_keep` 0.6 m in front (`wc_rooms`), not `door_keep`: one steps in and turns. A two-door sdb's tray,
+  basin and wc may cross its walk strips (`cross`). A traditional couple takes the largest one-door maqsura of
+  `couple_maqsura` 4.5 m2 or more, else the largest ghorfa, else a maqsura, else a bit (two doors in the middle
+  of two walls leave no wall for a bed). Rooms missing a `need` piece (lived-in, 0 placement faults): quick
+  capital (25 per layout) 4.2% -> 1.8% (colonial 7.7 -> 3.4, slab 2.2 -> 1.1, small 12.5 -> 6.2, dar 3.4 -> 0.9,
+  compact 3.1 -> 1.8, koubba 2.7 -> 0.7); full capital (4 per layout, 32 houses) 5.5% -> 2.2% (colonial 9.6 ->
+  4.4, slab 2.8 -> 0.6, villa 3.7 -> 1.9, maison 2.7 -> 1.4). Left: wcs of about 1.0 x 1.05 m with a 0.7 m door
+  and kitchens too small for a fridge (the planners'); the slow `test_furnish_required_share` holds 2%.
 - Keep-outs: a door's walk box is its width + 0.2 m (its own width in the wet rooms `wet`), `door_keep` deep from
   the wall's face on the room's side; its leaf's swing is the quarter disc at the hinge `mesh.leaves` draws (read
   from the leaf's own `doors` stream, no draw added), not a square. The walk strips run only in rooms with two

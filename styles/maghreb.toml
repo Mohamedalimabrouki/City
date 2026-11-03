@@ -2145,6 +2145,8 @@ court_keep = 1.2      # meters: the court's middle (its polygon shrunk by this) 
 front_gap = 0.25      # meters between seats and the table in front of them (a doukkana, a sedari)
 front_gap_sofa = 0.40
 wet = ["wc", "sdb", "bit_el_ma"]   # wet rooms: a door keeps only its own width free (the toilet stands beside its swing)
+wc_rooms = ["wc"]     # rooms whose door keeps only `wc_keep` meters free in front (one steps in and turns)
+wc_keep = 0.6
 walk_cross = ["bed", "seat", "table", "rug"]   # categories that may lie across a walk strip (the reach test still holds)
 cushion_step = 0.6    # meters between cushions along a doukkana
 cafe_pitch = 1.6      # meters between the qahwa's table sets
@@ -2152,6 +2154,7 @@ cafe_area = 4.0       # m2 of qahwa floor per table set
 bands = { poor = 0.35, rich = 0.65 }   # wealth bands of a household
 elder_share = [0.45, 0.30]             # chance of an elder in a home of 4 or more (traditional, modern)
 elder_two = 0.25                       # chance of a second in a home of 6 or more
+couple_maqsura = 4.5                   # m2: a traditional couple sleeps in a one-door maqsura this large, else a ghorfa
 room_triangles = [1500, 4000, 8000]    # drawn triangles per room at sparse, lived-in, full (courts, stah, shops x2)
 hidoura = [0.5, 0.25]                  # chance of the Aid sheepskin (traditional, modern)
 sewing = 0.15                          # chance of a sewing machine in any home
@@ -2209,6 +2212,10 @@ tv_flat_large = "tv_flat_small"
 buffet_carved = "buffet_walnut"
 mattress_stack = "mattress_floor_mink"
 loom = "sewing_machine"
+basin = "hand_basin"   # a narrow sdb's small wall-hung basin when the pedestal one finds no wall
+shower = "shower_small"   # a 70 cm tray when the 80 cm one finds no corner
+wc_seat = "wc_turkish"    # a tiny wc's squat toilet (a la turque) when the seat and its use strip find no place
+sink_stone = "qolla"      # a small matbakh's water jar when the stone sink finds no wall
 
 [interiors.furnish.smaller_trad]   # traditional homes: a double bed gives way to a plain sedda before a single bed
 bed_double_140_mink = "sedda_plain"
@@ -2430,7 +2437,7 @@ alias = "sewing_extra"
 [[interiors.furnish.rooms.sleep_couple]]
 role = "bed"
 place = "head"
-else = ["wall"]   # under a window when no blind wall is left (a cot before a floor mattress)
+else = ["wall", "side"]   # a window wall when no blind wall is left, then lengthwise along a wall
 density = "sparse"
 need = true
 [[interiors.furnish.rooms.sleep_couple]]
@@ -2501,7 +2508,7 @@ density = "full"
 [[interiors.furnish.rooms.sleep_children]]
 role = "child_bed"
 place = "head"
-else = ["wall"]   # under a window when no blind wall is left (a cot before a floor mattress)
+else = ["wall", "side"]   # a window wall when no blind wall is left, then lengthwise along a wall
 density = "sparse"
 need = true
 count = "children"
@@ -2534,7 +2541,7 @@ when = "trad"
 [[interiors.furnish.rooms.sleep_elder]]
 role = "elder_bed"
 place = "head"
-else = ["wall"]   # under a window when no blind wall is left (a cot before a floor mattress)
+else = ["wall", "side"]   # a window wall when no blind wall is left, then lengthwise along a wall
 density = "sparse"
 need = true
 [[interiors.furnish.rooms.sleep_elder]]
@@ -2672,7 +2679,7 @@ when = "trad"
 [[interiors.furnish.rooms.guest]]
 role = "elder_bed"
 place = "head"
-else = ["wall"]   # under a window when no blind wall is left (a cot before a floor mattress)
+else = ["wall", "side"]   # a window wall when no blind wall is left, then lengthwise along a wall
 density = "sparse"
 when = "modern"
 [[interiors.furnish.rooms.guest]]
@@ -2990,6 +2997,7 @@ density = "sparse"
 need = true
 unless = "wash"
 alias = "shower"
+cross = true       # a two-door sdb's tray, basin and wc may stand in its walk strips (the reach test keeps the way)
 [[interiors.furnish.rooms.bath]]
 role = "wash"
 place = "wall"
@@ -2998,12 +3006,14 @@ need = true
 unless = "wash"
 alias = "shower"
 ends = true
+cross = true
 [[interiors.furnish.rooms.bath]]   # the bathtub or shower first: it needs a whole end wall or a corner
 role = "basin"
 place = "wall"
 density = "sparse"
 need = true
 ends = true        # from the wall's ends inward: the basin stands by a corner, not in the middle of the wall
+cross = true
 [[interiors.furnish.rooms.bath]]
 role = "mirror_bath"
 place = "hang:basin"
@@ -3015,6 +3025,7 @@ density = "sparse"
 need = true
 when = "nowc"
 ends = true
+cross = true
 [[interiors.furnish.rooms.bath]]
 role = "heater"
 place = "hang"
@@ -3031,6 +3042,7 @@ density = "full"
 [[interiors.furnish.rooms.wc]]
 role = "wc"
 place = "facing_door"
+else = ["wall", "side"]    # a squat toilet by a side wall or lengthwise, clear of the door's swing
 density = "sparse"
 need = true
 [[interiors.furnish.rooms.wc]]
@@ -3210,6 +3222,7 @@ count = "doors"
 [[interiors.furnish.rooms.shop]]
 role = "counter"
 place = "shopfront"
+else = [{ place = "wall", most = 1.4, ends = true }]   # a shallow shop: a short counter by a corner
 cross = true
 density = "sparse"
 need = true
