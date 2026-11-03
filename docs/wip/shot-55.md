@@ -44,8 +44,8 @@ in front; back faces are drawn dark). No code changed.
 
 ## Causes found in the code (file:line, severity, one-line fix)
 - kit_life.py:208 vase_flowers, high: the vase neck ends at z 0.20 but the blooms sit at h - 0.035
-  (about 0.33 m), a 0.09 m gap with no stems; add 2 to 3 thin `leaf_green` stems from the neck, or set
-  the bloom z to about 0.22.
+  (h 0.40, so about 0.37 m), a gap of about 0.10 m with no stems; add 2 to 3 thin `leaf_green` stems from the neck, or set
+  the bloom z just above the neck (about 0.23).
 - kit_life.py:172 fruit_bowl, medium: the lathe profile starts at radius 0.05 and ends at radius 0.04,
   so the bowl has a hole in its bottom (the dark crescent); start it at (0.0, 0.0) and end it at (0.0, 0.03).
 - kit_life.py:164 plates_stack, low: one lathe = one solid drum; lathe 5 to 6 thin plates with tiny gaps.
