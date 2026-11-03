@@ -330,7 +330,7 @@ def run(job, cores: list, kind: str) -> None:
             droj = P.add_rooms(job, [Cell(cell, "droj")], f, "common")[0]
         regions = no_slivers(job, flat_regions(job, cores, poly, f, kind), cores, f)
         if cores and f > 0 and not any(c.serves(f) for c in cores):
-            duplex(job, regions, f)                       # a step above the cores: the upper floor of a flat
+            duplex(job, regions, f, kind)                 # a step above the cores: the upper floor of a flat
             continue
         shop_unit = next((r.unit for r in interior.rooms if r.floor == 0 and r.unit in ("shop", "cafe")), None)
         if f == 0 and kind == "colonial" and not P.lights(job, 0) and shop_unit is not None:
@@ -418,14 +418,19 @@ def best_lay(job, region, entries: list, prog: list, f: int, key: tuple) -> list
     """The flat's cells from its first entry; when that plan faults (`flat_score` over 1), the other
     entries, then the first with a second hall draw (stream key + "again"), each with `retry_variants` of
     the variants (by layout; 0: no second tries), the best kept, the first on a tie (47.1 flats round 1). A region no chambre fits in, or
-    one whose second tries on a floor below won nothing, is not tried again (time)."""
+    one whose second tries on a floor below won nothing, is not tried again (time). With no second tries, a
+    first plan whose hall is a scrap (`scrap_hall`) still tries the other entries, fully searched (round J)."""
     tries = [(e, key) for e in entries] + [(entries[0], key + ("again",))]
     memo = job.__dict__.setdefault("retried", {})       # a floor below with this region tried in vain: not again
     base = (shapely.to_wkb(shapely.set_precision(region, 1e-3)), tuple(entries), tuple(prog), key)
-    best, done = None, 0
+    best, done, scrap = None, 0, False
+    share = float(job.cfg.get("flats", {}).get("retry_variants", {}).get(job.interior.layout, 0.0))
     for i, (e, k) in enumerate(tries):
-        share = float(job.cfg.get("flats", {}).get("retry_variants", {}).get(job.interior.layout, 0.0))
+        if i == 1 and share <= 0.0 and scrap_hall(job, first):
+            share, scrap = 1.0, True                      # a scrap hall: the other doors, fully searched
         if i == 1 and (share <= 0.0 or not job.fits(region, "chambre") or memo.get(base) is False):
+            break
+        if scrap and i >= len(entries):
             break
         job.cap_scale = 1.0 if i == 0 else share
         try:
@@ -532,6 +537,16 @@ def flat_score(job, cells: list, prog: list, f: int) -> int:
     return 6 * missing + 2 * scrap + P.faults(job, cells, f, True, 2)
 
 
+def scrap_hall(job, cells: list) -> bool:
+    """True when a flat's hall is a scrap no hall fits (`flat_score`) that meets no couloir or day room by an
+    arch's length (0.8 m, as `spine.doors` joins the ways): a door on a landing side facing a strip of the
+    flat, its way cut off at the door, where a block of flats (no second tries, `retry_variants` 0) still
+    tries its other doors (47.2 flats round J)."""
+    ways = [c.poly for c in cells if c.type in ("couloir", "salon", "salle_a_manger")]
+    return any(c.type == "hall" and not job.fits(c.poly, "hall")
+               and max((shared(c.poly, w) for w in ways), default=0.0) <= 0.8 for c in cells)
+
+
 def shop_entry(host, region) -> P.Entry | None:
     """Where stores behind a cafe or shop are entered from it: the middle of their longest shared edge."""
     from .cuts import contact
@@ -547,9 +562,24 @@ def shop_entry(host, region) -> P.Entry | None:
     return P.Entry(float(mid[0]), float(mid[1]), float(n[0]), float(n[1]))
 
 
-def duplex(job, regions: list, f: int) -> None:
+R_PRIVATE = ("chambre", "sdb", "wc", "cuisine")         # rooms a duplex's ladder never lands in (`plancheck.PRIVATE`)
+
+
+def duplex_lay(job, region, below: list, spot, f: int, key: tuple) -> tuple:
+    """(cells, room below, cell above) of a duplex's upper floor entered by a ladder at `spot`: the rooms the
+    ladder stands in are those it overlaps most."""
+    c = spot.centroid
+    cells = P.lay(job, region, P.Entry(c.x, c.y, 1.0, 0.0), ["chambre", "sdb", "chambre*"], f, key, False)
+    down = max(below, key=lambda r: (r.polygon.intersection(spot).area, -r.id))
+    up = max(enumerate(cells), key=lambda t: (t[1].poly.intersection(spot).area, -t[0]))[1]
+    return cells, down, up
+
+
+def duplex(job, regions: list, f: int, kind: str = "") -> None:
     """Rooms on a floor no core reaches (the step of a stepped block) are the upper floor of the flat below
-    that overlaps them most, reached by its own ladder (a duplex; a warning)."""
+    that overlaps them most, reached by its own ladder (a duplex; a warning). In a block of flats a ladder
+    whose foot or head stands in a chambre, bath or cuisine moves into the couloir or hall below, against its
+    side (the flat's way home never crosses a bedroom to its upper floor; 47.2 flats round J)."""
     interior = job.interior
     below = [r for r in interior.rooms if r.floor == f - 1 and r.unit.startswith("flat ")]
     for region, _ in regions:
@@ -564,11 +594,20 @@ def duplex(job, regions: list, f: int) -> None:
         spot = S.ladder(inner, Frame.of(region), inner.centroid.coords[0], (0.6, 1.2)) if not inner.is_empty else None
         if spot is None:
             continue
-        c = spot.centroid
-        cells = P.lay(job, region, P.Entry(c.x, c.y, 1.0, 0.0), ["chambre", "sdb", "chambre*"], f, ("duplex", unit), False)
+        mine = [r for r in below if r.unit == unit]
+        cells, down, up = duplex_lay(job, region, mine, spot, f, ("duplex", unit))
+        if kind == "slab" and (down.type in R_PRIVATE or up.type in R_PRIVATE):   # in a chambre or bath: the couloir
+            ways = [r.polygon for r in mine if r.type in ("couloir", "hall")]
+            way = solid(shapely.union_all(ways).intersection(region)).buffer(-0.1, join_style="mitre") if ways else None
+            from shapely.ops import nearest_points
+            side = nearest_points(way.boundary, spot.centroid)[0] if way and not way.is_empty else None
+            got = S.ladder(way, Frame.of(region), side.coords[0], (0.6, 1.2)) if side is not None else None
+            if got is not None:
+                again = duplex_lay(job, region, mine, got, f, ("duplex", unit, "way"))
+                if again[1].type not in R_PRIVATE and again[2].type not in R_PRIVATE:
+                    spot, (cells, down, up) = got, again
         rooms = P.add_rooms(job, cells, f, unit)
         P.doors(job, rooms)
-        down = max((r for r in below if r.unit == unit), key=lambda r: (r.polygon.intersection(spot).area, -r.id))
         up = max(rooms, key=lambda r: (r.polygon.intersection(spot).area, -r.id))
         n = S.risers(interior.fh, 0.3)
         interior.stairs.append(S.Stair("ladder", spot, f - 1, f, n, interior.fh / n, 0.0, 0.6, None, [down.id, up.id]))

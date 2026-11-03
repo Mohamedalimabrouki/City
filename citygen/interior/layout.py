@@ -83,8 +83,11 @@ def plan_interior(outside, style: dict) -> Interior:
         finally:
             del interior.nooks
     if layout in style.get("interiors", {}).get("villa", {}).get("little", ()) and interior.floors == 1 and any(
-            f.endswith("has no chambre") for f in check(interior)):
+            f.endswith(("has no chambre",) + (("has no salon",) if layout == "villa" else ())) for f in check(interior)):
         again(interior, outside, style, layout, "little", before)   # rooms off the salon (47.2 houses round 5)
+    box_room = style.get("interiors", {}).get("villa", {}).get("box_room", {})
+    if layout in box_room and interior.floors > 1 and any(f.endswith(SHORT) for f in check(interior)):
+        again(interior, outside, style, layout, "box_room", before)   # the stair where it leaves room for rooms
     if layout in FLATS:                               # a narrow wet room's door near a corner (flats round I)
         from .plancheck import wet_corners
         wet_corners(interior, style.get("interiors", {}).get("flats", {}).get("wet_corner"))

@@ -17,9 +17,29 @@ def home(style):
 
 
 @pytest.fixture(scope="module")
-def city(style):
+def city_kit(style):
     from citygen.kit import make_kit
-    return set(make_kit(42, load_config(), style).pieces)
+    return make_kit(42, load_config(), style)
+
+
+@pytest.fixture(scope="module")
+def city(city_kit):
+    return set(city_kit.pieces)
+
+
+def test_interior_keeps_both_kits_materials(style, home, city_kit):
+    """Review of 3 November, finding 0: the interior GLB's materials (`export.interior_materials`) keep every
+    city kit material as its tiles draw it (a shop front, a boat, a pot plant seen from inside) and every
+    `[interiors.palette]` one as the shell and the furniture want it; no name is both (the home kit's
+    `copper`, `terracotta` and `net_green` once recoloured the city's)."""
+    from citygen.interior.export import interior_materials
+    got = interior_materials(city_kit.materials, home.materials)
+    inner = style["interiors"]["palette"]
+    assert not set(inner) & set(city_kit.materials)
+    assert all(got[m] == spec for m, spec in city_kit.materials.items())
+    assert all(got[m] == spec for m, spec in inner.items())
+    used = {m for pc in home.pieces.values() for m in pc.parts}
+    assert all(got[m] == home.materials[m] for m in used)
 
 
 def _check_table(home, style, city, module):
@@ -71,7 +91,8 @@ def test_home_kit_budget(home, tmp_path):
 def test_weave_images(style):
     from citygen.interior import weave
     spec = style["interiors"]["textures"]
-    for name in ("klim_red", "klim_indigo", "mergoum", "zarbia", "hasira", "ticking", "painted", "sajjada", "mink"):
+    for name in ("klim_red", "klim_indigo", "mergoum", "zarbia", "hasira", "ticking", "painted", "sajjada", "mink",
+                 "fleece", "net"):
         a = np.asarray(weave.texture(name, 42, spec[name]), dtype=np.float64)
         assert a.shape == (256, 256, 3), name
         rows = (np.abs(a[1] - a[0]).mean() + np.abs(a[-1] - a[-2]).mean()) / 2 + 0.5   # the neighbour rows' difference
@@ -101,3 +122,59 @@ def test_home_kit_deterministic(tmp_path):
                        env={**os.environ, "PYTHONHASHSEED": seed}, check=True, capture_output=True)
     for f in ("tiles/sheet.glb", "tiles/index.json", "pieces.txt"):
         assert (tmp_path / "a" / f).read_bytes() == (tmp_path / "b" / f).read_bytes(), f
+
+
+def test_goods_rows_fill_and_vary(style):
+    """The goods image holds two different shelf rows, each filled near its top (fix-goods)."""
+    from citygen.interior import weave
+    spec = style["interiors"]["textures"]["goods"]
+    a = np.asarray(weave.texture("goods", 42, spec), dtype=np.float64)
+    h = a.shape[0] // int(spec["rows"])
+    back = weave._col(spec, "back") * 255.0
+    for b in range(int(spec["rows"])):
+        dark = np.abs(a[b * h:(b + 1) * h] - back).sum(-1) < 40      # the shelf's back between goods
+        assert dark[h // 4:].mean() < 0.2, b                         # the goods fill the row's height
+    assert np.abs(a[:h] - a[h:2 * h]).mean() > 20.0                  # the rows differ
+
+
+def test_hidoura_never_folds():
+    """The hide's triangles never overlap seen from above, over 200 seeds: their areas add up to the
+    outline's (the review of fix-hide: an x/y jitter swapped neighbouring outline points in about 1 seed of 5)."""
+    from citygen.interior import kit_old
+    from citygen.rng import stream
+    for seed in range(200):
+        mb = kit_old.hidoura(kit_old.TABLE["hidoura"][2], "", stream(seed, "piece", "home/hidoura"))
+        (_mat, pos, tris, _fine), = mb.arrays()
+        m = (len(pos) - 1) // 2                                   # the hem's points come first
+        x, y = pos[:m, 0], pos[:m, 1]
+        outline = abs(np.dot(x, np.roll(y, -1)) - np.dot(y, np.roll(x, -1))) / 2
+        u, v = pos[tris[:, 1], :2] - pos[tris[:, 0], :2], pos[tris[:, 2], :2] - pos[tris[:, 0], :2]
+        cover = np.abs(u[:, 0] * v[:, 1] - u[:, 1] * v[:, 0]).sum() / 2
+        assert cover == pytest.approx(outline, rel=1e-9), seed
+
+
+def test_cushion_cord_normals_face_out():
+    """The cushion's piping cord shades round: every vertex normal of its triangles lies within 90 degrees
+    of the face (the review of fix-textile: area-weighted normals turned its front towards the wall)."""
+    from citygen.interior import kit_old
+    from citygen.rng import stream
+    for v in kit_old.VARIANTS["cushion"]:
+        mb = kit_old.cushion(kit_old.TABLE["cushion"][2], v, stream(42, "piece", f"home/cushion_{v}"))
+        cord = "velvet_red" if v == "gold" else "velvet_gold"
+        pos, nrm, _uv, tris, _n, _c = mb._parts[cord]
+        p, n, t = pos[0], nrm[0], tris[0]                           # the cord comes first, then the tassels
+        assert len(t) == 32, v
+        face = np.cross(p[t[:, 1]] - p[t[:, 0]], p[t[:, 2]] - p[t[:, 0]])
+        assert (np.einsum("tj,tkj->tk", face, n[t]) > 0).all(), v
+
+
+def test_pots_stack_stays_in_its_size():
+    """The potter's stock stays inside its table size over 200 seeds (the review of fix-brass: the
+    8-sided bowls reached 0.318 m past the 0.30 m half-depth, the jars 0.308 m across)."""
+    from citygen.interior import kit_old
+    from citygen.rng import stream
+    w, d, h = kit_old.TABLE["pots_stack"][2]
+    for seed in range(200):
+        mb = kit_old.pots_stack((w, d, h), "", stream(seed, "piece", "home/pots_stack"))
+        p = np.concatenate([a[1] for a in mb.arrays()])
+        assert (np.abs(p[:, :2]) <= [w / 2, d / 2]).all() and p[:, 2].min() >= 0.0 and p[:, 2].max() <= h, seed

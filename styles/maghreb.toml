@@ -1874,10 +1874,10 @@ wood_beech = { color = "#C49A6C", roughness = 0.6 }
 wood_painted_green = { color = "#3F6B4F", roughness = 0.6 }
 wood_painted_red = { color = "#8E3B2F", roughness = 0.6 }
 brass = { color = "#B08D3C", roughness = 0.4, metallic = 0.5 }   # metals at half: fully metallic reads black in the viewer
-copper = { color = "#B5653A", roughness = 0.4, metallic = 0.5 }
+copper_ware = { color = "#B5653A", roughness = 0.4, metallic = 0.5 }
 aluminium = { color = "#B9BDC2", roughness = 0.4, metallic = 0.4 }
 iron_black = { color = "#2B2A28", roughness = 0.55, metallic = 0.4 }
-terracotta = { color = "#B5653F", roughness = 0.9 }
+clay_red = { color = "#B5653F", roughness = 0.9 }
 glaze_green = { color = "#3D6B3A", roughness = 0.25 }
 clay_pale = { color = "#E3D9C6", roughness = 0.9 }
 charcoal = { color = "#2A2522", roughness = 0.95 }
@@ -1887,7 +1887,7 @@ velvet_blue = { color = "#23406E", roughness = 0.85 }
 velvet_gold = { color = "#B38B3A", roughness = 0.6 }
 cotton_white = { color = "#EFEDE6", roughness = 0.9 }
 wool_cream = { color = "#E6DCC4", roughness = 0.95 }
-fleece = { color = "#E9E1CF", roughness = 1.0 }
+fleece = { color = "#FFFFFF", roughness = 1.0, texture = "fleece", texture_size = [0.4, 0.4] }   # the image holds the warm cream
 jute = { color = "#A88A5C", roughness = 0.95 }
 leather_brown = { color = "#7A4B2A", roughness = 0.6 }
 ceramic_white = { color = "#F4F4F2", roughness = 0.15 }
@@ -1897,7 +1897,7 @@ mirror = { color = "#C8CDD0", roughness = 0.08, metallic = 0.55 }   # fully meta
 plastic_blue = { color = "#2F6FB8", roughness = 0.45 }
 plastic_red = { color = "#C0392B", roughness = 0.45 }
 butane_bottle = { color = "#3B6FB6", roughness = 0.4 }    # Ali's choice (SPEC 6d Decisions): the blue bottle
-net_green = { color = "#3E7A55", roughness = 0.9 }
+twine_green = { color = "#FFFFFF", roughness = 0.9, texture = "net", texture_size = [0.4, 0.4] }   # the cords and holes in the image
 book_green = { color = "#2F5B3C", roughness = 0.7 }
 tea_amber = { color = "#7A3E16", roughness = 0.1 }   # the tea in the tea set's glasses
 klim_red = { color = "#FFFFFF", roughness = 0.95, texture = "klim_red", texture_size = [1.4, 2.2] }   # the images hold the colors
@@ -1922,14 +1922,14 @@ cotton_blue = { color = "#8EB2D6", roughness = 0.9 }
 cotton_pink = { color = "#E2A9B5", roughness = 0.9 }
 rug_floral = { color = "#FFFFFF", roughness = 0.95, texture = "rug_floral", texture_size = [1.6, 2.3] }   # one repeat per rug
 spines = { color = "#FFFFFF", roughness = 0.7, texture = "spines", texture_size = [0.5, 0.28] }   # 0.28: one book row (kit_new.TEX_H)
-goods = { color = "#FFFFFF", roughness = 0.6, texture = "goods", texture_size = [0.8, 0.32] }     # 0.32: one shelf row (kit_new.TEX_H)
-goods_spices = { color = "#E39A62", roughness = 0.6, texture = "goods", texture_size = [0.8, 0.32] }   # souk trades: `goods` tinted by mesh/props.SHOP_GOODS
-goods_perfume = { color = "#B78A5E", roughness = 0.4, texture = "goods", texture_size = [0.8, 0.32] }
-goods_pots = { color = "#D08A66", roughness = 0.7, texture = "goods", texture_size = [0.8, 0.32] }
-goods_copper = { color = "#D58A56", roughness = 0.4, metallic = 0.3, texture = "goods", texture_size = [0.8, 0.32] }
-goods_chechia = { color = "#D2524A", roughness = 0.8, texture = "goods", texture_size = [0.8, 0.32] }
-goods_fruit = { color = "#E8B25A", roughness = 0.7, texture = "goods", texture_size = [0.8, 0.32] }
-goods_cloth = { color = "#C98A8A", roughness = 0.9, texture = "goods", texture_size = [0.8, 0.32] }
+goods = { color = "#FFFFFF", roughness = 0.6, texture = "goods", texture_size = [0.8, 0.72] }     # 0.72: two shelf rows (kit_new.TEX_H 0.36)
+goods_spices = { color = "#E39A62", roughness = 0.6, texture = "goods", texture_size = [0.8, 0.72] }   # souk trades: `goods` tinted by mesh/props.SHOP_GOODS
+goods_perfume = { color = "#B78A5E", roughness = 0.4, texture = "goods", texture_size = [0.8, 0.72] }
+goods_pots = { color = "#D08A66", roughness = 0.7, texture = "goods", texture_size = [0.8, 0.72] }
+goods_copper = { color = "#D58A56", roughness = 0.4, metallic = 0.3, texture = "goods", texture_size = [0.8, 0.72] }
+goods_chechia = { color = "#D2524A", roughness = 0.8, texture = "goods", texture_size = [0.8, 0.72] }
+goods_fruit = { color = "#E8B25A", roughness = 0.7, texture = "goods", texture_size = [0.8, 0.72] }
+goods_cloth = { color = "#C98A8A", roughness = 0.9, texture = "goods", texture_size = [0.8, 0.72] }
 
 [interiors.textures]  # images only interiors use (mesh/textures.py makes them; the build never writes them)
 terrazzo = { pixels = 256, chips = 1400, grain = 0.5, mottle = 0.4, field = "#D9D3C7", chip_1 = "#8E877B", chip_2 = "#4F4A44", chip_3 = "#B9A687", chip_4 = "#F1EDE6", chip_5 = "#9A6B55" }
@@ -1945,10 +1945,12 @@ ticking = { pixels = 256, repeats = 8, mottle = 0.3, cream = "#E8E0CC", red = "#
 painted = { pixels = 256, flowers = 9, mottle = 0.5, ground = "#3F6B4F", red = "#B53A2E", yellow = "#E0B23E", white = "#F1EBDD", leaf = "#7FA05A" }
 sajjada = { pixels = 256, mottle = 0.4, field = "#7E1F24", arch = "#1F4E3A", border = "#B38B3A", line = "#E9DFC8" }
 mink = { pixels = 256, flowers = 4, mottle = 0.6, ground = "#3A2432", rose = "#B23A48", rose_2 = "#E07A84", leaf = "#3E6B47" }
+fleece = { pixels = 256, locks = 10, crimp = 3, mottle = 0.4, cream = "#FAF3E4", hollow = "#D9C7A6" }   # the hidoura's wool
+net = { pixels = 256, cells = 16, cord_width = 3.0, mottle = 0.5, cord = "#4F9468", knot = "#2C5A3E", gap = "#1E3A2A" }   # the net pile's meshes
 # prompt 53: the machine-made rug, book backs, a grocer's shelf row (one row per image: kit_new.TEX_H)
 rug_floral = { pixels = 256, border = 0.12, flowers = 60, mottle = 0.35, field = "#8C1E23", navy = "#1E2A4D", guard = "#D9CAA2", flower = "#E4D5AE", leaf = "#55724A", rose = "#C4553D" }
 spines = { pixels = 256, wmin = 7, wmax = 20, hmin = 0.72, mottle = 0.3, gap = "#2B2118", gold = "#C9A23E", label = "#E6DCC4", color_1 = "#7E1F24", color_2 = "#23406E", color_3 = "#1F4E3A", color_4 = "#B38B3A", color_5 = "#E9E1CF", color_6 = "#5A3A24", color_7 = "#2B2A28", color_8 = "#A84A2E" }
-goods = { pixels = 256, wmin = 10, wmax = 26, mottle = 0.3, back = "#3A2E24", label = "#EDE6D6", cap = "#C9C9C9", color_1 = "#C0392B", color_2 = "#E0B23E", color_3 = "#2F6FB8", color_4 = "#3E7A55", color_5 = "#F2F2EE", color_6 = "#D9822B", color_7 = "#7E1F24", color_8 = "#8E5A9A" }
+goods = { pixels = 256, rows = 2, wmin = 16, wmax = 34, hmin = 0.80, hmax = 0.95, tins_high = 2, flat_high = 4, jars_high = 2, facing_min = 2, facing_max = 4, w_box = 0.22, w_tin = 0.20, w_bottle = 0.18, w_jar = 0.12, w_packet = 0.18, w_stack = 0.10, mottle = 0.3, back = "#3A2E24", label = "#EDE6D6", cap = "#C9C9C9", color_1 = "#C0392B", color_2 = "#E0B23E", color_3 = "#2F6FB8", color_4 = "#3E7A55", color_5 = "#F2F2EE", color_6 = "#D9822B", color_7 = "#7E1F24", color_8 = "#8E5A9A" }
 
 [interiors.rooms]  # [least area m2, least width m] (width: twice the largest inscribed circle's radius)
 piece = 0.5        # m2: a smaller piece always joins its neighbour
@@ -2035,13 +2037,16 @@ halve = ["maison"]       # these houses cut a chambre, salle a manger or salon o
 relight = ["villa", "maison"]    # a blind chambre or salle a manger and a room beside it holding two windows or more are cut again so both keep one (47.2 houses round 2)
 relight_step = 0.25      # meters between the partitions tried
 way_room = ["villa", "maison"]   # a home with no chambre on its top floor cuts one from its hall or couloir (47.2 houses round 4)
-little = ["maison"]      # a one-floor maison still with no chambre is planned last with no couloir: the door into the salon, the chambre, cuisine and sdb off it (47.2 houses round 5)
+little = ["maison", "villa"]   # a one-floor maison still with no chambre (a villa: or no salon) is planned last with no couloir: the door into the salon, the chambre, cuisine and sdb off it (47.2 houses round 5)
+box_room = { villa = 2.6 }   # m: a house of two floors or more still with no salon or no chambre is planned last with its U stair box where it leaves the most floor in parts this wide (no ring of couloir round the stair; 47.2 villas round O)
 little_step = 0.5        # meters between the partitions a little house tries
+little_most = 80.0       # m2: a floor whose rotated rectangle is over this is no little house (the search tries every 4-room cut of its grid, time growing as the cube of its side: 80 m2 about 1 s)
 complete = ["villa", "maison"]   # a floor 0 with no salon, a one-floor home with no chambre, cuts one from its largest room (47.2 round C)
 
 [interiors.flats]   # flats in colonial blocks and slabs (SPEC 6c "Flats")
 types = [["S+1", 60.0], ["S+2", 100.0], ["S+3", 1e9]]   # flat type by area (m2, under; lead: moyen standing)
 by_windows = { colonial = true, slab = true }   # a flat's type follows its window bays too: the largest type no bigger than its area's whose lit rooms (salon, cuisine, the chambres) the bays cover (47.2 flats round E)
+spare_bays = { colonial = 1 }   # window bays a flat's type leaves over its salon, cuisine and chambres (by layout; the deep colonial flats' hall, a couloir end or two near windows take one: 47.2 colonial round K)
 two_flats = 130.0        # m2: a colonial floor less its core keeping this has two flats
 min_flat = 40.0          # m2: floor 0 of a colonial block keeps a flat beside its shop or cafe from this
 couloir = 1.1            # meters wide, the flats' couloir (villas and maisons: [interiors.villa] couloir)
@@ -2057,7 +2062,7 @@ blind_faults = { colonial = true, slab = true, villa = true, maison = true }   #
 court_cuts = { colonial = true, maison = "against" }   # the spine cuts its bands at the ends of every court or light well they wrap (no L rooms round a court; a maison's 3 m patio keeps its L rooms, which the cuts left blind; 47.2 round B); "against": only a narrow maison's court against a party wall (47.2 round C)
 blind_cap = { slab = 4, colonial = 4 }   # variants a flat's search tries at most while only blind rooms keep its best from passing (time, 47.2 round B)
 blind_join = { colonial = true, slab = true, villa = true, maison = true }     # a blind room-sized leftover cell of a lit home joins a room (or the way) rather than be a dark room (47.2 round B)
-bay_plan = { layouts = ["colonial", "slab"], first = true, room = 2.4, wet = 1.2, wet_most = 2.4 }   # a flat planned one room per window bay where that plan is clean and passes (`bayplan`; first: a flat whose spine plan the search scores faulty takes its clean bay plan in the block's first plan, else only in a second plan when the check faults it; room: least m of a lit piece along its band, wet / wet_most: a blind end piece for a bath; 47.2 flats rounds E, F)
+bay_plan = { layouts = ["colonial", "slab"], first = true, middle = ["colonial"], room = 2.4, wet = 1.2, wet_most = 2.4 }   # a flat planned one room per window bay where that plan is clean and passes (`bayplan`; first: a flat whose spine plan the search scores faulty takes its clean bay plan in the block's first plan, else only in a second plan when the check faults it; room: least m of a lit piece along its band, wet / wet_most: a blind end piece for a bath; middle: these layouts' blind middle holds the ways, a hall grown past its least and a blind piece joining a way to reach a lit room; 47.2 flats rounds E, F, colonial round K)
 deep_door = 0.3          # meters: a slab stair door whose top stands less than this over floor 0 opens into a sunken entry room
 
 [interiors.shop]   # the hanout and makhzen of a ground floor shop front (SPEC 6c "Shops and cafes")
@@ -2145,6 +2150,8 @@ court_keep = 1.2      # meters: the court's middle (its polygon shrunk by this) 
 front_gap = 0.25      # meters between seats and the table in front of them (a doukkana, a sedari)
 front_gap_sofa = 0.40
 wet = ["wc", "sdb", "bit_el_ma"]   # wet rooms: a door keeps only its own width free (the toilet stands beside its swing)
+wc_rooms = ["wc"]     # rooms whose door keeps only `wc_keep` meters free in front (one steps in and turns)
+wc_keep = 0.6
 walk_cross = ["bed", "seat", "table", "rug"]   # categories that may lie across a walk strip (the reach test still holds)
 cushion_step = 0.6    # meters between cushions along a doukkana
 cafe_pitch = 1.6      # meters between the qahwa's table sets
@@ -2152,6 +2159,7 @@ cafe_area = 4.0       # m2 of qahwa floor per table set
 bands = { poor = 0.35, rich = 0.65 }   # wealth bands of a household
 elder_share = [0.45, 0.30]             # chance of an elder in a home of 4 or more (traditional, modern)
 elder_two = 0.25                       # chance of a second in a home of 6 or more
+couple_maqsura = 4.5                   # m2: a traditional couple sleeps in a one-door maqsura this large, else a ghorfa
 room_triangles = [1500, 4000, 8000]    # drawn triangles per room at sparse, lived-in, full (courts, stah, shops x2)
 hidoura = [0.5, 0.25]                  # chance of the Aid sheepskin (traditional, modern)
 sewing = 0.15                          # chance of a sewing machine in any home
@@ -2209,6 +2217,27 @@ tv_flat_large = "tv_flat_small"
 buffet_carved = "buffet_walnut"
 mattress_stack = "mattress_floor_mink"
 loom = "sewing_machine"
+basin = "hand_basin"   # a narrow sdb's small wall-hung basin when the pedestal one finds no wall
+shower = "shower_small"   # a 70 cm tray when the 80 cm one finds no corner
+wc_seat = "wc_turkish"    # a tiny wc's squat toilet (a la turque) when the seat and its use strip find no place
+sink_stone = "qolla"      # a small matbakh's water jar when the stone sink finds no wall
+
+[interiors.furnish.textiles.mattress]   # the doukkana's mattress (interior/kit_old.py `TEXTILE`), meters
+round = 0.045        # radius of the rounded front edge
+bevel = 0.02         # the back top edge's chamfer
+belly = 0.012        # how far the front's foot sits back of its top (the front bellies out)
+pipe = 0.009         # half thickness of the piping cord along the round
+proud = 0.5          # how much of the cord stands out of the round (0 buried, 1 sitting on it)
+
+[interiors.furnish.textiles.cushion]   # the doukkana's back cushions (interior/kit_old.py `TEXTILE`), meters
+seam = 0.08          # the seam (widest outline) this far out from the wall, before the lean
+cord_r = 0.005       # the piping cord's radius (a cord about 1 cm thick round the seam)
+face = 0.70          # the front's ring, as a share of the seam outline, where the dome starts to round in
+face_at = 0.75       # that ring's place, as a share of the way from the seam to the dome's middle
+dome = 0.185         # the front's middle, before the lean (the whole is scaled into the depth)
+lean = 0.035         # the foot comes this far forward of the top
+tassel = 0.085       # a corner tassel's length
+tassel_r = 0.02      # a tassel's head radius
 
 [interiors.furnish.smaller_trad]   # traditional homes: a double bed gives way to a plain sedda before a single bed
 bed_double_140_mink = "sedda_plain"
@@ -2430,7 +2459,7 @@ alias = "sewing_extra"
 [[interiors.furnish.rooms.sleep_couple]]
 role = "bed"
 place = "head"
-else = ["wall"]   # under a window when no blind wall is left (a cot before a floor mattress)
+else = ["wall", "side"]   # a window wall when no blind wall is left, then lengthwise along a wall
 density = "sparse"
 need = true
 [[interiors.furnish.rooms.sleep_couple]]
@@ -2501,7 +2530,7 @@ density = "full"
 [[interiors.furnish.rooms.sleep_children]]
 role = "child_bed"
 place = "head"
-else = ["wall"]   # under a window when no blind wall is left (a cot before a floor mattress)
+else = ["wall", "side"]   # a window wall when no blind wall is left, then lengthwise along a wall
 density = "sparse"
 need = true
 count = "children"
@@ -2534,7 +2563,7 @@ when = "trad"
 [[interiors.furnish.rooms.sleep_elder]]
 role = "elder_bed"
 place = "head"
-else = ["wall"]   # under a window when no blind wall is left (a cot before a floor mattress)
+else = ["wall", "side"]   # a window wall when no blind wall is left, then lengthwise along a wall
 density = "sparse"
 need = true
 [[interiors.furnish.rooms.sleep_elder]]
@@ -2672,7 +2701,7 @@ when = "trad"
 [[interiors.furnish.rooms.guest]]
 role = "elder_bed"
 place = "head"
-else = ["wall"]   # under a window when no blind wall is left (a cot before a floor mattress)
+else = ["wall", "side"]   # a window wall when no blind wall is left, then lengthwise along a wall
 density = "sparse"
 when = "modern"
 [[interiors.furnish.rooms.guest]]
@@ -2990,6 +3019,7 @@ density = "sparse"
 need = true
 unless = "wash"
 alias = "shower"
+cross = true       # a two-door sdb's tray, basin and wc may stand in its walk strips (the reach test keeps the way)
 [[interiors.furnish.rooms.bath]]
 role = "wash"
 place = "wall"
@@ -2998,12 +3028,14 @@ need = true
 unless = "wash"
 alias = "shower"
 ends = true
+cross = true
 [[interiors.furnish.rooms.bath]]   # the bathtub or shower first: it needs a whole end wall or a corner
 role = "basin"
 place = "wall"
 density = "sparse"
 need = true
 ends = true        # from the wall's ends inward: the basin stands by a corner, not in the middle of the wall
+cross = true
 [[interiors.furnish.rooms.bath]]
 role = "mirror_bath"
 place = "hang:basin"
@@ -3015,6 +3047,7 @@ density = "sparse"
 need = true
 when = "nowc"
 ends = true
+cross = true
 [[interiors.furnish.rooms.bath]]
 role = "heater"
 place = "hang"
@@ -3031,6 +3064,7 @@ density = "full"
 [[interiors.furnish.rooms.wc]]
 role = "wc"
 place = "facing_door"
+else = ["wall", "side"]    # a squat toilet by a side wall or lengthwise, clear of the door's swing
 density = "sparse"
 need = true
 [[interiors.furnish.rooms.wc]]
@@ -3210,6 +3244,7 @@ count = "doors"
 [[interiors.furnish.rooms.shop]]
 role = "counter"
 place = "shopfront"
+else = [{ place = "wall", most = 1.4, ends = true }]   # a shallow shop: a short counter by a corner
 cross = true
 density = "sparse"
 need = true

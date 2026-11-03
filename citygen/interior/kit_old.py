@@ -27,7 +27,7 @@ from ..rng import stream
 TABLE = {
     "doukkana": ("seat", "wall", (1.0, 0.80, 0.40), 24, {"stretch": (0.8, 4.0), "top": 0.40, "use": 0.4}),
     "mattress": ("seat", "on", (1.0, 0.78, 0.12), 30, {"stretch": (0.8, 4.0), "top": 0.12}),
-    "cushion": ("seat", "wall", (0.55, 0.18, 0.42), 40, {"z0": 0.52}),
+    "cushion": ("seat", "wall", (0.55, 0.18, 0.42), 72, {"z0": 0.52}),
     "mattress_floor": ("bed", "wall", (0.90, 1.90, 0.12), 30, {"use": 0.5, "top": 0.12}),
     "mattress_stack": ("storage", "wall", (0.90, 0.60, 0.55), 60, {"use": 0.6, "top": 0.55}),
     "sedda": ("bed", "wall", (1.50, 2.00, 2.30), 520, {"use": 0.5}),
@@ -39,7 +39,7 @@ TABLE = {
     "khzana": ("storage", "wall", (1.20, 0.45, 2.05), 160, {"use": 0.6}),
     "shelf_wall": ("storage", "wall", (1.0, 0.25, 0.25), 36, {"stretch": (0.6, 2.4), "z0": 1.70, "top": 1.86}),
     "mirror_carved": ("decor", "wall", (0.65, 0.05, 0.90), 120, {"z0": 1.15}),
-    "tray_brass": ("small", "on", (0.60, 0.60, 0.03), 48, {"top": 0.01}),
+    "tray_brass": ("small", "on", (0.60, 0.60, 0.03), 80, {"top": 0.01}),
     "tea_set": ("small", "on", (0.35, 0.25, 0.22), 160, {}),
     "ibrik": ("small", "floor", (0.35, 0.35, 0.40), 120, {}),
     "kanoun": ("kitchen", "floor", (0.34, 0.34, 0.24), 80, {"top": 0.24}),
@@ -58,7 +58,7 @@ TABLE = {
     "mergoum": ("rug", "floor", (1.20, 2.00, 0.01), 10, {}),
     "zarbia": ("rug", "floor", (2.00, 3.00, 0.015), 10, {}),
     "hasira": ("rug", "floor", (1.80, 2.60, 0.01), 10, {}),
-    "hidoura": ("rug", "floor", (0.80, 1.10, 0.02), 24, {}),
+    "hidoura": ("rug", "floor", (0.80, 1.10, 0.02), 126, {}),
     "sajjada": ("rug", "floor", (0.65, 1.15, 0.01), 10, {}),
     "rahla": ("work", "floor", (0.32, 0.25, 0.35), 70, {}),
     "loom": ("work", "wall", (1.60, 0.80, 2.20), 300, {"use": 0.8}),
@@ -66,7 +66,7 @@ TABLE = {
     "sewing_machine": ("work", "wall", (0.90, 0.50, 0.95), 260, {"use": 0.6}),
     "dummy": ("work", "floor", (0.40, 0.35, 1.55), 120, {}),
     "chechia_forms": ("work", "wall", (0.80, 0.40, 0.95), 160, {"use": 0.6}),
-    "pots_stack": ("work", "floor", (0.60, 0.60, 0.70), 150, {}),
+    "pots_stack": ("work", "floor", (0.60, 0.60, 0.70), 180, {}),
     "net_pile": ("work", "floor", (1.00, 0.80, 0.35), 80, {}),
     "skifa_bench": ("seat", "wall", (1.0, 0.45, 0.45), 24, {"stretch": (0.8, 3.0), "use": 0.4}),
     "wc_turkish": ("bath", "wall", (0.50, 0.70, 0.05), 40, {}),
@@ -135,15 +135,19 @@ def _prism(mb: MeshBuilder, prof, x0: float, x1: float, mats, cap: str | None) -
                 add_triangles(mb, [_oriented([(x, y, z) for y, z in tri], (nx, 0, 0))], cap)
 
 
-def _smooth(mb: MeshBuilder, mat: str, pos, tris) -> None:
-    """Triangles sharing their corners, with area-weighted smooth normals (cushions, sacks, the net)."""
+def _smooth(mb: MeshBuilder, mat: str, pos, tris, uv=None, nrm=None) -> None:
+    """Triangles sharing their corners, with area-weighted smooth normals (cushions, sacks, the net); `uv`
+    replaces the default wall projection (u = x + y, v = -z) where a cover has its own, `nrm` the normals
+    where a shape knows its own (the cushion's round cord)."""
     pos, tris = np.asarray(pos, dtype=np.float64), np.asarray(tris, dtype=np.int64)
     n = np.zeros_like(pos)
     face = np.cross(pos[tris[:, 1]] - pos[tris[:, 0]], pos[tris[:, 2]] - pos[tris[:, 0]])
     for k in range(3):
         np.add.at(n, tris[:, k], face)
+    n = n if nrm is None else np.array(nrm, dtype=np.float64)
     n /= np.maximum(np.linalg.norm(n, axis=1), 1e-12)[:, None]
-    mb.add(mat, pos, n, np.stack([pos[:, 0] + pos[:, 1], -pos[:, 2]], axis=1), tris)
+    uv = np.stack([pos[:, 0] + pos[:, 1], -pos[:, 2]], axis=1) if uv is None else np.asarray(uv, dtype=np.float64)
+    mb.add(mat, pos, n, uv, tris)
 
 
 def _ring(cx, cy, cz, rx, ry, count: int, phase: float = 0.0) -> np.ndarray:
@@ -283,23 +287,63 @@ def doukkana(s, v, rng):
     return mb
 
 
-def mattress(s, v, rng):
-    """The doukkana's mattress: a bevelled pad with a piped front edge (velvet_gold on velvet, its own
-    ticking on ticking), 26 triangles."""
+TEXTILE = {   # shape numbers of the doukkana's textiles; the style's `[interiors.furnish.textiles]` overrides them
+    "mattress": {"round": 0.045, "bevel": 0.02, "belly": 0.012, "pipe": 0.009, "proud": 0.5},
+    "cushion": {"seam": 0.08, "cord_r": 0.005, "face": 0.70, "face_at": 0.75, "dome": 0.185, "lean": 0.035,
+                "tassel": 0.085, "tassel_r": 0.02},
+}
+
+
+def _shape(base: str, shape) -> dict:
+    return {**TEXTILE[base], **(shape or {})}
+
+
+def mattress(s, v, rng, shape=None):
+    """The doukkana's mattress: a profile swept along the bench, its back edge bevelled, its front edge
+    rounded (a quarter round in two steps, smooth normals) over a front that bellies out a little, flat
+    ends; a cord of piping (velvet_gold on velvet, its own ticking on ticking) stands proud along the
+    seam of the round (30 triangles)."""
     w, d, h = s
+    k = _shape("mattress", shape)
+    r, b, belly = k["round"], k["bevel"], k["belly"]
     mat = "ticking" if v == "ticking" else VELVET[v]
+    q = r * (1 - math.sqrt(0.5))
+    prof = [(-d / 2, 0.0), (-d / 2, h - b), (-d / 2 + b, h), (d / 2 - r, h), (d / 2 - q, h - q),
+            (d / 2, h - r), (d / 2 - belly, 0.0)]
+    n = len(prof)
+    pos = np.array([(x, y, z) for x in (-w / 2, w / 2) for y, z in prof])
+    tris = []
+    for i in range(n - 1):        # the long faces; the bottom lies on the bench
+        tris += [[i, i + 1, n + i + 1], [i, n + i + 1, n + i]]
+    tris = np.array(tris)
+    centre = np.array([0.0, 0.0, h / 2])
+    for t in range(len(tris)):
+        p0, p1, p2 = pos[tris[t]]
+        if np.dot(np.cross(p1 - p0, p2 - p0), (p0 + p1 + p2) / 3 - centre) < 0:
+            tris[t] = tris[t][::-1]
+    arc = np.concatenate([[0.0], np.cumsum(np.hypot(*np.diff(np.array(prof), axis=0).T))])
+    arc += prof[3][0] - arc[3]       # v runs down the profile and equals y on the top, as on the old flat pad
+    uv = np.array([(x, -a) for x in (-w / 2, w / 2) for a in arc])     # the ticking's stripes run across
     mb = MeshBuilder()
-    _pad(mb, -w / 2, w / 2, -d / 2, d / 2, 0.0, h, mat, 0.025)
+    _smooth(mb, mat, pos, tris, uv)
+    for tri in triangulate(Polygon(prof)):
+        for x, nx in ((-w / 2, -1.0), (w / 2, 1.0)):
+            add_triangles(mb, [_oriented([(x, y, z) for y, z in tri], (nx, 0, 0))], mat)
     pipe = "ticking" if v == "ticking" else "velvet_gold"
-    _tube(mb, (-w / 2, d / 2 - 0.004, h - 0.026), (w / 2, d / 2 - 0.004, h - 0.026), (0.008, 0.008), pipe)
+    off = k["pipe"] * k["proud"] * math.sqrt(0.5)        # out along the round's 45 degree normal
+    y, z = d / 2 - q + off, h - q + off
+    _tube(mb, (-w / 2, y, z), (w / 2, y, z), (k["pipe"], k["pipe"]), pipe)
     return mb
 
 
-def cushion(s, v, rng):
-    """A soft back cushion leaning on the wall over the doukkana: a rounded outline (a superellipse, as a
-    stuffed cover rounds its corners), the back nearly flat, the front gently domed, smooth normals; a
-    gold tassel (red on a gold cushion) at each top corner, long enough to read from a meter (38)."""
+def cushion(s, v, rng, shape=None):
+    """A soft, plump back cushion leaning on the wall over the doukkana: a rounded outline (a
+    superellipse, as a stuffed cover rounds its corners) at the seam, the front domed to its middle and the
+    back pressed nearly flat, one cover with smooth normals across the seam; a thin round cord of piping
+    (about 1 cm, in the tassel's colour, its own normals) runs round the seam; a gold tassel (red on a gold
+    cushion) hangs from each top corner, long enough to read from a meter (72 triangles)."""
     w, d, h = s
+    k8 = _shape("cushion", shape)
     z0 = TABLE["cushion"][4]["z0"]
     zc = z0 + h / 2
     k = 8
@@ -308,31 +352,51 @@ def cushion(s, v, rng):
     ox = np.sign(c) * np.sqrt(np.abs(c)) / math.sqrt(math.cos(math.radians(22.5)))   # reaches +-1
     oz = np.sign(sn) * np.sqrt(np.abs(sn)) / math.sqrt(math.cos(math.radians(22.5)))
     hw, hh = w / 2 - 0.005, h / 2 - 0.003
-    mid = np.stack([ox * hw, np.full(k, 0.08), zc + oz * hh], axis=1)
-    front = np.stack([ox * hw * 0.70, np.full(k, 0.155), zc + oz * hh * 0.70], axis=1)
-    pos = np.concatenate([mid, front, [[0.0, 0.18, zc], [0.0, 0.0, zc]]])
-    lean = 0.035                                      # the top rests on the wall, the foot comes forward
-    pos[:, 1] += lean * (1.0 - (pos[:, 2] - z0) / h)
-    pos[:, 1] = (pos[:, 1] - pos[:, 1].min()) / (pos[:, 1].max() - pos[:, 1].min()) * (d - 0.004)
-    tris = []
-    for i in range(k):
-        j = (i + 1) % k
-        tris += [[i, k + j, k + i], [i, j, k + j], [k + i, k + j, 2 * k], [i, 2 * k + 1, j]]
-    tris = np.array(tris)
-    centre = pos[:2 * k].mean(axis=0)
-    for n in range(len(tris)):     # every face looks out of the cushion
-        p0, p1, p2 = pos[tris[n]]
-        if np.dot(np.cross(p1 - p0, p2 - p0), (p0 + p1 + p2) / 3 - centre) < 0:
-            tris[n] = tris[n][::-1]
-    mb = MeshBuilder()
-    _smooth(mb, VELVET[v], pos, tris)
+    seam, r = k8["seam"], k8["cord_r"]
+    ring = lambda f, y: np.stack([ox * hw * f, np.full(k, y), zc + oz * hh * f], axis=1)
+    fy = seam + k8["face_at"] * (k8["dome"] - seam)
+    mid, face = ring(1.0, seam), ring(k8["face"], fy)
+    grow = 1.0 + r / min(hw, hh)                         # the cord's crown stands out of the seam by its radius
+    tuck = (1.0 - 1.2 * r * (1 - k8["face"]) / (fy - seam), 1.0 - 1.2 * r / seam)   # its edges sink in the cover
+    cord = [ring(tuck[0], seam + r), ring(grow, seam), ring(tuck[1], seam - r)]
+
+    def tilt(p):     # the top rests on the wall, the foot comes forward
+        p = np.array(p, dtype=np.float64)
+        p[:, 1] += k8["lean"] * (1.0 - (p[:, 2] - z0) / h)
+        return p
+
+    every = tilt(np.concatenate([mid, face, [[0.0, k8["dome"], zc], [0.0, 0.0, zc]]]))[:, 1]
+    lo, hi = every.min(), every.max()
+
+    def lean(p):     # tilted, then fitted to the depth
+        p = tilt(p)
+        p[:, 1] = (p[:, 1] - lo) / (hi - lo) * (d - 0.004)
+        return p
+
+    def shell(mb, mat, pos, tris, nrm=None):
+        pos, tris = lean(np.asarray(pos)), np.array(tris)
+        centre = lean(mid).mean(axis=0)
+        for n in range(len(tris)):     # every face looks out of the cushion
+            p0, p1, p2 = pos[tris[n]]
+            if np.dot(np.cross(p1 - p0, p2 - p0), (p0 + p1 + p2) / 3 - centre) < 0:
+                tris[n] = tris[n][::-1]
+        _smooth(mb, mat, pos, tris, nrm=nrm)
+
     tassel = "velvet_red" if v == "gold" else "velvet_gold"
+    mb = MeshBuilder()
+    band = lambda a: [t for i in range(k) for j in [(i + 1) % k]
+                      for t in ([a + i, a + k + j, a + k + i], [a + i, a + j, a + k + j])]
+    fan = lambda a, apex: [[a + i, a + (i + 1) % k, apex] for i in range(k)]
+    cover = np.concatenate([mid, face, [[0.0, k8["dome"], zc], [0.0, 0.0, zc]]])   # one cover, smooth over the seam
+    shell(mb, VELVET[v], cover, band(0) + fan(k, 2 * k) + fan(0, 2 * k + 1))
+    axis = lean(mid)                                     # the cord's own round normals: out from its axis
+    shell(mb, tassel, np.concatenate(cord), band(0) + band(k), np.concatenate([lean(c) - axis for c in cord]))   # the piping cord
     for sx in (-1, 1):
-        corner = np.array([sx * hw * 0.86, 0.06, zc + hh * 0.86])
-        tip = corner + np.array([sx * 0.03, 0.01, -0.06])     # hangs from the corner
-        ring = _ring(corner[0], corner[1], corner[2], 0.016, 0.016, 3)
-        _pyramid(mb, ring, tip, tassel)
-        add_triangles(mb, [_oriented(ring, (0, 0, 1))], tassel)          # its top, seen from above
+        corner = lean(np.array([[sx * hw * 0.84, seam + 0.01, zc + hh * 0.84]]))[0]
+        tip = corner + np.array([sx * 0.02, 0.012, -k8["tassel"]])     # hangs from the corner
+        head = _ring(corner[0], corner[1], corner[2], k8["tassel_r"], k8["tassel_r"], 3)
+        _pyramid(mb, head, tip, tassel)
+        add_triangles(mb, [_oriented(head, (0, 0, 1))], tassel)          # its knot, seen from above
     return mb
 
 
@@ -598,11 +662,13 @@ def mirror_carved(s, v, rng):
 
 
 def tray_brass(s, v, rng):
-    """The brass tray of the meida: a slanted rim round a flat 16-sided centre (48 triangles)."""
+    """The brass tray of the meida: a steep narrow rim (so its edge reads crisp from across a room) with an
+    outer skin (brass is one-sided, so the near rim stays seen from a standing view) round a flat 16-sided
+    centre (80 triangles)."""
     w, d, h = s
     r = w / 2
     mb = MeshBuilder()
-    _lathed(mb, [(r, h), (r - 0.04, 0.004), (0.0, 0.003)], "brass", 16)
+    _lathed(mb, [(r - 0.006, 0.0), (r, h), (r - 0.018, 0.004), (0.0, 0.003)], "brass", 16)
     return mb
 
 
@@ -618,7 +684,7 @@ def tea_set(s, v, rng):
     tray[0][-1][:, :2] *= [w, d]
     px, py = w * 0.25, 0.0
     _lathed(mb, [(0.035, 0.004), (0.060, 0.07), (0.0, h)], metal, 5, at=(px, py, 0.0))
-    _tube(mb, (px - 0.045, py, 0.05), (px - 0.11, py, 0.13), (0.007, 0.007), metal)
+    _tube(mb, (px - 0.05, py, 0.035), (px - 0.125, py, 0.15), (0.009, 0.003), metal)   # long tapering spout
     _tube(mb, (px + 0.04, py, 0.12), (px + 0.075, py, 0.05), (0.005, 0.010), metal)
     spots = [(x, y) for x in (-0.135, -0.08, -0.025) for y in (-0.055, 0.045)]
     for k in rng.permutation(len(spots)):
@@ -635,9 +701,9 @@ def ibrik(s, v, rng):
     w, d, h = s
     r = w / 2
     mb = MeshBuilder()
-    _lathed(mb, [(r * 0.55, 0.0), (r, 0.10), (r * 0.9, 0.10), (0.0, 0.04)], "copper", 8)
-    _lathed(mb, [(0.045, 0.045), (0.085, 0.16), (0.03, 0.27), (0.042, h)], "brass", 8)
-    _tube(mb, (0.06, 0.0, 0.17), (0.16, 0.0, 0.31), (0.009, 0.009), "brass")
+    _lathed(mb, [(r * 0.55, 0.0), (r, 0.10), (r * 0.9, 0.10), (0.0, 0.04)], "copper_ware", 8)
+    _lathed(mb, [(0.045, 0.045), (0.085, 0.16), (0.026, 0.28), (0.052, h)], "brass", 8)   # flared mouth
+    _tube(mb, (0.07, 0.0, 0.17), (0.165, 0.0, 0.34), (0.012, 0.004), "brass")             # tapering spout
     _tube(mb, (-0.035, 0.0, 0.33), (-0.11, 0.0, 0.27), (0.006, 0.012), "brass")
     _tube(mb, (-0.11, 0.0, 0.27), (-0.07, 0.0, 0.16), (0.006, 0.012), "brass")
     return mb
@@ -649,11 +715,11 @@ def kanoun(s, v, rng):
     r = w / 2
     mb = MeshBuilder()
     _lathed(mb, [(r * 0.65, 0.0), (r * 0.75, h * 0.40), (r, h), (r * 0.78, h - 0.015), (0.0, h - 0.05)],
-            ["terracotta", "terracotta", "terracotta", "charcoal"], 8)
+            ["clay_red", "clay_red", "clay_red", "charcoal"], 8)
     for k in range(3):
         a = k * 2 * math.pi / 3 + 0.3
         c = np.array([math.cos(a), math.sin(a), 0.0]) * r * 0.86 + [0, 0, h - 0.01]
-        _pyramid(mb, _ring(c[0], c[1], c[2], 0.02, 0.02, 3), c + [0, 0, 0.035 - 0.025], "terracotta")
+        _pyramid(mb, _ring(c[0], c[1], c[2], 0.02, 0.02, 3), c + [0, 0, 0.035 - 0.025], "clay_red")
     return mb
 
 
@@ -787,7 +853,7 @@ def khabia(s, v, rng):
     w, d, h = s
     r = w / 2
     mb = MeshBuilder()
-    low, high = "terracotta", ("glaze_green" if v == "glazed" else "terracotta")
+    low, high = "clay_red", ("glaze_green" if v == "glazed" else "clay_red")
     prof = [(r * 0.42, 0.0), (r * 0.90, h * 0.24), (r, h * 0.47), (r * 0.80, h * 0.76), (r * 0.40, h * 0.90),
             (r * 0.44, h), (r * 0.32, h * 0.98)]
     _lathed(mb, prof, [low, low, high, high, high, high], 8)
@@ -816,7 +882,7 @@ def tabouna(s, v, rng):
     r = w / 2
     mb = MeshBuilder()
     _lathed(mb, [(r, 0.0), (r * 0.98, h * 0.50), (r * 0.85, h * 0.88), (r * 0.62, h), (r * 0.52, h * 0.93),
-                 (0.0, h * 0.70)], ["plaster_inner", "plaster_inner", "terracotta", "terracotta", "charcoal"], 10)
+                 (0.0, h * 0.70)], ["plaster_inner", "plaster_inner", "clay_red", "clay_red", "charcoal"], 10)
     _faces(mb, [_oriented([(-0.07, r + 0.004, 0.03), (0.07, r + 0.004, 0.03), (0.07, r + 0.004, 0.13), (-0.07, r + 0.004, 0.13)], (0, 1, 0))], "charcoal")
     return mb
 
@@ -837,33 +903,39 @@ def klim(s, v, rng):
 
 
 def hidoura(s, v, rng):
-    """The sheepskin of the Aid: a hide outline with its four legs, neck and tail, the fleece thick in the
-    middle and thin at the edges, a little lumpy (24 triangles)."""
+    """The sheepskin of the Aid: a hide outline with its four legs, neck and tail and four shaggy tufts on
+    the flanks, two wool locks, one out and one in, along every edge; the fleece domed over a soft
+    shoulder to its full height in the middle and thin at the ragged edge; wool locks in the image (126 triangles)."""
     w, d, h = s
-    out = np.array([(0.0, 0.5), (0.2, 0.38), (0.5, 0.30), (0.30, 0.02), (0.5, -0.36), (0.06, -0.5),
-                    (-0.5, -0.36), (-0.30, 0.02), (-0.5, 0.30), (-0.2, 0.38)])
-    out = out + rng.uniform(-0.03, 0.03, out.shape)
+    hide = [(0.0, 0.5), (0.2, 0.38), (0.5, 0.30), (0.30, 0.02), (0.5, -0.36), (0.06, -0.5),
+            (-0.5, -0.36), (-0.30, 0.02), (-0.5, 0.30), (-0.2, 0.38)]
+    out = []
+    for i, p in enumerate(hide):                          # a tuft halfway along each flank, between the legs
+        out.append(p)
+        if i in (2, 3, 6, 7):
+            q = hide[i + 1]
+            out.append(((p[0] + q[0]) / 2 * rng.uniform(1.05, 1.18), (p[1] + q[1]) / 2))
+    out = np.array(out)
+    nxt = np.roll(out, -1, axis=0)                           # two wool locks along every edge, out then in
+    locks = [out] + [(out + (nxt - out) * f) * k * rng.uniform(0.97, 1.03, (len(out), 1)) for f, k in ((1 / 3, 1.13), (2 / 3, 0.88))]
+    out = np.stack(locks, axis=1).reshape(-1, 2) * rng.uniform(0.96, 1.04, (3 * len(out), 1))   # along the radius: no fold
     out = (out - out.min(axis=0)) / (out.max(axis=0) - out.min(axis=0)) - 0.5
-    inner = np.array([(0.0, 0.30), (0.22, 0.12), (0.2, -0.2), (-0.2, -0.2), (-0.22, 0.12)]) + rng.uniform(-0.03, 0.03, (5, 2))
-    lift = rng.uniform(0.0, 0.003, 5)
-    pos = np.concatenate([np.c_[out * [w, d], np.full(10, RUG_Z + 0.002)],
-                          np.c_[inner * [w, d], RUG_Z + h - 0.008 + lift], [[0.0, 0.0, RUG_Z + h - 0.005]]])
-    near = [int(np.argmin(np.linalg.norm(inner - o, axis=1))) for o in out]     # each outer point's inner one
+    m = len(out)
+    edge = RUG_Z + rng.uniform(0.002, 0.006, m)               # the ragged hem, some locks lifted
+    crown = RUG_Z + h - 0.005                                  # a rug stays under 2 cm: chairs stand on it
+    ring = np.c_[out * 0.55 * [w, d], RUG_Z + (0.7 + rng.uniform(-0.1, 0.1, m)) * (crown - RUG_Z)]   # the soft shoulder
+    pos = np.concatenate([np.c_[out * [w, d], edge], ring, [[0.0, 0.0, crown]]])
     tris = []
-    for i in range(10):
-        j = (i + 1) % 10
-        a, b = 10 + near[i], 10 + near[j]
-        tris.append([i, j, b])
-        if a != b:
-            tris.append([i, b, a])
-    tris += [[10 + i, 10 + (i + 1) % 5, 15] for i in range(5)]
+    for i in range(m):
+        j = (i + 1) % m
+        tris += [[i, j, m + j], [i, m + j, m + i], [m + i, m + j, 2 * m]]
     tris = np.array(tris)
     for n in range(len(tris)):
         p0, p1, p2 = pos[tris[n]]
         if np.cross(p1 - p0, p2 - p0)[2] < 0:
             tris[n] = tris[n][::-1]
     mb = MeshBuilder()
-    _smooth(mb, "fleece", pos, tris)
+    _smooth(mb, "fleece", pos, tris, uv=np.stack([pos[:, 0], -pos[:, 1]], axis=1))
     return mb
 
 
@@ -1005,25 +1077,29 @@ def chechia_forms(s, v, rng):
 
 
 def pots_stack(s, v, rng):
-    """The potter's stock: two jars at the back, a tall green-glazed jug in front, a stack of two bowls
-    beside it, each set a little at random."""
+    """The potter's stock: two jars at the back, a tall green-glazed jug in front, a stack of two open bowls
+    beside it (the lower one's glazed rim ring round the upper one, the upper one's glazed hollow showing),
+    each set a little at random."""
     w, d, h = s
     mb = MeshBuilder()
     j = rng.uniform(-0.008, 0.008, (4, 2))
-    pots = [((-0.16, -0.17), 0.14, 0.44, "terracotta"), ((0.16, -0.17), 0.14, 0.38, "terracotta"),
+    pots = [((-0.15, -0.17), 0.14, 0.44, "clay_red"), ((0.15, -0.17), 0.14, 0.38, "clay_red"),   # inside 0.30 m
             ((0.15, 0.17), 0.14, h, "glaze_green")]
     for k, ((x, y), r, ph, mat) in enumerate(pots):
         x, y = x + j[k, 0], y + j[k, 1]
         _lathed(mb, [(r * 0.6, 0.0), (r, ph * 0.45), (r * 0.42, ph * 0.86), (r * 0.55, ph)], mat, 6, at=(x, y, 0.0))
-    bx, by = -0.17 + j[3, 0], 0.18 + j[3, 1]
-    for z, r in ((0.0, 0.13), (0.055, 0.125)):           # two bowls, mouth up, one in the other
-        _lathed(mb, [(r * 0.5, z), (r, z + 0.08), (0.0, z + 0.03)], "terracotta", 6, at=(bx, by, 0.0))
+    bx, by = -0.16 + j[3, 0], 0.16 + j[3, 1]            # 8 sides reach their full radius: inside 0.30 m
+    r1, r2, zr, z2 = 0.13, 0.125, 0.08, 0.035          # radii, the lower rim's height, the upper bowl's foot
+    ri = r2 * (0.5 + 0.5 * (zr - z2) / 0.08)            # the upper bowl's wall where the lower rim meets it
+    _lathed(mb, [(r1 * 0.5, 0.0), (r1, zr), (ri, zr)], ["clay_red", "glaze_green"], 8, at=(bx, by, 0.0))
+    _lathed(mb, [(ri, zr), (r2, z2 + 0.08), (r2 * 0.5, z2 + 0.03), (0.0, z2 + 0.025)], ["clay_red", "glaze_green", "glaze_green"],
+            8, at=(bx, by, 0.0))   # 8 sides and a flat-bottomed hollow: open, not a peaked lid
     return mb
 
 
 def net_pile(s, v, rng):
     """A heap of green fishing net: radial folds draped from a high middle to a wavy hem on the floor,
-    with a few red floats caught in it (smooth normals)."""
+    its cords and dark holes in the image, with four red floats caught in it (smooth normals)."""
     w, d, h = s
     k = 8
     radii = [0.0, 0.35, 0.68, 1.0]
@@ -1050,8 +1126,8 @@ def net_pile(s, v, rng):
         if np.cross(p1 - p0, p2 - p0)[2] < 0:
             tris[n] = tris[n][::-1]
     mb = MeshBuilder()
-    _smooth(mb, "net_green", pos, tris)
-    for i in (1, 4, 6):                                   # floats on the second ring's ridges
+    _smooth(mb, "twine_green", pos, tris, uv=np.stack([pos[:, 0], -pos[:, 1]], axis=1))   # one top-down projection
+    for i in (1, 3, 4, 6):                                # floats on the second ring's ridges
         x, y, z = pos[1 + k + i]
         _pyramid(mb, _ring(x, y, z + 0.025, 0.04, 0.03, 4), (x, y, z + 0.06), "plastic_red")
         _pyramid(mb, _ring(x, y, z + 0.025, 0.04, 0.03, 4), (x, y, z - 0.005), "plastic_red")
@@ -1161,6 +1237,7 @@ def pieces(seed: int, cfg: dict) -> dict:
             name = base if suffix is None else f"{base}_{suffix}"
             size = tuple(float(v) for v in over.get(name, over.get(base, SIZES.get(name, SIZES[base]))))
             rng = stream(seed, "piece", f"home/{name}")
-            mb = MAKERS[base](size, suffix or "", rng)
+            shape = {**(cfg or {}).get("textiles", {}).get(base, {})}
+            mb = MAKERS[base](size, suffix or "", rng, shape) if base in TEXTILE else MAKERS[base](size, suffix or "", rng)
             out[name] = (mb, cat, anchor, {"size": size, "tris": tris, **extra})
     return out

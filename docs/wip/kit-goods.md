@@ -1,0 +1,1 @@
+kit-goods (3 November): weave._goods now draws six product shapes (cartons, tomato-paste tins, flat-tin stacks, oil bottles, harissa jars, crimped couscous packets) in facings, each with a body and an accent colour; mix weights, facing sizes and widths 16 to 34 px are in [interiors.textures] goods; mesh unchanged, test_homekit passes.

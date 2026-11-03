@@ -75,7 +75,7 @@ def plan(interior, outside, style: dict, kind: str) -> None:
     job.landing = box                                 # the search's way score asks a way on it (round 10)
     top = floors - 1
     progs = programs(job, kind)
-    halls, droj = [], None
+    halls, droj, lit_top = [], None, False
     for st in interior.storeys:
         f = st.floor
         region = st.polygon
@@ -116,13 +116,14 @@ def plan(interior, outside, style: dict, kind: str) -> None:
         P.doors(job, rooms)
         if small:
             off_salon(job, rooms)
+            lit_top = kind == "villa"                 # its roof stair opens on the hall or salon, not a chambre
     if core is not None:
         box, size, x, y, fd = core
         stair = S.u_record(box, fd, x, y, size, 0, top)
         stair.rooms = [r.id for r in halls]
         interior.stairs.append(stair)
     if square is not None and droj is not None:
-        P.newel_rooms(job, square, droj)
+        P.newel_rooms(job, square, droj, door_to=("hall", "salon") if lit_top else "")
     if floors > 1 and core is None:
         D.ladder_up(job)
     P.finish(job)
@@ -218,7 +219,8 @@ def little(job, region, entry, f: int) -> list | None:
     rotated rectangle) into four rooms, the salon's at the door (room for a hall too), then the smallest hall
     at the door cut from the salon; every room within its minimum and most, the salon, chambre and cuisine windowed, every room
     with a door's length on the salon (or the hall), no partition within `clear` of an opening; the plan whose
-    smaller of salon and chambre (to 12 and 9 m2) is largest first. None when no cut gives one."""
+    smaller of salon and chambre (to 12 and 9 m2) is largest first. None when no cut gives one, or at once when
+    the rotated rectangle is over `little_most` m2 (no little house; the review of 3 November)."""
     import itertools
     import math
     from functools import lru_cache
@@ -235,6 +237,8 @@ def little(job, region, entry, f: int) -> list | None:
     angle = math.degrees(math.atan2(xy[1][1] - xy[0][1], xy[1][0] - xy[0][0]))
     flat = affinity.rotate(region, -angle, origin=(0, 0))
     x0, y0, x1, y1 = flat.bounds
+    if (x1 - x0) * (y1 - y0) > float(job.cfg.get("villa", {}).get("little_most", 1e9)):
+        return None                                   # no little house: the search grows as its grid's cube
     grid = [[lo + k * step for k in range(int((hi - lo) / step) + 1)] + [hi] for lo, hi in ((x0, x1), (y0, y1))]
     grid = [g[:-2] + [g[-1]] if g[-1] - g[-2] < step / 2 else g for g in grid]
 
@@ -491,7 +495,8 @@ def place_box(job, entry, floors: list, off=None):
     """(box, size, x, y, door frame) of the U stair beside the hall: against the door wall beside the door
     (the side with more room first), slid along the wall and inward in 0.25 m steps until it lies inside
     every storey and its walls keep clear (and off `off`); the narrow box when no full one fits; None when
-    none does."""
+    none does. A house planned again with `box_room` (m) takes, of the boxes that fit, the one that leaves the
+    most floor for rooms (`roomy`; 47.2 villas round O)."""
     fd = P.door_frame(entry)
     st0 = job.interior.storeys[0].polygon
     x0, _, x1, _ = fd.bounds(st0)
@@ -500,15 +505,29 @@ def place_box(job, entry, floors: list, off=None):
     x_far, y_far = max(x1, -x0), fd.bounds(st0)[3]
     steps = sorted(((y, e) for y in np.arange(0.0, y_far, 0.25) for e in np.arange(0.0, x_far, 0.25)),
                    key=lambda t: (t[0] + t[1], t[0]))
+    room = job.interior.__dict__.get("box_room") and job.cfg.get("villa", {}).get("box_room", {}).get(job.interior.layout)
     for narrow in (False, True):
         size = P.u_numbers(job, False, narrow)
+        fit = []
         for y, e in steps:
             for s in sides:
                 x = s * (half + e + size["across"] / 2)
                 box = S.u_box(fd, x, float(y), size)
                 if (off is None or box.intersection(off).area < 1e-4) and P.box_fits(job, box, floors):
-                    return box, size, x, float(y), fd
+                    if not room:
+                        return box, size, x, float(y), fd
+                    fit.append((roomy(job, box, floors, room), box, size, x, float(y), fd))
+        if fit:                                       # the first best box (`max` keeps the first of a tie)
+            return max(fit, key=lambda t: t[0])[1:]
     return None
+
+
+def roomy(job, box, floors: list, wide: float) -> float:
+    """The floor a stair box leaves that rooms can take (47.2 villas round O): on the floor that keeps the
+    least, the area of the storey less the box in parts at least `wide` m across (a ring of couloir round a
+    stair in the middle of a small floor keeps little)."""
+    return min(snap(job.interior.storeys[f].polygon.difference(box)).buffer(-wide / 2, join_style="mitre")
+               .buffer(wide / 2, join_style="mitre").area for f in floors)
 
 
 def upper_entry(job, core):

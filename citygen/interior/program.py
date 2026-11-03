@@ -381,13 +381,15 @@ def bays(ops, gap: float) -> int:
 def flat_type(rules: dict, area: float, lit: int | None) -> str:
     """A flat's type: by its area (`flat_types`: under each area), and with `lit` (its window bays, when
     the type follows the windows) the largest type no bigger whose lit rooms (salon, cuisine, the n
-    chambres) its bays cover, at least the smallest (47.2 flats round E: the rooms follow the bays)."""
+    chambres) its bays cover, at least the smallest (47.2 flats round E: the rooms follow the bays); `flat_spare`
+    bays more by layout (`[interiors.flats] spare_bays`: a colonial flat's hall or two near windows take one, round K)."""
     types = rules.get("flat_types") or [("S+1", 60.0), ("S+2", 100.0), ("S+3", 1e9)]
     by_area = next((t for t, under in types if area < under), types[-1][0])
     if lit is None:
         return by_area
     n = int(by_area.split("+")[1])
-    ok = [t for t, _ in types if int(t.split("+")[1]) <= n and int(t.split("+")[1]) + 2 <= lit]
+    spare = int(rules.get("flat_spare", 0))           # bays left over for the hall, a cuisine on the court
+    ok = [t for t, _ in types if int(t.split("+")[1]) <= n and int(t.split("+")[1]) + 2 + spare <= lit]
     return max(ok, key=lambda t: int(t.split("+")[1])) if ok else types[0][0]
 
 

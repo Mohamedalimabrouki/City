@@ -428,19 +428,27 @@ def free(job, poly, F: Frame, axis: int, at: float, floor: int, lo=-math.inf, hi
     a place no zone reaches within half a partition is clear without building its partition (time)."""
     if poly.is_empty:
         return None
-    b0, b1 = F.bounds(poly)[axis], F.bounds(poly)[axis + 2]
     pts, ids = zone_points(job, floor)
-    if len(pts):
+    spans = job.__dict__.setdefault("free_spans", {})   # the zones' spans along the axis, per frame (time)
+    sk = (*F.c.tolist(), F.angle, axis, floor, job.half)
+    if sk not in spans and len(pts):
         t = (pts - F.c) @ (F.u if axis == 0 else F.v)
         lo_z = np.full(int(ids.max()) + 1, np.inf)
         hi_z = np.full(int(ids.max()) + 1, -np.inf)
         np.minimum.at(lo_z, ids, t)
         np.maximum.at(hi_z, ids, t)
-        lo_z, hi_z = lo_z - job.half - 0.01, hi_z + job.half + 0.01
+        spans[sk] = (lo_z - job.half - 0.01, hi_z + job.half + 0.01)
+    if len(pts):
+        lo_z, hi_z = spans[sk]
     zones = None
-    convex = poly.area > 0.995 * poly.convex_hull.area     # a line across it meets every zone on its walls
     memo = job.__dict__.setdefault("free_memo", {})     # the variants ask the same cuts again (time)
-    seen = memo.setdefault((shapely.to_wkb(poly), *F.c.tolist(), F.angle, axis, floor), {})
+    mk = (shapely.to_wkb(poly), *F.c.tolist(), F.angle, axis, floor)
+    seen = memo.setdefault(mk, {})
+    shape = job.__dict__.setdefault("free_shape", {})
+    if mk not in shape:
+        bb = F.bounds(poly)
+        shape[mk] = (bb[axis], bb[axis + 2], poly.area > 0.995 * poly.convex_hull.area)
+    b0, b1, convex = shape[mk]      # convex: a line across it meets every zone on its walls
     for d in offsets(job.shift, job.step):
         a = at + d
         if not lo <= a <= hi:
@@ -1343,6 +1351,7 @@ def modern_job(interior, outside, style: dict):
     interior.rules["dining_area"] = float(job.cfg.get("villa", {}).get("dining_area", 110.0))
     interior.rules["wc_area"] = float(flats.get("wc_area", 70.0))
     interior.rules["flat_bays"] = bool(flats.get("by_windows", {}).get(interior.layout, False))
+    interior.rules["flat_spare"] = int(flats.get("spare_bays", {}).get(interior.layout, 0))
     interior.rules["flat_types"] = [(t, float(u)) for t, u in flats.get("types", [["S+1", 60.0], ["S+2", 100.0], ["S+3", 1e9]])]
     return job
 
@@ -1396,7 +1405,8 @@ def roof_newel(job, region, on_walls: bool = False):
 def newel_rooms(job, square, droj, door_to: str = "") -> None:
     """The `Stair` of the roof newel (top floor to the roof) and its door into the room it touches most
     (a core's palier first). `door_to` (a room type, flats: "palier"): the door on a side the square shares
-    with such a room when one does, not on a side that meets it only at a corner (47.2 flats round G)."""
+    with such a room when one does, not on a side that meets it only at a corner (47.2 flats round G); a tuple:
+    the first type that has such a side (a little villa: the hall, else the salon; 47.2 villas round O)."""
     from shapely.geometry import LineString
     interior = job.interior
     top = interior.floors - 1
@@ -1404,9 +1414,11 @@ def newel_rooms(job, square, droj, door_to: str = "") -> None:
     floor = shapely.union_all([r.polygon for r in others]) if others else None
     toward = job.roof.door[2] if job.roof is not None and job.roof.door is not None else None
     door = None
-    if door_to and floor is not None:
-        to = sorted((r for r in others if r.type == door_to), key=lambda r: (-shared(droj.polygon, r.polygon), r.id))
+    for t in ((door_to,) if isinstance(door_to, str) else door_to) if door_to and floor is not None else ():
+        to = sorted((r for r in others if r.type == t), key=lambda r: (-shared(droj.polygon, r.polygon), r.id))
         door = S.door_side(square, [floor, to[0].polygon], toward) if to else None
+        if door is not None:
+            break
     door = door or (S.door_side(square, [floor], toward) if floor is not None else None) or S.door_side(square, [square.buffer(5)])
     stair = S.newel(square, door, interior.floors, interior.fh, job.stairs)
     stair.floor = top

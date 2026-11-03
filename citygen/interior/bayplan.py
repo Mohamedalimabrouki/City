@@ -13,7 +13,10 @@ blind ones the sdb and wc, else a bath is carved from a room's corner on the cou
 piece left over joins the way or a room. A plan is given only when it is clean by itself: every program room there and within its
 minimum and `most`, no fault the search counts (`spine.faults`, blind rooms included) and every room
 against the hall or couloir for its door. `flats.run` plans a flat with it only where the spine's plan
-faults and this one passes the whole plan check (`layout.flat_bays`). Numbers: `[interiors.flats] bay_plan`.
+faults and this one passes the whole plan check (`layout.flat_bays`). Where `middle` names the layout (colonial
+blocks, deep L and U masses), the blind middle holds the ways: a hall too small grows, a blind piece between a
+way and a lit piece no way reaches joins the way, and couloir pieces join by stubs up to `stub_middle` m.
+Numbers: `[interiors.flats] bay_plan`.
 """
 from __future__ import annotations
 
@@ -36,12 +39,19 @@ def numbers(job) -> dict:
     cfg = job.cfg.get("flats", {}).get("bay_plan", {})
     return {"room": float(cfg.get("room", 2.4)), "wet": float(cfg.get("wet", 1.2)),
             "wet_most": float(cfg.get("wet_most", 2.4)), "side": float(cfg.get("side", 2.45)),
-            "stub": float(cfg.get("stub", 6.0))}
+            "stub": float(cfg.get("stub", 6.0)), "stub_middle": float(cfg.get("stub_middle", 12.0))}
 
 
 def on(job) -> bool:
     """True when `[interiors.flats] bay_plan.layouts` names the job's layout."""
     return job.interior.layout in job.cfg.get("flats", {}).get("bay_plan", {}).get("layouts", [])
+
+
+def middle(job) -> bool:
+    """True when `[interiors.flats] bay_plan.middle` names the job's layout: the blind middle of a deep flat
+    holds its ways (a hall grown past its least where that one is too small, a blind piece between a way and
+    a lit piece no way reaches joining the way: 47.2 colonial round K)."""
+    return job.interior.layout in job.cfg.get("flats", {}).get("bay_plan", {}).get("middle", [])
 
 
 def first(job) -> bool:
@@ -210,6 +220,8 @@ def types(job, cells: list, prog: list, floor: int) -> bool:
     if len(lit()) < len(want):
         return False
     on_way = lambda c: door_on_way(job, c, cells)   # noqa: E731
+    if middle(job):
+        reach(job, cells, len(want), sun, most)
 
     def take(t, pool, key):
         got = [c for c in pool if job.fits(c.poly, t) and c.poly.area <= float(most.get(t, 1e9)) + 0.01 and on_way(c)]
@@ -260,6 +272,31 @@ def types(job, cells: list, prog: list, floor: int) -> bool:
         if not nbs or not join(cells, c, nbs[0]):
             return False
     return True
+
+
+def reach(job, cells: list, want: int, sun: list, most: dict) -> None:
+    """While fewer lit pieces than `want` a room fits stand on a way, a blind untyped piece sharing a door's
+    length with a lit piece no way reaches and touching a way joins that way (the hall first: the blind
+    middle of a deep flat holds the hall and couloir, the rooms round it on the windows)."""
+    room = lambda c: job.fits(c.poly, "cuisine")                       # noqa: E731
+    while sum(room(c) and door_on_way(job, c, cells) for c in cells if not c.type and P.lit(c.poly, sun)) < want:
+        off = sorted((c for c in cells if not c.type and P.lit(c.poly, sun) and room(c) and not door_on_way(job, c, cells)),
+                     key=lambda c: (-c.poly.area, c.part))
+        done = False
+        for c in off:
+            nbs = sorted((n for n in cells if not n.type and not P.lit(n.poly, sun) and shared(c.poly, n.poly) >= P.need(job)),
+                         key=lambda n: (n.poly.area, n.part))
+            for n in nbs:
+                ws = sorted((w for w in ways(cells) if shared(n.poly, w.poly) >= P.need(job)
+                             and n.poly.area + w.poly.area <= float(most.get(w.type, 1e9))),
+                            key=lambda w: (w.type != "hall", w.poly.area, w.part))
+                if ws and join(cells, n, ws[0]):
+                    done = True
+                    break
+            if done:
+                break
+        if not done:
+            return
 
 
 def wet_end(job, cells: list, c, t: str, floor: int) -> bool:
@@ -425,12 +462,17 @@ def along(job, region, entry, floor: int, cfg: dict, which: str, deep: float):
     band = solid(shapely.intersection(region, shapely.difference(
         lit.buffer(deep + c, cap_style="flat", join_style="mitre"), near), grid_size=1e-6))
     fd = P.door_frame(entry)
-    d, w = cfg["hall"][0], cfg["hall_width"][0]
-    strip = clip(region, fd.rect(-w / 2 - 1.0, -1.0, w / 2 + 1.0, d))
-    a = P.free_side(job, strip, fd, 0, -w / 2, floor, -w / 2 - 1.0)
-    b = P.free_side(job, strip, fd, 0, w / 2, floor, w / 2 + 1.0)
-    got = P.free(job, clip(region, fd.rect(a, -1.0, b, d + 1.0)), fd, 1, d, floor, d - 0.6, d + 0.6)
-    hall = P.largest_near(clip(region, fd.rect(a, -1.0, b, got if got is not None else d)), entry)
+    sizes = [(cfg["hall"][0], cfg["hall_width"][0])]
+    if middle(job):                                     # the least hall too small: deeper, then wider
+        sizes += [(cfg["hall"][1], cfg["hall_width"][0]), (cfg["hall"][1], cfg["hall_width"][1])]
+    for d, w in sizes:
+        strip = clip(region, fd.rect(-w / 2 - 1.0, -1.0, w / 2 + 1.0, d))
+        a = P.free_side(job, strip, fd, 0, -w / 2, floor, -w / 2 - 1.0)
+        b = P.free_side(job, strip, fd, 0, w / 2, floor, w / 2 + 1.0)
+        got = P.free(job, clip(region, fd.rect(a, -1.0, b, d + 1.0)), fd, 1, d, floor, d - 0.6, d + 0.6)
+        hall = P.largest_near(clip(region, fd.rect(a, -1.0, b, got if got is not None else d)), entry)
+        if hall is None or job.fits(hall, "hall"):
+            break
     if hall is None or band.is_empty:
         return None
     band = solid(shapely.difference(band, hall, grid_size=1e-6))
@@ -443,7 +485,7 @@ def along(job, region, entry, floor: int, cfg: dict, which: str, deep: float):
         to = shapely.union_all(got_)
         if q0.distance(to) > 1e-4:
             p, q = nearest_points(to, q0)
-            if p.distance(q) > numbers(job)["stub"]:
+            if p.distance(q) > (numbers(job)["stub_middle"] if middle(job) else numbers(job)["stub"]):
                 continue
             stub = solid(shapely.difference(clip(region, LineString([p, q]).buffer(c / 2, cap_style="flat", join_style="mitre")),
                                             to, grid_size=1e-6))

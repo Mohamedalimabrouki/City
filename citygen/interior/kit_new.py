@@ -61,8 +61,10 @@ TABLE = {
     "piano": ("decor", "wall", (1.45, 0.60, 1.25), 180, {"top": 1.25, "use": 0.7}),
     "wc_seat": ("bath", "wall", (0.40, 0.70, 0.80), 160, {"use": 0.5}),
     "basin": ("bath", "wall", (0.55, 0.45, 0.85), 120, {"use": 0.5}),
+    "hand_basin": ("bath", "wall", (0.40, 0.30, 0.43), 140, {"use": 0.45, "z0": 0.42}),   # a narrow room's lave-mains
     "mirror_bath": ("decor", "wall", (0.50, 0.04, 0.60), 20, {"z0": 1.25}),
     "shower": ("bath", "wall", (0.80, 0.80, 2.00), 90, {"use": 0.5}),
+    "shower_small": ("bath", "wall", (0.70, 0.70, 2.00), 90, {"use": 0.5}),   # a 70 cm tray for a narrow sdb
     "bathtub": ("bath", "wall", (1.60, 0.70, 0.55), 140, {"use": 0.5}),
     "water_heater": ("bath", "wall", (0.35, 0.25, 0.65), 80, {"z0": 1.40}),
     "washing_machine": ("bath", "wall", (0.60, 0.60, 0.85), 90, {"top": 0.85, "use": 0.6}),
@@ -103,7 +105,8 @@ SIZES = {**{b: row[2] for b, row in TABLE.items()}, **VARIANT_SIZES}   # `[inter
 FABRIC = {"beige": "fabric_beige", "grey": "fabric_grey", "red": "velvet_red"}
 COVER = {"mink": "mink", "white": "cotton_white", "blue": "cotton_blue", "pink": "cotton_pink"}
 RUN = {"white": "formica_white", "wood": "wood_beech"}
-TEX_H = {"spines": 0.28, "goods": 0.32}     # the v size of `[interiors.palette]` spines and goods: one shelf row
+TEX_H = {"spines": 0.28, "goods": 0.36}     # the v size of one shelf row (`[interiors.palette]` goods: two rows)
+ROW_SHIFT = 0.382                            # of the image's width: the u shift of each next shelf row
 RUG_FLORAL = (1.6, 2.3)                     # its texture_size: the whole rug is one repeat
 
 
@@ -133,19 +136,20 @@ def _uvquad(mb: MeshBuilder, mat: str, quad, uv, normal) -> None:
     mb.add(mat, q, np.tile(n / np.linalg.norm(n), (4, 1)), u, [[0, 1, 2], [0, 2, 3]])
 
 
-def _row(mb: MeshBuilder, mat: str, x0, x1, y0, y1, z0, side: bool = True) -> None:
-    """A row of books or goods standing on z0: its front shows one image row exactly (its top the row's
-    top), its top the colours of the image's foot; `side` adds its right end (6 triangles)."""
+def _row(mb: MeshBuilder, mat: str, x0, x1, y0, y1, z0, side: bool = True, band: int = 0, shift: float = 0.0) -> None:
+    """A row of books or goods standing on z0: its front shows image row `band` exactly (its top the row's
+    top), moved `shift` m along u, its top the colours of that row's foot; `side` adds its right end
+    (6 triangles)."""
     h = TEX_H[mat.split("_")[0]]
-    z1 = z0 + h
+    z1, v0, a, b = z0 + h, band * h, x0 + shift, x1 + shift
     _uvquad(mb, mat, [(x0, y1, z0), (x1, y1, z0), (x1, y1, z1), (x0, y1, z1)],
-            [(x0, h), (x1, h), (x1, 0.0), (x0, 0.0)], (0, 1, 0))
-    foot = h * 0.9
+            [(a, v0 + h), (b, v0 + h), (b, v0), (a, v0)], (0, 1, 0))
+    foot = v0 + h * 0.9
     _uvquad(mb, mat, [(x0, y0, z1), (x1, y0, z1), (x1, y1, z1), (x0, y1, z1)],
-            [(x0, foot), (x1, foot), (x1, foot), (x0, foot)], (0, 0, 1))
+            [(a, foot), (b, foot), (b, foot), (a, foot)], (0, 0, 1))
     if side:
         _uvquad(mb, mat, [(x1, y0, z0), (x1, y1, z0), (x1, y1, z1), (x1, y0, z1)],
-                [(x1, h), (x1 + y1 - y0, h), (x1 + y1 - y0, 0.0), (x1, 0.0)], (1, 0, 0))
+                [(b, v0 + h), (b + y1 - y0, v0 + h), (b + y1 - y0, v0), (b, v0)], (1, 0, 0))
 
 
 def _crest(mb: MeshBuilder, a: float, b: float, z0: float, y0: float, y1: float, mat: str, n: int = 4,
@@ -849,6 +853,21 @@ def basin(s, v, rng):
     return mb
 
 
+def hand_basin(s, v, rng):
+    """The small wall-hung hand basin of a narrow sdb or wc (a lave-mains): an oval bowl on the wall, its chrome
+    trap back into the wall, a tap on its back deck; nothing stands on the floor."""
+    w, d, h = s
+    z0 = TABLE["hand_basin"][4]["z0"]
+    mb = MeshBuilder()
+    bowl = [(0.05, z0 + 0.14), (0.13, z0 + 0.20), (w / 2, z0 + 0.36), (w / 2, z0 + 0.38), (w / 2 - 0.04, z0 + 0.38),
+            (0.0, z0 + 0.31)]
+    _lathed(mb, bowl, "ceramic_white", 8, at=(0.0, d / 2, 0.0), scale=(1.0, d / w))
+    _tube(mb, (0.0, d / 2, z0 + 0.14), (0.0, d / 2, z0 + 0.02), (0.016, 0.016), "chrome")
+    _tube(mb, (0.0, d / 2, z0 + 0.02), (0.0, 0.0, z0 + 0.02), (0.016, 0.016), "chrome")
+    _tap(mb, 0.0, 0.035, z0 + 0.38, 0.06, h - 0.38)
+    return mb
+
+
 def mirror_bath(s, v, rng):
     """The mirror over the basin: a mirror on a chrome-edged backing, held by two clips."""
     w, d, h = s
@@ -1062,8 +1081,8 @@ def shop_shelves(s, v, rng):
     _box(mb, -w / 2 + t, w / 2 - t, 0.0, d - 0.01, 0.0, levels[0], "wood_beech", "bklr")
     for z in levels[1:]:
         _box(mb, -w / 2 + t, w / 2 - t, 0.0, d - 0.01, z - t, z, "wood_beech", "bklr")
-    for z in levels:
-        _row(mb, goods, -w / 2 + t, w / 2 - t, 0.02, d - 0.05, z, side=False)
+    for k, z in enumerate(levels):     # each shelf another row of the image, moved along: no two alike
+        _row(mb, goods, -w / 2 + t, w / 2 - t, 0.02, d - 0.05, z, side=False, band=k % 2, shift=k * ROW_SHIFT * 0.8)
     return mb
 
 
@@ -1097,9 +1116,9 @@ def drinks_fridge(s, v, rng):
     for k in range(4):
         z = zk + k * space
         _quad(mb, [(-xi, 0.05, z), (xi, 0.05, z), (xi, yf - 0.02, z), (-xi, yf - 0.02, z)], (0, 0, 1), "steel")
-        hh = TEX_H["goods"]
+        hh, v0, du = TEX_H["goods"], (k % 2) * TEX_H["goods"], k * ROW_SHIFT * 0.8
         _uvquad(mb, "goods", [(-xi, 0.10, z), (xi, 0.10, z), (xi, 0.10, z + hh), (-xi, 0.10, z + hh)],
-                [(-xi, hh), (xi, hh), (xi, 0.0), (-xi, 0.0)], (0, 1, 0))
+                [(du - xi, v0 + hh), (du + xi, v0 + hh), (du + xi, v0), (du - xi, v0)], (0, 1, 0))
     _front(mb, -xi, xi, zk, zh, d - 0.01, "glass_inner")
     _tube(mb, (xi - 0.04, d - 0.004, zk + 0.45), (xi - 0.04, d - 0.004, zk + 0.95), (0.008, 0.006), "steel")
     return mb
@@ -1147,7 +1166,7 @@ def chicha(s, v, rng):
     _lathed(mb, [(0.055, 0.0), (0.12, 0.07), (0.11, 0.19), (0.025, 0.30)], "glaze_green", 8)
     _lathed(mb, [(0.018, 0.30), (0.013, 0.66)], "brass", 6)
     _lathed(mb, [(0.09, 0.555), (0.0, 0.565)], "brass", 6)
-    _lathed(mb, [(0.015, 0.66), (0.048, 0.75), (0.0, 0.74)], "terracotta", 6)
+    _lathed(mb, [(0.015, 0.66), (0.048, 0.75), (0.0, 0.74)], "clay_red", 6)
     _tube(mb, (0.02, 0.0, 0.46), (0.117, 0.03, 0.30), (0.008, 0.008), "leather_brown")
     return mb
 
@@ -1176,7 +1195,8 @@ MAKERS = {"sofa_3": _sofa(3), "sofa_2": _sofa(2), "armchair": _sofa(1), "sedari"
           "table_formica": table_formica, "bed_double": bed_double, "nightstand": nightstand, "wardrobe": wardrobe,
           "coiffeuse": coiffeuse, "bed_single": bed_single, "bunk_bed": bunk_bed, "cot": cot, "desk": desk,
           "desk_chair": desk_chair, "bookcase": bookcase, "piano": piano, "wc_seat": wc_seat, "basin": basin,
-          "mirror_bath": mirror_bath, "shower": shower, "bathtub": bathtub, "water_heater": water_heater,
+          "hand_basin": hand_basin, "mirror_bath": mirror_bath, "shower": shower, "shower_small": shower,
+          "bathtub": bathtub, "water_heater": water_heater,
           "washing_machine": washing_machine, "drying_rack": drying_rack, "shoe_cabinet": shoe_cabinet,
           "coat_hooks": coat_hooks, "doormat": doormat, "rug_floral": rug_floral, "shop_counter": shop_counter,
           "shop_shelves": shop_shelves, "scale": scale, "drinks_fridge": drinks_fridge, "espresso": espresso,

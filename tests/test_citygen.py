@@ -3641,6 +3641,33 @@ def test_interior_bytes_repeat(interior_build, interior_ctx, world, plan, tmp_pa
     assert all((a / f).read_bytes() == (b / f).read_bytes() for f in INTERIOR_FILES)
 
 
+def test_warm_memos_plan_the_same_rooms(interior_ctx, tmp_path):
+    """The shape memos of `cuts` (speed round N) never change a plan: each home planned from empty memos
+    and again with warm ones (its own and the other homes' entries, in the other order) writes the same
+    rooms.json bytes."""
+    from citygen.interior import cuts
+    from citygen.interior.context import city_plan, resolve
+    from citygen.interior.export import _write_json
+    from citygen.interior.layout import plan_interior
+    from citygen.interior.outside import Outside
+    plan, style = city_plan(interior_ctx), interior_ctx.world.style
+    memos = [v for k, v in vars(cuts).items() if k.startswith("_") and k.isupper() and isinstance(v, dict)]
+    homes = [resolve(interior_ctx, plan, s) for s in ("pick:small", "pick:compact")]
+
+    def rooms_bytes(k):
+        _write_json(tmp_path / "rooms.json", plan_interior(Outside(interior_ctx, plan, k), style).to_json())
+        return (tmp_path / "rooms.json").read_bytes()
+
+    cold = {}
+    for k in homes:
+        for memo in memos:
+            memo.clear()
+        cold[k] = rooms_bytes(k)
+    assert len(memos) >= 7 and sum(map(len, memos)) > 0      # the homes did use the memos
+    for k in reversed(homes):
+        assert rooms_bytes(k) == cold[k], k
+
+
 def test_interior_refuses_what_it_cannot_do(interior_ctx, tmp_path):
     from citygen.interior import InteriorError
     from citygen.interior.context import city_plan, load_build, resolve
@@ -4197,6 +4224,7 @@ def test_dark_rooms_counted():
 def test_flats(new_districts, interior_ctx, plan):
     from citygen.export.lore import plan_json
     from citygen.interior.flats import occupants
+    from citygen.interior.program import flat_lit, flat_type
     from citygen.interior import rooms
     before = plan_json(plan)["households"]
     for interior, outside in new_districts["slab"] + new_districts["colonial"]:
@@ -4210,7 +4238,9 @@ def test_flats(new_districts, interior_ctx, plan):
         for flat in interior.flats:
             mine = set(flat.rooms)
             area = sum(by_id[i].polygon.area for i in mine)
-            assert flat.type == next(t for t, under in types if area < under), (interior.building, flat.id)
+            lit = flat_lit(interior, [o for o in interior.openings if o.rooms and o.rooms[0] in mine])
+            assert flat.type == flat_type(interior.rules, area, lit), (interior.building, flat.id)   # area, bays
+            assert flat.type <= next(t for t, under in types if area < under), (interior.building, flat.id)
             assert area >= interior.rules["min_flat"] - 0.01, (interior.building, flat.id, area)   # no sliver flat
             ok = {r.id for r in interior.rooms if r.unit == "common"} | mine | {-1}    # through its core only
             graph = rooms.links(interior)
@@ -4720,6 +4750,47 @@ def test_little_house(monkeypatch):
     assert all(job.fits(c.poly, c.type) for c in cells)
 
 
+def test_little_house_large_floor(monkeypatch):
+    """A one-floor house whose rotated rectangle is over `[interiors.villa] little_most` m2 is no little house:
+    `little` gives None at once instead of trying every 4-room cut on its 0.5 m grid (a 15 x 20 m floor lit
+    on three walls took about 3 s, the independent review of 3 November finding 2); a floor under it still
+    gets its plan. Hand-made, about 0.3 s."""
+    import time
+    import tomllib
+    from pathlib import Path
+    from types import SimpleNamespace as NS
+
+    from shapely import affinity
+    from shapely.geometry import Point, box
+
+    from citygen.interior import villa as V
+    from citygen.interior.cuts import width
+
+    style = tomllib.loads((Path(__file__).resolve().parents[1] / "styles" / "maghreb.toml").read_text(encoding="utf-8"))
+    most = float(style["interiors"]["villa"]["little_most"])
+    assert 48.0 < most < 15 * 20
+    least = {"hall": (2.5, 1.1), "salon": (12.0, 2.4), "chambre": (8.0, 2.4), "cuisine": (5.0, 1.7), "sdb": (3.0, 1.4)}
+
+    def job(step):
+        return NS(door=0.9, half=0.05, clear=0.3, cfg={"rooms": {"most": {"salon": 30.0, "chambre": 18.0, "cuisine": 14.0,
+                                                                      "sdb": 8.0}},
+                                                   "villa": {"little_step": step, "little_most": most}},
+                  minimums=least, interior=NS(rules={"inner_clear": 0.15}), zs=lambda floors: [],
+                  fits=lambda p, t: p.area >= least[t][0] - 1e-6 and width(p) >= least[t][1] - 0.03)
+    w, h = 15.0, 20.0
+    sun = ([Point(x, 0.05) for x in range(1, int(w))] + [Point(0.05, y) for y in range(1, int(h))]
+           + [Point(w - 0.05, y) for y in range(1, int(h))])
+    monkeypatch.setattr(V.P, "lights", lambda job, f: sun)
+    t = time.perf_counter()
+    assert V.little(job(0.5), box(0, 0, w, h), V.P.Entry(w / 2, 0.0, 1.0, 0.0), 0) is None
+    turned = affinity.rotate(box(0, 0, w, h), 30.0, origin=(0, 0))      # the bound is on the rotated rectangle
+    assert V.little(job(0.5), turned, V.P.Entry(*turned.exterior.coords[0], 1.0, 0.0), 0) is None
+    assert time.perf_counter() - t < 1.0
+    sun = [Point(1.5, 0.05), Point(6.5, 0.05), Point(0.05, 4.5), Point(7.95, 4.5), Point(4.0, 5.95)]
+    monkeypatch.setattr(V.P, "lights", lambda job, f: sun)
+    cells = V.little(job(1.0), box(0, 0, 8, 6), V.P.Entry(4.0, 0.0, 1.0, 0.0), 0)
+    assert cells is not None and sorted(c.type for c in cells) == ["chambre", "cuisine", "hall", "salon", "sdb"]
+
 def test_relit_repartition():
     """A blind chambre beside a chambre holding two windows: the pair is cut again so both keep a window and
     a door's length on the couloir (`villa.repartition`, the cut nearest the middle first); a pair with one
@@ -4836,6 +4907,23 @@ def test_furnish_no_overlap_every_layout(furnish_homes, interior_ctx):
         assert not _faults(FU.check(interior, fu, style, outside)), spec
 
 
+def test_furnish_side_lays_a_sedda_flush_along_a_short_back_wall():
+    """Place mode "side": a 2.0 m sedda fits lengthwise along a 2.3 m back wall, and the pose's s is its centre."""
+    from types import SimpleNamespace
+    from citygen.interior.furnish import Furnisher, Run
+    f = object.__new__(Furnisher)
+    f.cfg = {"step": 0.1}
+    run = Run(a=np.array([0.0, 0.0]), d=np.array([1.0, 0.0]), n=np.array([0.0, 1.0]), length=2.3, ops=[], index=0)
+    W, D = 1.40, 2.0
+    spec = SimpleNamespace(size=(W, D, 0.95), z=(0.0, 0.95), stretch=None)
+    poses = list(f.candidates(SimpleNamespace(runs=[run]), spec, "floor", "side", None, {}, "home/sedda"))
+    assert poses
+    for x, y, yaw, L, ri, s, w in poses:
+        assert -1e-6 <= x - D / 2 and x + D / 2 <= run.length + 1e-6, (x, s)
+        assert abs(y - W / 2) < 1e-9 and abs(x - s) < 1e-9 and w == D and ri == 0
+    assert any(abs(x - D / 2) < 1e-6 for x, *_ in poses)       # flush with a corner
+
+
 def test_furnish_required(furnish_homes, interior_ctx):
     from citygen.interior import furnish as FU
     style = interior_ctx.world.style
@@ -4847,6 +4935,37 @@ def test_furnish_required(furnish_homes, interior_ctx):
         for unit, prof in fu.profiles.items():
             if prof.members:
                 assert sum(p.places for p in fu.pieces if p.unit == unit) >= prof.members, (spec, unit)
+
+
+@pytest.mark.slow
+def test_furnish_required_share(interior_ctx):
+    """At most 2% of the rooms miss a `need` piece (warned) over a quick-capital sample, the 8 homes of each
+    layout nearest the centre, at sparse (prompt 54); no placement fault."""
+    import numpy as np
+    import shapely
+    from citygen.interior import furnish as FU
+    from citygen.interior.context import HOUSING, city_plan, layout_of
+    from citygen.interior.layout import plan_interior
+    from citygen.interior.outside import Outside
+    plan, style = city_plan(interior_ctx), interior_ctx.world.style
+    centers = shapely.get_coordinates(shapely.centroid([b.footprint for b in plan.buildings]))
+    d = np.hypot(centers[:, 0] - plan.settlement.x, centers[:, 1] - plan.settlement.y)
+    got: dict = {}
+    for k in np.lexsort((np.arange(len(d)), d)).tolist():
+        b = plan.buildings[k]
+        lay = layout_of(plan, b, style) if b.kind in HOUSING else None
+        if lay is not None and len(got.setdefault(lay, [])) < 8:
+            got[lay].append(k)
+    rooms = warned = 0
+    for lay, ks in sorted(got.items()):
+        for k in ks:
+            outside = Outside(interior_ctx, plan, k)
+            interior = plan_interior(outside, style)
+            fu = FU.furnish(interior, outside, style, "sparse")
+            assert not _faults(FU.check(interior, fu, style, outside)), (lay, k)
+            rooms += len(fu.functions)
+            warned += len({w.split()[2] for w in fu.warnings if " has no " in w})
+    assert rooms and warned <= 0.02 * rooms, (warned, rooms)
 
 
 def test_furnish_household(furnish_homes, interior_ctx):
@@ -4939,6 +5058,29 @@ def test_furnish_budget(interior_build, interior_ctx, tmp_path):
         assert unique <= 60_000 and drawn <= 1_500_000, (layout, unique, drawn)
 
 
+def test_colonial_spare_bay_and_blind_middle():
+    """A colonial flat's type leaves one bay spare (`flat_spare`: the hall or two near windows take one); a
+    blind piece between a way and a lit piece no way reaches joins the way, the hall first (`bayplan.reach`:
+    the blind middle holds the ways, 47.2 colonial round K). Hand-made, 0.01 s."""
+    from types import SimpleNamespace as NS
+
+    from shapely.geometry import Point, box
+
+    from citygen.interior.bayplan import reach
+    from citygen.interior.cuts import Cell
+    from citygen.interior.program import flat_type
+
+    rules = {"flat_types": [("S+1", 60.0), ("S+2", 100.0), ("S+3", 1e9)], "flat_spare": 1}
+    assert flat_type(rules, 105.0, 5) == "S+2" and flat_type(rules, 105.0, 6) == "S+3"
+    job = NS(door=0.8, half=0.05, interior=NS(rules={"inner_clear": 0.1}), clear=0.1,
+             fits=lambda poly, t: poly.area >= 5.0)
+    hall, room = Cell(box(0, 0, 2, 2), "hall"), Cell(box(4, 0, 8, 4), "")
+    blind = Cell(box(2, 0, 4, 4), "")
+    cells = [hall, blind, room]
+    reach(job, cells, 1, [Point(8.0, 2.0)], {"hall": 20.0})
+    assert blind not in cells and abs(hall.poly.area - 12.0) < 1e-9 and room in cells and not room.type
+
+
 def test_bay_clean_nooks_and_newel_door():
     """A bay plan is judged with the rooms its scraps grow by `spine.nooks` (a couloir scrap joins the couloir);
     the roof newel's door of a block of flats goes on a side its square shares with the palier, not on the side
@@ -4993,6 +5135,88 @@ def test_slab_entry_hall_reaches_the_well():
     assert entry_hall(job, centred, poly, gap) is gap
 
 
+def test_slab_scrap_hall_tries_other_doors(monkeypatch):
+    """A block of flats (no second tries) whose first plan's hall is a scrap no hall fits (a door on a landing
+    side facing a strip of the flat) tries the flat's other doors and keeps the better plan; a first plan with
+    a real hall is kept without them (also when other faults keep it searching), a scrap hall a couloir
+    meets by more than an arch's length (0.8 m) is no scrap, one a salon meets by less still is, and a
+    colonial block's tries are unchanged (47.2 flats round J). Hand-made, under 0.01 s."""
+    from types import SimpleNamespace as NS
+
+    from shapely.geometry import box
+
+    from citygen.interior import flats as FL
+    from citygen.interior.cuts import Cell
+
+    calls, way, fault = [], [], [0]                    # way: a couloir or salon by the strip's hall
+
+    def lay(job, region, e, prog, f, key):
+        calls.append((e, key))
+        hall = box(0, 0, 3, 0.5) if e == "strip" else box(0, 0, 2, 2)
+        return [Cell(hall, "hall"), Cell(box(0, 2, 4, 6), "chambre")] + (way if e == "strip" else [])
+
+    monkeypatch.setattr(FL.P, "lay", lay)
+    monkeypatch.setattr(FL.P, "faults", lambda *a, **k: fault[0])
+    job = NS(cfg={"flats": {"retry_variants": {"colonial": 0.5, "slab": 0.0}}}, interior=NS(layout="slab"),
+             fits=lambda poly, t: min(poly.bounds[2] - poly.bounds[0], poly.bounds[3] - poly.bounds[1]) >= 1.0)
+    region = box(0, 0, 10, 10)
+    got = FL.best_lay(job, region, ["strip", "side"], ["chambre"], 3, ("flat", 0))
+    assert [e for e, _ in calls] == ["strip", "side"] and got[0].poly.area == 4.0
+    calls.clear()
+    FL.best_lay(job, region, ["side", "strip"], ["chambre"], 3, ("flat", 1))
+    assert [e for e, _ in calls] == ["side"]
+    calls.clear()
+    fault[0] = 2                                          # a real hall in a faulty plan: no other door
+    FL.best_lay(job, region, ["side", "strip"], ["chambre"], 3, ("flat", 3))
+    assert [e for e, _ in calls] == ["side"]
+    calls.clear()
+    fault[0] = 0
+    way[:] = [Cell(box(0, 0.5, 1.1, 2), "couloir")]      # met by 1.1 m: the way goes on, no scrap
+    FL.best_lay(job, region, ["strip", "side"], ["chambre"], 3, ("flat", 4))
+    assert [e for e, _ in calls] == ["strip"]
+    calls.clear()
+    way[:] = [Cell(box(0, 0.5, 0.5, 2), "salon")]        # met by 0.5 m, under an arch: still a scrap
+    FL.best_lay(job, region, ["strip", "side"], ["chambre"], 3, ("flat", 5))
+    assert [e for e, _ in calls] == ["strip", "side"]
+    calls.clear()
+    way.clear()
+    job.interior.layout = "colonial"
+    FL.best_lay(job, region, ["strip", "strip"], ["chambre"], 3, ("flat", 2))
+    assert [k for _, k in calls] == [("flat", 2), ("flat", 2), ("flat", 2, "again")]
+
+
+def test_slab_duplex_ladder_from_the_couloir(monkeypatch):
+    """A duplex's ladder whose foot would stand in a chambre of the flat below moves into its couloir, against
+    its side, in a block of flats; a colonial block keeps the ladder where it stood (47.2 flats round J).
+    Hand-made, under 0.05 s."""
+    from types import SimpleNamespace as NS
+
+    from shapely.geometry import box
+
+    from citygen.interior import flats as FL
+    from citygen.interior.cuts import Cell
+
+    def rooms_of(job, cells, f, unit):
+        out = [NS(id=10 + i, polygon=c.poly, type=c.type, unit=unit, floor=f) for i, c in enumerate(cells)]
+        job.interior.rooms += out
+        return out
+
+    monkeypatch.setattr(FL.P, "lay", lambda *a, **k: [Cell(box(0, 0, 6, 5), "chambre"), Cell(box(0, 5, 6, 6.5), "couloir")])
+    monkeypatch.setattr(FL.P, "add_rooms", rooms_of)
+    monkeypatch.setattr(FL.P, "doors", lambda *a: None)
+    for kind, foot in (("slab", "couloir"), ("colonial", "chambre")):
+        below = [NS(id=1, polygon=box(0, 0, 6, 5), type="chambre", unit="flat 0", floor=2),
+                 NS(id=2, polygon=box(0, 5, 6, 6.5), type="couloir", unit="flat 0", floor=2)]
+        job = NS(interior=NS(rooms=list(below), stairs=[], warnings=[], fh=3.0))
+        FL.duplex(job, [(box(0, 0, 6, 6.5), None)], 3, kind)
+        stair = job.interior.stairs[0]
+        rooms = {r.id: r for r in job.interior.rooms}
+        assert [rooms[i].type for i in stair.rooms] == [foot, foot]
+        if kind == "slab":
+            assert box(0, 5, 6, 6.5).contains(stair.polygon)
+            assert min(abs(stair.polygon.bounds[1] - 5.1), abs(stair.polygon.bounds[3] - 6.4)) < 1e-6
+
+
 def test_flats_wet_door_by_a_corner(new_districts):
     """A narrow wc's or sdb's door in a block of flats stands by a corner of its wall, its jamb the door's clear
     from the end wall's face (half a partition and the clear from the corner), hinged on that side (47.2 flats
@@ -5024,3 +5248,33 @@ def test_flats_wet_door_by_a_corner(new_districts):
             if group not in ("slab", "colonial"):
                 assert not any("hinge" in o.to_json() for o in interior.openings)
     assert hinged
+
+
+def test_box_room_roomy():
+    """A stair box in the middle of a small floor leaves a ring of couloir; against a wall, a floor rooms can
+    take (`villa.roomy`, the `box_room` replan, 47.2 villas round O). Hand-made, 0.01 s."""
+    from types import SimpleNamespace as NS
+    from shapely.geometry import box
+    from citygen.interior.villa import roomy
+    job = NS(interior=NS(storeys=[NS(polygon=box(0, 0, 6, 6.5)), NS(polygon=box(0, 0, 6, 6.5))]))
+    middle, side = box(2.0, 0.5, 4.1, 6.0), box(3.9, 0.5, 6.0, 6.0)
+    assert roomy(job, side, [0, 1], 2.6) > roomy(job, middle, [0, 1], 2.6) + 10.0
+    assert roomy(job, middle, [0, 1], 2.6) < 1.0                  # 1.9 and 2.0 m strips: no room is that thin
+
+
+@pytest.mark.slow
+def test_villa_369_plan_is_valid(world):
+    """Villa No. 369 of the villa town (quick world, settlement 3, as the `villas` fixture) passes the plan
+    check since 47.2 villas round O (the little plan for villas, the roof stair off the hall): this locks in
+    that round's gain, which only an off-line survey had shown. About 3 s."""
+    from citygen.interior import rooms
+    from citygen.interior.context import BuildContext, city_plan, layout_of
+    from citygen.interior.layout import plan_interior
+    from citygen.interior.outside import Outside
+    town = plan_city(world, world.settlements[3])
+    ctx = BuildContext(world, [town], town.settlement)
+    plan = city_plan(ctx)
+    assert layout_of(plan, plan.buildings[369], world.style) == "villa"
+    interior = plan_interior(Outside(ctx, plan, 369), world.style)
+    assert interior.layout == "villa", interior.layout
+    assert rooms.check(interior) == [], rooms.check(interior)[:3]
