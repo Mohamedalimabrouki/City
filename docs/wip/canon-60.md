@@ -17,6 +17,9 @@ Worktree /tmp/claude-501/canon-60 on wip/rivers-60 (d1c5be0). No code changed.
   another place (and if a kind ever fails to fill its count, every later name changes too). Worse for the
   cities after id 3: they did not really move, but each one's id drops by one, so each takes the name of the
   city before it (the name and the canon pin follow the id).
+- Measured (20:53, default 64 km config, `generate_world` with and without the lakes passed to
+  `_place_settlements`): 131 settlements both ways; only 6 keep their exact (x, y); of those 6, 2 cities are
+  renamed by the id shift: Kodjisa (was id 4) is now called Chilel (id 3), Sota (was id 5) is now Kodjisa.
 - Lore: `_add_lore` uses `stream(seed, "lore")` in id order too (world.py:219), same weakness.
 
 ## Which names are canon
