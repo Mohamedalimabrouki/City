@@ -32,4 +32,4 @@ Only `citygen/interior/kit_old.py` changed (tray_brass, tea_set, ibrik, pots_sta
    test that the tray has some outward-facing rim triangle (normal with a positive radial part at r > 0.28).
 
 ## Left
-Triangle counts are by hand (not run); SPEC 6 text not re-read line by line (sizes unchanged).
+Triangle counts checked by running the makers: tray_brass 48 of 48, tea_set 159 of 160, ibrik 112 of 120, pots_stack 150 of 150 (three pieces at or 1 under budget, so fixes 1, 3 and 4 need budget raises). SPEC 6 text not re-read line by line (sizes unchanged).
