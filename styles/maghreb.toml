@@ -2040,6 +2040,7 @@ way_room = ["villa", "maison"]   # a home with no chambre on its top floor cuts 
 little = ["maison", "villa"]   # a one-floor maison still with no chambre (a villa: or no salon) is planned last with no couloir: the door into the salon, the chambre, cuisine and sdb off it (47.2 houses round 5)
 box_room = { villa = 2.6 }   # m: a house of two floors or more still with no salon or no chambre is planned last with its U stair box where it leaves the most floor in parts this wide (no ring of couloir round the stair; 47.2 villas round O)
 little_step = 0.5        # meters between the partitions a little house tries
+little_most = 80.0       # m2: a floor whose rotated rectangle is over this is no little house (the search tries every 4-room cut of its grid, time growing as the cube of its side: 80 m2 about 1 s)
 complete = ["villa", "maison"]   # a floor 0 with no salon, a one-floor home with no chambre, cuts one from its largest room (47.2 round C)
 
 [interiors.flats]   # flats in colonial blocks and slabs (SPEC 6c "Flats")
