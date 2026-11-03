@@ -1922,14 +1922,14 @@ cotton_blue = { color = "#8EB2D6", roughness = 0.9 }
 cotton_pink = { color = "#E2A9B5", roughness = 0.9 }
 rug_floral = { color = "#FFFFFF", roughness = 0.95, texture = "rug_floral", texture_size = [1.6, 2.3] }   # one repeat per rug
 spines = { color = "#FFFFFF", roughness = 0.7, texture = "spines", texture_size = [0.5, 0.28] }   # 0.28: one book row (kit_new.TEX_H)
-goods = { color = "#FFFFFF", roughness = 0.6, texture = "goods", texture_size = [0.8, 0.32] }     # 0.32: one shelf row (kit_new.TEX_H)
-goods_spices = { color = "#E39A62", roughness = 0.6, texture = "goods", texture_size = [0.8, 0.32] }   # souk trades: `goods` tinted by mesh/props.SHOP_GOODS
-goods_perfume = { color = "#B78A5E", roughness = 0.4, texture = "goods", texture_size = [0.8, 0.32] }
-goods_pots = { color = "#D08A66", roughness = 0.7, texture = "goods", texture_size = [0.8, 0.32] }
-goods_copper = { color = "#D58A56", roughness = 0.4, metallic = 0.3, texture = "goods", texture_size = [0.8, 0.32] }
-goods_chechia = { color = "#D2524A", roughness = 0.8, texture = "goods", texture_size = [0.8, 0.32] }
-goods_fruit = { color = "#E8B25A", roughness = 0.7, texture = "goods", texture_size = [0.8, 0.32] }
-goods_cloth = { color = "#C98A8A", roughness = 0.9, texture = "goods", texture_size = [0.8, 0.32] }
+goods = { color = "#FFFFFF", roughness = 0.6, texture = "goods", texture_size = [0.8, 0.72] }     # 0.72: two shelf rows (kit_new.TEX_H 0.36)
+goods_spices = { color = "#E39A62", roughness = 0.6, texture = "goods", texture_size = [0.8, 0.72] }   # souk trades: `goods` tinted by mesh/props.SHOP_GOODS
+goods_perfume = { color = "#B78A5E", roughness = 0.4, texture = "goods", texture_size = [0.8, 0.72] }
+goods_pots = { color = "#D08A66", roughness = 0.7, texture = "goods", texture_size = [0.8, 0.72] }
+goods_copper = { color = "#D58A56", roughness = 0.4, metallic = 0.3, texture = "goods", texture_size = [0.8, 0.72] }
+goods_chechia = { color = "#D2524A", roughness = 0.8, texture = "goods", texture_size = [0.8, 0.72] }
+goods_fruit = { color = "#E8B25A", roughness = 0.7, texture = "goods", texture_size = [0.8, 0.72] }
+goods_cloth = { color = "#C98A8A", roughness = 0.9, texture = "goods", texture_size = [0.8, 0.72] }
 
 [interiors.textures]  # images only interiors use (mesh/textures.py makes them; the build never writes them)
 terrazzo = { pixels = 256, chips = 1400, grain = 0.5, mottle = 0.4, field = "#D9D3C7", chip_1 = "#8E877B", chip_2 = "#4F4A44", chip_3 = "#B9A687", chip_4 = "#F1EDE6", chip_5 = "#9A6B55" }
@@ -1948,7 +1948,7 @@ mink = { pixels = 256, flowers = 4, mottle = 0.6, ground = "#3A2432", rose = "#B
 # prompt 53: the machine-made rug, book backs, a grocer's shelf row (one row per image: kit_new.TEX_H)
 rug_floral = { pixels = 256, border = 0.12, flowers = 60, mottle = 0.35, field = "#8C1E23", navy = "#1E2A4D", guard = "#D9CAA2", flower = "#E4D5AE", leaf = "#55724A", rose = "#C4553D" }
 spines = { pixels = 256, wmin = 7, wmax = 20, hmin = 0.72, mottle = 0.3, gap = "#2B2118", gold = "#C9A23E", label = "#E6DCC4", color_1 = "#7E1F24", color_2 = "#23406E", color_3 = "#1F4E3A", color_4 = "#B38B3A", color_5 = "#E9E1CF", color_6 = "#5A3A24", color_7 = "#2B2A28", color_8 = "#A84A2E" }
-goods = { pixels = 256, wmin = 16, wmax = 34, hmin = 0.5, facing_min = 2, facing_max = 4, w_box = 0.22, w_tin = 0.20, w_bottle = 0.18, w_jar = 0.12, w_packet = 0.18, w_stack = 0.10, mottle = 0.3, back = "#3A2E24", label = "#EDE6D6", cap = "#C9C9C9", color_1 = "#C0392B", color_2 = "#E0B23E", color_3 = "#2F6FB8", color_4 = "#3E7A55", color_5 = "#F2F2EE", color_6 = "#D9822B", color_7 = "#7E1F24", color_8 = "#8E5A9A" }
+goods = { pixels = 256, rows = 2, wmin = 16, wmax = 34, hmin = 0.80, hmax = 0.95, tins_high = 2, flat_high = 4, jars_high = 2, facing_min = 2, facing_max = 4, w_box = 0.22, w_tin = 0.20, w_bottle = 0.18, w_jar = 0.12, w_packet = 0.18, w_stack = 0.10, mottle = 0.3, back = "#3A2E24", label = "#EDE6D6", cap = "#C9C9C9", color_1 = "#C0392B", color_2 = "#E0B23E", color_3 = "#2F6FB8", color_4 = "#3E7A55", color_5 = "#F2F2EE", color_6 = "#D9822B", color_7 = "#7E1F24", color_8 = "#8E5A9A" }
 
 [interiors.rooms]  # [least area m2, least width m] (width: twice the largest inscribed circle's radius)
 piece = 0.5        # m2: a smaller piece always joins its neighbour

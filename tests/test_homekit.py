@@ -101,3 +101,16 @@ def test_home_kit_deterministic(tmp_path):
                        env={**os.environ, "PYTHONHASHSEED": seed}, check=True, capture_output=True)
     for f in ("tiles/sheet.glb", "tiles/index.json", "pieces.txt"):
         assert (tmp_path / "a" / f).read_bytes() == (tmp_path / "b" / f).read_bytes(), f
+
+
+def test_goods_rows_fill_and_vary(style):
+    """The goods image holds two different shelf rows, each filled near its top (fix-goods)."""
+    from citygen.interior import weave
+    spec = style["interiors"]["textures"]["goods"]
+    a = np.asarray(weave.texture("goods", 42, spec), dtype=np.float64)
+    h = a.shape[0] // int(spec["rows"])
+    back = weave._col(spec, "back") * 255.0
+    for b in range(int(spec["rows"])):
+        dark = np.abs(a[b * h:(b + 1) * h] - back).sum(-1) < 40      # the shelf's back between goods
+        assert dark[h // 4:].mean() < 0.2, b                         # the goods fill the row's height
+    assert np.abs(a[:h] - a[h:2 * h]).mean() > 20.0                  # the rows differ

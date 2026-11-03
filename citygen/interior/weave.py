@@ -342,34 +342,47 @@ def _spines(rng, n: int, s: dict) -> np.ndarray:
 GOODS_KINDS = ("box", "tin", "bottle", "jar", "packet", "stack")
 
 
-def _goods(rng, n: int, s: dict) -> np.ndarray:
-    """A shelf row of a Tunisian grocer's goods (one row per image), in facings of two to four of a product
-    on the row's foot: cartons (tea, sugar, milk) with a shaded side and a coloured stripe on a pale panel,
-    tomato-paste tins with light rims and a wrap label, stacks of two flat tins (sardines, tuna), oil and
-    water bottles with shoulders, a neck and a cap, harissa jars under a metal lid, soft packets (couscous,
-    pasta) with a crimped seal; each product a body and an accent colour of the palette, the dark of the
-    shelf's back between them (a gap at each edge, so the row tiles across)."""
-    x, y = _grid(n)
+def _goods(rng, n: int, s: dict, seed: int = 0) -> np.ndarray:
+    """`rows` shelf rows of a Tunisian grocer's goods, one under the other (kit_new.TEX_H: one row's v
+    size), so the shelves of a piece need not repeat one row: the first row drawn on the image's stream,
+    each further row k on its own (seed, "texture", "goods", "row", k), the mottle over all of them."""
+    rows = max(int(s.get("rows", 1)), 1)
+    h = n // rows
+    bands = [_goods_row(rng if k == 0 else stream(seed, "texture", "goods", "row", k), n, h, s) for k in range(rows)]
+    out = np.concatenate(bands + [bands[-1][: n - h * rows]], axis=0)
+    grain = 1.0 + 0.06 * s["mottle"] * (_noise(rng, n, 16, 2) - 0.5) * 2.0
+    return out * grain[:, :, None]
+
+
+def _goods_row(rng, n: int, hh: int, s: dict) -> np.ndarray:
+    """One shelf row of goods, n px wide and hh tall, in facings of two to four of a product on the row's
+    foot, near the row's full height: cartons (tea, sugar, milk) with a shaded side and a coloured stripe
+    on a pale panel, tomato-paste tins two high with light rims and a wrap label, stacks of four flat tins
+    (sardines, tuna), oil and water bottles with shoulders, a neck and a cap, harissa jars two high under
+    a metal lid, soft packets (couscous, pasta) with a crimped seal; each product a body and an accent
+    colour of the palette, the dark of the shelf's back between them (a gap at each edge, so the row
+    tiles across)."""
+    y, x = np.mgrid[0:hh, 0:n] + 0.5
     colors = _palette(s)
     label, cap = _col(s, "label"), _col(s, "cap")
     weights = np.array([float(s.get(f"w_{k}", 1.0)) for k in GOODS_KINDS])
     cuts = np.cumsum(weights / weights.sum())[:-1]
-    out = np.ones((n, n, 3)) * _col(s, "back")
+    out = np.ones((hh, n, 3)) * _col(s, "back")
     run, left = [], 0
+    stacked = {"tin": int(s.get("tins_high", 2)), "stack": int(s.get("flat_high", 4)), "jar": int(s.get("jars_high", 2))}
     for x0, x1 in _items(rng, n, float(s.get("wmin", 14)), float(s.get("wmax", 34))):
         if left <= 0:      # a new product
             kind = GOODS_KINDS[int(np.searchsorted(cuts, rng.uniform()))]
             i, j = rng.choice(len(colors), 2, replace=False)
-            run = [kind, colors[int(i)], colors[int(j)], float(rng.uniform(float(s.get("hmin", 0.5)), 0.92))]
+            run = [kind, colors[int(i)], colors[int(j)], float(rng.uniform(float(s.get("hmin", 0.5)), float(s.get("hmax", 0.92))))]
             left = int(rng.integers(int(s.get("facing_min", 2)), int(s.get("facing_max", 4)) + 1))
         left -= 1
         kind, col, acc, hf = run
-        hf = {"tin": hf * 0.55, "stack": hf * 0.62, "jar": hf * 0.50, "bottle": max(hf, 0.70)}.get(kind, hf)
         a, b = x0 + 1, x1 - 1
-        top = n * (1.0 - hf)
+        top = hh * (1.0 - hf)
         cx, half = (a + b) / 2, max((b - a) / 2, 1.0)
         u = (x - cx) / half
-        span = n - top
+        span = hh - top
         round_ = (1.0 - 0.38 * u ** 2)[:, :, None]
         if kind == "box":
             tone = np.where((u > 0.55)[:, :, None], 0.78, 1.0) * np.ones((n, n, 1))
@@ -380,8 +393,8 @@ def _goods(rng, n: int, s: dict) -> np.ndarray:
             out = np.where((panel & (y > top + span * 0.30) & (y < top + span * 0.42))[:, :, None], acc * tone, out)
             out = np.where((item & (np.abs(y - top - 1.5) < 1.0))[:, :, None], col * tone * 0.75, out)
         elif kind in ("tin", "stack"):
-            parts = [(top, n)] if kind == "tin" else [(top, top + span / 2), (top + span / 2, n)]
-            for t0, t1 in parts:
+            k = stacked[kind]
+            for t0, t1 in ((top + span * i / k, top + span * (i + 1) / k) for i in range(k)):
                 item = (x >= a) & (x < b) & (y >= t0) & (y < t1)
                 h = t1 - t0
                 out = np.where(item[:, :, None], label * round_, out)
@@ -401,12 +414,15 @@ def _goods(rng, n: int, s: dict) -> np.ndarray:
             out = np.where(((np.abs(u) < 0.36) & (y >= top) & (y < top + 4))[:, :, None], acc * round_ * 0.85, out)
             out = np.where((body & (np.abs(u + 0.45) < 0.10) & (y > shoulder))[:, :, None], np.minimum(col * 1.35 + 0.1, 1.0), out)
         elif kind == "jar":
-            item = (x >= a) & (x < b) & (y >= top + 4)
-            out = np.where(item[:, :, None], col * round_, out)
-            out = np.where((item & (y > top + span * 0.35) & (y < top + span * 0.80))[:, :, None], label * round_, out)
-            out = np.where((item & (np.abs(u) < 0.55) & (y > top + span * 0.48) & (y < top + span * 0.66))[:, :, None],
-                           acc * round_, out)
-            out = np.where(((np.abs(u) < 0.92) & (y >= top) & (y < top + 5))[:, :, None], cap * round_ * 0.9, out)
+            k = stacked[kind]
+            for t0 in (top + span * i / k for i in range(k)):
+                sp = span / k
+                item = (x >= a) & (x < b) & (y >= t0 + 4) & (y < t0 + sp)
+                out = np.where(item[:, :, None], col * round_, out)
+                out = np.where((item & (y > t0 + sp * 0.35) & (y < t0 + sp * 0.80))[:, :, None], label * round_, out)
+                out = np.where((item & (np.abs(u) < 0.55) & (y > t0 + sp * 0.48) & (y < t0 + sp * 0.66))[:, :, None],
+                               acc * round_, out)
+                out = np.where(((np.abs(u) < 0.92) & (y >= t0) & (y < t0 + 4))[:, :, None], cap * round_ * 0.9, out)
         else:              # a soft packet: narrower to its crimped seal, a pale window
             w = 0.84 + 0.16 * np.clip((y - top) / max(span * 0.25, 1.0), 0, 1)
             seal = (np.abs(u) < 0.84) & (y >= top) & (y < top + 4 + 1.5 * (np.floor(x / 2) % 2))
@@ -416,20 +432,21 @@ def _goods(rng, n: int, s: dict) -> np.ndarray:
             win = item & (np.abs(u) < 0.55) & (y > top + span * 0.35) & (y < top + span * 0.70)
             out = np.where(win[:, :, None], label * soft, out)
             out = np.where((win & (y > top + span * 0.42) & (y < top + span * 0.52))[:, :, None], acc * soft, out)
-    grain = 1.0 + 0.06 * s["mottle"] * (_noise(rng, n, 16, 2) - 0.5) * 2.0
-    return out * grain[:, :, None]
+    return out
 
 
 MAKERS = {"klim_red": _klim, "klim_indigo": _klim, "mergoum": _mergoum, "zarbia": _zarbia, "hasira": _hasira,
           "ticking": _ticking, "painted": _painted, "sajjada": _sajjada, "mink": _mink,
           "rug_floral": _rug_floral, "spines": _spines, "goods": _goods}
+SEEDED = ("goods",)     # makers that open their own further streams of the seed
 
 
 def texture(name: str, seed: int, spec: dict | None = None) -> Image.Image:
     """The image `name` (one of `MAKERS`): the same pixels for the same seed and settings."""
     values = {**DEFAULTS, "pixels": 256, **(spec or {})}
     size = int(values["pixels"])
-    value = np.clip(MAKERS[name](stream(seed, "texture", name), size, values), 0.0, 1.0)
+    rng = stream(seed, "texture", name)
+    value = np.clip(MAKERS[name](rng, size, values, seed) if name in SEEDED else MAKERS[name](rng, size, values), 0.0, 1.0)
     return Image.fromarray((value * 255.0 + 0.5).astype(np.uint8), "RGB")
 
 

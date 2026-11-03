@@ -105,7 +105,8 @@ SIZES = {**{b: row[2] for b, row in TABLE.items()}, **VARIANT_SIZES}   # `[inter
 FABRIC = {"beige": "fabric_beige", "grey": "fabric_grey", "red": "velvet_red"}
 COVER = {"mink": "mink", "white": "cotton_white", "blue": "cotton_blue", "pink": "cotton_pink"}
 RUN = {"white": "formica_white", "wood": "wood_beech"}
-TEX_H = {"spines": 0.28, "goods": 0.32}     # the v size of `[interiors.palette]` spines and goods: one shelf row
+TEX_H = {"spines": 0.28, "goods": 0.36}     # the v size of one shelf row (`[interiors.palette]` goods: two rows)
+ROW_SHIFT = 0.382                            # of the image's width: the u shift of each next shelf row
 RUG_FLORAL = (1.6, 2.3)                     # its texture_size: the whole rug is one repeat
 
 
@@ -135,19 +136,20 @@ def _uvquad(mb: MeshBuilder, mat: str, quad, uv, normal) -> None:
     mb.add(mat, q, np.tile(n / np.linalg.norm(n), (4, 1)), u, [[0, 1, 2], [0, 2, 3]])
 
 
-def _row(mb: MeshBuilder, mat: str, x0, x1, y0, y1, z0, side: bool = True) -> None:
-    """A row of books or goods standing on z0: its front shows one image row exactly (its top the row's
-    top), its top the colours of the image's foot; `side` adds its right end (6 triangles)."""
+def _row(mb: MeshBuilder, mat: str, x0, x1, y0, y1, z0, side: bool = True, band: int = 0, shift: float = 0.0) -> None:
+    """A row of books or goods standing on z0: its front shows image row `band` exactly (its top the row's
+    top), moved `shift` m along u, its top the colours of that row's foot; `side` adds its right end
+    (6 triangles)."""
     h = TEX_H[mat.split("_")[0]]
-    z1 = z0 + h
+    z1, v0, a, b = z0 + h, band * h, x0 + shift, x1 + shift
     _uvquad(mb, mat, [(x0, y1, z0), (x1, y1, z0), (x1, y1, z1), (x0, y1, z1)],
-            [(x0, h), (x1, h), (x1, 0.0), (x0, 0.0)], (0, 1, 0))
-    foot = h * 0.9
+            [(a, v0 + h), (b, v0 + h), (b, v0), (a, v0)], (0, 1, 0))
+    foot = v0 + h * 0.9
     _uvquad(mb, mat, [(x0, y0, z1), (x1, y0, z1), (x1, y1, z1), (x0, y1, z1)],
-            [(x0, foot), (x1, foot), (x1, foot), (x0, foot)], (0, 0, 1))
+            [(a, foot), (b, foot), (b, foot), (a, foot)], (0, 0, 1))
     if side:
         _uvquad(mb, mat, [(x1, y0, z0), (x1, y1, z0), (x1, y1, z1), (x1, y0, z1)],
-                [(x1, h), (x1 + y1 - y0, h), (x1 + y1 - y0, 0.0), (x1, 0.0)], (1, 0, 0))
+                [(b, v0 + h), (b + y1 - y0, v0 + h), (b + y1 - y0, v0), (b, v0)], (1, 0, 0))
 
 
 def _crest(mb: MeshBuilder, a: float, b: float, z0: float, y0: float, y1: float, mat: str, n: int = 4,
@@ -1079,8 +1081,8 @@ def shop_shelves(s, v, rng):
     _box(mb, -w / 2 + t, w / 2 - t, 0.0, d - 0.01, 0.0, levels[0], "wood_beech", "bklr")
     for z in levels[1:]:
         _box(mb, -w / 2 + t, w / 2 - t, 0.0, d - 0.01, z - t, z, "wood_beech", "bklr")
-    for z in levels:
-        _row(mb, goods, -w / 2 + t, w / 2 - t, 0.02, d - 0.05, z, side=False)
+    for k, z in enumerate(levels):     # each shelf another row of the image, moved along: no two alike
+        _row(mb, goods, -w / 2 + t, w / 2 - t, 0.02, d - 0.05, z, side=False, band=k % 2, shift=k * ROW_SHIFT * 0.8)
     return mb
 
 
@@ -1114,9 +1116,9 @@ def drinks_fridge(s, v, rng):
     for k in range(4):
         z = zk + k * space
         _quad(mb, [(-xi, 0.05, z), (xi, 0.05, z), (xi, yf - 0.02, z), (-xi, yf - 0.02, z)], (0, 0, 1), "steel")
-        hh = TEX_H["goods"]
+        hh, v0, du = TEX_H["goods"], (k % 2) * TEX_H["goods"], k * ROW_SHIFT * 0.8
         _uvquad(mb, "goods", [(-xi, 0.10, z), (xi, 0.10, z), (xi, 0.10, z + hh), (-xi, 0.10, z + hh)],
-                [(-xi, hh), (xi, hh), (xi, 0.0), (-xi, 0.0)], (0, 1, 0))
+                [(du - xi, v0 + hh), (du + xi, v0 + hh), (du + xi, v0), (du - xi, v0)], (0, 1, 0))
     _front(mb, -xi, xi, zk, zh, d - 0.01, "glass_inner")
     _tube(mb, (xi - 0.04, d - 0.004, zk + 0.45), (xi - 0.04, d - 0.004, zk + 0.95), (0.008, 0.006), "steel")
     return mb
