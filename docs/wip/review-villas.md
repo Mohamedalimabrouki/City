@@ -48,5 +48,10 @@ Yes: on the parent c48fb1e `from citygen.interior.villa import roomy` raises Imp
 asserts check real numbers (middle box leaves 2.0 and 1.9 m strips, both under 2.6 m, so 0 m2;
 the wall box leaves a 3.9 m strip, about 25 m2). It cannot detect a wrong pick in `place_box` (finding 1).
 
+Run here (20:54 UTC): on 50d6f9e `pytest tests/test_citygen.py::test_box_room_roomy` passes (2.2 s with
+start-up); on the parent c48fb1e (scratch worktree, the new test file copied in) it fails with
+ImportError, as expected.
+
 ## Left (time limit 20:59 UTC)
-Did not run the test on the parent nor re-run pytest here; did not open the 472-villas-plans picture.
+Did not re-run the full `pytest -q` here (the owner's notes: 164 passed at 20:14); did not open the
+472-villas-plans picture.
