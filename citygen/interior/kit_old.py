@@ -283,23 +283,60 @@ def doukkana(s, v, rng):
     return mb
 
 
-def mattress(s, v, rng):
-    """The doukkana's mattress: a bevelled pad with a piped front edge (velvet_gold on velvet, its own
-    ticking on ticking), 26 triangles."""
+TEXTILE = {   # shape numbers of the doukkana's textiles; the style's `[interiors.furnish.textiles]` overrides them
+    "mattress": {"round": 0.045, "bevel": 0.02, "belly": 0.012, "pipe": 0.009, "proud": 0.5},
+    "cushion": {"seam": 0.08, "cord": 0.94, "cord_depth": 0.016, "dome": 0.185, "lean": 0.035,
+                "tassel": 0.085, "tassel_r": 0.02},
+}
+
+
+def _shape(base: str, shape) -> dict:
+    return {**TEXTILE[base], **(shape or {})}
+
+
+def mattress(s, v, rng, shape=None):
+    """The doukkana's mattress: a profile swept along the bench, its back edge bevelled, its front edge
+    rounded (a quarter round in two steps, smooth normals) over a front that bellies out a little, flat
+    ends; a cord of piping (velvet_gold on velvet, its own ticking on ticking) stands proud along the
+    seam of the round (30 triangles)."""
     w, d, h = s
+    k = _shape("mattress", shape)
+    r, b, belly = k["round"], k["bevel"], k["belly"]
     mat = "ticking" if v == "ticking" else VELVET[v]
+    q = r * (1 - math.sqrt(0.5))
+    prof = [(-d / 2, 0.0), (-d / 2, h - b), (-d / 2 + b, h), (d / 2 - r, h), (d / 2 - q, h - q),
+            (d / 2, h - r), (d / 2 - belly, 0.0)]
+    n = len(prof)
+    pos = np.array([(x, y, z) for x in (-w / 2, w / 2) for y, z in prof])
+    tris = []
+    for i in range(n - 1):        # the long faces; the bottom lies on the bench
+        tris += [[i, i + 1, n + i + 1], [i, n + i + 1, n + i]]
+    tris = np.array(tris)
+    centre = np.array([0.0, 0.0, h / 2])
+    for t in range(len(tris)):
+        p0, p1, p2 = pos[tris[t]]
+        if np.dot(np.cross(p1 - p0, p2 - p0), (p0 + p1 + p2) / 3 - centre) < 0:
+            tris[t] = tris[t][::-1]
     mb = MeshBuilder()
-    _pad(mb, -w / 2, w / 2, -d / 2, d / 2, 0.0, h, mat, 0.025)
+    _smooth(mb, mat, pos, tris)
+    for tri in triangulate(Polygon(prof)):
+        for x, nx in ((-w / 2, -1.0), (w / 2, 1.0)):
+            add_triangles(mb, [_oriented([(x, y, z) for y, z in tri], (nx, 0, 0))], mat)
     pipe = "ticking" if v == "ticking" else "velvet_gold"
-    _tube(mb, (-w / 2, d / 2 - 0.004, h - 0.026), (w / 2, d / 2 - 0.004, h - 0.026), (0.008, 0.008), pipe)
+    off = k["pipe"] * k["proud"] * math.sqrt(0.5)        # out along the round's 45 degree normal
+    y, z = d / 2 - q + off, h - q + off
+    _tube(mb, (-w / 2, y, z), (w / 2, y, z), (k["pipe"], k["pipe"]), pipe)
     return mb
 
 
-def cushion(s, v, rng):
-    """A soft back cushion leaning on the wall over the doukkana: a rounded outline (a superellipse, as a
-    stuffed cover rounds its corners), the back nearly flat, the front gently domed, smooth normals; a
-    gold tassel (red on a gold cushion) at each top corner, long enough to read from a meter (38)."""
+def cushion(s, v, rng, shape=None):
+    """A soft, plump back cushion leaning on the wall over the doukkana: a rounded outline (a
+    superellipse, as a stuffed cover rounds its corners) at the seam, a cord of piping round the seam (a
+    narrow band in the tassel's colour, creased from the cover on both sides), the front domed to its
+    middle and the back pressed nearly flat, smooth normals; a gold tassel (red on a gold cushion) hangs
+    from each top corner, long enough to read from a meter (40 triangles)."""
     w, d, h = s
+    k8 = _shape("cushion", shape)
     z0 = TABLE["cushion"][4]["z0"]
     zc = z0 + h / 2
     k = 8
@@ -308,31 +345,45 @@ def cushion(s, v, rng):
     ox = np.sign(c) * np.sqrt(np.abs(c)) / math.sqrt(math.cos(math.radians(22.5)))   # reaches +-1
     oz = np.sign(sn) * np.sqrt(np.abs(sn)) / math.sqrt(math.cos(math.radians(22.5)))
     hw, hh = w / 2 - 0.005, h / 2 - 0.003
-    mid = np.stack([ox * hw, np.full(k, 0.08), zc + oz * hh], axis=1)
-    front = np.stack([ox * hw * 0.70, np.full(k, 0.155), zc + oz * hh * 0.70], axis=1)
-    pos = np.concatenate([mid, front, [[0.0, 0.18, zc], [0.0, 0.0, zc]]])
-    lean = 0.035                                      # the top rests on the wall, the foot comes forward
-    pos[:, 1] += lean * (1.0 - (pos[:, 2] - z0) / h)
-    pos[:, 1] = (pos[:, 1] - pos[:, 1].min()) / (pos[:, 1].max() - pos[:, 1].min()) * (d - 0.004)
-    tris = []
-    for i in range(k):
-        j = (i + 1) % k
-        tris += [[i, k + j, k + i], [i, j, k + j], [k + i, k + j, 2 * k], [i, 2 * k + 1, j]]
-    tris = np.array(tris)
-    centre = pos[:2 * k].mean(axis=0)
-    for n in range(len(tris)):     # every face looks out of the cushion
-        p0, p1, p2 = pos[tris[n]]
-        if np.dot(np.cross(p1 - p0, p2 - p0), (p0 + p1 + p2) / 3 - centre) < 0:
-            tris[n] = tris[n][::-1]
-    mb = MeshBuilder()
-    _smooth(mb, VELVET[v], pos, tris)
+    seam, cord = k8["seam"], k8["cord"]
+    ring = lambda f, y: np.stack([ox * hw * f, np.full(k, y), zc + oz * hh * f], axis=1)
+    mid, inner = ring(1.0, seam), ring(cord, seam + k8["cord_depth"])
+
+    def tilt(p):     # the top rests on the wall, the foot comes forward
+        p = np.array(p, dtype=np.float64)
+        p[:, 1] += k8["lean"] * (1.0 - (p[:, 2] - z0) / h)
+        return p
+
+    every = tilt(np.concatenate([mid, inner, [[0.0, k8["dome"], zc], [0.0, 0.0, zc]]]))[:, 1]
+    lo, hi = every.min(), every.max()
+
+    def lean(p):     # tilted, then fitted to the depth
+        p = tilt(p)
+        p[:, 1] = (p[:, 1] - lo) / (hi - lo) * (d - 0.004)
+        return p
+
+    def shell(mb, mat, pos, tris):
+        pos, tris = lean(np.asarray(pos)), np.array(tris)
+        centre = lean(mid).mean(axis=0)
+        for n in range(len(tris)):     # every face looks out of the cushion
+            p0, p1, p2 = pos[tris[n]]
+            if np.dot(np.cross(p1 - p0, p2 - p0), (p0 + p1 + p2) / 3 - centre) < 0:
+                tris[n] = tris[n][::-1]
+        _smooth(mb, mat, pos, tris)
+
     tassel = "velvet_red" if v == "gold" else "velvet_gold"
+    mb = MeshBuilder()
+    ring_tris = lambda: [t for i in range(k) for t in ([i, k + (i + 1) % k, k + i], [i, (i + 1) % k, k + (i + 1) % k])]
+    shell(mb, tassel, np.concatenate([mid, inner]), ring_tris())                       # the piping cord
+    fan = lambda apex: [[i, (i + 1) % k, apex] for i in range(k)]
+    shell(mb, VELVET[v], np.concatenate([inner, [[0.0, k8["dome"], zc]]]), fan(k))     # the domed front
+    shell(mb, VELVET[v], np.concatenate([mid, [[0.0, 0.0, zc]]]), fan(k))              # the back
     for sx in (-1, 1):
-        corner = np.array([sx * hw * 0.86, 0.06, zc + hh * 0.86])
-        tip = corner + np.array([sx * 0.03, 0.01, -0.06])     # hangs from the corner
-        ring = _ring(corner[0], corner[1], corner[2], 0.016, 0.016, 3)
-        _pyramid(mb, ring, tip, tassel)
-        add_triangles(mb, [_oriented(ring, (0, 0, 1))], tassel)          # its top, seen from above
+        corner = lean(np.array([[sx * hw * 0.84, seam + 0.01, zc + hh * 0.84]]))[0]
+        tip = corner + np.array([sx * 0.02, 0.012, -k8["tassel"]])     # hangs from the corner
+        head = _ring(corner[0], corner[1], corner[2], k8["tassel_r"], k8["tassel_r"], 3)
+        _pyramid(mb, head, tip, tassel)
+        add_triangles(mb, [_oriented(head, (0, 0, 1))], tassel)          # its knot, seen from above
     return mb
 
 
@@ -1161,6 +1212,7 @@ def pieces(seed: int, cfg: dict) -> dict:
             name = base if suffix is None else f"{base}_{suffix}"
             size = tuple(float(v) for v in over.get(name, over.get(base, SIZES.get(name, SIZES[base]))))
             rng = stream(seed, "piece", f"home/{name}")
-            mb = MAKERS[base](size, suffix or "", rng)
+            shape = {**(cfg or {}).get("textiles", {}).get(base, {})}
+            mb = MAKERS[base](size, suffix or "", rng, shape) if base in TEXTILE else MAKERS[base](size, suffix or "", rng)
             out[name] = (mb, cat, anchor, {"size": size, "tris": tris, **extra})
     return out
