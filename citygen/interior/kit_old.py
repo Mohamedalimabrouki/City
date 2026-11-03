@@ -66,7 +66,7 @@ TABLE = {
     "sewing_machine": ("work", "wall", (0.90, 0.50, 0.95), 260, {"use": 0.6}),
     "dummy": ("work", "floor", (0.40, 0.35, 1.55), 120, {}),
     "chechia_forms": ("work", "wall", (0.80, 0.40, 0.95), 160, {"use": 0.6}),
-    "pots_stack": ("work", "floor", (0.60, 0.60, 0.70), 164, {}),
+    "pots_stack": ("work", "floor", (0.60, 0.60, 0.70), 180, {}),
     "net_pile": ("work", "floor", (1.00, 0.80, 0.35), 80, {}),
     "skifa_bench": ("seat", "wall", (1.0, 0.45, 0.45), 24, {"stretch": (0.8, 3.0), "use": 0.4}),
     "wc_turkish": ("bath", "wall", (0.50, 0.70, 0.05), 40, {}),
@@ -1022,7 +1022,8 @@ def pots_stack(s, v, rng):
     r1, r2, zr, z2 = 0.13, 0.125, 0.08, 0.035          # radii, the lower rim's height, the upper bowl's foot
     ri = r2 * (0.5 + 0.5 * (zr - z2) / 0.08)            # the upper bowl's wall where the lower rim meets it
     _lathed(mb, [(r1 * 0.5, 0.0), (r1, zr), (ri, zr)], ["terracotta", "glaze_green"], 8, at=(bx, by, 0.0))
-    _lathed(mb, [(ri, zr), (r2, z2 + 0.08), (0.0, z2 + 0.025)], ["terracotta", "glaze_green"], 8, at=(bx, by, 0.0))   # 8 sides: an open hollow, not a peaked lid
+    _lathed(mb, [(ri, zr), (r2, z2 + 0.08), (r2 * 0.5, z2 + 0.03), (0.0, z2 + 0.025)], ["terracotta", "glaze_green", "glaze_green"],
+            8, at=(bx, by, 0.0))   # 8 sides and a flat-bottomed hollow: open, not a peaked lid
     return mb
 
 
