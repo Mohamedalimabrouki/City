@@ -938,10 +938,9 @@ class Furnisher:
             for r in self.ranked(sp, mode, host, spec):
                 if D > r.length + 1e-6:
                     continue
-                e = np.array([r.n[1], -r.n[0]])
                 yaw = yaw_facing(r.n) + math.pi / 2
-                for s in self.slide(D / 2, r.length - D / 2, step, mode, r, D, slot, host):
-                    q = r.point(s) + r.n * (W / 2) + e * (D / 2)
+                for s in self.slide(D / 2, r.length - D / 2, step, mode, r, D, slot, host):   # s: the centre
+                    q = r.point(s) + r.n * (W / 2)
                     yield (float(q[0]), float(q[1]), yaw, 1.0, r.index, s, D)
         elif mode == "front" and host is not None:
             hs = self.kit.specs.get(host.piece)
