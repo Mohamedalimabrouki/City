@@ -4836,6 +4836,23 @@ def test_furnish_no_overlap_every_layout(furnish_homes, interior_ctx):
         assert not _faults(FU.check(interior, fu, style, outside)), spec
 
 
+def test_furnish_side_lays_a_sedda_flush_along_a_short_back_wall():
+    """Place mode "side": a 2.0 m sedda fits lengthwise along a 2.3 m back wall, and the pose's s is its centre."""
+    from types import SimpleNamespace
+    from citygen.interior.furnish import Furnisher, Run
+    f = object.__new__(Furnisher)
+    f.cfg = {"step": 0.1}
+    run = Run(a=np.array([0.0, 0.0]), d=np.array([1.0, 0.0]), n=np.array([0.0, 1.0]), length=2.3, ops=[], index=0)
+    W, D = 1.40, 2.0
+    spec = SimpleNamespace(size=(W, D, 0.95), z=(0.0, 0.95), stretch=None)
+    poses = list(f.candidates(SimpleNamespace(runs=[run]), spec, "floor", "side", None, {}, "home/sedda"))
+    assert poses
+    for x, y, yaw, L, ri, s, w in poses:
+        assert -1e-6 <= x - D / 2 and x + D / 2 <= run.length + 1e-6, (x, s)
+        assert abs(y - W / 2) < 1e-9 and abs(x - s) < 1e-9 and w == D and ri == 0
+    assert any(abs(x - D / 2) < 1e-6 for x, *_ in poses)       # flush with a corner
+
+
 def test_furnish_required(furnish_homes, interior_ctx):
     from citygen.interior import furnish as FU
     style = interior_ctx.world.style
