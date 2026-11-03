@@ -5027,8 +5027,9 @@ def test_slab_entry_hall_reaches_the_well():
 def test_slab_scrap_hall_tries_other_doors(monkeypatch):
     """A block of flats (no second tries) whose first plan's hall is a scrap no hall fits (a door on a landing
     side facing a strip of the flat) tries the flat's other doors and keeps the better plan; a first plan with
-    a real hall is kept without them, and a colonial block's tries are unchanged (47.2 flats round J).
-    Hand-made, under 0.01 s."""
+    a real hall is kept without them (also when other faults keep it searching), a scrap hall a couloir
+    meets by more than an arch's length (0.8 m) is no scrap, one a salon meets by less still is, and a
+    colonial block's tries are unchanged (47.2 flats round J). Hand-made, under 0.01 s."""
     from types import SimpleNamespace as NS
 
     from shapely.geometry import box
@@ -5036,15 +5037,15 @@ def test_slab_scrap_hall_tries_other_doors(monkeypatch):
     from citygen.interior import flats as FL
     from citygen.interior.cuts import Cell
 
-    calls = []
+    calls, way, fault = [], [], [0]                    # way: a couloir or salon by the strip's hall
 
     def lay(job, region, e, prog, f, key):
         calls.append((e, key))
         hall = box(0, 0, 3, 0.5) if e == "strip" else box(0, 0, 2, 2)
-        return [Cell(hall, "hall"), Cell(box(0, 2, 4, 6), "chambre")]
+        return [Cell(hall, "hall"), Cell(box(0, 2, 4, 6), "chambre")] + (way if e == "strip" else [])
 
     monkeypatch.setattr(FL.P, "lay", lay)
-    monkeypatch.setattr(FL.P, "faults", lambda *a, **k: 0)
+    monkeypatch.setattr(FL.P, "faults", lambda *a, **k: fault[0])
     job = NS(cfg={"flats": {"retry_variants": {"colonial": 0.5, "slab": 0.0}}}, interior=NS(layout="slab"),
              fits=lambda poly, t: min(poly.bounds[2] - poly.bounds[0], poly.bounds[3] - poly.bounds[1]) >= 1.0)
     region = box(0, 0, 10, 10)
@@ -5054,6 +5055,20 @@ def test_slab_scrap_hall_tries_other_doors(monkeypatch):
     FL.best_lay(job, region, ["side", "strip"], ["chambre"], 3, ("flat", 1))
     assert [e for e, _ in calls] == ["side"]
     calls.clear()
+    fault[0] = 2                                          # a real hall in a faulty plan: no other door
+    FL.best_lay(job, region, ["side", "strip"], ["chambre"], 3, ("flat", 3))
+    assert [e for e, _ in calls] == ["side"]
+    calls.clear()
+    fault[0] = 0
+    way[:] = [Cell(box(0, 0.5, 1.1, 2), "couloir")]      # met by 1.1 m: the way goes on, no scrap
+    FL.best_lay(job, region, ["strip", "side"], ["chambre"], 3, ("flat", 4))
+    assert [e for e, _ in calls] == ["strip"]
+    calls.clear()
+    way[:] = [Cell(box(0, 0.5, 0.5, 2), "salon")]        # met by 0.5 m, under an arch: still a scrap
+    FL.best_lay(job, region, ["strip", "side"], ["chambre"], 3, ("flat", 5))
+    assert [e for e, _ in calls] == ["strip", "side"]
+    calls.clear()
+    way.clear()
     job.interior.layout = "colonial"
     FL.best_lay(job, region, ["strip", "strip"], ["chambre"], 3, ("flat", 2))
     assert [k for _, k in calls] == [("flat", 2), ("flat", 2), ("flat", 2, "again")]
