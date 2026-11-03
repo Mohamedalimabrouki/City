@@ -1351,6 +1351,7 @@ def modern_job(interior, outside, style: dict):
     interior.rules["dining_area"] = float(job.cfg.get("villa", {}).get("dining_area", 110.0))
     interior.rules["wc_area"] = float(flats.get("wc_area", 70.0))
     interior.rules["flat_bays"] = bool(flats.get("by_windows", {}).get(interior.layout, False))
+    interior.rules["flat_spare"] = int(flats.get("spare_bays", {}).get(interior.layout, 0))
     interior.rules["flat_types"] = [(t, float(u)) for t, u in flats.get("types", [["S+1", 60.0], ["S+2", 100.0], ["S+3", 1e9]])]
     return job
 

@@ -4224,6 +4224,7 @@ def test_dark_rooms_counted():
 def test_flats(new_districts, interior_ctx, plan):
     from citygen.export.lore import plan_json
     from citygen.interior.flats import occupants
+    from citygen.interior.program import flat_lit, flat_type
     from citygen.interior import rooms
     before = plan_json(plan)["households"]
     for interior, outside in new_districts["slab"] + new_districts["colonial"]:
@@ -4237,7 +4238,9 @@ def test_flats(new_districts, interior_ctx, plan):
         for flat in interior.flats:
             mine = set(flat.rooms)
             area = sum(by_id[i].polygon.area for i in mine)
-            assert flat.type == next(t for t, under in types if area < under), (interior.building, flat.id)
+            lit = flat_lit(interior, [o for o in interior.openings if o.rooms and o.rooms[0] in mine])
+            assert flat.type == flat_type(interior.rules, area, lit), (interior.building, flat.id)   # area, bays
+            assert flat.type <= next(t for t, under in types if area < under), (interior.building, flat.id)
             assert area >= interior.rules["min_flat"] - 0.01, (interior.building, flat.id, area)   # no sliver flat
             ok = {r.id for r in interior.rooms if r.unit == "common"} | mine | {-1}    # through its core only
             graph = rooms.links(interior)
@@ -5012,6 +5015,29 @@ def test_furnish_budget(interior_build, interior_ctx, tmp_path):
         drawn = sum(sum(len(q["idx"]) // 3 for q in kit.pieces[p["piece"]].parts.values())
                     for p in furniture["pieces"] if p["piece"] in kit.pieces)
         assert unique <= 60_000 and drawn <= 1_500_000, (layout, unique, drawn)
+
+
+def test_colonial_spare_bay_and_blind_middle():
+    """A colonial flat's type leaves one bay spare (`flat_spare`: the hall or two near windows take one); a
+    blind piece between a way and a lit piece no way reaches joins the way, the hall first (`bayplan.reach`:
+    the blind middle holds the ways, 47.2 colonial round K). Hand-made, 0.01 s."""
+    from types import SimpleNamespace as NS
+
+    from shapely.geometry import Point, box
+
+    from citygen.interior.bayplan import reach
+    from citygen.interior.cuts import Cell
+    from citygen.interior.program import flat_type
+
+    rules = {"flat_types": [("S+1", 60.0), ("S+2", 100.0), ("S+3", 1e9)], "flat_spare": 1}
+    assert flat_type(rules, 105.0, 5) == "S+2" and flat_type(rules, 105.0, 6) == "S+3"
+    job = NS(door=0.8, half=0.05, interior=NS(rules={"inner_clear": 0.1}), clear=0.1,
+             fits=lambda poly, t: poly.area >= 5.0)
+    hall, room = Cell(box(0, 0, 2, 2), "hall"), Cell(box(4, 0, 8, 4), "")
+    blind = Cell(box(2, 0, 4, 4), "")
+    cells = [hall, blind, room]
+    reach(job, cells, 1, [Point(8.0, 2.0)], {"hall": 20.0})
+    assert blind not in cells and abs(hall.poly.area - 12.0) < 1e-9 and room in cells and not room.type
 
 
 def test_bay_clean_nooks_and_newel_door():
