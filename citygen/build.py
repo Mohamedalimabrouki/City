@@ -23,6 +23,7 @@ from .city.station import view as station_view
 from .city.streets import view_spot
 from .export.lore import gazetteer, plan_json, slug, write_json
 from .export.maps import city_map, country_map
+from .export.streets import streets_json
 from .mesh.tile import TileContext, export_tile
 from .mesh.textures import style_images, take_images, write_shared_textures
 from .world import generate_world
@@ -260,7 +261,8 @@ def data_files_current(out: Path, key: str, plans: list) -> bool:
         return False
     names = [slug(p.settlement.name) for p in plans]
     files = [out / "world.json", out / "gazetteer.md", out / "maps" / "country.png"]
-    files += [out / "cities" / n / "plan.json" for n in names] + [out / "maps" / f"{n}.png" for n in names]
+    files += [out / "cities" / n / f for n in names for f in ("plan.json", "streets.json")]
+    files += [out / "maps" / f"{n}.png" for n in names]
     return old.get("build_key") == key and all(f.is_file() for f in files)
 
 
@@ -314,6 +316,7 @@ def build(cfg: dict, area: str | None = None, log=print, force: bool = False) ->
 
     with TilePool(workers) as pool:  # its processes start now and wait while the parent plans
         plans = [load_or_plan(world, s, cache, key[:12], force, log) for s in needed]
+        ground = Ground(world, plans)
 
         def write_files() -> None:  # the parent's own writing, done while workers start up
             if not force and data_files_current(out, key, plans):
@@ -324,6 +327,8 @@ def build(cfg: dict, area: str | None = None, log=print, force: bool = False) ->
             country_map(world, out / "maps" / "country.png")
             for plan in plans:
                 write_json(out / "cities" / slug(plan.settlement.name) / "plan.json", plan_json(plan))
+                write_json(out / "cities" / slug(plan.settlement.name) / "streets.json",
+                           streets_json(world, plan, ground))
                 city_map(world, plan, out / "maps" / f"{slug(plan.settlement.name)}.png")
             (out / "gazetteer.md").write_text(gazetteer(world, plans), encoding="utf-8")
 
@@ -338,7 +343,6 @@ def build(cfg: dict, area: str | None = None, log=print, force: bool = False) ->
 
             built = iter(pool.export(world, plans, todo, folder, progress, write_files, journal))
             tiles = [done[k] if k in done else next(built) for k in keys]
-            ground = Ground(world, plans)
             write_json(folder / "index.json", {
                 "format": "citygen-tiles/1", "build_key": key, "seed": world.seed, "world_name": world.name,
                 "tile_size": size, "world_size": [world.size, world.size],

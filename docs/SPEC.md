@@ -530,6 +530,7 @@ the sea, the railing along the sea edge, no paint or parked car on it; everythin
 | `world.json` | `citygen-world/1`: seed, name, size, settlements, roads (coords in meters) |
 | `cities/<name>/plan.json` | `citygen-city/1`: districts, streets, buildings, trees, landmarks, households, souks, and `rail` (track center lines, corridor) when the city has a station, `port` (quay edges and aprons,
 breakwater lines, basins, lighthouses) when it has a harbor, `props` (`kind`, `x`, `y`, `yaw`, `scale`, `on`: boats, cranes, rails, cargo; empty without a harbor); GeoJSON-style geometry in world meters |
+| `cities/<name>/streets.json` | `citygen-streets/1`: the street graph for games (prompt 70, see "Street graph" below) |
 | `gazetteer.md` | readable guide for stories |
 | `maps/country.png`, `maps/<city>.png` | 2D maps, north up |
 | `tiles/tile_<i>_<j>.glb` | 3D tile covering x `i*512..(i+1)*512`, y `j*512..(j+1)*512` |
@@ -538,6 +539,26 @@ breakwater lines, basins, lighthouses) when it has a harbor, `props` (`kind`, `x
 | `tiles/index.json` | `citygen-tiles/1`: tile list (bytes, unique and drawn triangles, dressing pieces, `lod1`: file, bytes, triangles; `files`: shared textures and the lod1 file), `"parapets": true` when the tiles carry their own roof parapets, `focus` point, camera `views` (street, souk, and cathedral, theatre, station, port and corniche when the city has them), `cities` (name, plan file, bounds) |
 | `summary.json` | counts and timings (read this instead of big files); `settings`: the merged settings of the build (prompt 45), from which `interior` rebuilds world and plans |
 | `interiors/<city>-<k>/` | made on demand by `python -m citygen interior` (SPEC 6c "Output"), never by a build: `tiles/interior.glb`, `tiles/index.json`, `rooms.json`; `tools/fingerprint.py` skips the folder |
+
+**Street graph (prompt 70, `citygen/export/streets.py`):** `cities/<name>/streets.json` is the
+graph of the city's streets, written with `plan.json`. `nodes`: `id`, `x`, `y`, `z` (the drawn street
+top there, `Ground.surface`), `degree` (1 = dead end; 2 only where two different streets meet end to
+end, for example a connector joining a boulevard). `edges`: `id`, `street` (index in `plan.json`
+`streets`), `kind`, `width` (curb to curb, sidewalks included), `sidewalks` ([left, right]: the widest
+sidewalk on each side of the street as the paint measures it, `city/parking.walk_widths`; 0 where there
+is none; left is left of the edge's direction), `surface` (palette material), `length` (meters, of
+`line`), `from`, `to` (node ids) and `line` (the center line from `from` to `to`, running the way its
+street runs). `roads`: one link per point where a country road (`world.json` roads) crosses the city
+limit: `road` (its id), `kind`, `width`, `x`, `y` (the crossing) and `node` (the nearest node,
+`distance` meters away; the planner's connector street starts there). Built by noding every center
+line on a 5 cm grid (`shapely.set_precision`, then `unary_union(grid_size=0.05)`): plain `unary_union`
+misses junctions where grid streets end on district borders only up to rounding. A piece lying on
+several streets (a grid street left under a boulevard) belongs to the widest. An impasse starts inside
+the surface of the street its mouth opens on (prompt 20.2): its edge starts with a stub from the nearest
+point of that street's center line, which also becomes a vertex of that street, so both snap to one
+node; the impasse's `length` includes the stub. Pieces of one street meeting where nothing else does
+are joined. The largest connected part holds at least 99.5% of the street length (tested; the quick
+capital is one part).
 
 **.glb conventions:** one root node per tile with `translation = [x0, 0, -y0]`; vertices are
 local to it. One primitive per material; material names are palette names from the style pack
