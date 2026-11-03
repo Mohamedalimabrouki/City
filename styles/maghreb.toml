@@ -1887,7 +1887,7 @@ velvet_blue = { color = "#23406E", roughness = 0.85 }
 velvet_gold = { color = "#B38B3A", roughness = 0.6 }
 cotton_white = { color = "#EFEDE6", roughness = 0.9 }
 wool_cream = { color = "#E6DCC4", roughness = 0.95 }
-fleece = { color = "#E9E1CF", roughness = 1.0 }
+fleece = { color = "#FFFFFF", roughness = 1.0, texture = "fleece", texture_size = [0.4, 0.4] }   # the image holds the warm cream
 jute = { color = "#A88A5C", roughness = 0.95 }
 leather_brown = { color = "#7A4B2A", roughness = 0.6 }
 ceramic_white = { color = "#F4F4F2", roughness = 0.15 }
@@ -1897,7 +1897,7 @@ mirror = { color = "#C8CDD0", roughness = 0.08, metallic = 0.55 }   # fully meta
 plastic_blue = { color = "#2F6FB8", roughness = 0.45 }
 plastic_red = { color = "#C0392B", roughness = 0.45 }
 butane_bottle = { color = "#3B6FB6", roughness = 0.4 }    # Ali's choice (SPEC 6d Decisions): the blue bottle
-twine_green = { color = "#3E7A55", roughness = 0.9 }
+twine_green = { color = "#FFFFFF", roughness = 0.9, texture = "net", texture_size = [0.4, 0.4] }   # the cords and holes in the image
 book_green = { color = "#2F5B3C", roughness = 0.7 }
 tea_amber = { color = "#7A3E16", roughness = 0.1 }   # the tea in the tea set's glasses
 klim_red = { color = "#FFFFFF", roughness = 0.95, texture = "klim_red", texture_size = [1.4, 2.2] }   # the images hold the colors
@@ -1945,6 +1945,8 @@ ticking = { pixels = 256, repeats = 8, mottle = 0.3, cream = "#E8E0CC", red = "#
 painted = { pixels = 256, flowers = 9, mottle = 0.5, ground = "#3F6B4F", red = "#B53A2E", yellow = "#E0B23E", white = "#F1EBDD", leaf = "#7FA05A" }
 sajjada = { pixels = 256, mottle = 0.4, field = "#7E1F24", arch = "#1F4E3A", border = "#B38B3A", line = "#E9DFC8" }
 mink = { pixels = 256, flowers = 4, mottle = 0.6, ground = "#3A2432", rose = "#B23A48", rose_2 = "#E07A84", leaf = "#3E6B47" }
+fleece = { pixels = 256, locks = 10, crimp = 3, mottle = 0.4, cream = "#FAF3E4", hollow = "#D9C7A6" }   # the hidoura's wool
+net = { pixels = 256, cells = 16, cord_width = 3.0, mottle = 0.5, cord = "#4F9468", knot = "#2C5A3E", gap = "#1E3A2A" }   # the net pile's meshes
 # prompt 53: the machine-made rug, book backs, a grocer's shelf row (one row per image: kit_new.TEX_H)
 rug_floral = { pixels = 256, border = 0.12, flowers = 60, mottle = 0.35, field = "#8C1E23", navy = "#1E2A4D", guard = "#D9CAA2", flower = "#E4D5AE", leaf = "#55724A", rose = "#C4553D" }
 spines = { pixels = 256, wmin = 7, wmax = 20, hmin = 0.72, mottle = 0.3, gap = "#2B2118", gold = "#C9A23E", label = "#E6DCC4", color_1 = "#7E1F24", color_2 = "#23406E", color_3 = "#1F4E3A", color_4 = "#B38B3A", color_5 = "#E9E1CF", color_6 = "#5A3A24", color_7 = "#2B2A28", color_8 = "#A84A2E" }
