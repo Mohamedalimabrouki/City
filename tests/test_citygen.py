@@ -5128,3 +5128,16 @@ def test_arabic_names_leave_every_other_field_alone(monkeypatch):
                                                                          "names_ar": {"1": "تست"}}}))
     assert pinned.settlements[2].name == "Testville" and pinned.settlements[2].name_ar == ""
     assert pinned.settlements[1].name_ar == "تست"
+    # its plan's "{s}" names (medina, mosque, kasbah, ...) take no Arabic from a pinned Latin name either
+    marks = [m for m in plan_city(pinned, pinned.settlements[2]).landmarks if "Testville" in m.name]
+    assert marks and all(not getattr(m, "name_ar", "") for m in marks), [m.name for m in marks]
+
+
+def test_fixed_names_and_arabic_twins_fail_clearly():
+    from citygen.names import TWINS, _twins, fixed_name
+    assert str(fixed_name({"names": {}}, "medina", s="X")) == "Medina of X"   # built-in Latin, no Arabic
+    n = {**{k: ["a"] for k in TWINS}, **{k + "_ar": ["ا"] for k in TWINS}, "prefixes_ar": {}}
+    assert _twins(n)["onsets"] == ["ا"]
+    n["codas_ar"] = []
+    with pytest.raises(ValueError, match="codas_ar"):
+        _twins(n)
