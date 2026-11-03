@@ -43,11 +43,8 @@ bound from the room sizes.
 `tools/interior_survey.py --city "Ain Chilel" --groups villa,maison`) and hashes `interior.to_json()` as
 `export._write_json` writes it. HEAD code (a `git archive HEAD` copy) and the branch, same quick build
 (output/bodjantouna-42 of this worktree):
-at the save (20:48 UTC) the branch run had planned 656 of the 794: **656 hashes equal, 0 differ**
-(k 530 and k 744 among them: k 530's call now 0.0 s, its whole plan 0.91 s instead of 4.16 s; k 744's found
-plan the same bytes). The other 138 (k 884 on, k 985's call at 54.2 m2 among them) were still running:
-their calls are all under 80 m2, where the code is unchanged, so they cannot differ, but the bytes are not
-yet compared. Output files: scratchpad `hash_head.txt` / `hash_new.txt` of this helper session
+**all 794 hashes equal, 0 differ** (finished 20:49 UTC). k 530's call now takes 0.0 s, its whole plan
+0.91 s instead of 4.16 s; k 744's found plan has the same bytes. Output files: scratchpad `hash_head.txt` / `hash_new.txt` of this helper session
 (`/private/tmp/claude-501/-Users-mohamedalimabrouki-Desktop/3a588b2b-bf2f-4191-acd4-5b1ae750c3f3/scratchpad/`).
 
 ## Checks
@@ -57,9 +54,8 @@ yet compared. Output files: scratchpad `hash_head.txt` / `hash_new.txt` of this 
   (the before fingerprint saved from the HEAD quick build before the edit).
 
 ## Next step
-1. Finish the proof: `python docs/wip/fix-little-hash.py <HEAD copy> output/bodjantouna-42 > head.txt` and
-   the same with the branch root (`git archive 3036039 | tar -x -C <dir>` gives the HEAD copy; about 5 min
-   each), then join the first and fourth columns: all 794 must be equal.
+1. (Proof done: 794 of 794 equal.) To rerun it: `git archive 3036039 | tar -x -C <dir>`, then
+   `python docs/wip/fix-little-hash.py <dir> output/bodjantouna-42` and the same with the branch root.
 2. Merge the one commit onto the main branch; add `little_most` (with `little`, `little_step`) to SPEC 6c
    (review finding 6 says houses round 5 is not there yet) and a WORKLOG line.
 3. Only if a little house over 80 m2 is ever wanted: speed the search itself. 92 % of its time is `kinds()`
