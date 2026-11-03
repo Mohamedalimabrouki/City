@@ -20,6 +20,16 @@ Entry format:
   reach 90% of weekly usage" (64% at 10:15 UTC), for this day: after the reset ask him before going over 55%
   again. Plan: two helpers in parallel, flats (colonial blocks, slabs) in this folder and houses (maisons,
   villas) in a worktree, each group kept byte-identical by the other; the lead reviews, merges and commits.
+  Done and pushed that day (entries below): flats round D (5739573), houses round (d3327bb), prompt 51
+  (13f452a), houses round 2 (76b6572), roof copings (3359c5a), prompt 52 (3b1e4c0), flats round E (70fc537);
+  counts with every check: colonial 3/270, slab 233/353, maison 490/616, villa 166/178, old town unchanged.
+  Running at 14:45 UTC (each in a worktree under `/tmp/claude-501/`, notes in the session scratchpad, nothing
+  committed there): houses round 3 (`houses-r3`, an upper-floor couloir from the landing: maison 499, villa
+  167 so far, its time to fix), flats round F (`flats-f`, slab time, a ring planner for colonial flats) and
+  prompt 53 (`furn-53`, modern furniture). If the session ends first: their branches `wip/houses-r3`,
+  `wip/flats-f`, `wip/furn-53` hold nothing until committed; read their notes files (hf, hi, hj) and redo
+  the lead's review before merging. The fingerprint baseline `output/checks/fp-before.json` was re-saved at
+  3b1e4c0 (after the roof copings).
 - State: prompts 1-50 are done (branch `claude/procedural-city-generator-xop72h`; CP4, prompt 43, on 25
   October; the interiors 44-47 on 29 October, 48 (walls and openings) on 30-31 October). Continue when Ali
   says (for example "Do prompt 49." or "continue the playbook").
