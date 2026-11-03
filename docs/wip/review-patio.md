@@ -35,7 +35,7 @@ gate/budget first (see H1).
   flats tuning then moves patio houses; give the villa its own key (or note the coupling in the toml).
 - L5 citygen/interior/patio.py:76 vs 270, low: `kinds()` uses `fl.need` while `_side` gets the `need` with
   wc=0 after `_ends`; harmless (rejected at 270) but wasted work; pass `need` to `kinds`.
-- L6 tests/test_citygen.py:4750, low: the area sum (63.0) does not prove no overlap; also assert
+- L6 tests/test_citygen.py:4749, low: the area sum (63.0) does not prove no overlap; also assert
   `unary_union(cells).area == 63.0`.
 
 ## Determinism (no finding)
@@ -54,5 +54,12 @@ is WKB bytes plus sorted `need`. Float positions are rounded to 3 decimals.
   1.4 x 6.5 m strip across the floor, mediocre, per the branch notes).
 
 ## Left (time ran out)
-Not run: the tests on this branch, the patio test on the parent (it fails there trivially: patio.py does not
+Run: `pytest -q -k "patio_house or little_house"` on this branch: 2 passed in 1.9 s. Not run: the full suite, the
+patio test on the parent (it fails there trivially: patio.py does not
 exist), the court-L rule on No. 509.
+
+## Also checked (no finding)
+- `layout.check` memo (layout.py:594-607) keys on an md5 of the pickled HELD state + `full0`; the `patio` flag
+  is deleted before the check runs (layout.py:420-421), so a cached result can never belong to another plan.
+- villa.py:120 `off_salon` is skipped on the patio pass, right: the patio rooms open on the couloir, not on a
+  salon. Floors not in the patio set are laid by `P.lay` exactly as before.
