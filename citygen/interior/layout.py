@@ -85,6 +85,9 @@ def plan_interior(outside, style: dict) -> Interior:
     if layout in style.get("interiors", {}).get("villa", {}).get("little", ()) and interior.floors == 1 and any(
             f.endswith("has no chambre") for f in check(interior)):
         again(interior, outside, style, layout, "little", before)   # rooms off the salon (47.2 houses round 5)
+    if layout in style.get("interiors", {}).get("villa", {}).get("patio", ()) and any(
+            r.floor > 0 for r in blind(interior)):
+        patio(interior, outside, style, layout, before)   # the couloir on the blind side (47.2 houses round 6)
     interior.__dict__.pop("checked", None)
     return interior
 
@@ -402,6 +405,30 @@ def again(interior: Interior, outside, style: dict, layout: str, flag: str, befo
         delattr(interior, flag)
     if len(count(interior)) >= faults or dim(interior, style) > dark:
         _hold(interior, first)
+
+
+def patio(interior: Interior, outside, style: dict, layout: str, before: dict) -> None:
+    """A house the check still faults for a room with no window planned again as a patio house
+    (`patio.plan`: one straight couloir on the blind side, the rooms on both sides on the windows) on its
+    upper floors that hold such a room (floor 0: its strip through the door rarely meets the palier, measured);
+    kept only when the check then passes it (47.2 houses round 6)."""
+    first, floors = _held(interior), {r.floor for r in blind(interior) if r.floor > 0}
+    _hold(interior, before)
+    interior.patio = floors
+    try:
+        _plan(interior, outside, style, layout)
+    finally:
+        del interior.patio
+    if check(interior):
+        _hold(interior, first)
+
+
+def blind(interior: Interior) -> list:
+    """The home's chambres, salons, salles a manger and cuisines the plan check finds with no window."""
+    import re
+    from .plancheck import BLIND
+    ids = {int(m.group(1)) for f in check(interior) if f.endswith(BLIND) for m in [re.search(r" (\d+) on floor ", f)] if m}
+    return [r for r in interior.rooms if r.id in ids]
 
 
 def plan_steps(interior: Interior) -> list:

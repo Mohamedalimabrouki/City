@@ -4720,6 +4720,39 @@ def test_little_house(monkeypatch):
     assert all(job.fits(c.poly, c.type) for c in cells)
 
 
+def test_patio_house_upper_floor(monkeypatch):
+    """A patio house's upper floor (`patio.plan`, 47.2 houses round 6): one couloir strip from the palier on
+    no window, the rooms cut straight across from it, every chambre on a window, the sdb blind, every room
+    with a door's length on the couloir; the floor covered. Hand-made, about 0.3 s."""
+    from types import SimpleNamespace as NS
+
+    from shapely.geometry import Point, box
+
+    from citygen.interior import patio as PT
+    from citygen.interior.cuts import shared, width
+
+    least = {"couloir": (1.5, 1.0), "chambre": (8.0, 2.4), "sdb": (3.0, 1.4), "wc": (1.1, 0.8)}
+    job = NS(door=0.7, half=0.05, clear=0.3, cfg={"rooms": {"most": {"chambre": 18.0, "sdb": 8.0, "couloir": 30.0}},
+                                       "villa": {"patio_step": 1.0, "couloir": 1.15}},
+             minimums=least, interior=NS(rules={"inner_clear": 0.15}), zs=lambda floors: [],
+             fits=lambda p, t: p.area >= least[t][0] - 1e-6 and width(p) >= least[t][1] - 0.03)
+    sun = [Point(x, 6.95) for x in (1.5, 4.5, 7.5)] + [Point(1.5, 0.05), Point(7.5, 0.05)]
+    monkeypatch.setattr(PT.P, "lights", lambda job, f: sun)
+    landing = box(-2.5, 2.5, 0.0, 4.5)
+    cells = PT.plan(job, box(0, 0, 9, 7), PT.P.Entry(0.0, 3.5, 1.0, 0.0), ["chambre", "sdb", "chambre*"], 1, landing)
+    assert cells is not None
+    types = sorted(c.type for c in cells)
+    assert types.count("couloir") == 1 and types.count("sdb") == 1 and types.count("chambre") >= 2
+    way = next(c.poly for c in cells if c.type == "couloir")
+    door = PT.P.need(job)
+    assert shared(way, landing) >= door and not any(way.distance(p) < 0.05 for p in sun)
+    assert abs(sum(c.poly.area for c in cells) - 63.0) < 1e-6
+    for c in cells:
+        assert job.fits(c.poly, c.type)
+        if c.type == "chambre":
+            assert any(c.poly.distance(p) < 0.05 for p in sun) and shared(c.poly, way) >= door
+
+
 def test_relit_repartition():
     """A blind chambre beside a chambre holding two windows: the pair is cut again so both keep a window and
     a door's length on the couloir (`villa.repartition`, the cut nearest the middle first); a pair with one

@@ -88,6 +88,9 @@ def plan(interior, outside, style: dict, kind: str) -> None:
         if e is None:
             e = P.Entry(*region.representative_point().coords[0], 1.0, 0.0)
         small = little(job, largest(region), e, f) if floors == 1 and interior.__dict__.get("little") else None
+        if f in interior.__dict__.get("patio", ()):   # a patio house's couloir on its blind side (`patio`)
+            from .patio import plan as patio_plan
+            small = patio_plan(job, largest(region), e, progs[f], f, landing)
         cells = small or P.lay(job, largest(region), e, progs[f], f, (kind, f), hall=f == 0)
         if not small and kind in job.cfg.get("villa", {}).get("halve", ()):   # (a little house's rooms stay
             halved(job, largest(region), cells, f)                                # as cut)
@@ -114,7 +117,7 @@ def plan(interior, outside, style: dict, kind: str) -> None:
         if square is not None and f == top:
             droj = P.add_rooms(job, [P.Cell(cell, "droj")], f, "home")[0]
         P.doors(job, rooms)
-        if small:
+        if small and not interior.__dict__.get("patio"):
             off_salon(job, rooms)
     if core is not None:
         box, size, x, y, fd = core
