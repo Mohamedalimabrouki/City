@@ -50,10 +50,33 @@ Entry format:
   shot-brass, shot-textile (contact sheets of the kit branches: kit-textile looks WORSE, do not merge it as is;
   kit-brass's tray rim is too steep for one-sided brass), review-87 (nothing blocks the merge, 6 Low findings),
   review-59 (deterministic, the numbers match; one medium for Ali: the water-balance rule drains some dry basins
-  the prompt wants endorheic). Started at 20:51 UTC, 20 more (read their notes): fix-hide, fix-textile, fix-brass,
-  shot-goods, fix-81b, fix-87, fix-59, check-70, canon-60 (how to keep prompt 60's canon names), merge-map (which
-  branches conflict, and a merge order), shot-55, furn-55b, review-55, review-mats, review-mp-furnish (can 54 be
-  ticked), review-mp-flats, review-mp-speed, review-patio, review-villas, review-godot.
+  the prompt wants endorheic). Then 60 more helpers, 20:51-21:10 UTC (96 `wip/*` branches in all; each has
+  `docs/wip/<name>.md`). Start the next session with three of them: merge-map (conflicts and a 9-step merge order;
+  furnish-m, flats-j and speed-n are inside merge-prep already), questions-ali (16 questions for Ali), prompt-next
+  (13 prompts ready: 54, 59, 70, 80, 81, 92, 101, 87, 66, 67, 94, then 72 and 75 on Ali's Mac).
+  - Ready to merge (full tests pass, reviewed): fix-70 (outputs byte-identical), fix-81 + fix-81b (histories
+    byte-identical; rev-fix81: history.py:116 draws once per template), fix-87, fix-59 (one strict xfail shows the
+    salt-pocket question), fix-materials (also rename furn-55's `_pot` "terracotta" to clay_red, fix SPEC 2069 and
+    2189), fix-little (rev-little: swap its 1 s timing assert for a call counter), colonial-k (check-k: all 353 slab
+    plans identical; rev-colonial: `stub_middle` 12.0 belongs in the toml). Scans of every branch: no em dash, no
+    unsafe randomness; check by hand kit_old.py:853-862 and weave.py:361-364 (scan-streams).
+  - Prompt 54 is NOT tickable (spec-54, review-mp-furnish): fix-side-54 fixes the "side" place bug (furnish.py
+    about 940; warned rooms 36 -> 37 of 2,087, find which); the full capital is at 2.2% (bar 2%); the full survey,
+    the two look pictures and make_blend are left. Tests to take with merge-prep: test-scrap-hall, test-cache-warm,
+    fix-dar-is (filter by position; never fires, byte-identical). review-mp-flats: a duplex ladder in a couloir
+    leaves 0.5 m (passage_min 0.8). The 95% bars are not met (slab 72%, flats 89%).
+  - Kit looks (Ali to look at `wip/pictures`, one page of every sheet): fix-hide (rev-fix-hide: the rug edge folds
+    in 609 of 3000 seeds, jitter along the radius only; rev-kit-hide: two materials are named net_green), fix-textile
+    (rev-fix-textile: the cord's front normals face the wall), fix-brass (the 8-sided bowl is 1-2 cm too deep;
+    rev-kit-brass says the spouts do not taper, the picture says they do: check), fix-goods (full, varied shelves;
+    tiles change, so make_blend at merge). All their full tests pass (check-hide, check-textile, check-brass).
+  - Prompt 55 started: furn-55 (18 pieces) + furn-55b (5 more, 23 of 32) + fix-55 (vase stems, bowl bottom, jasmine)
+    + fix-glow (lamp_glow emissive, so it glows by day too: Ali or the lead chooses); spec-55 lists what is left.
+  - Need a decision: canon-60 (names follow ids from one shared stream, so one skipped city renames all; plan: own
+    streams and names tied to the grid cell; renames once, Ali's OK; README.md:176 promises more than the code),
+    houses-patio (review-patio: fixes 1 house of 66 and costs up to 3.6 s per failing house: gate it or drop it),
+    villas (test-villa-ties: only villas 307 and 388 tie; a tolerance changes 388), godot-72 (review-godot: no high).
+  - After the reset (21:00 UTC) the new week counts: ask Ali before going over 55% weekly.
 - State: prompts 1-50 are done (branch `claude/procedural-city-generator-xop72h`; CP4, prompt 43, on 25
   October; the interiors 44-47 on 29 October, 48 (walls and openings) on 30-31 October). Continue when Ali
   says (for example "Do prompt 49." or "continue the playbook").
