@@ -5,4 +5,4 @@ rev-fix-hide (3 November): review of HEAD 2e77e6e "WIP fix-hide (round 2)" (hido
 - Triangle budget: 14 outline points x 3 = 42 edge points, 3 triangles each = 126 = TABLE (kit_old.py:61) and the docstring; `pc.triangles <= tris == spec.tris` holds. OK.
 - Determinism: all draws are on `stream(seed, "piece", "home/hidoura")` (kit_old.py:1171), so no other piece moves. OK.
 - UVs (top-down x, -y in meters), one-sided up-facing rug, height under 2 cm: OK. The new shape numbers (1/3, 2/3, 1.13, 0.88) stay in code like every other kit shape in this file: fine.
-- Look (not code): the 13 % out / 12 % in locks are about as big as the legs, so the outline reads star-like (fix-hide.md says so too); 1.08 / 0.93 would keep the legs readable.
+- Look (not code): the 13 % out / 12 % in locks are about as big as the legs, so the outline reads star-like (fix-hide.md says so too); 1.08 / 0.93 might keep the legs readable (not tried).
