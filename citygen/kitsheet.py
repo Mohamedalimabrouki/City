@@ -7,20 +7,22 @@ import numpy as np
 
 from .config import load_config, load_style
 from .export.lore import write_json
-from .kit import make_kit
+from .styles import world_kit
 from .mesh.builder import MeshBuilder, add_cap, extrude, rectangle
 from .mesh.gltf import write_glb
 
 
-def kit_sheet(out_dir, kits=None, seed: int = 42, columns: int = 8, spacing: float = 4.0, kit=None) -> Path:
+def kit_sheet(out_dir, kits=None, seed: int = 42, columns: int = 8, spacing: float = 4.0, kit=None,
+              world_file=None) -> Path:
     """`kit`: a ready kit (the interiors' home kit, prompt 52) instead of the city's; its `images`, if it
-    has them, are embedded as an interior embeds them."""
+    has them, are embedded as an interior embeds them. `world_file`: its regional styles' pieces join
+    the sheet, namespaced (`steampunk/door_wood`, prompt 94)."""
     low = kit is not None    # a ready kit's walls stand just over each piece, so they hide no other row
     if kit is None:
-        cfg = load_config()
+        cfg = load_config(world_file)
         if kits is not None:
             cfg["build"]["kits"] = list(kits)
-        kit = make_kit(seed, cfg, load_style(cfg["world"]["style"]))
+        kit = world_kit(seed, cfg, load_style(cfg["world"]["style"]))
     names = sorted(kit.pieces, key=lambda n: (kit.pieces[n].source != "procedural", kit.pieces[n].category, n))
     rows = (len(names) + columns - 1) // columns
     width, depth = columns * spacing, rows * spacing

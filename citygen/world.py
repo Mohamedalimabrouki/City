@@ -18,6 +18,7 @@ from shapely.geometry import LineString
 from .config import load_style
 from .names import NameMaker
 from .rng import stream
+from .styles import StyledWorld, assigned_style, regional_style, style_label
 from .terrain import BIOME_NAMES, Terrain, classify
 
 KINDS = ["capital", "city", "town", "village"]
@@ -90,12 +91,29 @@ class World:
                 return s
         raise KeyError(f"no settlement called {key!r}; try `python -m citygen list`")
 
+    def city_world(self, settlement):
+        """The world as this settlement sees it: itself, or itself in its regional style (prompt 94)."""
+        name = assigned_style(self.cfg, settlement)
+        if name == str(self.cfg["world"]["style"]):
+            return self
+        cache = self.__dict__.setdefault("_regional", {})
+        if name not in cache:
+            cache[name] = regional_style(self.style, name)
+        return StyledWorld(self, style_label(name), cache[name])
+
     def to_json(self) -> dict:
         return {"format": "citygen-world/1", "seed": self.seed, "name": self.name,
                 "style": self.cfg["world"]["style"], "size": self.size,
                 "sea_direction": [round(v, 4) for v in self.terrain.sea_dir],
                 "settlements": [s.to_json() for s in self.settlements],
-                "roads": [r.to_json() for r in self.roads]}
+                "roads": [r.to_json() for r in self.roads],
+                **self._styles_json()}
+
+    def _styles_json(self) -> dict:
+        """{"styles": {id: style}} for the settlements in a regional style (prompt 94), else nothing."""
+        out = {str(s.id): assigned_style(self.cfg, s) for s in self.settlements}
+        out = {k: v for k, v in out.items() if v != str(self.cfg["world"]["style"])}
+        return {"styles": out} if out else {}
 
 
 def generate_world(cfg: dict) -> World:

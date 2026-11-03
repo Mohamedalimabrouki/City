@@ -1,0 +1,9 @@
+# A test world with two styles (prompt 94): the village Ranmedjine ez Zitoun in the tiny test
+# style, its neighbor Rinfine el Melh in the country's maghreb style. With --quick (seed 42):
+#   python -m citygen build --world tests/data/two_styles.toml --quick --out output/full
+
+[build]
+area = "box:6.0,2.2,9.0,3.0"     # km: both villages, 2.5 km apart
+
+[styles.settlements]
+"Ranmedjine ez Zitoun" = "tests/data/tiny_style.toml"

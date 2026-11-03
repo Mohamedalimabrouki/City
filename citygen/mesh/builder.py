@@ -34,12 +34,15 @@ class MeshBuilder:
         self._parts: dict[str, list] = {}
         self._fine: dict[str, list] = {}   # material -> indices of chunks added while `fine` was on
         self.fine = False   # on: these triangles keep float positions in a quantized tile (add_sheet)
+        self.prefix = ""    # "steampunk/": a city in a regional style names its materials apart (prompt 94)
 
     def add(self, material: str, pos, nrm, uv, tris, col=None) -> None:
         """Append triangles; `col` (N, 3) linear vertex colors is optional (the terrain tint)."""
         pos = np.asarray(pos, dtype=np.float64).reshape(-1, 3)
         if len(pos) == 0:
             return
+        if self.prefix:
+            material = self.prefix + material
         part = self._parts.setdefault(material, [[], [], [], [], 0, []])
         part[0].append(pos - self.origin)
         part[1].append(np.asarray(nrm, dtype=np.float64).reshape(-1, 3))

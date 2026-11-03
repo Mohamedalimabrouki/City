@@ -75,6 +75,7 @@ def main(argv=None) -> None:
     ks.add_argument("--home", action="store_true", help="the interiors' home kit (furniture, prompt 52)")
     ks.add_argument("--kits", nargs="+", default=None, metavar="KIT",
                     help="kit names or folders to show (default: [build] kits)")
+    ks.add_argument("--world", default=None, help="a world file: its regional styles' pieces too (prompt 94)")
 
     ts = sub.add_parser("texture-sheet", help="every generated texture tiled 2 x 2, tinted, with its name")
     ts.add_argument("--out", default="output/checks/texture-sheet.png")
@@ -126,7 +127,7 @@ def main(argv=None) -> None:
             kit = home_kit(cfg["world"]["seed"], load_style(cfg["world"]["style"]))
             print(kit_sheet(args.out or "output/home-sheet", seed=cfg["world"]["seed"], kit=kit))
         else:
-            print(kit_sheet(args.out or "output/kit-sheet", kits=args.kits))
+            print(kit_sheet(args.out or "output/kit-sheet", kits=args.kits, world_file=args.world))
     elif args.cmd == "texture-sheet":
         from .texturesheet import texture_sheet
         cfg = load_config()

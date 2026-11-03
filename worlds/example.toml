@@ -18,3 +18,12 @@ area = "capital-center"
 [canon.names]
 # 0 = "Carthage Nova"
 # 12 = "Sidi Amor"
+
+# Styles per region: build one settlement, or every settlement of a kind, in another style pack
+# (a file in styles/). The pack lists only what differs from the country's style. Names and ids
+# as for canon names; a name or id beats a kind. See docs/SPEC.md section 7.
+[styles.settlements]
+# 12 = "steampunk"
+# "Sidi Amor" = "steampunk"
+[styles.kinds]
+# village = "rural"

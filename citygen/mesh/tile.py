@@ -7,6 +7,7 @@ so tiles can be loaded and unloaded independently without duplicates.
 """
 from __future__ import annotations
 
+import copy
 import math
 import os
 from dataclasses import replace
@@ -30,6 +31,7 @@ from ..city.landmarks import KINDS as LANDMARKS
 from ..city.roofs import RoofLayout, roof_layouts, roof_stream
 from ..kit import make_kit
 from ..noise import Fractal
+from ..styles import namespaced
 from ..terrain import BIOME_MATERIAL, SEA, classify
 from .builder import (MeshBuilder, add_arch, add_battlement, add_cap, add_dome, add_draped_cap, add_draped_caps,
                       add_hip_roof, add_loft,
@@ -93,13 +95,22 @@ class TileContext:
         self.ports = [p.port for p in plans if getattr(p, "port", None) is not None]
         self.port_keep = [keep_zone(p.port) if getattr(p, "port", None) is not None else None for p in plans]
         self.prop_zones = [land_zone(p, self.port_cfg.get("props")) for p in plans]   # cranes, cargo, boats ashore
+        self.views = []                          # per city: None (country style) or its regional view (prompt 94)
+        regional: dict = {}
         for p in plans:
             fps = [b.footprint for b in p.buildings]
             centers = shapely.get_coordinates(shapely.centroid(fps)) if fps else np.zeros((0, 2))
             trees = np.array([(t.x, t.y) for t in p.trees]) if p.trees else np.zeros((0, 2))
             street_tree = STRtree([s.line for s in p.streets]) if p.streets else None
-            covers = Covers(world, p, self.ground)
-            dresser = Dresser(world, p, self.kit, self.ground) if self.dress else None
+            seen = world.city_world(p.settlement)
+            view = None
+            if seen is not world:
+                if seen.style_name not in regional:
+                    regional[seen.style_name] = self._regional_view(seen)
+                view = regional[seen.style_name]
+            self.views.append(view)
+            covers = Covers(seen, p, self.ground)
+            dresser = Dresser(seen, p, view.kit if view else self.kit, self.ground) if self.dress else None
             if dresser is not None:
                 dresser._covers = covers
             self.covers.append(covers)
@@ -109,6 +120,31 @@ class TileContext:
 
     def height(self, x, y):
         return self.ground.height(x, y)
+
+    def _regional_view(self, seen):
+        """This context as a city in a regional style sees it: its palette, roofs and kit under plain names.
+
+        The shared context gains that kit and palette namespaced (`steampunk/brass`), so tiles where
+        styles meet never hold two materials or pieces of one name.
+        """
+        view = copy.copy(self)
+        style, name = seen.style, seen.style_name
+        view.world, view.prefix = seen, name
+        view.palette = style["palette"]
+        view.roofs = style.get("roofs", {})
+        view.plinths = style.get("plinth", {})
+        view.landmarks = style.get("landmarks", {})
+        view.station = style.get("station", {})
+        view.port_cfg = style.get("port", {})
+        view.kit = make_kit(self.world.seed, self.world.cfg, style) if self.dress else None
+        view.materials = view.kit.materials if view.kit else view.palette
+        self.materials = {**self.materials, **{f"{name}/{m}": spec for m, spec in view.materials.items()}}
+        if self.kit is not None and view.kit is not None:
+            ns = namespaced(view.kit, name)
+            self.kit.pieces.update(ns.pieces)
+            self.kit.panes.update(ns.panes)
+            self.kit.materials = self.materials
+        return view
 
 
 class GroundTint:
@@ -722,116 +758,139 @@ def build_tile(tc: TileContext, i: int, j: int) -> tuple:
     road_meshes(mb, tc, tile)
     placements: list = []
     spans: list = []
-    for ci, (plan, centers, trees, street_tree, dresser) in enumerate(tc.cities):
-        zone = tc.rail_zones[ci]
-        if zone is not None and zone.intersects(tile):      # the tracks run on past the city limit
-            rail_meshes(mb, tc, plan, tile)
-        port = getattr(plan, "port", None)
-        harbor = port is not None and port.zone.intersects(tile)
-        if harbor:                                          # quay walls and the breakwater lie past the city limit
-            wall_meshes(mb, tc, port, tile)
-            breakwater_meshes(mb, tc, port, plan, tile)
-        if not plan.boundary.intersects(tile):
-            if harbor:
-                placements += quay_placements(tc, port, tile) + armour_placements(tc, port, plan, tile)
-            if dresser is not None:
-                placements += dresser.props(tile)             # boats at anchor past the city limit (prompt 35)
+    for ci, city in enumerate(tc.cities):
+        view = tc.views[ci]
+        if view is None:
+            _city_into(tc, mb, ci, city, tile, (x0, y0, x1, y1), placements, spans)
             continue
-        street_meshes(mb, tc, plan, street_tree, tile)
-        covered_meshes(mb, tc.covers[ci], tile, dresser is not None)
-        paint_meshes(mb, tc, plan, tc.paint_trees[ci], tile)
-        walk_meshes(mb, tc, plan, tile, street_tree)
-        front_meshes(mb, tc, plan, tile, None if street_tree is None else
-                     (lambda x, y: street_directions(street_tree, x, y)))   # the seafront promenade (prompt 36)
-        walk_width, reach = frontage_inputs(plan)
-        inside = (centers[:, 0] >= x0) & (centers[:, 0] < x1) & (centers[:, 1] >= y0) & (centers[:, 1] < y1)
-        owned = np.nonzero(inside)[0]
-        plain = [int(k) for k in owned if plan.buildings[int(k)].kind not in PAVED_KINDS | STATION_KINDS | LANDMARK_KINDS]
-        under = dict(zip(plain, ring_heights(tc.ground, [plan.buildings[k] for k in plain])))
-        for k in owned:
-            b = plan.buildings[int(k)]
-            if b.kind in PAVED_KINDS:
-                paving_mesh(mb, tc, b)
-                if b.kind == "station_forecourt":
-                    forecourt_skirt(mb, b, tc.ground.drawn)
-                continue
-            if b.kind in STATION_KINDS:                         # the railway station (prompt 33)
-                station_mesh(mb, b, tc.height, tc.station, tc.world.seed)
-                continue
-            kind = plan.districts[b.district].kind
-            plinth = frontage = None
-            if b.kind in PLINTH_KINDS and kind in tc.plinths:
-                spec = tc.plinths[kind]
-                plinth = (str(spec["material"]), float(spec["height"]))
-                frontage = street_frontage(outline(b), plan, walk_width, street_tree, reach)
-            if b.kind in LANDMARK_KINDS:                       # the cathedral and the theatre (prompt 32)
-                building_mesh(mb, b, tc.height, landmarks=tc.landmarks)
-                continue
-            roofs = roof_layouts(b, kind, roof_stream(tc.world.seed, plan.settlement.id, int(k)), tc.roofs)
-            building_mesh(mb, b, tc.height, plinth=plinth, frontage=frontage, roofs=roofs, ground_z=under[int(k)])
-            if dresser is not None:
-                dresser.keep_roof(int(k), roofs)
-            if b.apron is not None:
-                apron_mesh(mb, tc, b, street_tree)
-        if dresser is not None:
-            highs = building_highs(tc.ground, [plan.buildings[int(k)] for k in owned])
-            paths: list = []
-            gardens: list = []
-            for k, high in zip(owned, highs):
-                first = len(paths)
-                placements += dresser.building(int(k), float(high), paths)
-                if plan.buildings[int(k)].kind == "villa":     # garden ground and hedges (prompt 24)
-                    ground, hedges = dresser.garden(int(k), paths[first:])
-                    placements += hedges
-                    if ground is not None:
-                        gardens.append(ground)
-            path_meshes(mb, tc, paths, dresser.drawn)
-            garden_meshes(mb, tc, gardens, dresser.drawn)
-            if street_tree is not None:
-                for k in street_tree.query(tile, predicate="intersects"):
-                    spans += dresser.spans(int(k), tile)
-                    placements += dresser.street_props(int(k), tile)
-            placements += dresser.squares().placements(tile)     # benches, kiosks, fountains (prompt 26)
-            placements += dresser.seafront().placements(tile)    # lamps, benches, railing on the corniche (prompt 36)
-        if len(trees):
-            inside = (trees[:, 0] >= x0) & (trees[:, 0] < x1) & (trees[:, 1] >= y0) & (trees[:, 1] < y1)
-            ks = np.nonzero(inside)[0]
-            if len(ks):
-                xy, kept, away = (dresser.tree_spots(trees[ks]) if dresser is not None
-                                  else (trees[ks], np.ones(len(ks), dtype=bool), np.zeros((len(ks), 2))))
-                zs = np.atleast_1d(tc.ground.surface(xy[:, 0], xy[:, 1]))
-                for k, (x, y), z, keep, aw in zip(ks, xy, zs, kept, away):
-                    if not keep:                       # no room beside an arcade (prompt 22)
-                        continue
-                    t = plan.trees[int(k)]
-                    t = replace(t, x=float(x), y=float(y)) if aw.any() else t
-                    kit_tree = dresser.tree(int(k), t, float(z), aw) if dresser is not None else None
-                    if kit_tree is not None:
-                        placements.append(kit_tree)
-                    else:
-                        tree_mesh(mb, t, float(z))
-        if dresser is not None:
-            ground_heights(tc.ground, placements)
-            placements[:] = dresser.under_roofs(placements)   # nothing pierces a souk roof (prompt 31)
-        if dresser is not None and dresser.world.style.get("people"):     # people in the streets (prompt 29)
-            placements += dresser.crowd().people(tile, placements, centers, tile_bytes(tc.kit, mb, placements))
-        if zone is not None:                                # nothing stands on the tracks (prompt 33)
-            placements[:] = keep_off(placements, zone, tc.kit)
-        if harbor:                                          # nothing in the sea or on the quay edge (prompt 34)
-            placements[:] = keep_off(placements, tc.port_keep[ci], tc.kit)
-            placements += quay_placements(tc, port, tile) + armour_placements(tc, port, plan, tile)
-        if dresser is not None and getattr(plan, "props", None):   # boats, cranes and cargo (prompt 35): nothing
-            ashore = tc.prop_zones[ci]                      # else stands where they stand on land
-            if ashore is not None and ashore.intersects(tile):
-                placements[:] = keep_off(placements, ashore, tc.kit)
-            placements += dresser.props(tile)
+        own: list = []                                   # a city in a regional style (prompt 94)
+        own_spans: list = []
+        mb.prefix = view.prefix + "/"
+        _city_into(view, mb, ci, city, tile, (x0, y0, x1, y1), own, own_spans)
+        ground_heights(tc.ground, own)
+        _span_meshes(mb, own_spans, own)
+        mb.prefix = ""
+        placements += [replace(p, piece=f"{view.prefix}/{p.piece}") for p in own]
     ground_heights(tc.ground, placements)
+    _span_meshes(mb, spans, placements)
+    return mb, placements
+
+
+def _span_meshes(mb: MeshBuilder, spans: list, placements: list) -> None:
     for span in spans:
         if span.kind == "sabat":
             sabat_mesh(mb, span)
         else:
             span_mesh(mb, span, placements)
-    return mb, placements
+
+
+def _city_into(tc: TileContext, mb: MeshBuilder, ci: int, city: tuple, tile, bounds: tuple, placements: list,
+               spans: list) -> None:
+    """One planned city's meshes and placements in one tile."""
+    x0, y0, x1, y1 = bounds
+    plan, centers, trees, street_tree, dresser = city
+    zone = tc.rail_zones[ci]
+    if zone is not None and zone.intersects(tile):      # the tracks run on past the city limit
+        rail_meshes(mb, tc, plan, tile)
+    port = getattr(plan, "port", None)
+    harbor = port is not None and port.zone.intersects(tile)
+    if harbor:                                          # quay walls and the breakwater lie past the city limit
+        wall_meshes(mb, tc, port, tile)
+        breakwater_meshes(mb, tc, port, plan, tile)
+    if not plan.boundary.intersects(tile):
+        if harbor:
+            placements += quay_placements(tc, port, tile) + armour_placements(tc, port, plan, tile)
+        if dresser is not None:
+            placements += dresser.props(tile)             # boats at anchor past the city limit (prompt 35)
+        return
+    street_meshes(mb, tc, plan, street_tree, tile)
+    covered_meshes(mb, tc.covers[ci], tile, dresser is not None)
+    paint_meshes(mb, tc, plan, tc.paint_trees[ci], tile)
+    walk_meshes(mb, tc, plan, tile, street_tree)
+    front_meshes(mb, tc, plan, tile, None if street_tree is None else
+                 (lambda x, y: street_directions(street_tree, x, y)))   # the seafront promenade (prompt 36)
+    walk_width, reach = frontage_inputs(plan)
+    inside = (centers[:, 0] >= x0) & (centers[:, 0] < x1) & (centers[:, 1] >= y0) & (centers[:, 1] < y1)
+    owned = np.nonzero(inside)[0]
+    plain = [int(k) for k in owned if plan.buildings[int(k)].kind not in PAVED_KINDS | STATION_KINDS | LANDMARK_KINDS]
+    under = dict(zip(plain, ring_heights(tc.ground, [plan.buildings[k] for k in plain])))
+    for k in owned:
+        b = plan.buildings[int(k)]
+        if b.kind in PAVED_KINDS:
+            paving_mesh(mb, tc, b)
+            if b.kind == "station_forecourt":
+                forecourt_skirt(mb, b, tc.ground.drawn)
+            continue
+        if b.kind in STATION_KINDS:                         # the railway station (prompt 33)
+            station_mesh(mb, b, tc.height, tc.station, tc.world.seed)
+            continue
+        kind = plan.districts[b.district].kind
+        plinth = frontage = None
+        if b.kind in PLINTH_KINDS and kind in tc.plinths:
+            spec = tc.plinths[kind]
+            plinth = (str(spec["material"]), float(spec["height"]))
+            frontage = street_frontage(outline(b), plan, walk_width, street_tree, reach)
+        if b.kind in LANDMARK_KINDS:                       # the cathedral and the theatre (prompt 32)
+            building_mesh(mb, b, tc.height, landmarks=tc.landmarks)
+            continue
+        roofs = roof_layouts(b, kind, roof_stream(tc.world.seed, plan.settlement.id, int(k)), tc.roofs)
+        building_mesh(mb, b, tc.height, plinth=plinth, frontage=frontage, roofs=roofs, ground_z=under[int(k)])
+        if dresser is not None:
+            dresser.keep_roof(int(k), roofs)
+        if b.apron is not None:
+            apron_mesh(mb, tc, b, street_tree)
+    if dresser is not None:
+        highs = building_highs(tc.ground, [plan.buildings[int(k)] for k in owned])
+        paths: list = []
+        gardens: list = []
+        for k, high in zip(owned, highs):
+            first = len(paths)
+            placements += dresser.building(int(k), float(high), paths)
+            if plan.buildings[int(k)].kind == "villa":     # garden ground and hedges (prompt 24)
+                ground, hedges = dresser.garden(int(k), paths[first:])
+                placements += hedges
+                if ground is not None:
+                    gardens.append(ground)
+        path_meshes(mb, tc, paths, dresser.drawn)
+        garden_meshes(mb, tc, gardens, dresser.drawn)
+        if street_tree is not None:
+            for k in street_tree.query(tile, predicate="intersects"):
+                spans += dresser.spans(int(k), tile)
+                placements += dresser.street_props(int(k), tile)
+        placements += dresser.squares().placements(tile)     # benches, kiosks, fountains (prompt 26)
+        placements += dresser.seafront().placements(tile)    # lamps, benches, railing on the corniche (prompt 36)
+    if len(trees):
+        inside = (trees[:, 0] >= x0) & (trees[:, 0] < x1) & (trees[:, 1] >= y0) & (trees[:, 1] < y1)
+        ks = np.nonzero(inside)[0]
+        if len(ks):
+            xy, kept, away = (dresser.tree_spots(trees[ks]) if dresser is not None
+                              else (trees[ks], np.ones(len(ks), dtype=bool), np.zeros((len(ks), 2))))
+            zs = np.atleast_1d(tc.ground.surface(xy[:, 0], xy[:, 1]))
+            for k, (x, y), z, keep, aw in zip(ks, xy, zs, kept, away):
+                if not keep:                       # no room beside an arcade (prompt 22)
+                    continue
+                t = plan.trees[int(k)]
+                t = replace(t, x=float(x), y=float(y)) if aw.any() else t
+                kit_tree = dresser.tree(int(k), t, float(z), aw) if dresser is not None else None
+                if kit_tree is not None:
+                    placements.append(kit_tree)
+                else:
+                    tree_mesh(mb, t, float(z))
+    if dresser is not None:
+        ground_heights(tc.ground, placements)
+        placements[:] = dresser.under_roofs(placements)   # nothing pierces a souk roof (prompt 31)
+    if dresser is not None and dresser.world.style.get("people"):     # people in the streets (prompt 29)
+        placements += dresser.crowd().people(tile, placements, centers, tile_bytes(tc.kit, mb, placements))
+    if zone is not None:                                # nothing stands on the tracks (prompt 33)
+        placements[:] = keep_off(placements, zone, tc.kit)
+    if harbor:                                          # nothing in the sea or on the quay edge (prompt 34)
+        placements[:] = keep_off(placements, tc.port_keep[ci], tc.kit)
+        placements += quay_placements(tc, port, tile) + armour_placements(tc, port, plan, tile)
+    if dresser is not None and getattr(plan, "props", None):   # boats, cranes and cargo (prompt 35): nothing
+        ashore = tc.prop_zones[ci]                      # else stands where they stand on land
+        if ashore is not None and ashore.intersects(tile):
+            placements[:] = keep_off(placements, ashore, tc.kit)
+        placements += dresser.props(tile)
 
 
 def instance_groups(tc: TileContext, placements: list, x0: float, y0: float) -> list:

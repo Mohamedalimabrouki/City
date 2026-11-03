@@ -23,7 +23,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from citygen.config import load_config, load_style  # noqa: E402
-from citygen.kit import make_kit  # noqa: E402
+from citygen.styles import world_kit  # noqa: E402
 
 CHECKS = Path("output/checks")
 SKIP_KEYS = ("build_key",)
@@ -72,12 +72,13 @@ def _plan_parts(city: str, path: Path) -> dict:
 
 def _kit_parts(world: dict) -> dict:
     """One part per kit piece; the kit is made once per process for a seed and style (tests call this often)."""
-    return {name: _part(p["h"], **p["d"]) for name, p in _kit_digests(world["seed"], world["style"]).items()}
+    regional = tuple(sorted(set(world.get("styles", {}).values())))   # regional styles' pieces, namespaced (prompt 94)
+    return {name: _part(p["h"], **p["d"]) for name, p in _kit_digests(world["seed"], world["style"], regional).items()}
 
 
 @lru_cache(maxsize=4)
-def _kit_digests(seed: int, style: str) -> dict:
-    kit = make_kit(seed, load_config(), load_style(style))
+def _kit_digests(seed: int, style: str, regional: tuple = ()) -> dict:
+    kit = world_kit(seed, load_config(), load_style(style), regional)
     out = {}
     for name in sorted(kit.pieces):
         piece = kit.pieces[name]

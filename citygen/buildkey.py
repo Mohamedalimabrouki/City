@@ -15,6 +15,7 @@ from importlib import metadata
 from pathlib import Path
 
 from .config import ROOT, load_style
+from .styles import regional_names
 
 CODE = Path(__file__).resolve().parent
 NOT_CONTENT = ("output", "workers", "tiles_per_worker", "area")   # [build] settings that never change what a tile holds
@@ -70,4 +71,7 @@ def build_key(cfg: dict, settlement_ids) -> str:
         "versions": _versions(),
         "settlements": sorted(int(i) for i in settlement_ids),
     }
+    regional = regional_names(cfg)
+    if regional:                     # styles per region (prompt 94): their packs count like the country's
+        parts["regional"] = {name: _style_hash(name) for name in regional}
     return hashlib.sha256(json.dumps(parts, sort_keys=True).encode()).hexdigest()

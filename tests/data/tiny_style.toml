@@ -1,0 +1,11 @@
+# A tiny second style pack for the tests of styles per region (prompt 94). A regional pack is
+# merged over the country's pack, so it lists only what differs: here brick walls, dark roofs
+# and taller parapets, enough to tell its city from its neighbors at a glance.
+
+[palette]
+lime_white = { color = "#8C5A3C", roughness = 0.9, texture = "plaster", texture_size = [3.0, 3.0] }
+warm_white = { color = "#7A4E36", texture = "plaster", texture_size = [3.0, 3.0] }
+roof_white = { color = "#3B3633", roughness = 0.85 }
+
+[roofs.parapet_height]
+village = 1.2

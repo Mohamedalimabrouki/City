@@ -2590,6 +2590,41 @@ stems, colors), `[dressing.people]` the figures and `[people]` where they go (de
 place, `[people.seats]` the seats measured on the kit, `[people.outfits]` the mix by district). Adding a style = a new file; code must not assume
 Maghreb-specific values.
 
+### Styles per region (prompt 94)
+
+A world file can build one settlement, or every settlement of a kind, in another style pack than
+the country's `[world] style` (`citygen/styles.py`):
+
+```toml
+[styles.settlements]          # by name (as `citygen list` shows it) or by id number
+"Sidi Amor" = "steampunk"     # styles/steampunk.toml, or a path to a .toml from the repository root
+[styles.kinds]                # every settlement of a kind
+village = "rural"
+```
+
+- Order: a name or id beats a kind, a kind beats `[world] style`.
+- A regional pack is merged over the country's pack (`regional_style`), so it lists only what differs.
+- Global, from the country's pack: the terrain and its ground tint, the roads, where settlements
+  stand, their names and lore (canon names still pin them), the shared ground (`Ground`: street lift,
+  station levels, quay rules) and the shared texture images (a regional material names one of the
+  country's `[textures]`).
+- The city's own: `plan_city` plans it with `world.city_world(settlement)`, a `StyledWorld` whose
+  `style` is the merged pack, so its districts, streets, massing, roofs, greenery and the names of
+  its quarters and landmarks (a regional `[names]` table names them its way) follow that style; its
+  `Dresser` reads the same pack (`[dressing]`, `[dressing.roles]`) with a kit made from it.
+- Names never collide where styles meet. The country style keeps today's names. `TileContext`
+  makes one kit per regional style and a view of itself per style (`views[ci]`: palette, roofs,
+  plinths, landmarks, station, port and kit under plain names); a regional city meshes with
+  `MeshBuilder.prefix = "<style>/"` and its placements are renamed `<style>/<piece>`, and the
+  shared kit and `materials` gain every regional kit and palette namespaced (`steampunk/lime_white`,
+  `steampunk/tree_broadleaf`), so glTF materials, Blender's material merge by name and
+  `instance_groups` keep the styles apart. The namespace is the pack's file name without `.toml`.
+- `world.json` lists `"styles": {id: style}` for the regional settlements only; the kit sheet
+  (`kit-sheet --world FILE`) and the fingerprint's `kit/*` parts add the regional pieces namespaced.
+- With no `[styles]` table nothing changes. Test world: `tests/data/two_styles.toml` (two villages,
+  `tests/data/tiny_style.toml` and maghreb). Not yet per style: interiors (made with the country's
+  home kit) and lod1 masses (country materials).
+
 ## 8. Performance budgets
 
 | Step | Budget |

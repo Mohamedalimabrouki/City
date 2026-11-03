@@ -68,6 +68,7 @@ class CityContext:
 
 def plan_city(world, settlement) -> CityPlan:
     t0 = time.perf_counter()
+    world = world.city_world(settlement)   # its regional style, if the world file gives one (prompt 94)
     ctx = CityContext(world, settlement)
     s = settlement
     land = land_near(world.terrain, s.x, s.y, s.radius * 1.35)

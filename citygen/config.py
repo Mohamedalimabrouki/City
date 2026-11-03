@@ -43,7 +43,9 @@ def load_config(world_file=None, overrides: dict | None = None, quick: bool = Fa
 
 def style_path(name: str) -> Path:
     path = Path(name)
-    return path if path.suffix == ".toml" else ROOT / "styles" / f"{name}.toml"
+    if path.suffix == ".toml":
+        return path if path.is_absolute() or path.is_file() else ROOT / path   # a pack named from the repository root
+    return ROOT / "styles" / f"{name}.toml"
 
 
 def load_style(name: str) -> dict:
