@@ -3995,7 +3995,8 @@ def _check_sunken(interior, cfg: dict) -> None:
     assert sum(r.floor == 0 and r.z < st.z - 0.05 for r in interior.rooms) == 1, interior.building
     assert abs(room.z + room.height - (st.z + st.height)) < 1e-6
     flights = [s for s in interior.stairs if s.kind == "steps"]
-    inner = [o for o in interior.openings if room.id in o.rooms and o.kind == "inner"]
+    # an inner door, or the arch of a bent entry's first skifa
+    inner = [o for o in interior.openings if room.id in o.rooms and o.kind in ("inner", "arch")]
     assert all(s.sunk == room.id for s in flights) and len(flights) <= len(inner)    # none: a floor 0 of one room
     for s in flights:
         assert s.tread >= cfg["tread_min"] - 1e-9 and len(S.rails(s, interior, cfg, {})) <= 2
@@ -5526,7 +5527,9 @@ def test_streets_json_lists_nodes_on_the_drawn_street_and_measured_edges(world, 
         assert e["kind"] == plan.streets[e["street"]].kind and min(e["sidewalks"]) >= 0.0
         assert sum(e["sidewalks"]) < e["width"]
     assert any(max(e["sidewalks"]) > 0.0 for e in edges)
-    parts = _graph_parts(nodes, [(e["from"], e["to"], e["length"]) for e in edges])
+    # a river's banks joined at `plan.crossings` until prompt 62 draws the bridges: it must take them out of this line
+    links = [(a, b, 0.0) for a, b in _crossing_nodes(plan, xy.tolist())]
+    parts = _graph_parts(nodes, [(e["from"], e["to"], e["length"]) for e in edges] + links)
     assert max(parts.values()) >= 0.995 * sum(parts.values())
 
 
@@ -5535,10 +5538,14 @@ def test_street_graph_of_every_settlement_holds_together(world):
     from citygen.export.streets import street_graph
     grid = float(world.cfg["street_graph"]["grid"])
     for s in world.settlements:
-        nodes, edges = street_graph(plan_city(world, s).streets, grid)
-        parts = _graph_parts(nodes, [(a, b, line.length) for _k, line, a, b in edges])
-        if parts:                                  # a hamlet can have no street at all
-            assert max(parts.values()) >= 0.995 * sum(parts.values()), s.name
+        plan = plan_city(world, s)
+        nodes, edges = street_graph(plan.streets, grid)
+        if not nodes:                              # a hamlet can have no street at all
+            continue
+        # a river's banks joined at `plan.crossings` until prompt 62 draws the bridges: it must take them out of this line
+        links = [(a, b, 0.0) for a, b in _crossing_nodes(plan, nodes)]
+        parts = _graph_parts(nodes, [(a, b, line.length) for _k, line, a, b in edges] + links)
+        assert max(parts.values()) >= 0.995 * sum(parts.values()), s.name
 
 
 @pytest.mark.slow  # two processes plan the quick capital, about 20 s
