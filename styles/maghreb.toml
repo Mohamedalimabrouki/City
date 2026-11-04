@@ -63,6 +63,101 @@ products.steppe = ["sheep", "esparto weaving", "barley", "honey"]
 products.desert = ["dates", "carpets", "camel markets", "rock salt"]
 products.mountain = ["cork", "marble", "pine honey", "goat cheese"]
 
+# District histories (prompt 81, city/history.py): an origin sentence, up to `facts` sentences on what
+# the map holds, and a "today" sentence when fewer than three came. {name} the district, {city},
+# {era} and {since} from `era` (never before the city's founding), as `era_in` / `era_since` word it,
+# {where} ", just east of the medina" or "",
+# {place} city, town or village, {folk} "the neighborhood" or "the village". A fact given as a list: one is drawn.
+# A world file's [canon.histories."<city>"] "<district>" = "..." replaces a generated text.
+[history]
+facts = 2
+min_sentences = 3      # a "today" sentence is added below this many
+max_sentences = 4
+inside_m = 1.0         # a landmark this close to a district counts as in it
+near_m = 5.0           # a district this close to the medina lies "just" east of it
+# The words of the sentences: {place} by settlement kind (else the kind itself), {folk} by district
+# kind (else `default`), {where} from `where` ({near} = `near_word` when near, {dir} from `compass`,
+# counter-clockwise from east), counts in words, and trade plurals (first matching ending swapped).
+place = { capital = "city" }
+folk = { village = "the village", default = "the neighborhood" }
+where = ", {near}{dir} of the medina"
+near_word = "just "
+compass = ["east", "north-east", "north", "north-west", "west", "south-west", "south", "south-east"]
+numbers = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"]
+plural = { man = "men" }
+plural_default = "s"
+great_mosque_kinds = ["medina", "village"]   # the mosque in these districts is the great mosque, never "its own mosque"
+era.medina = ""          # "": the era the city was founded in
+era.village = ""
+era.cemetery = ""
+era.colonial = "the Protectorate"
+era.port = "the Protectorate"
+era.park = "the Protectorate"
+era.park_late = "the Republic"   # a park in a city without a colonial quarter
+era.industrial = "the Republic"
+era.modern = "the Republic"
+era.residential = "the Republic"
+era.suburb = "the Republic"
+# How each era reads in a sentence: {era} "in the Caravan Age", {since} "since the Caravan Age"
+# (an era missing here reads "in the time of ..." and "since the time of ...")
+era_in = { "the Salt Kings" = "under the Salt Kings", "the Caravan Age" = "in the Caravan Age", "the Exiles' Return" = "in the years of the Exiles' Return", "the Corsair Century" = "in the Corsair Century", "the Protectorate" = "under the Protectorate", "the Republic" = "under the Republic" }
+era_since = { "the Salt Kings" = "since the days of the Salt Kings", "the Caravan Age" = "since the Caravan Age", "the Exiles' Return" = "since the Exiles' Return", "the Corsair Century" = "since the Corsair Century", "the Protectorate" = "since the Protectorate", "the Republic" = "since the Republic" }
+# Products of [lore] that a harbor district may be said to live from
+harbor_trades = ["fishing", "sponge diving", "boat building", "sea trade"]
+origin.medina = ["The {name} is the oldest part of the {place}: its first walls went up {era}.",
+                 "{city} began here, inside walls raised {era}; its ramparts still stand.",
+                 "The {name} grew up {era}, a tight weave of courtyard houses, alleys and dead ends."]
+# An old town whose settlement kind has walls = false: no walls in its story
+origin.medina_open = ["The {name} is the oldest part of the {place}: its first houses went up {era}.",
+                      "{city} began here {era}, around its great mosque and its market.",
+                      "The {name} grew up {era}, a tight weave of courtyard houses, alleys and dead ends."]
+origin.village = ["{name} grew up {era} around its wells and its fields.",
+                  "Families have lived in {name} {since}, in houses built around their courtyards."]
+origin.colonial = ["{name} was laid out {era}{where}, on straight streets of tall houses with balconies.",
+                   "{era} the newcomers built {name}{where}: a grid of avenues, cafes and apartment houses."]
+origin.modern = ["{name} was built {era}{where}, when {city} needed homes for the workers and clerks of the new state.",
+                 "The blocks of {name} went up {era}{where}, as {city} grew faster than ever before."]
+origin.residential = ["{name} filled in {era}{where}, as families from the countryside came to {city} and built storey by storey.",
+                      "{name} grew {era}{where}, one family house at a time."]
+origin.suburb = ["{name} began {era}{where}, as villas and gardens for the families who could leave the crowded center.",
+                 "{era} the well-off of {city} built their villas at {name}{where}."]
+origin.industrial = ["{name} was laid out {era}{where}, by the roads out of {city}, for its workshops, depots and warehouses."]
+origin.port = ["The quays of {name} were built {era}{where}.",
+               "{name} took its present shape {era}{where}, when {city} built its quays."]
+origin.port_old = ["Boats have put in here {old_since}, but the stone quays of {name} were built {era}.",
+                   "The fishermen of {city} have beached their boats here {old_since}; {name} got its stone quays {era}."]
+origin.park = ["{name} was planted {era}{where}, as a public garden for {city}.",
+               "{name} was laid out as gardens {era}{where}.",
+               "{era}, {city} kept the open ground of {name}{where} free of houses and planted it."]
+origin.cemetery = ["The {name} has received the dead of {city} {since}{where}.",
+                   "{since}, {city} has buried its dead in the {name}{where}."]
+fact.gate = "{n} gate leads in: {some}."            # one gate
+fact.gates_all = "{n} gates lead in: {some}."       # two gates, both named
+fact.gates = "{n} gates lead in, among them {some}."
+fact.kasbah = "The {kasbah}, the citadel, still holds the high edge of the old town."
+fact.boulevard = "Its boulevard is lined by the {cathedral} and the {theatre}."
+fact.civic = "The {civic} faces its boulevard."
+fact.station = "The railway reaches {city} here, at the {station}."
+fact.mosque = "Its own mosque, the {mosque}, gathers {folk} at prayer."
+fact.souks = "Its market streets still keep the old crafts together: the {souks}."
+fact.shrine = "A white-domed shrine of a holy man stands among its graves."   # one shrine
+fact.shrines = "{n} white-domed shrines of holy men stand among its graves."
+fact.quays = "Today it has {quay} m of quays."
+fact.light = ", and a breakwater with a lighthouse at its end."
+fact.known = "{city} is known for its {known}, and much of it goes on here."
+fact_weights = { gates = 3, kasbah = 3, boulevard = 3, civic = 3, station = 3, souks = 2, shrines = 2, quays = 2, known = 1, mosque = 1, trades = 1 }
+fact.trades = ["The trades most often found behind its doors are those of {trades}.", "Its people work above all as {trades}.", "Behind its doors live above all {trades}."]
+today.medina = ["Its families still live behind plain walls around their courtyards."]
+today.village = ["Little in it has changed for generations."]
+today.colonial = ["Its cafes and shops still fill the ground floors.", "Lawyers, doctors and banks keep their offices in its old buildings."]
+today.modern = ["Its blocks are home to many young families.", "Its balconies fill with washing and satellite dishes."]
+today.residential = ["Most of its houses have grown a floor or two since they were built.", "Its streets fill with children when the schools let out.", "Small grocers and cafes keep its corners busy."]
+today.suburb = ["Its villas sit in gardens behind high walls.", "Bougainvillea spills over its garden walls."]
+today.industrial = ["Many of the workers of {city} come here every morning.", "Lorries come and go on its wide streets all day."]
+today.port = ["Fishing boats tie up along it all year round.", "Its cafes open early, for the men who work the quays."]
+today.park = ["On summer evenings families walk its paths.", "Its benches fill with old men and students in the afternoons.", "Children play football on its open ground."]
+today.cemetery = ["On Fridays families still come to visit their graves.", "Cypresses stand in rows between the tombs."]
+
 # --- colors and surfaces ---------------------------------------------------------
 # Every surface in the 3D files uses one of these materials (by name).
 [palette]

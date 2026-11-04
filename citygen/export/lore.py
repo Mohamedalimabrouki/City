@@ -39,7 +39,8 @@ def plan_json(plan) -> dict:
         "settlement": plan.settlement.to_json(),
         "stats": plan.stats,
         "boundary": _geometry(plan.boundary),
-        "districts": [{"id": d.id, "kind": d.kind, "name": d.name, "geometry": _geometry(d.polygon)}
+        "districts": [{"id": d.id, "kind": d.kind, "name": d.name, "history": d.history,
+                       "geometry": _geometry(d.polygon)}
                       for d in plan.districts],
         "streets": [{"kind": s.kind, "width": s.width, "coords": np.round(np.asarray(s.line.coords), 2).tolist()}
                     for s in plan.streets],
@@ -171,6 +172,10 @@ def gazetteer(world, plans) -> str:
         st = plan.stats
         lines += [f"- **size**: {st['buildings']:,} buildings, {len(plan.households):,} households, "
                   f"{st['streets']:,} streets, {st['trees']:,} trees", ""]
+        histories = [d for d in plan.districts if getattr(d, "history", "")]   # prompt 81
+        if histories:
+            lines += [f"### {s.name}: district histories", ""]
+            lines += [f"- **{d.name}** ({d.kind}): {d.history}" for d in histories] + [""]
     return "\n".join(lines) + "\n"
 
 

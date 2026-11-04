@@ -1597,6 +1597,45 @@ def test_households_and_souks(plan):
     assert len({k.name for k in plan.souks}) == len(plan.souks)   # every souk has its own name
 
 
+def test_district_histories(world, plan):
+    """Prompt 81: 2-4 sentences per district from its own facts, never before the city's founding; canon wins."""
+    import copy
+    import re
+    from citygen.city import CityContext
+    from citygen.city.history import histories
+    eras = world.style["lore"]["eras"]
+    founded = eras.index(plan.settlement.founded)
+    for d in plan.districts:
+        sentences = re.findall(r"[^.]+\.", d.history)
+        assert 2 <= len(sentences) <= 4, d.history
+        assert "\u2014" not in d.history and "{" not in d.history
+        assert all(eras.index(e) >= founded for e in eras if e in d.history)
+    medina = next(d for d in plan.districts if d.kind == "medina")
+    assert plan.settlement.founded in medina.history   # the old town is as old as its city
+    names = {m.name for m in plan.landmarks}
+    for m in plan.landmarks:   # a landmark named in a history stands in that district
+        for d in plan.districts:
+            if m.name in d.history and m.kind != "gate":
+                assert d.polygon.buffer(1.0).contains(shapely.Point(m.x, m.y)), (m.name, d.name)
+    assert names
+    from citygen.export.lore import gazetteer, plan_json
+    assert [o.get("history") for o in plan_json(plan)["districts"]] == [d.history for d in plan.districts]
+    text = gazetteer(world, [plan])
+    assert all(d.history in text for d in plan.districts)   # the output carries every history
+    ctx = CityContext(world, plan.settlement)
+    again = copy.copy(plan)
+    again.districts = [copy.copy(d) for d in plan.districts]
+    histories(ctx, again)
+    assert [d.history for d in again.districts] == [d.history for d in plan.districts]   # deterministic
+    pinned = dict(world.cfg, canon={"histories": {plan.settlement.name: {medina.name: "Pinned."}}})
+    ctx.world = copy.copy(world)
+    ctx.world.cfg = pinned
+    histories(ctx, again)
+    assert again.districts[medina.id].history == "Pinned."
+    assert [d.history for d in again.districts if d is not again.districts[medina.id]] == \
+        [d.history for d in plan.districts if d.id != medina.id]
+
+
 def test_fingerprint_tool(tmp_path, monkeypatch):
     import sys
     from pathlib import Path

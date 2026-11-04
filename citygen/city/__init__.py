@@ -35,6 +35,7 @@ from .greenery import greenery
 from .layout import assign_kinds, city_boundary, land_near, main_axis, medina_outline, neighborhoods
 from .life import households, souks
 from .massing import apply_massing
+from .history import histories
 from .impasses import cut_impasses
 from . import landmarks as boulevard
 from .medina import old_town
@@ -134,6 +135,7 @@ def plan_city(world, settlement) -> CityPlan:
     marks += lights   # appended last: every earlier landmark keeps its index
     plan.props = plan_props(ctx, plan)   # boats, cranes and cargo (prompt 35): planned last, moves nothing
     plan.fronts = plan_fronts(ctx, plan)  # the seafront promenade (prompt 36): appends walks, moves sea palms
+    histories(ctx, plan)   # district histories (prompt 81): text only, read from the finished plan
     plan.stats = {"districts": len(districts), "streets": len(streets), "impasses": len(lanes),
                   "blocks": len(blocks),
                   "parcels": len(parcels), "buildings": len(buildings), "trees": len(trees),
