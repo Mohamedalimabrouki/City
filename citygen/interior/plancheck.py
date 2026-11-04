@@ -110,7 +110,7 @@ class Floor:
 
 
 def _walls(interior, f: int, cfg: dict) -> list:
-    ops = [o for o in interior.openings if o.floor == f and walled_in(interior, o, cfg)]
+    ops = [o for o in interior.openings if o.floor == f and walled_in(o)]
     if not ops:
         return []
     fl = Floor(interior, f, cfg)
@@ -193,7 +193,7 @@ def settle(interior, again: bool = True) -> None:
     by_id = {r.id: r for r in interior.rooms}
     narrow = float(interior.rules.get("narrow", 0.7))
     for f in range(interior.floors):
-        ops = [o for o in interior.openings if o.floor == f and walled_in(interior, o, cfg)]
+        ops = [o for o in interior.openings if o.floor == f and walled_in(o)]
         if not ops:
             continue
         fl = Floor(interior, f, cfg)
@@ -231,7 +231,7 @@ def bend(interior) -> None:
     cfg = interior.rules.get("plan", {})
     by_id = {r.id: r for r in interior.rooms}
     first = [i for i in door.rooms if i in by_id]
-    ops = [o for o in interior.openings if o.floor == 0 and walled_in(interior, o, cfg) and o.kind in MOVABLE]
+    ops = [o for o in interior.openings if o.floor == 0 and walled_in(o) and o.kind in MOVABLE]
     near = {i for o in ops if set(o.rooms) & set(first) for i in o.rooms} - set(first)
     order = [o for o in ops if set(o.rooms) & set(first)] + [o for o in ops if set(o.rooms) & near
                                                              and not set(o.rooms) & set(first)]
@@ -261,7 +261,7 @@ def wet_corners(interior, narrow) -> None:
     by_id = {r.id: r for r in interior.rooms}
     part = interior.walls["partition"]
     for f in range(interior.floors):
-        ops = [o for o in interior.openings if o.floor == f and walled_in(interior, o, cfg)]
+        ops = [o for o in interior.openings if o.floor == f and walled_in(o)]
         todo = []
         for o in ops:
             if o.kind != "inner" or o.wall is not None or not all(i in by_id for i in o.rooms):

@@ -3637,9 +3637,8 @@ def _facade_pieces(outside) -> list:
     """The placements that must each be one opening (SPEC 6c bridge step 4), computed here on their own."""
     kit, ps = outside.kit, outside.placements
     cat = [kit.pieces[p.piece].category if p.piece in kit.pieces else "" for p in ps]
-    windows = [(p.x, p.y, p.z) for p, c in zip(ps, cat) if c == "window"]
-    return [p for p, c in zip(ps, cat) if c in ("door", "window", "shop")
-            or (c == "balcony" and all(math.dist((p.x, p.y, p.z), w) >= 0.1 for w in windows))]
+    return [p for p, c in zip(ps, cat) if c in ("door", "window", "shop", "balcony")
+            and not p.piece.startswith(("balcony_iron", "balconnet"))]   # a rail stands before its door-window's hole
 
 
 def test_interior_folders_for_three_layouts(interior_build, interior_ctx, tmp_path):
@@ -4413,7 +4412,6 @@ def test_interior_holes_match_the_facade(interior_ctx, old_town, new_districts):
     from citygen.mesh.builder import MeshBuilder
     style = interior_ctx.world.style
     frame = float(style["interiors"]["openings"]["frame"])
-    railings = style["interiors"]["openings"]["railings"]
     samples = _wall_samples(old_town, new_districts)
     assert {i.layout for i, _ in samples} >= {"dar", "compact", "small", "koubba", "colonial", "slab", "villa", "maison"}
     for interior, outside in samples:
@@ -4433,9 +4431,6 @@ def test_interior_holes_match_the_facade(interior_ctx, old_town, new_districts):
         pieces = _facade_pieces(outside)
         assert [o.piece for o in facade] == [p.piece for p in pieces]
         for o, p in zip(facade, pieces):            # the piece's own rectangle, measured here from the kit
-            if p.piece in railings:
-                assert o.id not in holes                # an iron balcony stands on a solid wall
-                continue
             x0, x1, y0, y1 = hole(outside.kit, p.piece, frame)
             along = p.scale * p.stretch
             cx = p.x + math.cos(p.yaw) * (x0 + x1) / 2 * along

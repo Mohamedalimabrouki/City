@@ -140,6 +140,8 @@ def make_kit(seed: int, cfg: dict, style: dict) -> Kit:
     """The one place a Kit is built from a seed, the config and the style (tiles, kit sheet, tools)."""
     dressing = style.get("dressing", {})
     iron = {**dressing.get("balcony_iron", {}), "sill": dressing.get("window_sill", 0.95)}
+    if "door_window" in dressing:
+        iron.update(door=dressing["door_window"], balconnet=dressing.get("balconnet", {}))
     return Kit(seed, cfg["build"].get("kits", []), style["palette"], dressing.get("trees"), dressing.get("climber"),
                dressing.get("lit"), dressing.get("arcade"), iron, dressing.get("hedge"), dressing.get("vehicles"),
                dressing.get("furniture"), dressing.get("people"), style.get("port"))

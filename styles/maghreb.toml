@@ -265,6 +265,8 @@ leaf_hedge = { color = "#4B6631", roughness = 0.9 }   # clipped box hedge (flat,
 garden = { color = "#7F9C4D", texture = "grass", texture_size = [2.5, 2.5] }   # watered villa garden ground
 # street dressing (doors, shops, goods, street life)
 stone_frame = { color = "#D8C7A5" }
+frame_kit = { color = "#F7F2E6" }         # a door-window beside the Tounes kit's windows: their surround ...
+frame_kit_head = { color = "#ECE5D9" }    # ... and cornice (the kit's vertex colors)
 tile_panel = { color = "#2F7FA8", roughness = 0.35 }
 faience_white = { color = "#E9EDEA", roughness = 0.3 }   # the white tiles of a sabil's faience (prompt 26)
 marble = { color = "#E6E0D3", roughness = 0.4 }          # fountain basins, bowls and cornices
@@ -1436,10 +1438,55 @@ wealth = 0.6
 window = 0.85
 long = 0.35
 long_gap = [3.0, 3.8]
-width = 1.2
-depth = 0.6
+width = 1.8                # wide enough for the door-window's open shutters (at most 1.68 m) to fold back inside the rail
+depth = 0.8                # a place to stand: 0.75 m from the wall to the rail
 rail = 1.0                 # rail height above the balcony floor
 span = 3.2                 # window spacing the long balcony is built for (stretched to the real one)
+
+# The porte-fenetre behind every iron balcony and balconnet (mesh/props.py window_door): a window turned
+# door in the same place, under the same head line, with the frame and shutters of its window family.
+[dressing.door_window]
+width = 0.8                # meters, the clear hole
+stile = 0.05               # width of the leaves' frame
+panel = 0.72               # meters from the floor to the top of the solid lower panels
+glass = 0.02               # glass, this far out of the wall face; the leaves 0.015 m in front of it
+lip = 0.04                 # the stone threshold: reaches this far beyond the frame at each side,
+reach = 0.14               # this far out of the wall
+drop = 0.08                # and this thick
+
+[dressing.door_window.plain]    # beside the generator's windows (mesh/props.py window)
+jamb = 0.1                 # stone frame
+head = 1.1                 # above the window sill, as the window's glass
+top = 1.18                 # as the window's frame
+proud = 0.06
+frame = "stone_frame"
+leaf = 0.5                 # shutters: from this far off the center (beside the frame: the leaves of a door
+leaf_end = 0.84            # would melt into them) to this far
+shutter = [0.06, 0.1]      # depth out of the wall
+
+[dressing.door_window.kit]      # beside the Tounes kit's windows (bounds and glass from its manifest)
+colors = ["door_blue", "door_green", "door_brown"]   # the kit's three window colors
+jamb = 0.1
+head = 0.96                # 0.06 m over the kit window's glass: the door clears 1.91 m, the head line stays
+top = 1.02                 # as the kit window's frame
+proud = 0.1
+frame = "frame_kit"
+cornice = [0.52, 1.025, 1.095, 0.04]    # half width, bottom, top, depth
+cornice_frame = "frame_kit_head"
+leaf = 0.5
+leaf_end = 0.82
+shutter = [0.015, 0.065]
+shutter_top = 0.9          # the kit window's shutter height
+slats = 12                 # louvers of a shutter leaf
+
+# Balconnets: on the upper floors of a colonial building, tall windows with a flush iron rail and no slab,
+# as on the facades of the ville nouvelle in Tunis and Algiers (Dresser._balconnets).
+[dressing.balconnet]
+row = 0.3                  # chance that a street wall has them, at wealth 0.5 ...
+wealth = 0.7               # ... this much more per unit of wealth
+every = 0.6                # chance that every window of a chosen floor has one (else every second column)
+width = 0.92               # meters, between the door-window's jambs' outer faces, less a little
+proud = 0.12               # meters out of the wall face
 
 # Bougainvillea climbers (citygen/mesh/climbers.py), the `climber` role. The piece hangs on a wall:
 # `top` is where the cascade starts, `drop` how far its hem hangs below it.
@@ -1945,7 +1992,7 @@ leaf = 0.04           # meters, a door leaf's thickness
 casing = 0.05         # meters, the wooden door frame round the clear opening (it stays within narrow_clear)
 casing_proud = 0.02   # meters the frame stands out of each wall face
 arch_frame = 0.1      # meters, the stone band round a bortal's arch on the court side
-railings = ["balcony_iron", "balcony_iron_long"]   # balcony pieces standing on a solid wall (no hole cut)
+railings = ["balcony_iron", "balcony_iron_long", "balconnet_iron"]   # rails: the hole is their door-window's
 casement = 0.05       # meters, the frame of the glazed casement in every window hole (its rails and stiles)
 casement_depth = 0.04 # meters, its thickness
 casement_inset = 0.08 # meters from the wall's inner face to the casement's middle

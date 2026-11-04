@@ -85,8 +85,7 @@ class Job:
         interior.rules["wet_carve"] = [float(a) for a in self.dar.get("wet_carve", [2.5])]   # m2 (47.1 round 7)
         interior.rules["most"] = {k: float(v) for k, v in rooms.get("most", {}).items()}
         interior.rules["plan"] = {**cfg.get("checks", {}), "casing": float(op.get("casing", 0.05)),
-                                  "tread_min": float(self.stairs.get("tread_min", 0.2)),
-                                  "railings": tuple(op.get("railings", ()))}   # `plancheck`'s numbers
+                                  "tread_min": float(self.stairs.get("tread_min", 0.2))}   # `plancheck`'s numbers
         self.court = self.rng("court")    # one stream per house: court windows, then the majel, in that order
         self.wells: dict = {}             # floor -> the light well room of a covered court
         self.made: dict = {}              # id(cell) -> (cell, room)
