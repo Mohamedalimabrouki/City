@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from ..names import NameMaker, article
+from ..names import NameMaker, article, fill_ar
 from ..rng import weighted
 
 HOUSING = {"house", "domed", "apartments", "villa"}
@@ -31,6 +31,7 @@ class Souk:
     ground: list    # goods pieces set out in front of the shops
     wall: list      # goods pieces hung on the wall
     shop: str = ""  # what fills the shelves inside (a key of SHOP_GOODS in mesh/props.py)
+    name_ar: str = ""  # e.g. "سوق العطارين"
 
 
 def family_name(namer: NameMaker, rng, life: dict) -> str:
@@ -74,7 +75,10 @@ def souks(ctx, streets) -> list:
         return []
     rng = ctx.rng("souk-trades")
     order = list(rng.permutation(len(trades)))
-    repeat = ["", " el Djedid", " el Kebir", " es Sghir", " el Bahri", " el Gharbi", " ech Chergui"]
+    names = ctx.style["names"]
+    repeat = names.get("souk_repeats", ["", " el Djedid", " el Kebir", " es Sghir", " el Bahri", " el Gharbi",
+                                        " ech Chergui"])
+    repeat_ar = names.get("souk_repeats_ar", [])
     seen: dict = {}
     out = []
     for k, st in enumerate(streets):
@@ -85,6 +89,13 @@ def souks(ctx, streets) -> list:
         t = trades[int(order.pop())]
         word = t["word"]
         n = seen[word] = seen.get(word, -1) + 1
-        name = f"Souk {article(word)} {word}" + (repeat[n] if n < len(repeat) else f" {n + 1}")
-        out.append(Souk(k, name, t["trade"], list(t.get("ground", [])), list(t.get("wall", [])), t.get("shop", "")))
+        name = names.get("souk", "Souk {a} {w}").format(a=article(word), w=word)
+        name += repeat[n] if n < len(repeat) else f" {n + 1}"
+        name_ar = fill_ar(names["souk_ar"], w=t["word_ar"]) if "souk_ar" in names and t.get("word_ar") else ""
+        if name_ar and n < len(repeat):
+            name_ar = name_ar + repeat_ar[n] if n < len(repeat_ar) else ""
+        elif name_ar:
+            name_ar += f" {n + 1}"
+        out.append(Souk(k, name, t["trade"], list(t.get("ground", [])), list(t.get("wall", [])), t.get("shop", ""),
+                        name_ar))
     return out

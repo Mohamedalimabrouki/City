@@ -118,7 +118,7 @@ class Covers:
     def __init__(self, world, plan, ground):
         self.cfg = world.style.get("covered_souk", {})
         self.plan, self.ground = plan, ground
-        self.seed, self.sid = world.seed, plan.settlement.id
+        self.seed, self.sid = world.seed, plan.settlement.key
         self.streets = covered_streets(plan, self.cfg, world.style.get("souk", []))
         self._stretches: dict = {}
         self._segments = None

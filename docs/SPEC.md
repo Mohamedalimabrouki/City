@@ -25,9 +25,13 @@ This is the contract every change must respect. Read the sections your task touc
 ## 3. Determinism
 
 - All randomness: `citygen.rng.stream(seed, *path)` returns a numpy Generator keyed by a
-  purpose path, e.g. `stream(seed, "city", city_id, "parcels", block_index)`.
+  purpose path, e.g. `stream(seed, "city", s.key, "parcels", block_index)`.
 - Each feature gets its own path, so adding a feature never reshuffles existing ones.
   Inside a city, use `ctx.rng(*path)` (already prefixed with the city).
+- A place's streams follow the place, not its rank in the list. `Settlement.id` is only the rank (road `ends` use
+  it); every stream about a place reads `Settlement.key`: 0 for the capital, else its grid cell + 1, so never 0.
+  `Settlement.cell` is the cell of the placement grid it took. What follows from it, and how to add a rule that
+  refuses a place without moving the others: "Places, names and pins" in section 5.
 - Never use the `random` module, unseeded numpy, wall-clock time, or set/dict order that
   depends on hashing of unsorted keys.
 - Noise (`citygen.noise.Perlin`, `Fractal`) is a pure function of position.
@@ -164,8 +168,36 @@ block on `rng("impasse", block)`: lot line jitter, widths, covered share and len
 
 ## 5. Data model (`citygen/city/model.py`, `citygen/world.py`)
 
-- `Settlement(id, name, kind, x, y, population, radius, elevation, coastal, biome, known_for, founded)`;
-  kinds: `capital`, `city`, `town`, `village`. Ids are stable for a given seed and settings.
+- `Settlement(id, name, kind, x, y, population, radius, elevation, coastal, biome, known_for, founded, name_ar,
+  cell, generated)`; kinds: `capital`, `city`, `town`, `village`. `id` is the rank in the list, `key` (a property)
+  what the streams call the place, `generated` the name before any pin; `cell` and `generated` stay out of world.json.
+- Places, names and pins (`world._place_settlements`, `_name_settlements`, `_pin_names`, `_add_lore`), so that one
+  refused place changes no other and a story's names hold:
+  - The shared stream `stream(seed, "settlements")` holds the jitter, the capital's and the cities' score and key
+    grids and the one draw of the capital's population (the same draw for every site it tries): its length never
+    depends on how many candidates a kind tries. Towns and villages draw their grids on `stream(seed,
+    "settlements", kind)`. Every place but the capital draws its population on `stream(seed, "settlements", kind,
+    cell)`, so its size depends on its cell alone, not on the order of the candidates. A new rule may refuse a
+    candidate anywhere in the loop or in `ok`: only the refused place goes.
+  - What a refused place still changes: the next candidate of its kind takes its slot (a kind keeps its count), and
+    a newcomer or a freed candidate can block, or let in, its neighbours, or push the last place of a kind off the
+    count. Measured on the 64 km world, one city or town refused: 127-130 of the other 130 places stay exactly.
+  - Names: the country, then the capital, are the first draws of `stream(seed, "names")`, drawn even when the
+    country's name is pinned, so a pin renames nothing else. Every other place draws on `stream(seed, "names", kind,
+    cell)`. No two places share a core: a core already taken redraws on `stream(seed, "names", kind, cell, k)`, k = 1,
+    2, ..., in list order, so a name depends on another place only in such a clash (none on the default worlds).
+  - Lore: the capital takes the first draws of `stream(seed, "lore")`, every other place draws on `stream(seed,
+    "lore", key)`. A city's plan, roofs, port, dressing and interiors all read `key`.
+  - Pins: every `[canon]` table names a place by its generated name, which stays with the place: `[canon.names]
+    "Goumosbane" = "Carthage Nova"`, `[canon.names_ar]`, `[canon.histories."<generated name>"]`. A pinned Latin name has
+    no Arabic unless `[canon.names_ar]` gives one. A pin changes its own place only (district names avoid the
+    generated names, pins or not). A key that names no place warns; so does a number, which no longer means a place.
+  - Arabic names (prompt 87): each `[names]` list has an `*_ar` twin of the same length, so a name is spelled part by
+    part from the same draws; rules in `names._spell_ar`. `Name` is a str with `.ar`; `name_ar` on the country,
+    settlements, districts, landmarks and souks in world.json and plan.json, omitted when empty; the gazetteer shows
+    both scripts, the viewer card an Arabic line. Removing every `*_ar` key turns Arabic off and changes no Latin.
+  - Agreement (Ali): after a core whose Arabic ends in ة (`feminine_endings`, Latin "a") a describing word is
+    feminine, from `descriptors_f` and `descriptors_f_ar` at the same index, on the same draw: el Kebira, الكبيرة.
 - `Road(id, kind, width, coords, ends)`; kinds `national`, `regional`, `local`.
 - `World.rivers` and `World.lakes` (prompt 59, `citygen/hydro.py`, `[rivers]`, a pure function of the
   terrain, computed right after it in `generate_world`, no randomness). On a grid of `cell` m (150) a
@@ -214,9 +246,8 @@ block on `rng("impasse", block)`: lot line jitter, widths, covered share and len
   choice has its own stream, `ctx.rng("history", district id, what)` (`origin`, `facts`, `today`, `fact.<key>`
   for a list template), so editing one list changes no other sentence. A landmark belongs to the district it
   lies in, else to the first within `inside_m` (1 m: a gate on the wall line). In a world file,
-  `[canon.histories."<city>"] "<district>" = "..."` replaces a text; unlike `[canon.names]`, which is keyed by
-  settlement id, it is keyed by names (prompt 84 settles one keying), and a district the city does not have
-  gives a warning.
+  `[canon.histories."<generated name>"] "<district>" = "..."` replaces a text (a pin's key: "Places, names and pins"
+  above); a place or a district the world does not have gives a warning.
 - `CityPlan`: `boundary`, `land` (with the quay aprons since prompt 34), `medina`, `districts`, `streets`, `blocks`, `parcels`,
   `buildings`, `trees`, `landmarks`, `walks`, `households`, `souks`, `paint`, `stats`, `station`
   (a `city.station.Station` or None: `facade`, `tracks`, `precinct`, `corridor`, `district`, `core`), `port`
@@ -320,12 +351,12 @@ block on `rng("impasse", block)`: lot line jitter, widths, covered share and len
   patio): the smallest that lights every dark point wins, else the one lighting the most. Footprints
   less dark than `min_dark` m2 keep none. The outer ring stays exactly as it was; a set-back top floor
   gets the same holes (the court stays open); a corner dome or turret keeps 1 m clear. Quick capital:
-  241 of 270 colonial blocks (224 main courts, 22 light wells); Ain Chilel: 293 of 616 maisons. A maison
+  241 of 270 colonial blocks (224 main courts, 22 light wells); the villa town: 293 of 616 maisons. A maison
   whose lot is too narrow for a patio clear of both party walls (7-9 m) gets a court against one party wall
   instead (`[courts] against`, `courts.against_for`): a light well or patio along a side wall, in a back
   corner, or a rear court across the lot, `own` 0.3 m from the party wall (the house's own wall) so the
   footprint keeps its outer ring; its party-side wall holds no window, its other walls a window on every
-  floor (Ain Chilel: 183 of the 194 left dark).
+  floor (the villa town: 183 of the 194 left dark).
   Fortification fields (prompt 30, `city/kasbah.py`): `battlement` ({"chains", "breast", "merlon",
   "depth"}: a breastwork with merlons along each chain of the roof edge, the building's inside on the
   left; such a building gets no parapet from `roof_layout`) and `arches` ([(x, y, yaw, width, height,
@@ -604,8 +635,10 @@ street, measured with `city/parking.walk_widths` like the paint does, but for ev
 where there is none; left is left of the edge's direction), `surface` (palette material), `length` (meters, of
 `line`), `from`, `to` (node ids) and `line` (the center line from `from` to `to`, running the way its
 street runs). `roads`: one link per point where a country road (`world.json` roads) crosses the city
-limit: `road` (its id), `kind`, `width`, `x`, `y` (the crossing) and `node` (the nearest node,
-`distance` meters away, about where the planner's connector street starts). Built by noding every center
+limit: `road` (its id), `kind`, `width`, `x`, `y` (the crossing) and `node`, `distance` meters away, where it
+joins the graph: the nearest node, about where the planner's connector street starts, or, for a road that
+meets a street in mid-block (farther than half that street's width from every node), a node of its own,
+which splits that street's edge in two. Built by noding every center
 line on a 5 cm grid (`[street_graph] grid` in defaults.toml; `shapely.set_precision`, then `unary_union(grid_size=...)`): plain `unary_union`
 misses junctions where grid streets end on district borders only up to rounding. A piece lying on
 several streets (a grid street left under a boulevard) belongs to the widest. A street that stops on the
@@ -1153,7 +1186,7 @@ plan and `rooms.check` also tests each layout's program (see each section). Prom
 (Walls, `interior/mesh.py`) and the shell of Output. Prompt 49: the stairs' geometry, Floors and ceilings,
 the roof deck and roof rooms, the court (`interior/floors.py`, `stairs.py`, `mesh.stairs_mesh`). Prompt 50: the Viewer (Open interior, the Cut menu, rooms named on click, the gallery's interior folders). Measured (prompt 47, final,
 `rooms.check` with the programs): quick capital slabs 327 of 353, colonial blocks 105 of 270, domed houses 21 of
-22, houses with a shop 135 of 136; Ain Chilel villas 171 of 178, maisons 589 of 616; full capital sample 277 of
+22, houses with a shop 135 of 136; the villa town's villas 171 of 178, maisons 589 of 616; full capital sample 277 of
 300; no crash; slowest slab 2.7 s, colonial 14 s (No. 773, 100 m long, no floor repeats). Open item 47.1:
 colonial flats to the bar (ROADMAP). Typical floors (prompt 47): a floor whose region, entrance, program and
 facade openings match a lower floor's reuses its cells, or a lower floor's plan that holds there without a
@@ -1379,7 +1412,7 @@ along the axes of a frame (the courtyard's or the footprint's `frame`).
   and must keep its width less a partition); a court opening has the court across its width (not past a
   corner); no two openings of a floor share wall; entry steps have treads of `[interiors.stairs] tread_min`
   (0.2 m), every tread inside their room, and no other stair over them. A plan passing these gives no
-  `mesh.faults` (checked over the quick capital and Ain Chilel). Plans keep them by: `settle` at the end of
+  `mesh.faults` (checked over the quick capital and the villa town). Plans keep them by: `settle` at the end of
   every plan (inner doors, inner windows, passages and court openings slide along their wall to the nearest
   place that passes; a door tries the narrow door; a court opening that fits nowhere goes and `connect`
   places what is still needed); `[interiors.walls] front_keep` (0.5 m: no partition runs along a wall just
@@ -1970,7 +2003,7 @@ triangles, 210 KB; slab No. 1264 585, 247 KB. Prompt 48 (walls): see the Walls p
   window; flats: flat 0's salon toward its window; the placeholder of prompt 45: floor 0 toward the main
   door), and `overview` from the south-west, 45 degrees up, at 1.5 x the footprint's larger side + the
   building's height from its center.
-- `rooms.json`: `citygen-interior/1`, `Interior.to_json()`: seed, city, city_id, building, kind, layout,
+- `rooms.json`: `citygen-interior/1`, `Interior.to_json()`: seed, city, city_id (the settlement's `key`), building, kind, layout,
   district, household (as plan.json), high, floor_height, walls, storeys, rooms, openings, stairs, flats,
   features, warnings.
 - The bytes are the same in two processes with different PYTHONHASHSEED (tested, `slow`).
@@ -2663,7 +2696,7 @@ full about 5 s. Pieces per interior at lived-in: dar 91, compact 48, small 24, k
 
 ## 7. Style pack (`styles/<name>.toml`)
 
-`[names]` sounds and templates, `[lore]` eras and products, `[palette]` materials (color and
+`[names]` sounds and templates (with their `*_ar` twins and the feminine `descriptors_f`), `[lore]` eras and products, `[palette]` materials (color and
 optional `texture` + `texture_size`), `[textures]` generated-surface noise strengths, `[ground_tint]` the terrain `COLOR_0` tint,
 `[plinth]` the base material and height per district kind, `[impasse]` lane rules and, per
 district kind, width range, surface, `max_length`, `min_lot` and the covered share, `[streets]` curb height, minimum

@@ -13,6 +13,7 @@ import shapely
 
 from ..build import load_or_plan, select_area
 from ..buildkey import build_key
+from ..city import plan_city
 from ..city.dressing import Dresser
 from ..city.ground import Ground
 from ..city.life import HOUSING
@@ -85,6 +86,16 @@ def load_build(folder, log=print) -> BuildContext:
         log(f"warning: {STALE}")
     ctx.plans = [load_or_plan(world, s, folder / "cache", key[:12], False, log) for s in needed]
     return ctx
+
+
+def villa_town(world):
+    """The plan of the biggest town with villas, or None: tools and tests pick it by what it is, never by a name
+    or a number, which change with the world."""
+    for s in sorted((s for s in world.settlements if s.kind == "town"), key=lambda s: -s.population):
+        plan = plan_city(world, s)
+        if any(b.kind == "villa" for b in plan.buildings):
+            return plan
+    return None
 
 
 def city_plan(ctx: BuildContext, name: str | None = None):

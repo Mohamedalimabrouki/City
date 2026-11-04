@@ -101,8 +101,9 @@ Model: Sonnet | Effort: medium | Size: S | Needs: 81 | Look: sample
 
 **Do.** Extend `[canon]` in world files to pin district names, populations, landmark names,
 street names, family names of chosen buildings and district histories; the gazetteer marks
-pinned facts; `worlds/example.toml` shows each kind of pin. A pinned Latin name without an
-Arabic pin gets no `name_ar` (prompt 87 adds `[canon.names_ar]`).
+pinned facts; `worlds/example.toml` shows each kind of pin. Settlements are named by their
+generated name, never an id (SPEC 5, "Places, names and pins"); a pin that matches nothing warns.
+A pinned Latin name without an Arabic pin gets no `name_ar` (`[canon.names_ar]`).
 
 **Check.** Fingerprint: `--allow ""` on the default build (no pins). Test the pins with a
 temporary world file.

@@ -10,6 +10,7 @@ import numpy as np
 import shapely
 from shapely import STRtree
 from shapely.geometry import LineString, Point
+from shapely.ops import substring
 
 from ..city.geo import lines
 from ..city.parking import walk_widths
@@ -137,11 +138,11 @@ def street_graph(streets, grid: float) -> tuple:
     return nodes, edges
 
 
-def road_links(world, plan, nodes: list) -> list:
-    """Where each country road crosses the city limit, and the graph's nearest node to that point."""
+def road_links(world, plan, nodes: list, edges: list) -> list:
+    """Where each country road crosses the city limit, and the node where it joins the graph. A road that meets a
+    street in mid-block is a junction the plan does not hold: `nodes` and `edges` gain it."""
     if not nodes:
         return []
-    tree = STRtree([Point(p) for p in nodes])
     edge = plan.boundary.exterior
     out = []
     for r in world.roads:
@@ -151,10 +152,30 @@ def road_links(world, plan, nodes: list) -> list:
         hit = line.intersection(edge)
         for p in sorted((g for g in getattr(hit, "geoms", [hit]) if g.geom_type == "Point"),
                         key=lambda g: line.project(g)):
-            n = int(tree.nearest(p))
+            n = _road_node(plan.streets, nodes, edges, p)
             out.append({"road": r.id, "kind": r.kind, "width": r.width, "x": round(p.x, 2), "y": round(p.y, 2),
                         "node": n, "distance": round(p.distance(Point(nodes[n])), 2)})
     return out
+
+
+def _road_node(streets, nodes: list, edges: list, p) -> int:
+    """The node where a road reaching `p` joins the graph: the nearest one on the nearest edge's street, a junction
+    being as wide as its street; past that the edge is split under `p`, each part running the way it ran."""
+    e = int(STRtree([line for _k, line, _a, _b in edges]).nearest(p))
+    k, line, a, b = edges[e]
+    d = line.project(p)
+    q = line.interpolate(d)
+    xy = np.asarray(nodes)
+    off = np.hypot(xy[:, 0] - q.x, xy[:, 1] - q.y)
+    n = int(np.argmin(off))
+    if off[n] <= streets[k].width / 2:
+        return n
+    first, second = substring(line, 0.0, d), substring(line, d, line.length)
+    m = len(nodes)
+    nodes.append(first.coords[-1])
+    edges[e] = (k, first, a, m)
+    edges.append((k, LineString([nodes[m]] + list(second.coords)[1:]), m, b))
+    return m
 
 
 def node_tops(ground, xy, grid: float) -> np.ndarray:
@@ -173,6 +194,7 @@ def streets_json(world, plan, ground) -> dict:
     """The street graph of one city; z of a node is the drawn street top there."""
     grid = float(world.cfg["street_graph"]["grid"])
     nodes, edges = street_graph(plan.streets, grid)
+    roads = road_links(world, plan, nodes, edges)
     xy = np.asarray(nodes, dtype=np.float64).reshape(-1, 2)
     z = node_tops(ground, xy, grid)
     widths, _promoted, _parks = walk_widths(world.style, plan.districts, plan.streets, getattr(plan, "walks", []))
@@ -187,5 +209,5 @@ def streets_json(world, plan, ground) -> dict:
                    "surface": plan.streets[k].surface or "asphalt", "length": round(piece.length, 2),
                    "from": a, "to": b, "line": np.round(np.asarray(piece.coords), 2).tolist()}
                   for e, (k, piece, a, b) in enumerate(edges)],
-        "roads": road_links(world, plan, nodes),
+        "roads": roads,
     }

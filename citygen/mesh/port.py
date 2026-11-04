@@ -314,7 +314,7 @@ def armour_placements(tc, port, plan, tile) -> list:
         spots, heights = np.concatenate(spots), np.concatenate(heights)
         if not shapely.box(*tile.bounds).buffer(5.0).intersects(shapely.multipoints(spots)):
             continue
-        rng = stream(tc.world.seed, "port", plan.settlement.id, n, "armour")
+        rng = stream(tc.world.seed, "port", plan.settlement.key, n, "armour")
         draws = rng.random((len(spots), 6))
         for (x, y), z, r in zip(spots, heights, draws):
             x, y = x + (r[0] - 0.5) * 0.7, y + (r[1] - 0.5) * 0.7
@@ -431,7 +431,7 @@ def breakwater_meshes(mb: MeshBuilder, tc, port, plan, tile, light: bool = True)
             continue
         p, t, left = _frames(bw.line)
         m = len(p)
-        rng = stream(tc.world.seed, "port", plan.settlement.id, n, "rubble")
+        rng = stream(tc.world.seed, "port", plan.settlement.key, n, "rubble")
         rows = len(cfg["rows"])
         jit = rng.uniform(-1.0, 1.0, size=(m + heads + 1, 2, rows, 3))
         sea_v, harbor_v = left * bw.sea_side, -left * bw.sea_side

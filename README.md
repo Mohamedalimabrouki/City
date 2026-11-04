@@ -173,7 +173,10 @@ Ctrl+C continues where it stopped. Any change to a setting or to the code rebuil
 `--force` rebuilds everything anyway.
 
 **For stories:** once you have written about a place, pin its name in your world file under
-`[canon.names]` so it never changes, even if the generator gets new features.
+`[canon.names]`, for example `"Goumosbane" = "Carthage Nova"`: the key is the name the generator gave the place
+(`python -m citygen list` shows it), and that name stays with the place. The pin holds as long as the place
+exists, even if the generator gets new features; if a new feature ever removes the place, the build warns
+that the pin names nothing.
 
 ## Change how it looks
 

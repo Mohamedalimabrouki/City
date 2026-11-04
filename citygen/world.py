@@ -7,6 +7,7 @@ are built later, only where they are needed.
 from __future__ import annotations
 
 import math
+import warnings
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -17,7 +18,7 @@ from shapely.geometry import LineString
 
 from .config import load_style
 from .hydro import drainage
-from .names import NameMaker
+from .names import Name, NameMaker
 from .rng import stream
 from .terrain import BIOME_NAMES, Terrain, classify
 
@@ -40,9 +41,24 @@ class Settlement:
     biome: str
     known_for: list = field(default_factory=list)
     founded: str = ""
+    name_ar: str = ""   # the name in Arabic script ("" for a pinned name without an Arabic pin)
+    cell: int = -1      # its cell of the placement grid: with `kind`, what this place is
+    generated: str = ""  # the name the generator gave it, before any pin: the key of every [canon] table
+
+    @property
+    def key(self) -> int:
+        """What every random stream calls this place, so its plan follows the place and not its rank in the list
+        (`id` is only that rank): 0 for the capital, as it always was, else the grid cell + 1, so never 0."""
+        return 0 if self.kind == "capital" else self.cell + 1
+
+    @property
+    def label(self) -> Name:
+        """The name with its Arabic spelling, for templates such as "Kasbah of {s}"."""
+        return Name(self.name, self.name_ar)
 
     def to_json(self) -> dict:
-        return {"id": self.id, "name": self.name, "kind": self.kind,
+        return {"id": self.id, "name": self.name, **({"name_ar": self.name_ar} if self.name_ar else {}),
+                "kind": self.kind,
                 "x": round(self.x, 1), "y": round(self.y, 1), "population": self.population,
                 "radius": round(self.radius, 1), "elevation": round(self.elevation, 1),
                 "coastal": self.coastal, "biome": self.biome,
@@ -73,6 +89,7 @@ class World:
     roads: list
     rivers: list = field(default_factory=list)   # hydro.River (prompt 59)
     lakes: list = field(default_factory=list)    # hydro.Lake
+    name_ar: str = ""   # the country's name in Arabic script
 
     @property
     def size(self) -> float:
@@ -95,6 +112,7 @@ class World:
 
     def to_json(self) -> dict:
         return {"format": "citygen-world/1", "seed": self.seed, "name": self.name,
+                **({"name_ar": self.name_ar} if self.name_ar else {}),
                 "style": self.cfg["world"]["style"], "size": self.size,
                 "sea_direction": [round(v, 4) for v in self.terrain.sea_dir],
                 "settlements": [s.to_json() for s in self.settlements],
@@ -110,16 +128,14 @@ def generate_world(cfg: dict) -> World:
     rivers, lakes = drainage(terrain, cfg)
     settlements = _place_settlements(seed, cfg, style, terrain)
     namer = NameMaker(style, stream(seed, "names"))
-    name = cfg["world"].get("name") or namer.country()
-    for s in settlements:
-        s.name = namer.settlement(s.kind)
-    canon = cfg.get("canon", {}).get("names", {})
-    for sid, new_name in canon.items():
-        if int(sid) < len(settlements):
-            settlements[int(sid)].name = str(new_name)
+    name = namer.country()                         # always drawn: pinning the country's name renames no place
+    if cfg["world"].get("name"):
+        name = Name(cfg["world"]["name"], str(cfg["world"].get("name_ar", "")))
+    _name_settlements(seed, style, settlements, namer)
+    _pin_names(cfg.get("canon", {}), settlements)
     _add_lore(seed, style, settlements)
     roads = _build_roads(seed, cfg, terrain, settlements)
-    return World(seed, cfg, style, name, terrain, settlements, roads, rivers, lakes)
+    return World(seed, cfg, style, str(name), terrain, settlements, roads, rivers, lakes, name.ar)
 
 
 # --- settlements ----------------------------------------------------------------
@@ -144,6 +160,10 @@ def _place_settlements(seed: int, cfg: dict, style: dict, terrain: Terrain) -> l
     ok = land & (slope < 0.12) & (H < 1050) & (X > margin) & (X < size - margin)
     ok &= (Y > margin) & (Y < size - margin)
 
+    # No draw on this shared stream depends on how many candidates a kind tries, for any kind: it holds the jitter,
+    # the capital's and the cities' grids and the capital's one population draw. Towns and villages own their grids,
+    # and every place but the capital draws its population from its own cell. So a refused candidate moves no other
+    # kind, and a new rule or a new score (prompts 60, 61) changes no other place's size (SPEC 5, "Places").
     rng = stream(seed, "settlements")
     jitter = rng.uniform(-0.45, 0.45, size=(2, n, n)) * cell
     PX, PY = X + jitter[0], Y + jitter[1]
@@ -161,7 +181,8 @@ def _place_settlements(seed: int, cfg: dict, style: dict, terrain: Terrain) -> l
     taken = np.zeros((0, 4))  # x, y, radius, rank of placed settlements
     for kind in KINDS:
         kc = style["settlement"][kind]
-        score = base + rng.uniform(0.0, 0.1 if kind == "capital" else 0.7, size=H.shape)
+        grid = rng if kind in ("capital", "city") else stream(seed, "settlements", kind)
+        score = base + grid.uniform(0.0, 0.1 if kind == "capital" else 0.7, size=H.shape)
         if kind == "capital":
             # near the sea, but far enough back to leave room for a port quarter
             lo, hi = kc["population"]
@@ -174,14 +195,15 @@ def _place_settlements(seed: int, cfg: dict, style: dict, terrain: Terrain) -> l
         # so small places also appear inland instead of filling the coast only
         sharp = {"capital": 14.0, "city": 5.0, "town": 3.0, "village": 2.2}[kind]
         weight = np.where(ok, np.exp(sharp * (score - score[ok].max())), 0.0) if ok.any() else np.zeros_like(score)
-        keys = np.log(rng.random(score.shape)) / np.maximum(weight, 1e-300)
+        keys = np.log(grid.random(score.shape)) / np.maximum(weight, 1e-300)
+        capital_draw = _log_population(rng, kc) if kind == "capital" else None   # one, for every site it tries
         got = 0
         for flat in np.argsort(-keys, axis=None):
             if got >= counts[kind] or weight.flat[flat] <= 0.0:
                 break
             x, y = float(PX.flat[flat]), float(PY.flat[flat])
-            lo, hi = kc["population"]
-            pop = int(math.exp(rng.uniform(math.log(lo), math.log(hi))) * sc["population_scale"])
+            draw = capital_draw if kind == "capital" else _log_population(stream(seed, "settlements", kind, int(flat)), kc)
+            pop = int(math.exp(draw) * sc["population_scale"])
             radius = math.sqrt(pop / kc["density"] / math.pi) * 1000.0
             if _conflicts(x, y, radius, RANK[kind], taken, spacing[kind]):
                 continue
@@ -189,7 +211,7 @@ def _place_settlements(seed: int, cfg: dict, style: dict, terrain: Terrain) -> l
             if h < 2.0:
                 continue
             placed.append(Settlement(len(placed), "", kind, x, y, pop, radius, h,
-                                     bool(coast_d.flat[flat] < radius + 900.0), ""))
+                                     bool(coast_d.flat[flat] < radius + 900.0), "", cell=int(flat)))
             taken = np.vstack([taken, [x, y, radius, RANK[kind]]])
             got += 1
     for s in placed:
@@ -198,6 +220,11 @@ def _place_settlements(seed: int, cfg: dict, style: dict, terrain: Terrain) -> l
                      terrain.moisture(np.array([s.x]), np.array([s.y])))
         s.biome = BIOME_NAMES[int(b[0])]
     return placed
+
+
+def _log_population(rng: np.random.Generator, kc: dict) -> float:
+    lo, hi = kc["population"]
+    return rng.uniform(math.log(lo), math.log(hi))
 
 
 def _conflicts(x, y, radius, rank, taken: np.ndarray, spacing) -> bool:
@@ -209,12 +236,56 @@ def _conflicts(x, y, radius, rank, taken: np.ndarray, spacing) -> bool:
     return bool(np.any((taken[:, 3] <= rank) & (d < spacing)))
 
 
+def _name_settlements(seed: int, style: dict, settlements: list, namer: NameMaker) -> None:
+    """Names follow the place: the capital takes the next draw of `namer` (the world's own stream, after the
+    country), every other place draws on its own stream, by kind and grid cell, so no other place can change it."""
+    for s in settlements:
+        made = namer.settlement(s.kind) if s.kind == "capital" else _fresh_name(seed, style, s, namer.used)
+        s.name, s.name_ar, s.generated = str(made), made.ar, str(made)
+
+
+def _fresh_name(seed: int, style: dict, s: Settlement, used: set) -> Name:
+    """The name of place `s`, whose core no other place of the world has. A core already in `used` redraws on
+    the same place's stream number k, so the redraw depends on the clash alone."""
+    for k in range(200):
+        maker = NameMaker(style, stream(seed, "names", s.kind, s.cell, *((k,) if k else ())))
+        made = maker.settlement(s.kind)
+        if not maker.used & used:
+            break
+    used |= maker.used
+    return made
+
+
+def _pin_names(canon: dict, settlements: list) -> None:
+    """[canon.names] and [canon.names_ar]: a pin's key is the name the generator gave the place, which stays with
+    the place. A pinned Latin name has no Arabic unless [canon.names_ar] gives one; a key that names no place warns."""
+    places = {s.generated: s for s in settlements}
+
+    def place(table: str, key: str):
+        if key not in places:
+            warnings.warn(f"[canon.{table}] {key!r} names no settlement of this world (a pin's key is the name "
+                          "the generator gave the place: see `python -m citygen list` without the pin)")
+        return places.get(key)
+    for key, new_name in canon.get("names", {}).items():
+        s = place("names", key)
+        if s is not None:
+            s.name, s.name_ar = str(new_name), ""
+    for key, new_ar in canon.get("names_ar", {}).items():
+        s = place("names_ar", key)
+        if s is not None:
+            s.name_ar = str(new_ar)
+    for key in canon.get("histories", {}):
+        place("histories", key)
+
+
 def _add_lore(seed: int, style: dict, settlements: list) -> None:
+    """What a place is known for and when it was founded, on its own stream (the capital: the first draws of the
+    world's stream, as ever)."""
     lore = style.get("lore", {})
     eras = lore.get("eras", [])
     products = lore.get("products", {})
-    rng = stream(seed, "lore")
     for s in settlements:
+        rng = stream(seed, "lore", *((s.key,) if s.key else ()))
         pool = []
         if s.coastal:
             pool += products.get("coast", [])

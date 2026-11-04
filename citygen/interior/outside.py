@@ -45,7 +45,7 @@ class Outside:
         size = int(world.cfg["tiles"]["size"])
         cx, cy = shapely.get_coordinates(shapely.centroid(b.footprint))[0]
         self.tile = (int(cx // size), int(cy // size))       # the tile owning k, as build_tile picks it
-        self.roofs = roof_layouts(b, self.district, roof_stream(world.seed, plan.settlement.id, k),
+        self.roofs = roof_layouts(b, self.district, roof_stream(world.seed, plan.settlement.key, k),
                                   world.style.get("roofs", {}))
         dresser.keep_roof(k, self.roofs)
         placements = dresser.building(k, self.high)
