@@ -1,0 +1,1 @@
+- 3 November (fix-81): applied review-81 findings 3, 4 and 8: singular `fact.gate` / two-gate `fact.gates_all` and `fact.shrine`; eras worded by `[history] era_in` / `era_since` ("in the Caravan Age", "under the Protectorate", "since ..."), no more "in the time of"; `pytest -k histor` 1 passed. Other review-81 findings (1, 2, 5-7, 9-12) not done.

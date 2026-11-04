@@ -96,6 +96,7 @@ build.build()                 orchestrates the above into output/<country>-<seed
 | `citygen/noise.py` | Perlin and fractal noise, smoothstep |
 | `citygen/terrain.py` | height, moisture, slope, biome classes |
 | `citygen/names.py` | invented names from the style's sounds |
+| `citygen/hydro.py` | `River`, `Lake`: drainage from the terrain (priority flood, lakes round by round, flow, river lines and beds; prompt 59) |
 | `citygen/world.py` | `World`, `Settlement`, `Road`; placement and road routing (Dijkstra on a cost grid) |
 | `citygen/city/*.py` | the city planner (see pipeline) |
 | `citygen/mesh/builder.py` | mesh primitives: extrude, walls, caps, domes, hip roofs, ribbons, trees |
@@ -134,11 +135,13 @@ build.build()                 orchestrates the above into output/<country>-<seed
 | `citygen/city/terraces.py` | seaside cafe terraces (prompt 37): `Terraces` (cafes facing the sea, rows across the road, kiosk cafes by the railing), made by `Seafront` |
 | `citygen/city/moorings.py` | boats, cranes and cargo (prompt 35): `plan_props` fills `CityPlan.props`; `box` (a prop's plan envelope), `land_zone` (where props stand on land) |
 | `citygen/city/station.py` | the railway station (prompt 33): site at the colonial edge, track layout and corridor, street and walk clipping, buildings and name, its camera view |
+| `citygen/city/history.py` | district histories (prompt 81): `histories` fills `District.history` last in `plan_city` |
 | `citygen/city/massing.py` | building massing (prompt 23): the planning step, `masses(b)` (the volumes drawn and dressed), `floors_at`/`wall_height` (floors and wall height at a point of the outer wall), `outline`, `inner_walls`, `terrace_walls` |
 | `citygen/kitsheet.py` | `python -m citygen kit-sheet`: every piece in one viewable grid |
 | `citygen/interior/` | interiors on demand (prompt 45 on, SPEC 6c): `context.py` (the city from a build folder, `layout_of`, `resolve`), `outside.py` (the facade bridge), `model.py`, `layout.py`, `cuts.py` (frames, `free_cut`, `absorb`), `rooms.py` (doors, `assign`, `check`), `stairs.py`, `dar.py` (courtyard houses, the ring of bands), `compact.py` (houses without a courtyard, small houses), `program.py` (room programs and their checks), `shop.py` (hanout, makhzen, qahwa), `spine.py` (the hall-couloir engine of modern homes), `villa.py` (villas, maisons), `koubba.py` (domed houses), `flats.py` (colonial blocks, slabs), `mesh.py` (walls with holes, door frames and leaves, prompt 48), `export.py` (the viewable folder), `command.py` (`python -m citygen interior`); left out of the build key |
 | `citygen/export/maps.py` | country and city PNG maps |
 | `citygen/export/lore.py` | JSON data files and the gazetteer |
+| `citygen/export/streets.py` | the street graph for games, `streets.json` (prompt 70) |
 | `citygen/build.py` | area selection and the full build |
 | `citygen/view.py`, `tools/` | browser viewer, snapshot, Blender import |
 
@@ -164,6 +167,56 @@ block on `rng("impasse", block)`: lot line jitter, widths, covered share and len
 - `Settlement(id, name, kind, x, y, population, radius, elevation, coastal, biome, known_for, founded)`;
   kinds: `capital`, `city`, `town`, `village`. Ids are stable for a given seed and settings.
 - `Road(id, kind, width, coords, ends)`; kinds `national`, `regional`, `local`.
+- `World.rivers` and `World.lakes` (prompt 59, `citygen/hydro.py`, `[rivers]`, a pure function of the
+  terrain, computed right after it in `generate_world`, no randomness). On a grid of `cell` m (150) a
+  priority flood (Barnes et al. 2014, epsilon gradient 1e-4 m) runs inward from the sea and the map
+  border; each land cell drains to the cell the flood reached it from, so every cell drains, even on
+  filled flats. A filled basin (8-connected cells the flood fills deeper than `basin_depth`, 1 cm) is
+  considered for a lake only if deeper than `lake_min_depth` (3 m) and larger than `lake_min_area` (0.5
+  km2). Water cannot drain out of a hollow, so a basin of wet country is a fresh lake up to its spill, and
+  its river goes on from the outlet. A basin whose lowest cell is steppe or desert always stays closed
+  (Ali, 4 November): a salt lake of `lake_area_per_flow` (0.04) km2 per km2 of rain-weighted inflow, never
+  under `lake_min_area`, however little water reaches it; the rest of the basin is re-flooded from the lake
+  so every cell of it drains in, and rivers end there (prompt 65 turns them into chotts). A closed basin no
+  river ends in stays closed but gets no lake (`hydro._drawn`): a salt flat needs water to come to it, and
+  those 49 of 87 (seed 42, mostly of the smallest size) only speckled the dry country. Lakes are found in
+  rounds, each on the flow and heights the last one left, until a round adds no lake: water cannot climb an
+  inner rim, so a hollow left in a closed basin that meets the same two thresholds is a basin of its own, salt
+  or fresh by the biome at its own bottom (a fresh one fills to its spill and runs on into the lake below).
+  A smaller hollow drains into its basin's lake, so no river ends where no shore is drawn. A lake is the
+  4-connected water around its basin's lowest cell, at the lowest level that covers its cells, so its shore is
+  one ring. Its inflow is that of its whole basin in the round it is found, although pockets found later
+  keep theirs: a great chott stays the floor of its whole basin (counting only what still reaches it turns
+  every salt lake into a small patch: 88 -> 49 km2 of salt on the 64 km world, and a loop more). Flow: catchment area weighted by rain, `dry_weight + (1 - dry_weight) x
+  moisture` (0.15: desert storms still feed oueds); a river where it passes `min_flow` (3 km2). Rivers run
+  from a source to the sea, a lake, a basin, the map border or the river they join (the upstream branch
+  with more flow carries the name downstream); streams under `min_points` cells with no tributary are left
+  out. `River(id, coords, widths, flow, seasonal, profile, mouth, into)`: ids by flow at the mouth, biggest
+  first; `coords` the D8 path rounded (two 3-point moving averages, two Chaikin cuts, ends fixed; a
+  tributary's end snapped onto its main river's line); `widths` `width_k x sqrt(flow)` clipped to
+  `width_min..width_max` (oueds x `oued_scale`); `flow` km2 at the mouth; `seasonal` when the catchment's
+  mean moisture is under `seasonal_moisture` (an oued); `profile` the bed height per point, the highest bed
+  that never rises downstream, never lies above the ground under the drawn line and lets every tributary end
+  exactly on its main river's bed: the running minimum of the ground along the line, worked out tributaries
+  first, each tributary's end carried into its main river. Prompt 59 first asked for the filled height, but
+  that flies over every hollow a river crosses (up to 55 m on the 64 km world) and prompt 60 can only cut
+  the ground, never lift it; so a river crossing a pit too small for a lake goes down to its floor and cuts
+  through the rim, and its main river stays under it from their junction on (64 km world, seed 42: 10.3 m at
+  worst). Over a lake the bed is the lake's level (a fresh lake's outlet starts there), or a salt lake's
+  floor. `mouth` `sea` | `lake` | `basin` | `border` | `river`, `into` the lake or
+  river id. `Lake(id, polygon, level, salt)`: the shore ring where the ground meets `level`.
+- `District.history` (prompt 81, `citygen/city/history.py`, `[history]` in the style): two to four sentences for
+  stories, built last in `plan_city` from the finished plan, so nothing else moves: an origin, up to `facts` (2)
+  facts the map holds (gates, kasbah, boulevard landmarks, station, a neighborhood mosque, souks, a cemetery's
+  shrines, quays and lighthouse, the harbor's trade, the households' top trades; drawn by `fact_weights`) and a
+  "today" sentence when fewer than `min_sentences` (3) came. Eras come from `[lore] eras`, never before the
+  city's founding, worded by `era_in` and `era_since`. All words live in `[history]`, none in the code. Each
+  choice has its own stream, `ctx.rng("history", district id, what)` (`origin`, `facts`, `today`, `fact.<key>`
+  for a list template), so editing one list changes no other sentence. A landmark belongs to the district it
+  lies in, else to the first within `inside_m` (1 m: a gate on the wall line). In a world file,
+  `[canon.histories."<city>"] "<district>" = "..."` replaces a text; unlike `[canon.names]`, which is keyed by
+  settlement id, it is keyed by names (prompt 84 settles one keying), and a district the city does not have
+  gives a warning.
 - `CityPlan`: `boundary`, `land` (with the quay aprons since prompt 34), `medina`, `districts`, `streets`, `blocks`, `parcels`,
   `buildings`, `trees`, `landmarks`, `walks`, `households`, `souks`, `paint`, `stats`, `station`
   (a `city.station.Station` or None: `facade`, `tracks`, `precinct`, `corridor`, `district`, `core`), `port`
@@ -527,17 +580,42 @@ the sea, the railing along the sea edge, no paint or parked car on it; everythin
 
 | File | Content |
 |---|---|
-| `world.json` | `citygen-world/1`: seed, name, size, settlements, roads (coords in meters) |
-| `cities/<name>/plan.json` | `citygen-city/1`: districts, streets, buildings, trees, landmarks, households, souks, and `rail` (track center lines, corridor) when the city has a station, `port` (quay edges and aprons,
+| `world.json` | `citygen-world/1`: seed, name, size, settlements, roads (coords in meters), `rivers` (`id`, `coords`, `widths`, `flow`, `seasonal`, `profile`, `mouth`, `into`) and `lakes` (`id`, `polygon`, `level`, `salt`) (prompt 59) |
+| `cities/<name>/plan.json` | `citygen-city/1`: districts (`history` since prompt 81), streets, buildings, trees, landmarks, households, souks, and `rail` (track center lines, corridor) when the city has a station, `port` (quay edges and aprons,
 breakwater lines, basins, lighthouses) when it has a harbor, `props` (`kind`, `x`, `y`, `yaw`, `scale`, `on`: boats, cranes, rails, cargo; empty without a harbor); GeoJSON-style geometry in world meters |
-| `gazetteer.md` | readable guide for stories |
-| `maps/country.png`, `maps/<city>.png` | 2D maps, north up |
+| `cities/<name>/streets.json` | `citygen-streets/1`: the street graph for games (prompt 70, see "Street graph" below) |
+| `gazetteer.md` | readable guide for stories; each planned city lists its district histories (prompt 81) |
+| `maps/country.png`, `maps/<city>.png` | 2D maps, north up; the country map draws lakes (salt ones pale), rivers wider by flow and oueds in a greyer blue (prompt 59) |
 | `tiles/tile_<i>_<j>.glb` | 3D tile covering x `i*512..(i+1)*512`, y `j*512..(j+1)*512` |
 | `tiles/tile_<i>_<j>_lod1.glb` | the same tile for distant views (prompt 40): merged blocks, low-poly landmarks, 32 m terrain, flat colors |
 | `tiles/textures/*.png` | base-color images shared by the tiles (`[tiles] textures = "shared"`, the default) |
 | `tiles/index.json` | `citygen-tiles/1`: tile list (bytes, unique and drawn triangles, dressing pieces, `lod1`: file, bytes, triangles; `files`: shared textures and the lod1 file), `"parapets": true` when the tiles carry their own roof parapets, `focus` point, camera `views` (street, souk, and cathedral, theatre, station, port and corniche when the city has them), `cities` (name, plan file, bounds) |
 | `summary.json` | counts and timings (read this instead of big files); `settings`: the merged settings of the build (prompt 45), from which `interior` rebuilds world and plans |
 | `interiors/<city>-<k>/` | made on demand by `python -m citygen interior` (SPEC 6c "Output"), never by a build: `tiles/interior.glb`, `tiles/index.json`, `rooms.json`; `tools/fingerprint.py` skips the folder |
+
+**Street graph (prompt 70, `citygen/export/streets.py`):** `cities/<name>/streets.json` is the
+graph of the city's streets, written with `plan.json`. `nodes`: `id`, `x`, `y`, `z` (the drawn street
+top there, `Ground.surface`; a street's end that the grid leaves a few cm past its ribbon takes that
+ribbon's top), `degree` (1 = dead end; 2 only where two different streets meet end to end, for example
+a connector joining a boulevard, or at the start of a closed street). `edges`: `id`, `street` (index in
+`plan.json` `streets`), `kind`, `width` (the whole street ribbon, sidewalks included: the carriageway
+is `width` minus both sidewalks), `sidewalks` ([left, right]: the widest sidewalk on each side of the
+street, measured with `city/parking.walk_widths` like the paint does, but for every street kind; 0
+where there is none; left is left of the edge's direction), `surface` (palette material), `length` (meters, of
+`line`), `from`, `to` (node ids) and `line` (the center line from `from` to `to`, running the way its
+street runs). `roads`: one link per point where a country road (`world.json` roads) crosses the city
+limit: `road` (its id), `kind`, `width`, `x`, `y` (the crossing) and `node` (the nearest node,
+`distance` meters away, about where the planner's connector street starts). Built by noding every center
+line on a 5 cm grid (`[street_graph] grid` in defaults.toml; `shapely.set_precision`, then `unary_union(grid_size=...)`): plain `unary_union`
+misses junctions where grid streets end on district borders only up to rounding. A piece lying on
+several streets (a grid street left under a boulevard) belongs to the widest. A street that stops on the
+surface of another, short of its center line (every impasse's mouth, prompt 20.2; some alleys and
+connectors), gets a stub from the nearest point of that center line, which also becomes a vertex of that
+street (even for an end on the line itself, with no stub), so both snap to one node; the edge's `length`
+includes the stub. Pieces of one street meeting where nothing else does
+are joined. The largest connected part holds at least 99.5% of the street length (tested; the quick
+capital is one part). A part stays apart only where the ribbons really do not meet (or two alleys overlap
+side by side with no end on the other): the graph never invents a street the map does not draw.
 
 **.glb conventions:** one root node per tile with `translation = [x0, 0, -y0]`; vertices are
 local to it. One primitive per material; material names are palette names from the style pack

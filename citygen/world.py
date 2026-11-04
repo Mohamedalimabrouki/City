@@ -16,6 +16,7 @@ from scipy.sparse.csgraph import dijkstra
 from shapely.geometry import LineString
 
 from .config import load_style
+from .hydro import drainage
 from .names import NameMaker
 from .rng import stream
 from .terrain import BIOME_NAMES, Terrain, classify
@@ -70,6 +71,8 @@ class World:
     terrain: Terrain
     settlements: list
     roads: list
+    rivers: list = field(default_factory=list)   # hydro.River (prompt 59)
+    lakes: list = field(default_factory=list)    # hydro.Lake
 
     @property
     def size(self) -> float:
@@ -95,13 +98,16 @@ class World:
                 "style": self.cfg["world"]["style"], "size": self.size,
                 "sea_direction": [round(v, 4) for v in self.terrain.sea_dir],
                 "settlements": [s.to_json() for s in self.settlements],
-                "roads": [r.to_json() for r in self.roads]}
+                "roads": [r.to_json() for r in self.roads],
+                "rivers": [r.to_json() for r in self.rivers],
+                "lakes": [k.to_json() for k in self.lakes]}
 
 
 def generate_world(cfg: dict) -> World:
     seed = int(cfg["world"]["seed"])
     style = load_style(cfg["world"]["style"])
     terrain = Terrain(seed, cfg)
+    rivers, lakes = drainage(terrain, cfg)
     settlements = _place_settlements(seed, cfg, style, terrain)
     namer = NameMaker(style, stream(seed, "names"))
     name = cfg["world"].get("name") or namer.country()
@@ -113,7 +119,7 @@ def generate_world(cfg: dict) -> World:
             settlements[int(sid)].name = str(new_name)
     _add_lore(seed, style, settlements)
     roads = _build_roads(seed, cfg, terrain, settlements)
-    return World(seed, cfg, style, name, terrain, settlements, roads)
+    return World(seed, cfg, style, name, terrain, settlements, roads, rivers, lakes)
 
 
 # --- settlements ----------------------------------------------------------------

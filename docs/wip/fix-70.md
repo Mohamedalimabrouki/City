@@ -1,0 +1,1 @@
+- 3 Nov, fix-70: review-70 Medium 1 and 2 applied: slow test `test_streets_json_two_processes` (PYTHONHASHSEED 1 and 2, bytes equal) and `GRID` moved to defaults.toml `[streets] graph_grid = 0.05` (threaded through center_lines/noded/street_graph; SPEC 6 notes it). `pytest -q -k street` 15 passed; slow streets_json 2 passed. Data-file key may change (new cfg section).
