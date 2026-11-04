@@ -77,16 +77,18 @@ runs on the jittered point after the draw. 6 box focus name: said in `focus_xy`'
 
 ## 5. Gates: the numbers
 
-Unless a line says otherwise: world and plan numbers at commit 3351f25 (the frozen copy all gates ran on). The commits after it only keep drawn quay tops level (one tile of the quick
-build differs) and stop a river's line at the shore on a city map; the check is in 5.2.
+Which code each number comes from: the world and plan gates ran at 3351f25 (the frozen copy). The commits after it keep drawn quay tops level (one tile of the quick build differs), stop a river's
+line at the shore on a city map, move numbers into the settings (fingerprint: 0 changed) and fix tests; the checks are in 5.2. Main moved while I worked (facades, eb25c71): it is merged into the branch at
+94c80f5. Facades touch windows, balconies and interiors, not the ground, the rivers or the plans' streets: tests, quick fingerprint and the interior survey ran again on the merge.
+The last two code commits (c5682c4, ee6ec20) only change `plan.crossings`, never streets, lots or tiles (quick fingerprint: 301 parts, 0 changed): the world table 5.3 ran at c5682c4, the plan table 5.4, the street survey 5.9 and the slow tests at ee6ec20.
 
 ### 5.1 Tests
 
-`pytest -q` on 9839339: 256 passed, 26 deselected. `pytest -m slow`: PROVISIONAL, still running on a frozen copy of 9839339 (`/tmp/claude-501/va_tree6`, log `/tmp/claude-501/va_tmp/slow6.log`).
+`pytest -q` on ee6ec20: 262 passed, 27 deselected. `pytest -m slow`: 25 passed, 2 xfailed on c5682c4 (both xfails are main's own, open item 47.1 and the furnishing share). PROVISIONAL: the slow run on ee6ec20 is still going (`/tmp/claude-501/va_tmp/slow9.log`); the two slow street tests already passed there.
 
 ### 5.2 Builds and fingerprints
 
-- `build --quick --force` finishes. Against main f4581c1, allow list `world,gazetteer,plan/*,tiles/*,maps/*,files/*`: 284 parts, 34 changed, all inside the list (no `kit/*`).
+- `build --quick --force` finishes. Against main f4581c1, allow list `world,gazetteer,plan/*,tiles/*,maps/*,files/*`: 284 parts, 34 changed, all inside the list. The merge against main eb25c71, same list: 301 parts, 34 changed, all inside the list (no `kit/*`).
 - Two hash seeds (`PYTHONHASHSEED=1` and `2`, frozen copy): 284 parts, 0 changed.
 - A second `build --quick` with nothing changed reuses everything: 1.8 s real.
 - Final commit against the frozen copy: 284 parts, 4 changed: `tiles/tile_12_22.glb` and its lod1, `tiles/index`, `maps/goumosbane.png` (what those two commits do).
@@ -106,12 +108,12 @@ In a box the changed parts are tiles and data; `kit/*` never changes.
 
 | world | country s | rivers (dry) | km | lakes (salt) | roads km | road in a lake | river crossings, longest m | over 60 m | town or village center on water | water rises | step at mouth or junction m | bank over water: min, p1, p50, p99, max | under water of ~57k |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| quick 42 | 0.17 | 10 (2) | 35 | 2 (2) | 58 | 0 | 4, 17.2 | 0 | 0 | 0.0 | 0.0 | 0.101, 0.211, 0.281, 0.7, 0.81 | 0 of 4799 |
+| quick 42 | 0.16 | 10 (2) | 35 | 2 (2) | 58 | 0 | 4, 17.2 | 0 | 0 | 0.0 | 0.0 | 0.101, 0.211, 0.281, 0.7, 0.81 | 0 of 4799 |
 | quick 7 | 0.16 | 10 (4) | 26 | 4 (4) | 81 | 0 | 4, 15.3 | 0 | 0 | 0.0 | 0.0 | 0.096, 0.212, 0.274, 0.629, 0.724 | 0 of 3595 |
 | quick 3 | 0.16 | 8 (1) | 37 | 1 (1) | 82 | 0 | 6, 22.8 | 0 | 0 | 0.0 | 0.0 | 0.097, 0.224, 0.291, 0.7, 0.718 | 0 of 6054 |
-| full 42 | 2.36 | 148 (63) | 429 | 66 (38) | 905 | 0 | 51, 33.3 | 0 | 0 | 0.0 | 0.0 | -0.404, 0.216, 0.282, 0.7, 2.58 | 2 of 55277 |
-| full 7 | 2.46 | 133 (48) | 422 | 68 (35) | 854 | 0 | 46, 51.0 | 0 | 0 | 0.0 | 0.0 | -0.041, 0.212, 0.284, 0.7, 1.405 | 2 of 57408 |
-| full 3 | 2.45 | 135 (51) | 429 | 61 (33) | 859 | 0 | 60, 28.6 | 0 | 0 | 0.0 | 0.0 | 0.088, 0.22, 0.288, 0.7, 1.072 | 0 of 57258 |
+| full 42 | 2.41 | 148 (63) | 429 | 66 (38) | 905 | 0 | 51, 33.3 | 0 | 0 | 0.0 | 0.0 | -0.404, 0.216, 0.282, 0.7, 2.58 | 2 of 55277 |
+| full 7 | 2.35 | 133 (48) | 422 | 68 (35) | 854 | 0 | 46, 51.0 | 0 | 0 | 0.0 | 0.0 | -0.041, 0.212, 0.284, 0.7, 1.405 | 2 of 57408 |
+| full 3 | 2.36 | 135 (51) | 429 | 61 (33) | 859 | 0 | 60, 28.6 | 0 | 0 | 0.0 | 0.0 | 0.088, 0.22, 0.288, 0.7, 1.072 | 0 of 57258 |
 
 How to read: "bank over water" is the height of the ground at the bank's top over the water beside it, 5 numbers: min, 1%, median, 99%, max, in meters. The low cases on the 64 km
 worlds are 2 samples in 55,000 and 2 in 57,000, at most 40 cm. "Step" is the drawn step in water height at a ribbon's end: at the sea, a lake or an outlet 0; a separate probe of the junctions
@@ -121,12 +123,12 @@ worlds are 2 samples in 55,000 and 2 in 57,000, at most 40 cm. "Step" is the dra
 
 | world | settlements | crashes | with a river | buildings in the corridor | street surface in it m2 | crossings | stations | ports | under 99.5% as streets are | with crossings as links |
 |---|---|---|---|---|---|---|---|---|---|---|
-| quick 42 | 14 | 0 | 2 | 0 | 0.0 | 4 | 2 | 1 | 1 | 0 |
+| quick 42 | 14 | 0 | 2 | 0 | 0.0 | 1 | 2 | 1 | 1 | 0 |
 | quick 7 | 14 | 0 | 1 | 0 | 0.0 | 4 | 2 | 2 | 1 | 0 |
-| quick 3 | 14 | 0 | 3 | 0 | 0.0 | 9 | 1 | 0 | 2 | 1 |
-| full 42 | 131 | 0 | 33 | 0 | 64.0 | 55 | 8 | 3 | 12 | 4 |
-| full 7 | 131 | 0 | 21 | 0 | 31.5 | 67 | 8 | 5 | 11 | 3 |
-| full 3 | 131 | 0 | 28 | 0 | 27.5 | 95 | 8 | 5 | 12 | 2 |
+| quick 3 | 14 | 0 | 3 | 0 | 0.0 | 6 | 1 | 0 | 2 | 1 |
+| full 42 | 131 | 0 | 33 | 0 | 64.0 | 42 | 8 | 3 | 12 | 4 |
+| full 7 | 131 | 0 | 21 | 0 | 31.5 | 57 | 8 | 5 | 11 | 3 |
+| full 3 | 131 | 0 | 28 | 0 | 27.5 | 76 | 8 | 5 | 12 | 4 |
 
 "Street surface in the corridor" is the corner of a street's end where a crossing starts (64 m2 in all of 131 settlements at worst). All capitals and cities keep their old town and station; all river
 towns keep an old town.
@@ -150,15 +152,66 @@ the segments, up to 4.5 m at the worst. No river runs under another lake's level
 
 ### 5.7 Times
 
-PROVISIONAL, measured before the last width and wall changes: country 1.3 to about 2.4 s (under 10 s). Every 6th tile of the 64 km world, no plans: 18.0 to 20.4 ms a tile (+13.5%), 67.6 to 71.6 MB, 3.62 to 3.84 M triangles. Box builds real seconds: mid 7.67 to 9.55, city 45.41 to 45.33, lakecity 37.46 to 35.71. Capital 109.96 to 121.05 s (the second with other work running: to measure again on an idle machine). Quick: 12.42 to 12.4 MB, 373,028 to 371,348 triangles, 8.72 to 7.8 s.
+Idle machine, one build at a time, main eb25c71 against the merge 94c80f5 (`va_time3.sh`, final):
+
+| what | main | here | change |
+|---|---|---|---|
+| country step, 64 km | 1.34 s | 2.29 s | bar 10 s |
+| a terrain tile, every 6th of the 64 km world, no plans, 2 rounds | 18.4 ms | 20.7 ms | +12.6%, bar +20% |
+| those tiles, size | 67.6 MB, 3.62 M triangles | 70.8 MB, 3.78 M triangles | +4.7% |
+| capital of the 64 km world, 168 tiles | 104.5 s, 204.1 MB | 104.4 s, 201.8 MB | same |
+| quick | 7.05 s, 12.8 MB, 381,441 triangles, lod1 0.43 MB | 7.3 s, 12.8 MB, 380,213 triangles, lod1 0.44 MB | budget holds |
+
+Box builds (frozen 3351f25, against f4581c1, not idle), real seconds: mid 7.67 to 9.55, city 45.41 to 45.33, lakecity 37.46 to 35.71. The carve costs on open country and vanishes in a city, whose time is the buildings.
 
 ### 5.8 Interior survey
 
-PROVISIONAL: the survey of the new tree is still running (`/tmp/claude-501/va_tmp/final.log`). Base rates: quick capital dar 165/166, compact 266/268, small 74/78, koubba 25/27, colonial 7/271, slab 237/340, shop 125/136; `--city villas` small 15/17, koubba 4/4, villa 136/150, maison 386/503, shop 40/49.
+Main eb25c71 against the merge 94c80f5, pass counts (`tools/interior_survey.py`, final):
+
+| group | quick capital, main | here | villa town Takobka, main | here |
+|---|---|---|---|---|
+| dar | 165/166 | 149/159 | 44/44 | 35/37 |
+| compact | 266/268 | 263/268 | 66/66 | 82/82 |
+| small | 74/78 | 86/88 | 15/17 | 20/22 |
+| koubba | 25/27 | 25/26 | 4/4 | 1/2 |
+| colonial | 10/271 | 12/278 | | |
+| slab | 274/340 | 261/345 | | |
+| villa | | | 136/150 | 124/137 |
+| maison | | | 386/503 | 386/499 |
+| shop | 125/136 | 122/137 | 40/49 | 41/46 |
+
+No crash on either. (One colonial crash, a GEOSException on No. 884, showed on this branch before the merge; main's bayplan fix 86f2fb0 took it away.)
+
+**Why dars fall from 165/166 to 149/159 on the quick capital: a fresh deal, and 165/166 was one deal.** The river only touches the south edge of that city, but the national road now runs 1788 m inside it (1228 m on main), the old town's gates move, its alleys and every later lot are dealt anew: 21 of 1645 buildings keep their footprint. The evidence over six other worlds, quick, f4581c1 against the branch before the merge (`va_seeds.sh`):
+
+| seed | dar base | dar here | compact base | compact here | small base | small here |
+|---|---|---|---|---|---|---|
+| 7 | 307/314 97.8% | 283/306 92.5% | 420/431 97.4% | 443/453 97.8% | 165/176 93.8% | 178/186 95.7% |
+| 3 | 231/247 93.5% | 201/215 93.5% | 307/316 97.2% | 278/282 98.6% | 160/168 95.2% | 109/126 86.5% |
+| 1 | 264/277 95.3% | 257/272 94.5% | 409/418 97.8% | 429/441 97.3% | 144/159 90.6% | 154/165 93.3% |
+| 5 | 232/244 95.1% | 224/237 94.5% | 346/357 96.9% | 353/360 98.1% | 142/153 92.8% | 142/155 91.6% |
+| 2 | 229/244 93.9% | 225/239 94.1% | 319/330 96.7% | 332/344 96.5% | 127/134 94.8% | 149/159 93.7% |
+| 8 | 217/228 95.2% | 193/200 96.5% | 265/280 94.6% | 297/305 97.4% | 126/132 95.5% | 126/134 94.0% |
+| all six | 1480/1554 95.2% | 1383/1469 94.1% | 2066/2132 96.9% | 2132/2185 97.6% | 864/922 93.7% | 858/925 92.8% |
+
+So the base code itself passes about 95% of its dars on a world it was not tuned on; here 94%, within what the deal moves (seed 7 lost 5 points, seed 8 gained 1). Same fault kinds on both: inner doors overlapping or out of their partition, walls crossing doors. f4581c1 had 3 dar crashes on these six worlds, before main's bayplan fix; here none.
+
+**Do rivers cause the failures? Not visibly.** The failing dars stand where all dars stand (`va_failnear.py`): none within 100 m of a river on seeds 7 and 2; on seed 3, 5 of the 14 failing dars against 42 of all 215: a little more than chance would give, on small numbers. I would look there first if the interiors step wants a cause.
+
+**Slabs** 274/340 (80.6%) to 261/345 (75.7%): the same deal effect, and that one deal was high: on seed 7 main eb25c71 passes 190/326 (58.3%), the merge 167/296 (56.4%). Seeds 3, 1 and 5 have no slabs in their quick capital. Open item 47.1 either way, like the colonials.
+
+**Furnishing share** (slow test, bar 2%): 1.71% on f4581c1, 2.29% on main (its xfail, gable windows), 2.19% here.
 
 ### 5.9 Street survey
 
-64 km, as streets are: base 122 settlements in one part and 4 under 99.5% (Zaouiet Noudel, Douar Koghka, Ain Chigba, Zouknane el Melh); new 116 in one part and 12 under; with the crossings as links 3 under (Zaouiet Noudel 88.54, Douar Koghka 94.26, Ksar Saba 97.90): the two villages are old gaps, Ksar Saba has small old-town alley parts. Quick base: 11 of 11 in one part, 0 under. PROVISIONAL for the new quick survey: still running.
+`tools/street_survey.py` (final code, c5682c4):
+
+| world | main | here, as streets are | here, crossings as links |
+|---|---|---|---|
+| quick 42 | 11 of 11 in one part, 0 under 99.5% | 10 of 11 in one part, 1 under | 0 under |
+| 64 km 42 | 122 of 131 in one part, 4 under | 116 of 131 in one part, 12 under | 3 under |
+
+The 3: Zaouiet Noudel 88.54 and Douar Koghka 94.26, villages that are old gaps and under on main too; Ksar Saba 97.46, small old-town alley parts. The other 2 under on main, Ain Chigba and Zouknane el Melh, are in one part here. Lowest as streets are: towns Tikmine 55.33% and Bordj Zasakel 56.85%, city Tazoubka 60.55%, all three 100% with their crossings.
 
 ## 6. Pictures (same cameras, before on the left, GPU browser)
 
@@ -172,8 +225,8 @@ All in `/tmp/claude-501/valleys/output/checks/` (not in git: `va_look.py` makes 
 | `valleys_salt.png` | a salt flat | Strong: a level pale crust and a rim. |
 | `valleys_town.png` | river town Bordj Zasakel | The best picture: quays, walk, tree rows: a real river town. |
 | `valleys_city.png`, `valleys_lakecity.png` | Tazoubka, Tazoukine | Tazoubka's river is at the far right of this camera: use the map. Tazoukine: the lake lies beside old town and cemetery. |
-| `valleys_capital.png`, `valleys_capital_river.png` | the capital | Strong. The second looks down the channel between two quays: a real city river. |
-| `valleys_map_country.png`, `valleys_map_capital.png`, `valleys_map_quick.png`, `valleys_map_quick_mouth.png` | maps | Rivers and lakes to scale, the deal of the capital's neighborhoods unchanged. The last one is after the map fix. |
+| `valleys_capital.png`, `valleys_capital_river.png`, `valleys_capital_bank.png` | the capital, then down its channel from 62 m and from 39 m | Strong: quays, tree rows, a walk, green banks: a real city river. At 39 m the water's edge shows a small saw on the 2 m mesh; it reads as a natural edge. The water is narrow in a wide corridor. |
+| `valleys_map_country.png`, `valleys_map_capital.png`, `valleys_map_quick.png`, `valleys_map_quick_mouth.png`, `valleys_map_q3.png`, `valleys_map_q7.png` | maps (the last two: the quick capitals of seeds 3 and 7, new only) | Rivers and lakes to scale, the capital's neighborhoods keep their kinds and names. Seed 7's capital with a river across it and quays on both banks is the best map of the step. |
 
 `valleys_quick.png` (the quick capital seen from the sea) shows no river from that camera; it only proves the seafront kept its character.
 
@@ -192,14 +245,19 @@ moved a box's focus from the nearest settlement (28283, 18562 for the `lake3` bo
 - No reeds, no gravel bars, no bank texture beyond a color: 63-64.
 - Slab flats: 13 of 60 slabs have a flat mixed on one side (16 of 60 on main): an open item for the facades or interiors, not this step.
 - Streets under the bar even with the crossings counted: see 5.9.
+- Crossings are places, not links yet, and an arterial crossing ends in mid-block on a quay: see sections 8 and 10.
 
 ## 8. How the street graph tests deal with a river (your question)
 
-Honestly, and in the open: a river city is apart at its river until prompt 62. `test_street_graph_is_connected...` now asserts the 99.5% bar on the
-graph **with `plan.crossings` as links** (`_crossing_nodes`), and it says in a comment that prompt 62 must take them out. It still asserts
+Honestly, and in the open: a river city is apart at its river until prompt 62. Three tests (`test_street_graph_is_connected...` and the slow `test_streets_json_lists_nodes...` and `test_street_graph_of_every_settlement...`) assert the 99.5% bar on the
+graph **with `plan.crossings` as links** (`_crossing_nodes`), and each says in a comment that prompt 62 must take them out. The first still asserts
 that a plan in more than one part has crossings. `tools/street_survey.py` prints both numbers, the streets as they are and with the crossings as
 links. `city/river.py link_banks` gives every part of 60 m of street or more that no crossing reaches the shortest way across the
-river, so prompt 62 has what it needs. What stays under the bar with crossings is not the river: see section 7.
+river, so prompt 62 has what it needs. What stays under the bar with crossings is not the river: see 5.9.
+
+What this proves, and what not: a crossing joins the street nearest each of its ends (`river.crossing_nodes`, one function for `link_banks`, the survey and the tests), and `link_banks` keeps only crossings a street reaches at both
+ends, one arterial width away at most. So a place for a bridge really exists on both banks; the bridge does not, until prompt 62. Both came from reading the gates at the very end: a first version joined the nearest node, which on a quay can lie across the water, and it kept
+crossings that ended 48 to 106 m from any street (a district border need not be a street).
 
 ## 9. Tests changed (every one read down to its cause; nothing else was touched)
 
@@ -218,7 +276,8 @@ a station's precinct under the forecourt (`clip_streets`). Then, in `tests/test_
 - `test_stairs_connect_floors_with_headroom`: a turned entry's walking line starts on the door's own step, so the "leaves its floor" clause skips it.
 - `test_furnish_household`: the weaver takes `pick:dar:2`: the first dar is now one floor of 93 m2 with no wall for a loom. A cot is `<=` the small children: the seats sleep the rest.
 - `test_every_slab_has_windows...`: at most 2% of the slabs may have both long sides against neighbours.
-- `test_street_graph...`: section 8. In `tests/test_hydro.py`: the keys of world.json, and `test_no_bed_lies_far...` became `test_no_water_lies_under_the_level...`: the
+- `test_a_city_holds_turned_and_sunken_entries` (slow): a bent entry's first skifa can be the sunken room, and it opens by an arch, not an inner door: `_check_sunken` reads both. The plan is right, `rooms.check` finds nothing.
+- `test_street_graph...`, and the slow `test_streets_json_lists_nodes...` and `test_street_graph_of_every_settlement...`: section 8. In `tests/test_hydro.py`: the keys of world.json, and `test_no_bed_lies_far...` became `test_no_water_lies_under_the_level...`: the
   water is what meets a lake now, `profile` may lie 5.6 m under it in a hollow crossed near the mouth.
 
 New: 19 fast tests (9 in `test_hydro.py`, 10 in `test_citygen.py`) and 4 slow ones (a lake in tile and lod1 and the roads of the 64 km world, a village on one bank, a city on a lake,
@@ -226,9 +285,11 @@ the lit rate). The last two checks of prompt 60's item 7 are on segments.
 
 ## 10. What prompt 62 must do
 
-- `CityPlan.crossings` (plan.json `crossings`): `line` from street end to street end, `kind` (`arterial` a neighborhood border broken by the river, `connector` or any street cut at
+- `CityPlan.crossings` (plan.json `crossings`): `line`, `kind` (`arterial` a neighborhood border broken by the river, `connector` or any street cut at
   the corridor, `street` a bank no other crossing reaches), `width`. They are places, not all bridges: choose (a street every N m of river, the arterials first).
-- Take the crossings out of `test_street_graph...` and the survey's first number becomes the bar again.
+- A street stopped at the river ends at a graph node, but an `arterial` crossing runs along the broken border: its ends lie on a quay, or within one arterial width of a street (`link_banks` drops the others),
+  often in mid-block (up to 84 m from a junction in Tazoubka). A bridge there needs a new junction on the quay.
+- Take the crossings out of the three street graph tests (section 8) and the survey's first number becomes the bar again.
 - Country roads: they cross at short crossings (at most 50 m of bed and bank), the ribbon follows the ground, so it dips into the channel and under the water: the deck
   height must replace `tc.height` there, with `River.surface` + `[bridges] clearance`. On a dry oued: a low bridge or a paved ford, your choice.
 - The riverside walk (`Walk("riverside")`, in pieces) and its tree row must stop at an abutment; a quay arterial is on both ends of an `arterial` crossing.
@@ -265,6 +326,9 @@ HANDOFF, "Decisions and lessons":
   crack), each cell split along its flatter diagonal (or a bank saws), one material with colors per point (or every material edge is a stair of cells).
 - **Draw flat water cell by cell and let the ground hide it.** The shore is then where the land really meets the level, not the 150 m ring; a closed rim keeps the drawn edge under the ground.
 - **A test that saw one building proves nothing.** The slab lit rule passed for months on one slab; 16 of 60 break it on main.
+- **One city's rate is one deal, not a rate.** The quick capital's dars passed 165 of 166 on main and looked like a bar; over six other worlds main passes 95.2%. When a change re-deals a city (here a national road
+  500 m longer inside the capital moved the gates, then every lot), compare rates over several worlds before calling a fall a regression.
+- **Grep every test of a rule before saying how the tests deal with it.** Three tests held the street graph bar; I had changed one, and the slow suite showed the other two.
 
 ## 12. Findings fixed on the way (each by a gate or by looking)
 
@@ -287,13 +351,13 @@ HANDOFF, "Decisions and lessons":
 
 ## 13. State of the branch, and what comes next
 
-**State:** PROVISIONAL, written while the last gates run: all code committed and pushed, fast tests pass; slow tests, surveys and the idle-machine times are still to be read.
+**State:** PROVISIONAL, saved at a limit check while the last gates run on ee6ec20: all code committed and pushed, main eb25c71 merged in, fast tests pass, slow tests passed one commit earlier. Table 5.4 and section 5.9 are from c5682c4 and will move a little (crossings only). When the gates end: rerun `va_tables.py` on `gates_final9.log`, update 5.1, 5.4 and 5.9, then this paragraph.
 
 **Next, in order, for the lead:**
-1. Rerun what you doubt: section 14 has the scripts, `/tmp/claude-501/va_tree5` is a frozen copy of the last code commit.
+1. Rerun what you doubt: section 14 has the scripts, `/tmp/claude-501/va_tree7` is a frozen copy of the merge, `/tmp/claude-501/va_main` of main eb25c71, `/tmp/claude-501/va_base_src` of f4581c1.
 2. Judge three things: the extended dry rule (section 2, point 4), cutting districts instead of "plan as today, then cut" (section 3), the street graph test (section 8).
 3. Look at the two shaders of `tools/blender_beauty.py` in Blender after the merge: never run here. Run `tools/make_blend.py` then (fingerprint shows `tiles/*` changes).
-4. Merge `wip/valleys` into main: no conflict is expected with the facades branch, I stayed out of `citygen/city/dressing.py`, `citygen/mesh/props.py` and `[dressing]`. `tests/test_citygen.py` may need a hand: new tests at its end.
+4. Merge `wip/valleys` into main: main eb25c71 is already merged into the branch (one comment in one test differed), I stayed out of `citygen/city/dressing.py`, `citygen/mesh/props.py` and `[dressing]`. If main moved again, merge it first and run the fast tests.
 5. Paste section 11 into WORKLOG, ROADMAP and HANDOFF.
 6. Prompt 62 starts from section 10.
 
