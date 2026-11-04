@@ -12,7 +12,7 @@ Ali's four answers on rivers. Worktree `/tmp/claude-501/world-59`. Nothing here 
 | eb664ca | fixes of 70 and 81 | |
 | 8c9e2be | merge `wip/fix-59` | `docs/SPEC.md`: section 5 (both new paragraphs kept), section 6 table (the rows of both sides) |
 | 4ec2642 | Ali's answers, the reviews of 59, the street-end rule | |
-| (last commit of the branch) | small test and doc tidying, these notes | |
+| 24d60da and the last commit | `tools/street_survey.py`, small test and doc tidying, these notes | |
 
 ## 2. Prompt 59: four things for the lead to read first
 
@@ -107,6 +107,10 @@ Picture: `docs/wip/world-59-maps.png` (before, now, option). My advice: take the
 fills up, it reads natural in the picture, and it removes the worst cut (59 m). I did not do it because it adds 16
 lakes nobody chose. Prompt 60 then moves a few more towns.
 
+**What Ali should look at:** that picture, and his answer to this one question. The histories changed their picks once
+(same sentences to choose from), so his before/after examples of review-81's 5 and 9 should be made from this branch.
+No Blender refresh: no tile changed.
+
 ## 5. Results
 
 **Tests:** merge of 70 + 81: 178 passed. After their fixes: 182. After 59 and the rest: 201 passed, 16 slow deselected, 63 s. `-m slow`: 15 passed, 1 xfailed, 178 s (the xfail is the
@@ -155,7 +159,19 @@ overlap Ali accepted; prompt 60 moves it. Prompt 59's "Done when" is met.
 **Interior survey:** settlements are called today Goumosbane (capital, quick world id 0) and Ain Chilel (town, id 3);
 names and places change in a later step.
 
-SURVEY
+| Goumosbane | before | after | | Ain Chilel | before | after |
+|---|---|---|---|---|---|---|
+| dar | 155/159 | 155/159 | | villa | 168/178 | 168/178 |
+| compact | 266/277 | 266/277 | | maison | 499/616 | 499/616 |
+| small | 81/83 | 81/83 | | | | |
+| koubba | 21/22 | 21/22 | | | | |
+| colonial | 5/270 | 5/270 | | | | |
+| slab | 253/353 | 253/353 | | | | |
+| shop | 130/136 | 130/136 | | | | |
+
+No change to explain: with the clock readings ("slowest ... s") taken out, both reports are byte-identical, ladder
+warnings, failure kinds and failing buildings included (45 and 35 lines). Expected: no plan moved. The slowest times
+differ only because tests and builds ran beside the second survey.
 
 **Street graph, all settlements:** quick world 12 of 12 one part. 64 km world: 125 of 131 one part; `street_graph` costs
 10 s in all, 1.2 s at worst.
@@ -183,7 +199,7 @@ SURVEY
   height, which flies up to 55 m over hollows and which prompt 60's min() cannot use. Rivers cut through rims.
 - Street graph: nodes on bare ground fixed (94 of 595); any street end on another's surface gets a stub: 125 of 131
   settlements one part. Left: real gaps in the plans (Ain Khatane 97.4%) and Gamar 97.5%: recheck at prompt 60.
-- Histories: every choice on its own stream, so the capital's picks changed once, same templates.
+- Histories: every choice on its own stream, so the capital's picks changed once, same templates (8 of 9 districts).
   Review-81 findings 5 and 9 wait for Ali's before/after examples.
 - Look: docs/wip/world-59-maps.png.
 - Doubts and questions for Ali: the 16 wet hollows, lakes or cuts? (docs/wip/world-59.md section 4; advice: lakes.)
