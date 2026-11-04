@@ -15,13 +15,11 @@ import multiprocessing
 import sys
 from pathlib import Path
 
-import numpy as np
-import shapely
-
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from citygen.city import plan_city  # noqa: E402
+from citygen.city.river import crossing_nodes  # noqa: E402
 from citygen.config import load_config  # noqa: E402
 from citygen.export.streets import street_graph  # noqa: E402
 from citygen.world import generate_world  # noqa: E402
@@ -41,9 +39,7 @@ def parts(nodes: list, edges: list, crossings: list = ()) -> collections.Counter
         return a
     for _k, _line, a, b in edges:
         parent[root(a)] = root(b)
-    for c in crossings:
-        ends = shapely.points(np.asarray(c.line.coords)[[0, -1]])
-        a, b = (int(np.argmin(shapely.distance(shapely.points(nodes), e))) for e in ends)
+    for a, b in crossing_nodes(edges, crossings):
         parent[root(a)] = root(b)
     out = collections.Counter()
     for _k, line, a, _b in edges:

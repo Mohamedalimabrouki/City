@@ -5581,11 +5581,10 @@ def _graph_parts(nodes: list, edges: list) -> dict:
     return parts
 
 
-def _crossing_nodes(plan, nodes: list) -> list:
-    """(node, node) of each crossing's two ends."""
-    xy = np.asarray(nodes)
-    return [tuple(int(np.argmin(np.hypot(*(xy - np.asarray(end)).T))) for end in (c.line.coords[0], c.line.coords[-1]))
-            for c in plan.crossings]
+def _crossing_links(plan, edges: list) -> list:
+    """(node, node, 0) for each of a plan's crossings, in `edges` (street, line, a, b)."""
+    from citygen.city.river import crossing_nodes
+    return [(a, b, 0.0) for a, b in crossing_nodes(edges, plan.crossings)]
 
 
 def test_street_graph_is_connected_and_its_edges_match_their_lines(world, plan):
@@ -5606,8 +5605,7 @@ def test_street_graph_is_connected_and_its_edges_match_their_lines(world, plan):
     total = sum(parts.values())
     # the largest connected part holds the streets, a river's banks joined at `plan.crossings`: until prompt 62 draws
     # the bridges a city is apart at its river, and prompt 62 must take the crossings out of this line
-    links = [(a, b, 0.0) for a, b in _crossing_nodes(plan, nodes)]
-    joined = _graph_parts(nodes, [(a, b, line.length) for _k, line, a, b in edges] + links)
+    joined = _graph_parts(nodes, [(a, b, line.length) for _k, line, a, b in edges] + _crossing_links(plan, edges))
     assert len(parts) == 1 or plan.crossings
     assert max(joined.values()) >= 0.995 * total
     drawn = shapely.unary_union([st.line for st in plan.streets]).length   # a street under a boulevard counts once
@@ -5693,7 +5691,7 @@ def test_streets_json_lists_nodes_on_the_drawn_street_and_measured_edges(world, 
         assert sum(e["sidewalks"]) < e["width"]
     assert any(max(e["sidewalks"]) > 0.0 for e in edges)
     # a river's banks joined at `plan.crossings` until prompt 62 draws the bridges: it must take them out of this line
-    links = [(a, b, 0.0) for a, b in _crossing_nodes(plan, xy.tolist())]
+    links = _crossing_links(plan, [(0, shapely.LineString(e["line"]), e["from"], e["to"]) for e in edges])
     parts = _graph_parts(nodes, [(e["from"], e["to"], e["length"]) for e in edges] + links)
     assert max(parts.values()) >= 0.995 * sum(parts.values())
 
@@ -5708,8 +5706,7 @@ def test_street_graph_of_every_settlement_holds_together(world):
         if not nodes:                              # a hamlet can have no street at all
             continue
         # a river's banks joined at `plan.crossings` until prompt 62 draws the bridges: it must take them out of this line
-        links = [(a, b, 0.0) for a, b in _crossing_nodes(plan, nodes)]
-        parts = _graph_parts(nodes, [(a, b, line.length) for _k, line, a, b in edges] + links)
+        parts = _graph_parts(nodes, [(a, b, line.length) for _k, line, a, b in edges] + _crossing_links(plan, edges))
         assert max(parts.values()) >= 0.995 * sum(parts.values()), s.name
 
 

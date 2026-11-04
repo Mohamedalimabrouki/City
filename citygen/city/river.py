@@ -103,6 +103,17 @@ def split_districts(ctx, districts: list) -> list:
     return out
 
 
+def crossing_nodes(edges: list, crossings: list) -> list:
+    """(node, node) each crossing joins in a street graph's `edges` (street, line, a, b): a node of the street nearest
+    each end. The nearest node would not do: a crossing can end in mid-block on a quay, nearer to a node across the water."""
+    lines = np.array([line for _k, line, _a, _b in edges], dtype=object)
+    out = []
+    for c in crossings:
+        ends = shapely.points(np.asarray(c.line.coords)[[0, -1]])
+        out.append(tuple(edges[int(np.argmin(shapely.distance(lines, e)))][2] for e in ends))
+    return out
+
+
 def link_banks(ctx, streets: list, crossings: list) -> list:
     """`crossings` that a street reaches at both ends, and one more for each part of the street graph none of them
     reaches: the shortest way from it to the rest of the city, where that way crosses the river. Prompt 62's bridges
@@ -123,9 +134,7 @@ def link_banks(ctx, streets: list, crossings: list) -> list:
 
     for _k, _line, a, b in edges:
         parent[root(a)] = root(b)
-    for c in crossings:
-        ends = shapely.points(np.asarray(c.line.coords)[[0, -1]])
-        a, b = (int(np.argmin(shapely.distance(shapely.points(nodes), e))) for e in ends)
+    for a, b in crossing_nodes(edges, crossings):
         parent[root(a)] = root(b)
     parts: dict = {}
     for _k, line, a, _b in edges:
