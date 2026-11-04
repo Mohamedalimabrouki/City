@@ -104,10 +104,15 @@ def split_districts(ctx, districts: list) -> list:
 
 
 def link_banks(ctx, streets: list, crossings: list) -> list:
-    """`crossings`, and one more for each part of the street graph no crossing reaches: the shortest way from it to
-    the rest of the city, where that way crosses the river. Prompt 62's bridges then join every bank."""
+    """`crossings` that a street reaches at both ends, and one more for each part of the street graph none of them
+    reaches: the shortest way from it to the rest of the city, where that way crosses the river. Prompt 62's bridges
+    then join every bank."""
     from ..export.streets import street_graph
     nodes, edges = street_graph(streets, float(ctx.world.cfg["street_graph"]["grid"]))
+    drawn = shapely.union_all([st.line for st in streets])
+    reach = float(ctx.kc["arterial_width"])
+    crossings = [c for c in crossings
+                 if shapely.distance(drawn, shapely.points(np.asarray(c.line.coords)[[0, -1]])).max() <= reach]
     parent = list(range(len(nodes)))
 
     def root(a: int) -> int:
