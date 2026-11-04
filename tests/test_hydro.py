@@ -219,7 +219,8 @@ def test_world_json_two_processes(tmp_path):
     from pathlib import Path
     root = Path(__file__).resolve().parents[1]
     code = ("import sys; from citygen.config import load_config; from citygen.world import generate_world; "
-            "from citygen.export.lore import write_json; write_json(sys.argv[1], generate_world(load_config()).to_json())")
+            "from citygen.export.lore import write_json; "
+            "write_json(sys.argv[1], generate_world(load_config()).to_json())")
     for name, seed in (("a", "1"), ("b", "2")):
         r = subprocess.run([sys.executable, "-c", code, str(tmp_path / f"{name}.json")], cwd=root,
                            env={**os.environ, "PYTHONHASHSEED": seed}, capture_output=True)

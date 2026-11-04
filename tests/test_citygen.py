@@ -1597,12 +1597,6 @@ def test_households_and_souks(plan):
     assert len({k.name for k in plan.souks}) == len(plan.souks)   # every souk has its own name
 
 
-def _phrases(text: str) -> set:
-    """Every run of words of a history, in lower case."""
-    words = text.lower().replace(",", " ").replace(".", " ").replace(";", " ").split()
-    return {" ".join(words[a:b]) for a in range(len(words)) for b in range(a + 1, min(a + 9, len(words)) + 1)}
-
-
 def test_district_histories(world, plan):
     """Prompt 81: 2-4 sentences per district from its own facts, never before the city's founding; canon wins."""
     import copy
@@ -1616,7 +1610,8 @@ def test_district_histories(world, plan):
         sentences = re.findall(r"[^.]+\.", d.history)
         assert 2 <= len(sentences) <= 4, d.history
         assert "\u2014" not in d.history and "{" not in d.history
-        told = [e for e in eras if {words["era_in"][e].lower(), words["era_since"][e].lower()} & _phrases(d.history)]
+        text = d.history.lower()   # the era's whole phrase: an era's bare name could sit in a landmark's name
+        told = [e for e in eras if words["era_in"][e].lower() in text or words["era_since"][e].lower() in text]
         assert told and all(eras.index(e) >= founded for e in told), d.history
     medina = next(d for d in plan.districts if d.kind == "medina")
     assert plan.settlement.founded in medina.history   # the old town is as old as its city
@@ -1664,7 +1659,8 @@ def test_history_words(world):
     words = world.style["history"]
     for era in world.style["lore"]["eras"]:
         assert era in words["era_in"][era] and era in words["era_since"][era]
-    assert _era_phrase(words, "era_in", "the Flood") == "in the time of the Flood" and _era_phrase(words, "era_in", "") == ""
+    assert _era_phrase(words, "era_in", "the Flood") == "in the time of the Flood"
+    assert _era_phrase(words, "era_in", "") == ""
     assert [_plural(words, w) for w in ("fisherman", "teacher", "secretary", "coach")] == \
         ["fishermen", "teachers", "secretaries", "coaches"]
 
@@ -1675,7 +1671,8 @@ def test_a_history_landmark_belongs_to_the_district_it_stands_in():
     from shapely.geometry import box
     from citygen.city.history import _Facts
     facts = _Facts.__new__(_Facts)
-    facts.plan, facts.inside = NS(districts=[NS(id=0, polygon=box(0, 0, 10, 10)), NS(id=1, polygon=box(10, 0, 20, 10))]), 1.0
+    facts.inside = 1.0
+    facts.plan = NS(districts=[NS(id=0, polygon=box(0, 0, 10, 10)), NS(id=1, polygon=box(10, 0, 20, 10))])
     assert [facts.district_at(x, 5.0) for x in (9.5, 10.5, 20.5, 25.0)] == [0, 1, 1, None]
 
 
@@ -5459,6 +5456,17 @@ def test_streets_json_lists_nodes_on_the_drawn_street_and_measured_edges(world, 
     assert any(max(e["sidewalks"]) > 0.0 for e in edges)
     parts = _graph_parts(nodes, [(e["from"], e["to"], e["length"]) for e in edges])
     assert max(parts.values()) >= 0.995 * sum(parts.values())
+
+
+@pytest.mark.slow  # plans every settlement of the quick world, about 10 s
+def test_street_graph_of_every_settlement_holds_together(world):
+    from citygen.export.streets import street_graph
+    grid = float(world.cfg["street_graph"]["grid"])
+    for s in world.settlements:
+        nodes, edges = street_graph(plan_city(world, s).streets, grid)
+        parts = _graph_parts(nodes, [(a, b, line.length) for _k, line, a, b in edges])
+        if parts:                                  # a hamlet can have no street at all
+            assert max(parts.values()) >= 0.995 * sum(parts.values()), s.name
 
 
 @pytest.mark.slow  # two processes plan the quick capital, about 20 s

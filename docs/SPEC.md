@@ -96,7 +96,7 @@ build.build()                 orchestrates the above into output/<country>-<seed
 | `citygen/noise.py` | Perlin and fractal noise, smoothstep |
 | `citygen/terrain.py` | height, moisture, slope, biome classes |
 | `citygen/names.py` | invented names from the style's sounds |
-| `citygen/hydro.py` | `River`, `Lake`: drainage from the terrain (priority flood, lakes by water balance, flow, river lines; prompt 59) |
+| `citygen/hydro.py` | `River`, `Lake`: drainage from the terrain (priority flood, lakes by water balance, flow, river lines and beds; prompt 59) |
 | `citygen/world.py` | `World`, `Settlement`, `Road`; placement and road routing (Dijkstra on a cost grid) |
 | `citygen/city/*.py` | the city planner (see pipeline) |
 | `citygen/mesh/builder.py` | mesh primitives: extrude, walls, caps, domes, hip roofs, ribbons, trees |
@@ -135,11 +135,13 @@ build.build()                 orchestrates the above into output/<country>-<seed
 | `citygen/city/terraces.py` | seaside cafe terraces (prompt 37): `Terraces` (cafes facing the sea, rows across the road, kiosk cafes by the railing), made by `Seafront` |
 | `citygen/city/moorings.py` | boats, cranes and cargo (prompt 35): `plan_props` fills `CityPlan.props`; `box` (a prop's plan envelope), `land_zone` (where props stand on land) |
 | `citygen/city/station.py` | the railway station (prompt 33): site at the colonial edge, track layout and corridor, street and walk clipping, buildings and name, its camera view |
+| `citygen/city/history.py` | district histories (prompt 81): `histories` fills `District.history` last in `plan_city` |
 | `citygen/city/massing.py` | building massing (prompt 23): the planning step, `masses(b)` (the volumes drawn and dressed), `floors_at`/`wall_height` (floors and wall height at a point of the outer wall), `outline`, `inner_walls`, `terrace_walls` |
 | `citygen/kitsheet.py` | `python -m citygen kit-sheet`: every piece in one viewable grid |
 | `citygen/interior/` | interiors on demand (prompt 45 on, SPEC 6c): `context.py` (the city from a build folder, `layout_of`, `resolve`), `outside.py` (the facade bridge), `model.py`, `layout.py`, `cuts.py` (frames, `free_cut`, `absorb`), `rooms.py` (doors, `assign`, `check`), `stairs.py`, `dar.py` (courtyard houses, the ring of bands), `compact.py` (houses without a courtyard, small houses), `program.py` (room programs and their checks), `shop.py` (hanout, makhzen, qahwa), `spine.py` (the hall-couloir engine of modern homes), `villa.py` (villas, maisons), `koubba.py` (domed houses), `flats.py` (colonial blocks, slabs), `mesh.py` (walls with holes, door frames and leaves, prompt 48), `export.py` (the viewable folder), `command.py` (`python -m citygen interior`); left out of the build key |
 | `citygen/export/maps.py` | country and city PNG maps |
 | `citygen/export/lore.py` | JSON data files and the gazetteer |
+| `citygen/export/streets.py` | the street graph for games, `streets.json` (prompt 70) |
 | `citygen/build.py` | area selection and the full build |
 | `citygen/view.py`, `tools/` | browser viewer, snapshot, Blender import |
 

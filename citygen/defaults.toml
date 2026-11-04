@@ -78,7 +78,7 @@ cluster_drop = ["glass_dark", "glass_lit", "iron", "wood", "lantern_glow", "rope
 
 [street_graph]
 # The street graph for games (cities/<name>/streets.json, SPEC 6 "Street graph").
-grid = 0.05               # meters: center lines are noded on this grid; it also sets the impasse-mouth stub reach
+grid = 0.05               # meters: center lines are noded on this grid; a street end this far off a surface still stops on it
 
 [ground]
 # Inside a city the ground is graded: smoothed and gently flattened under blocks, then
