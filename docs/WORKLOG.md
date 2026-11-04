@@ -16,6 +16,27 @@ Entry format:
 ```
 
 ## 2026-10-29 - Resume here (paused after prompt 47)
+- PAUSED by Ali, 4 November, about 16:00 UTC (read this bullet first; the bullets below are the history). Main is clean, tests
+  green, pushed; nothing is running. Done this day and merged, each with the lead's own checks: prompts 59, 70, 81 (c4eb74b), 87 and
+  names that follow places (0211472), facades (e9e5ad8). Blender file refreshed at the facades merge.
+  **First job next time: review `wip/valleys` (c5e8aeb, prompts 60 and 61 as one step, notes in `docs/wip/valleys.md` ON THAT BRANCH, it
+  already holds main eb25c71). NOT merged, and not reviewed: the lead read the notes up to section 12 and looked at seven pictures (river through
+  the capital, river town, salt flat: very good), but has NOT read the code, and has NOT run tests, fingerprint or survey himself.** Its folder
+  /tmp/claude-501/valleys is gone after a reboot: `git worktree add --detach <folder> origin/wip/valleys`. Check in the review, as for the
+  other merges (his own tests, fingerprint and survey BEFORE main moves, the diff read, the rule that a helper's cause is a claim):
+  1. `citygen/carve.py`, `citygen/city/river.py`, `citygen/mesh/water.py` (new), hydro.py, world.py. 2. Every test in its section 9 that it loosened: was
+  the bar right before (`test_skifa_hides_the_courtyard` 90%, `test_old_town_stairs` 5%, `test_drawn_sidewalks...` 0.45, the slab tests). 3. Two rules
+  against the brief, the lead's call: rivers ending in a salt basin are dry too (63 of 148; the brief said seasonal rivers only); districts are cut after the deal
+  instead of "plan, then cut" (likely better). 4. Three street-graph tests count `plan.crossings` as links until prompt 62, each says so. 5. Dars
+  165/166 -> 149/159 on the quick capital, 95.2% -> 94.1% over six other worlds: rerun that. 6. Pictures and box builds date from 3351f25, a little before the end. 7.
+  `tools/blender_beauty.py`'s two river shaders never ran: after the merge run `make_blend` and look. Then tick 60, 61, paste its section 11.
+  Then, in order: prompt 62 (bridges, its section 10); interiors on those final buildings, judged on several plans (the capital, `--city villas`, a
+  world of another seed): the small slab wcs (the xfail on `test_furnish_required_share`), the room behind a balcony and the rest of
+  `docs/wip/facades.md` section 8, the ladder check, colonial bedrooms and the 95% bars; furniture (prompt 55, night-only lamps, butane mix, brass, shelves); the
+  review leftovers with the villages' street islands. Ali's before/after histories (review-81's 5 and 9) wait for the final world. Godot waits.
+  Ali can veto: "only salt lakes a river reaches show salt" (he chose every dry hollow; the hollows stay closed, 38 of 87 show salt): he was told, no answer yet.
+  Open with him: restart the gallery on his Mac for the new names and facades. Working scripts and briefs of the day: `docs/wip/scripts-2026-11-04.tar.gz`
+  (the helpers' notes name them by their scratchpad names). A long session costs more per message: start a fresh one. Usage at the pause: weekly 27%.
 - 3 November (Tuesday; the week resets at 21:00 UTC): Ali said "use as much as possible, only pause when you
   reach 90% of weekly usage" (64% at 10:15 UTC), for this day: after the reset ask him before going over 55%
   again. Plan: two helpers in parallel, flats (colonial blocks, slabs) in this folder and houses (maisons,
