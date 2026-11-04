@@ -5,6 +5,7 @@ import math
 from pathlib import Path
 
 import numpy as np
+import shapely
 from PIL import Image, ImageDraw, ImageFont
 from shapely.geometry import MultiPolygon, Polygon
 
@@ -136,12 +137,18 @@ def _city_water(draw, world, ring, mpp, bounds) -> None:
             draw.polygon(ring(p), fill=fill, outline=line)
     for r in world.rivers:
         c = r.coords
-        keep = (c[:, 0] > x0) & (c[:, 0] < x1) & (c[:, 1] > y0) & (c[:, 1] < y1)
-        if keep.sum() < 2:
-            continue
+        keep = (c[:, 0] > x0) & (c[:, 0] < x1) & (c[:, 1] > y0) & (c[:, 1] < y1) & _on_land(world, c)
         scale = float(world.cfg["rivers"]["oued_bed"]) if r.seasonal else 1.0
-        draw.line(ring(c[keep]), fill=OUED_BED_RGB if r.seasonal else RIVER_RGB,
-                  width=max(1, round(float(r.widths[keep].mean()) * scale / mpp)), joint="curve")
+        for run in np.split(np.flatnonzero(keep), np.flatnonzero(np.diff(np.flatnonzero(keep)) > 1) + 1):
+            if len(run) > 1:
+                draw.line(ring(c[run]), fill=OUED_BED_RGB if r.seasonal else RIVER_RGB,
+                          width=max(1, round(float(r.widths[run].mean()) * scale / mpp)), joint="curve")
+
+
+def _on_land(world, c) -> np.ndarray:
+    """Which points of a river are on land: its line runs on out to sea and to the middle of a lake."""
+    land = np.asarray(world.terrain.height(c[:, 0], c[:, 1])) > 0.0
+    return land if world.carve.lakes is None else land & ~shapely.contains_xy(world.carve.lakes, c[:, 0], c[:, 1])
 
 
 def _scale_bar(draw, k, w, h):

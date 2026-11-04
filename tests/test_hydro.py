@@ -431,3 +431,14 @@ def test_a_lake_s_rim_closes_its_drawn_water(world, carved):
         assert np.all(h >= sh.level), sh.level
         raised.append(float((h - h0).max()))
     assert max(raised) < 8.0
+
+
+def test_a_map_stops_a_river_at_the_shore(world, carved):
+    """A river's line runs on out to sea and to the middle of a lake: a city map draws it on land only."""
+    from types import SimpleNamespace
+
+    from citygen.export.maps import _on_land
+    w = SimpleNamespace(terrain=world.terrain, carve=carved.carve)
+    for r in world.rivers:
+        land = _on_land(w, r.coords)
+        assert land.any() and (r.mouth not in ("sea", "lake", "basin") or not land[-1]), r.id
