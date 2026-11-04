@@ -73,19 +73,15 @@ def test_tributaries_end_on_their_main_river_s_bed(world):
         assert abs(np.interp(at, along, main.profile) - r.profile[-1]) < 1e-6, r.id
 
 
-def test_no_bed_lies_far_under_the_level_of_the_lake_it_reaches(world):
-    """A lake's flat water would stand as a wall at its shore over a trench cut below its level."""
-    worst = 0.0
+def test_no_water_lies_under_the_level_of_the_lake_it_reaches(world):
+    """A lake's flat water would stand as a wall at its shore over water lower than its level. The lowest ground met
+    on the way (`profile`) may lie about 5 m under it, in a hollow crossed near the mouth: the water stands at the level."""
     for r in world.rivers:
         end = r
         while end.mouth == "river":
             end = world.rivers[end.into]
         if end.mouth in ("lake", "basin"):
-            level = world.lakes[end.into].level
-            dry = (r.profile < level) & (world.terrain.height(r.coords[:, 0], r.coords[:, 1]) > level)
-            if dry.any():
-                worst = max(worst, float((level - r.profile[dry]).max()))
-    assert worst < 5.0
+            assert r.surface.min() >= world.lakes[end.into].level - 1e-9, r.id
 
 
 def test_every_river_reaches_the_sea_a_lake_a_basin_or_the_border(world):
@@ -122,7 +118,8 @@ def test_oueds_are_thin_and_seasonal(world):
 
 def test_world_json_lists_the_rivers_and_lakes():
     data = json.loads(json.dumps(generate_world(load_config(quick=True)).to_json()))
-    assert set(data["rivers"][0]) == {"id", "coords", "widths", "flow", "seasonal", "profile", "mouth", "into"}
+    assert set(data["rivers"][0]) == {"id", "coords", "widths", "flow", "seasonal", "profile", "mouth", "into", "source",
+                                      "surface"}
     assert set(data["lakes"][0]) == {"id", "polygon", "level", "salt"}
 
 

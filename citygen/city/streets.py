@@ -24,13 +24,18 @@ def major_streets(ctx, districts, medina, axis: float, land) -> list:
         edge = ctx.boundary.exterior
         borders = unary_union([d.polygon.boundary for d in outer])
         corniche, arterial = [], []
+        lake = None if ctx.lake is None else ctx.lake.buffer(0.5 * aw + 3.0, quad_segs=3)
+        if ctx.water is not None or lake is not None:   # a district cut by a river or a lake is one ring: coast, quay
+            near = coast.buffer(1.0, quad_segs=2)       # and city limit are three streets
+            near = near if lake is None else near.union(lake)
+            borders = shapely.GeometryCollection(lines(borders.intersection(near)) + lines(borders.difference(near)))
         for piece in lines(borders):
             mid = piece.interpolate(0.5, normalized=True)
             if medina is not None and mid.distance(medina) < ring_offset(ctx) + 1.0:
                 continue
             if mid.distance(coast) < 1.0:
                 corniche.append(piece)
-            elif mid.distance(edge) > 1.0:
+            elif mid.distance(edge) > 1.0 or (lake is not None and lake.contains(mid)):   # a lake's quay, not a limit
                 arterial.append(piece)
         for kind, group in (("arterial", arterial), ("corniche", corniche)):
             if group:

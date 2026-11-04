@@ -35,6 +35,7 @@ import shapely
 from PIL import Image
 from shapely.geometry import Polygon, box
 from shapely.geometry.polygon import orient
+from shapely.ops import substring
 from shapely.strtree import STRtree
 
 from ..city.geo import frame, lines, polygons
@@ -48,6 +49,7 @@ from .station import station_mesh
 from .textures import encoded, spec_for
 from .tile import (LANDMARK_KINDS, PAVED_KINDS, ROAD_LIFT, STATION_KINDS, TileContext, cell_materials,
                    tile_bounds, water_mesh)
+from .water import land_tint, level_cells, ribbons_in
 
 CLUSTERED = LANDMARK_KINDS | STATION_KINDS            # drawn by their own long mesh functions: clustered
 SOLO = frozenset({"minaret", "mosque_hall", "mosque_court", "marabout", "tower", "wall", "kasbah_wall",
@@ -143,10 +145,11 @@ class Terrain:
         xs = x0 + np.arange(-1, n + 2) * s
         ys = y0 + np.arange(-1, n + 2) * s
         X, Y = np.meshgrid(xs, ys)
-        He = tc.height(X, Y)
+        He = tc.ground.far(X, Y)
         gx = (He[1:-1, 2:] - He[1:-1, :-2]) / (2 * s)
         gy = (He[2:, 1:-1] - He[:-2, 1:-1]) / (2 * s)
         Xg, Yg = X[1:-1, 1:-1], Y[1:-1, 1:-1]
+        self.levels = (Xg, Yg, tc.ground.uncut(Xg, Yg))    # lakes and salt flats (mesh/water.py)
         self.names, self.cut = cell_materials(tc, Xg, Yg, He[1:-1, 1:-1], gx, gy, s)
         self.split = (Xg[:-1, :-1][self.cut], Yg[:-1, :-1][self.cut], self.names[self.cut])
         self.tris: list = []                      # triangles as lattice points (i, j) in steps of f from x0, y0
@@ -215,12 +218,12 @@ class Terrain:
         index = {k: v for v, k in enumerate(keys)}
         ij = np.array(keys, dtype=np.float64)
         x, y = self.x0 + ij[:, 0] * f, self.y0 + ij[:, 1] * f
-        h = tc.height(np.concatenate([x, x + f, x - f, x, x]), np.concatenate([y, y, y, y + f, y - f]))
+        h = tc.ground.far(np.concatenate([x, x + f, x - f, x, x]), np.concatenate([y, y, y, y + f, y - f]))
         z, hx1, hx0, hy1, hy0 = np.split(np.asarray(h, dtype=np.float64), 5)
         nrm = np.stack([-(hx1 - hx0) / (2 * f), -(hy1 - hy0) / (2 * f), np.ones_like(z)], axis=1)
         nrm /= np.linalg.norm(nrm, axis=1, keepdims=True)
         pos = np.column_stack([x, y, z])
-        col = tc.tint(x, y)
+        col = land_tint(tc, x, y)
         self.pos, self.index = pos, index
         down = pos - [0.0, 0.0, lod.skirt]
         v = len(pos)
@@ -242,6 +245,7 @@ class Terrain:
             used, remap = np.unique(t, return_inverse=True)
             mb.add(mat, allpos[used], allnrm[used], np.zeros((len(used), 2)), remap.reshape(-1, 3), allcol[used])
         split_cells(mb, tc, *self.split, self.s)
+        level_cells(mb, tc, *self.levels, self.s)
         self._lookup()
 
     def _lookup(self) -> None:
@@ -292,6 +296,16 @@ def street_ribbons(tc: TileContext, lod: Lod, plan, street_tree, tile) -> list:
         if st.kind not in lod.skip_streets:
             out += [(seg, st.width, st.surface or "asphalt", lod.street_lift)
                     for seg in lines(st.line.intersection(tile)) if seg.length > 0.5]
+    return out
+
+
+def river_ribbons(tc: TileContext, lod: Lod, tile) -> list:
+    """The same for the rivers' water, draped on the lod terrain: at this distance only its line shows."""
+    out = []
+    for rib, lo, hi in ribbons_in(tc, tile):
+        width = 2.0 * float(np.interp(0.5 * (lo + hi), rib.along, rib.half))
+        if width > 0.1:
+            out.append((substring(rib.line, lo, hi), width, "water_river", lod.street_lift))
     return out
 
 
@@ -593,7 +607,7 @@ def build_lod(tc: TileContext, i: int, j: int, water: bool) -> MeshBuilder:
     ground.draw(mb, lod)
     if water:
         water_mesh(mb, x0, y0, x1, y1)
-    strips = road_ribbons(tc, lod, tile)
+    strips = road_ribbons(tc, lod, tile) + river_ribbons(tc, lod, tile)
     for ci, (plan, centers, _trees, street_tree, _dresser) in enumerate(tc.cities):
         port = getattr(plan, "port", None)
         if port is not None and port.zone.intersects(tile):

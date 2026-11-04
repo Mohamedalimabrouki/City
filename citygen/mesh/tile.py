@@ -43,6 +43,7 @@ from .port import (armour_placements, breakwater_meshes, ground_masks, keep_zone
 from .props import tree_mesh
 from .textures import images_for
 from .vaults import covered_meshes
+from .water import fine_ground, land_tint, level_cells, rim_cells, rim_mesh, river_meshes
 
 ROAD_LIFT = 0.34
 
@@ -62,6 +63,8 @@ class TileContext:
         self.station = world.style.get("station", {})
         self.road_lines = [LineString(r.coords) for r in world.roads]
         self.road_tree = STRtree(self.road_lines) if self.road_lines else None
+        self.ribbons = list(world.carve.ribbons.values()) if world.carve is not None else []
+        self.ribbon_tree = STRtree([r.line for r in self.ribbons]) if self.ribbons else None
         self.plans = plans
         self.ground = Ground(world, plans)
         self.city_area = unary_union([p.boundary for p in plans]) if plans else None
@@ -151,7 +154,8 @@ def terrain_mesh(mb: MeshBuilder, tc: TileContext, x0: float, y0: float, corners
     xs = x0 + np.arange(-1, n + 2) * s
     ys = y0 + np.arange(-1, n + 2) * s
     X, Y = np.meshgrid(xs, ys)
-    He = tc.height(X, Y)
+    Hu = tc.ground.uncut(X, Y)
+    He = tc.ground.cut(X, Y, Hu)
     for dresser in corners:
         dresser.seed_corners(int(round(xs[0] / s)), int(round(ys[0] / s)), He)
     H = He[1:-1, 1:-1]
@@ -163,20 +167,27 @@ def terrain_mesh(mb: MeshBuilder, tc: TileContext, x0: float, y0: float, corners
     pos = np.stack([Xg, Yg, H], axis=-1).reshape(-1, 3)
     nrm = nrm.reshape(-1, 3)
     uv = np.stack([pos[:, 0], -pos[:, 1]], axis=1)
-    col = tc.tint(pos[:, 0], pos[:, 1])
+    col = land_tint(tc, pos[:, 0], pos[:, 1])
     names, split = cell_materials(tc, Xg, Yg, H, gx, gy, s)
+    fine, low = (fine_ground(tc, X, Y, Hu, He, names, split, s, mb) if tc.ground.carve is not None
+                 else (np.zeros(names.shape, dtype=bool), np.inf))
+    rim = (rim_cells(tc, Xg, Yg, H) if tc.ground.carve is not None else fine) & ~split & ~fine
     cols = n + 1
     iy, ix = np.meshgrid(np.arange(n), np.arange(n), indexing="ij")
     v00 = iy * cols + ix
     quads = np.stack([v00, v00 + 1, v00 + cols + 1, v00 + cols], axis=-1)
-    for mat in np.unique(names[~split]):
-        q = quads[(names == mat) & ~split]
+    plain = ~split & ~fine & ~rim
+    for mat in np.unique(names[plain]):
+        q = quads[(names == mat) & plain]
         tris = np.concatenate([q[:, [0, 1, 2]], q[:, [0, 2, 3]]])
         used, remap = np.unique(tris, return_inverse=True)
         mb.add(str(mat), pos[used], nrm[used], uv[used], remap.reshape(-1, 3), col[used])
+    if rim.any():
+        rim_mesh(mb, tc, quads[rim], pos, nrm, uv, names, n)
     if split.any():
         split_cells(mb, tc, Xg[:-1, :-1][split], Yg[:-1, :-1][split], names[split], s)
-    return float(H.min())
+    level_cells(mb, tc, Xg, Yg, Hu[1:-1, 1:-1], s)
+    return min(float(H.min()), low)
 
 
 def cell_materials(tc: TileContext, Xg, Yg, H, gx, gy, s: float) -> tuple:
@@ -719,6 +730,7 @@ def build_tile(tc: TileContext, i: int, j: int) -> tuple:
     dressers = [c[4] for c in tc.cities if c[4] is not None and c[0].boundary.intersects(tile)]
     if terrain_mesh(mb, tc, x0, y0, dressers) < 0.0:
         water_mesh(mb, x0, y0, x1, y1)
+    river_meshes(mb, tc, tile)
     road_meshes(mb, tc, tile)
     placements: list = []
     spans: list = []

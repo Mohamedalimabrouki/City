@@ -288,6 +288,10 @@ sidewalk = { color = "#CFC7B6", roughness = 0.9, texture = "paving", texture_siz
 curb = { color = "#A29B8E", roughness = 0.85, texture = "stone", texture_size = [3.0, 1.8] }   # 1 m curb stones
 urban_ground = { color = "#D6C7A4", texture = "earth", texture_size = [8.0, 8.0] }   # lifted: the texture and tint darken it
 water = { color = "#2D6F92", roughness = 0.1 }
+water_lake = { color = "#2F6E86", roughness = 0.08 }     # lakes and rivers (prompt 60): never `water`, which Blender hides
+water_river = { color = "#3B7684", roughness = 0.1 }
+salt_crust = { color = "#F4F0E8", roughness = 0.42, texture = "earth", texture_size = [8.0, 8.0] }   # a chott's level crust
+river_bed = { color = "#FFFFFF", roughness = 0.97, texture = "earth", texture_size = [4.0, 4.0] }   # the ground by a river: its points carry the colors of [water]
 beach = { color = "#E8D6A8", texture = "sand", texture_size = [6.0, 6.0] }
 grass = { color = "#86A05A", texture = "grass", texture_size = [3.0, 3.0] }
 steppe = { color = "#BFAE78", texture = "scrub", texture_size = [5.0, 5.0] }
@@ -464,6 +468,25 @@ warmth = 0.04               # red/blue shift between the warmest and the coolest
 wavelength = 350.0          # meters: size of the bright and dark patches
 warm_wavelength = 900.0     # meters: size of the warm and cool areas
 octaves = 3
+riparian = [0.74, 0.88, 0.66]   # the land along a river: greener and darker, multiplied in (prompt 60)
+riparian_fade = 34.0        # meters past the valley floor over which that fades out
+
+[water]                     # the ground by a river (prompt 60, mesh/water.py): colors on `river_bed`'s points
+bank = "#94866A"            # bare damp earth on the banks
+bed = "#5C5848"             # wet pebbles under the water
+oued = "#D2C4A6"            # a dry oued's pale gravel
+salt_rim = "#D9D3C4"        # the dry crust round a salt flat
+rim_height = 1.0            # meters over a lake's level its shore stays bare...
+salt_rim_height = 2.4       # ...and a salt flat's rim stays pale
+bank_fade = 3.5             # meters past the bank over which it fades into the land
+bed_fade = 1.2              # meters from the water's edge to the full color of the bed
+
+[river]                     # a river in a city (prompt 61, city/river.py)
+walk = 5.0                  # meters of paved walk on the corridor's edge, where the settlement has `riverside`
+walk_piece = 64.0           # meters: the walk in pieces of about this size, so a tile can own each
+walk_step = 3.0             # meters between a walk's outline points in a river's valley, where the ground bends
+tree = "broadleaf"          # the row of shade trees along it
+tree_spacing = 16.0         # meters
 
 # --- streets ---------------------------------------------------------------------
 # Raised sidewalks (prompt 13) and their crisp curb. Widths per district are below.
@@ -1107,6 +1130,7 @@ suburb = { material = "plinth_stone", height = 0.6 }
 
 # --- settlement kinds ---------------------------------------------------------------
 [settlement.capital]
+riverside = true           # a paved walk along a river (prompt 61)
 population = [320000, 520000]
 density = 14000.0          # people per square kilometer; sets how big the city is
 medina_radius = 0.16       # share of the city radius
@@ -1134,6 +1158,7 @@ rings = [
 ]
 
 [settlement.city]
+riverside = true
 population = [40000, 140000]
 density = 11000.0
 medina_radius = 0.22
@@ -1160,6 +1185,7 @@ rings = [
 ]
 
 [settlement.town]
+riverside = true
 population = [6000, 25000]
 density = 9000.0
 medina_radius = 0.3

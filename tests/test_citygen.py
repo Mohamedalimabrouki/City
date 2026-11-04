@@ -735,7 +735,7 @@ def test_every_street_ribbon_stays_above_the_drawn_terrain(world, plan, ground):
     step = float(world.cfg["tiles"]["terrain_step"])
     pts = []
     for st in plan.streets:
-        d = np.arange(0.0, st.line.length, 4.0)
+        d = np.arange(0.5, st.line.length, 4.0)     # not its very end: the ribbon stops there, so does its lift
         pts.append(shapely.get_coordinates(line_interpolate_point(st.line, d)))
     pts = np.concatenate(pts)
     drawn = _drawn_height(ground, step, pts[:, 0], pts[:, 1])
@@ -1330,7 +1330,8 @@ def test_sidewalks_are_raised_and_leave_a_carriageway(world, plan, ground):
         assert st.kind not in ("souk", "alley")
         assert plan.districts[w.district].kind not in NO_WALK
         assert w.width <= (st.width - min_car) / 2.0 + 0.1
-        assert w.polygon.intersection(st.line.buffer(min_car / 2.0)).area < 0.1
+        assert w.polygon.intersection(st.line.buffer(min_car / 2.0, cap_style="flat")).area < 0.1   # flat: past a
+        # street's end there is no carriageway, and a street cut back from the station may end in a sidewalk
         inner = w.polygon.buffer(-0.02)                    # off a needle's zero width, which holds no point
         if not inner.is_empty:
             p = inner.representative_point()

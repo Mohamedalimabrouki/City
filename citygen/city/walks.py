@@ -47,7 +47,7 @@ def make_walks(ctx, districts, streets, blocks) -> list:
     promenade_piece = float(cfg.get("promenade_piece", 64.0))
 
     # The side strips of every street: sidewalk may use these, the middle stays carriageway.
-    strips = []
+    strips, middles = [], []
     for st in streets:
         cap = (st.width - min_carriage) / 2.0
         if cap <= 0.0:
@@ -55,9 +55,11 @@ def make_walks(ctx, districts, streets, blocks) -> list:
         outer = st.line.buffer(st.width / 2.0, cap_style="flat")
         inner = st.line.buffer(st.width / 2.0 - cap, cap_style="flat")
         strips.append(outer.difference(inner))
+        middles.append(inner)
     if not strips:
         return []
     strip_tree = STRtree(strips)   # each block is clipped to the strips near it, not to one city-wide union
+    middle_tree = STRtree(middles)
 
     lines = [st.line for st in streets]
     tree = STRtree(lines)
@@ -73,6 +75,9 @@ def make_walks(ctx, districts, streets, blocks) -> list:
         if not near:
             continue
         band = band.intersection(unary_union([strips[i] for i in near]))
+        cross = middle_tree.query(band, predicate="intersects")   # one street's side strip runs on across another's middle
+        if len(cross):
+            band = band.difference(unary_union([middles[int(i)] for i in sorted(cross.tolist())]))
         for poly in polygons(band):
             if poly.area < 0.8 or poly.length <= 0.0:
                 continue

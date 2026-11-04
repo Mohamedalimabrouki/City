@@ -61,6 +61,8 @@ def plan_json(plan) -> dict:
         **_port_json(plan),
         "props": [{"kind": p.kind, "x": round(p.x, 2), "y": round(p.y, 2), "yaw": round(p.yaw, 4),
                    "scale": round(p.scale, 3), "on": p.on} for p in getattr(plan, "props", ())],
+        "crossings": [{"kind": c.kind, "width": c.width, "coords": np.round(np.asarray(c.line.coords), 2).tolist()}
+                      for c in getattr(plan, "crossings", ())],
     }
 
 

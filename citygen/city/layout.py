@@ -17,7 +17,7 @@ from .model import District
 
 
 def land_near(terrain, x: float, y: float, radius: float):
-    """Land (above 0.8 m) within `radius` of a point, as a polygon traced from the height field."""
+    """Land (above 0.8 m over the sea) within `radius` of a point, as a polygon traced from the height field."""
     step = max(6.0, radius / 250.0)
     n = int(2 * radius / step) + 1
     xs = np.linspace(x - radius, x + radius, n)
@@ -35,6 +35,27 @@ def land_near(terrain, x: float, y: float, radius: float):
         if poly.area > 3000.0:
             parts.append(poly)
     return unary_union(parts).simplify(1.0)
+
+
+def lake_water(terrain, land, shores: list):
+    """The lakes and salt flats near `land`, traced where the ground meets each level, or None."""
+    x0, y0, x1, y1 = land.bounds
+    cut = []
+    for sh in shores:
+        bx0, by0, bx1, by1 = sh.box
+        if bx1 < x0 or bx0 > x1 or by1 < y0 or by0 > y1:
+            continue
+        step = 8.0
+        xs = np.arange(max(x0, bx0) - step, min(x1, bx1) + 2 * step, step)
+        ys = np.arange(max(y0, by0) - step, min(y1, by1) + 2 * step, step)
+        H = terrain.height(*np.meshgrid(xs, ys))
+        pts, offsets = contourpy.contour_generator(xs, ys, H, fill_type=contourpy.FillType.OuterOffset).filled(
+            float(H.min()) - 1.0, sh.level)
+        wet = [Polygon(p[o[k]:o[k + 1]]) for p, o in zip(pts, offsets) for k in range(len(o) - 1)
+               if o[k + 1] - o[k] >= 4]
+        if wet:
+            cut.append(unary_union([w.buffer(0) for w in wet]).intersection(sh.zone))
+    return unary_union(cut) if cut else None
 
 
 def city_boundary(ctx, land):
@@ -76,7 +97,11 @@ def medina_outline(ctx, boundary):
     rng = ctx.rng("medina-shape")
     shape = noisy_loop(s.x, s.y, kc["medina_radius"] * s.radius, Perlin(ctx.seed, "medina", s.key),
                        n=48, amp=0.15, aspect=rng.uniform(0.68, 0.95), rotation=rng.uniform(0, math.pi))
-    medina = largest(shape.intersection(boundary.buffer(-8.0)))
+    inside = shape.intersection(boundary.buffer(-8.0))
+    if ctx.water is not None:     # on one bank, with room for its ring road, a quay's half and the riverside walk
+        from .medina import ring_offset
+        inside = inside.difference(ctx.banks.buffer(ring_offset(ctx) + 0.5 * float(kc["arterial_width"])))
+    medina = largest(inside)
     if medina is None or medina.area < 5000.0:
         return None
     # round off sharp inward notches: ramparts and their ring road follow smooth curves

@@ -525,6 +525,15 @@ def shade_pool(mat: bpy.types.Material, base: tuple) -> None:
     g.nt.links.new(mix.outputs[0], out.inputs[0])
 
 
+def shade_salt(mat: bpy.types.Material, base: tuple) -> None:
+    """A chott's crust: pale, a little shiny where it is smooth, with slow patches of damp grey and fine cracks."""
+    g = Graph(mat)
+    patch = g.noise(g.vmul(g.pos, (0.012, 0.012, 0.012)), 1.0, 4, 0.55)
+    crack = g.noise(g.vmul(g.pos, (0.9, 0.9, 0.9)), 1.0, 2, 0.5)
+    color = g.mixc(g.smooth(patch, 0.35, 0.65), base, hexcolor("#C9C4B6"))
+    Surface(g, color, rough=0.45, spec=0.5, height=crack).finish(strength=0.12)
+
+
 def shade_hidden(mat: bpy.types.Material) -> None:
     g = Graph(mat)
     out = g.add("ShaderNodeOutputMaterial")
@@ -653,6 +662,10 @@ def build_materials(mats: dict[str, bpy.types.Material], factors: dict[str, tupl
             shade_hidden(mat)                              # the big sea plane replaces the tile water
         elif name == "water_pool":
             shade_pool(mat, b)                             # fountain water (prompt 26): kept, never hidden
+        elif name in ("water_lake", "water_river"):
+            shade_pool(mat, b)                             # lakes and rivers (prompt 60): the same still water
+        elif name == "salt_crust":
+            shade_salt(mat, b)                             # a chott's level crust (prompt 60)
         elif name == "rampart":
             shade_rampart(mat, b)
         elif name == "minaret_stone":

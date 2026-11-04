@@ -11,11 +11,13 @@ import warnings
 from dataclasses import dataclass, field
 
 import numpy as np
+import shapely
 from scipy import ndimage
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import dijkstra
 from shapely.geometry import LineString
 
+from .carve import Carve
 from .config import load_style
 from .hydro import drainage
 from .names import Name, NameMaker
@@ -90,6 +92,7 @@ class World:
     rivers: list = field(default_factory=list)   # hydro.River (prompt 59)
     lakes: list = field(default_factory=list)    # hydro.Lake
     name_ar: str = ""   # the country's name in Arabic script
+    carve: Carve | None = None   # what rivers and lakes do to the ground (prompt 60)
 
     @property
     def size(self) -> float:
@@ -126,7 +129,8 @@ def generate_world(cfg: dict) -> World:
     style = load_style(cfg["world"]["style"])
     terrain = Terrain(seed, cfg)
     rivers, lakes = drainage(terrain, cfg)
-    settlements = _place_settlements(seed, cfg, style, terrain)
+    carve = Carve(terrain, rivers, lakes, cfg)
+    settlements = _place_settlements(seed, cfg, style, terrain, rivers, carve)
     namer = NameMaker(style, stream(seed, "names"))
     name = namer.country()                         # always drawn: pinning the country's name renames no place
     if cfg["world"].get("name"):
@@ -134,13 +138,22 @@ def generate_world(cfg: dict) -> World:
     _name_settlements(seed, style, settlements, namer)
     _pin_names(cfg.get("canon", {}), settlements)
     _add_lore(seed, style, settlements)
-    roads = _build_roads(seed, cfg, terrain, settlements)
-    return World(seed, cfg, style, str(name), terrain, settlements, roads, rivers, lakes, name.ar)
+    roads = _build_roads(seed, cfg, terrain, settlements, rivers, carve)
+    return World(seed, cfg, style, str(name), terrain, settlements, roads, rivers, lakes, name.ar, carve)
 
 
 # --- settlements ----------------------------------------------------------------
 
-def _place_settlements(seed: int, cfg: dict, style: dict, terrain: Terrain) -> list:
+def _river_cells(rivers: list, n: int, cell: float) -> np.ndarray:
+    """(n, n) True on the cells of a grid the rivers run through (x across, y down the rows)."""
+    out = np.zeros((n, n), dtype=bool)
+    for r in rivers:
+        i = np.clip((r.coords / cell).astype(np.int64), 0, n - 1)
+        out[i[:, 1], i[:, 0]] = True
+    return out
+
+
+def _place_settlements(seed: int, cfg: dict, style: dict, terrain: Terrain, rivers: list, carve: Carve) -> list:
     size = terrain.size
     sc = cfg["settlements"]
     n = max(8, int(size // 400))
@@ -159,6 +172,10 @@ def _place_settlements(seed: int, cfg: dict, style: dict, terrain: Terrain) -> l
     margin = 0.05 * size
     ok = land & (slope < 0.12) & (H < 1050) & (X > margin) & (X < size - margin)
     ok &= (Y > margin) & (Y < size - margin)
+    # Capital and cities never move for water; towns and villages stay off it, and like a river close by (prompt 61)
+    dry = ok & ~carve.wet(X.ravel(), Y.ravel()).reshape(X.shape)
+    near_river = float(sc["river_bonus"]) * np.exp(-ndimage.distance_transform_edt(~_river_cells(rivers, n, cell)) * cell
+                                                   / float(sc["river_reach"]))
 
     # No draw on this shared stream depends on how many candidates a kind tries, for any kind: it holds the jitter,
     # the capital's and the cities' grids and the capital's one population draw. Towns and villages own their grids,
@@ -191,10 +208,13 @@ def _place_settlements(seed: int, cfg: dict, style: dict, terrain: Terrain) -> l
             score = score + 1.6 * np.exp(-((coast_d - ideal) / (0.5 * ideal + 400.0)) ** 2) + 0.8 * central
         elif kind == "city":
             score = score + 0.7 * np.exp(-coast_d / 3000.0)
+        else:
+            score = score + near_river
+        here = ok if kind in ("capital", "city") else dry
         # weighted random order (better spots tend to come first, but not always),
         # so small places also appear inland instead of filling the coast only
         sharp = {"capital": 14.0, "city": 5.0, "town": 3.0, "village": 2.2}[kind]
-        weight = np.where(ok, np.exp(sharp * (score - score[ok].max())), 0.0) if ok.any() else np.zeros_like(score)
+        weight = np.where(here, np.exp(sharp * (score - score[here].max())), 0.0) if here.any() else np.zeros_like(score)
         keys = np.log(grid.random(score.shape)) / np.maximum(weight, 1e-300)
         capital_draw = _log_population(rng, kc) if kind == "capital" else None   # one, for every site it tries
         got = 0
@@ -208,7 +228,7 @@ def _place_settlements(seed: int, cfg: dict, style: dict, terrain: Terrain) -> l
             if _conflicts(x, y, radius, RANK[kind], taken, spacing[kind]):
                 continue
             h = float(terrain.height(x, y))
-            if h < 2.0:
+            if h < 2.0 or (kind in ("town", "village") and bool(carve.wet(x, y)[0])):
                 continue
             placed.append(Settlement(len(placed), "", kind, x, y, pop, radius, h,
                                      bool(coast_d.flat[flat] < radius + 900.0), "", cell=int(flat)))
@@ -308,14 +328,14 @@ def _add_lore(seed: int, style: dict, settlements: list) -> None:
 class _Router:
     """Least-cost routes over a terrain grid: roads avoid water, steep slopes and peaks."""
 
-    def __init__(self, terrain: Terrain, cell: float):
+    def __init__(self, terrain: Terrain, cell: float, rivers: list, carve: Carve, rc: dict):
         size = terrain.size
         self.n = n = max(8, int(math.ceil(size / cell)))
         self.cell = size / n
         c = (np.arange(n) + 0.5) * self.cell
         self.X, self.Y = np.meshgrid(c, c)
         self.H = terrain.height(self.X, self.Y)
-        self.water = (self.H < 1.0).ravel()
+        self.water = (self.H < 1.0).ravel() | carve.lakes_near(float(rc["lake_margin"]), self.X, self.Y).ravel()
         self.mult = np.ones(n * n)
         idx = np.arange(n * n).reshape(n, n)
         a_list, b_list, d_list = [], [], []
@@ -333,6 +353,8 @@ class _Router:
         grade = np.abs(h[self.a] - h[self.b]) / self.d
         high = np.clip(np.maximum(h[self.a], h[self.b]) - 600.0, 0.0, None) / 500.0
         self.base_cost = self.d * (1.0 + (grade / 0.045) ** 2) * (1.0 + high)
+        river = _river_cells(rivers, n, self.cell).ravel()
+        self.base_cost *= np.where(river[self.a] | river[self.b], float(rc["road_cost"]), 1.0)
         self.graph = None
         self.rebuild()
 
@@ -390,10 +412,13 @@ def _rng_edges(pts: np.ndarray) -> list:
     return edges
 
 
-def _smooth(coords: np.ndarray, tolerance: float) -> np.ndarray:
+def _smooth(coords: np.ndarray, tolerance: float, step: float | None = None) -> np.ndarray:
+    """Douglas-Peucker, then corner cutting. Corner cutting takes a quarter of each long segment, far off the route on
+    a long straight: `step` meters between points first keeps the line close to it."""
     if len(coords) < 3:
         return coords
-    pts = np.asarray(LineString(coords).simplify(tolerance).coords)
+    line = LineString(coords).simplify(tolerance)
+    pts = np.asarray((line if step is None else shapely.segmentize(line, step)).coords)
     for _ in range(2):
         q = 0.75 * pts[:-1] + 0.25 * pts[1:]
         r = 0.25 * pts[:-1] + 0.75 * pts[1:]
@@ -403,8 +428,9 @@ def _smooth(coords: np.ndarray, tolerance: float) -> np.ndarray:
     return pts
 
 
-def _build_roads(seed: int, cfg: dict, terrain: Terrain, settlements: list) -> list:
-    router = _Router(terrain, float(cfg["roads"]["routing_cell"]))
+def _build_roads(seed: int, cfg: dict, terrain: Terrain, settlements: list, rivers: list, carve: Carve) -> list:
+    router = _Router(terrain, float(cfg["roads"]["routing_cell"]), rivers, carve,
+                     {"lake_margin": cfg["roads"]["lake_margin"], "road_cost": cfg["rivers"]["road_cost"]})
     nodes = {s.id: router.node(s.x, s.y) for s in settlements}
     roads: list[Road] = []
     tol = router.cell * 0.6
@@ -415,7 +441,10 @@ def _build_roads(seed: int, cfg: dict, terrain: Terrain, settlements: list) -> l
             if sid is not None:
                 xy[k] = (settlements[sid].x, settlements[sid].y)
         if len(xy) >= 2:
-            roads.append(Road(len(roads), kind, ROAD_WIDTH[kind], _smooth(xy, tol), ends))
+            line = _smooth(xy, tol)
+            if carve.crosses_lake(LineString(line)):         # the route keeps off the lakes: its smoothed line too
+                line = _smooth(xy, tol, router.cell)
+            roads.append(Road(len(roads), kind, ROAD_WIDTH[kind], line, ends))
         router.mult[np.asarray(path)] = np.minimum(router.mult[np.asarray(path)], 0.45)
 
     def connect(group: list, kind: str, skip: set, max_len: float):
