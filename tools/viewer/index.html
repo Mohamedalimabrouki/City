@@ -491,8 +491,29 @@ function addSea(water) {
   scene.add(sea);
 }
 
+// A city's walls are one-sided: a camera that flies into a building sees through its walls, and the windows
+// and balconies on them would float in the air (cream frame backs, slabs, rails). So a piece on a wall shows
+// only to a camera on its wall's street side, or far behind it, where a balcony can peek past the roof.
+// An interior needs them from the room: there it stays off. Shadows do not change.
+const ON_WALL = /^(?:tounes\/?)?(?:window|balcony|balconnet|door|stair_door|shop_front|awning|lantern|lamp_wall|rug_hang|laundry_line|hood_canopy|climber|bougainvillea)/;
+const BEHIND_WALL = [1.0, 80.0];   // meters behind the wall's plane: hidden from the first, shown again from the second
+
+function streetSideOnly(m) {
+  m.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader.replace('#include <project_vertex>', `#include <project_vertex>
+      #ifdef USE_INSTANCING
+        vec3 pieceAt = (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+        vec3 pieceFront = normalize((modelMatrix * instanceMatrix * vec4(0.0, 0.0, -1.0, 0.0)).xyz);
+        float wallAhead = dot(cameraPosition - pieceAt, pieceFront);
+        if (wallAhead < -${BEHIND_WALL[0].toFixed(1)} && wallAhead > -${BEHIND_WALL[1].toFixed(1)}) gl_Position = vec4(0.0, 0.0, 2.0, 1.0);
+      #endif`);
+  };
+  m.customProgramCacheKey = () => 'street-side-only';
+}
+
 // One material per look, shared by all tiles; water gets a glossy, slightly transparent finish.
-function shared(material) {
+// `wall`: a look for pieces on a wall (`streetSideOnly`).
+function shared(material, wall = false) {
   const map = material.map;
   if (map) {
     // Walls are seen at grazing angles at street level: anisotropic filtering 8 (2 on a phone)
@@ -504,10 +525,11 @@ function shared(material) {
   // vertexColors in the key: the terrain's "grass" carries a COLOR_0 tint and a kit's "grass" may
   // not; sharing one material between them reads a missing color attribute and renders black.
   const key = [material.name, material.color.getHex(), material.roughness, material.metalness,
-               material.side, material.vertexColors, material.flatShading, texture].join('|');
+               material.side, material.vertexColors, material.flatShading, texture, wall].join('|');
   let m = sharedMaterials.get(key);
   if (!m) {
-    m = material;
+    m = wall ? material.clone() : material;
+    if (wall) streetSideOnly(m);
     if (/^water/i.test(m.name)) {
       Object.assign(m, { roughness: 0.06, metalness: 0, transparent: true, opacity: 0.82, depthWrite: false,
                          envMap: environmentFor(activePreset), envMapIntensity: night ? 0.06 : 0.9 });
@@ -538,7 +560,7 @@ function prepareTile(gltf, kind) {
       o.material.flatShading = false;
       o.material.needsUpdate = true;
     }
-    o.material = shared(o.material);
+    o.material = shared(o.material, !interior && o.isInstancedMesh && (ON_WALL.test(o.name) || ON_WALL.test(o.parent.name)));
     o.castShadow = !o.material.userData.water;
     o.receiveShadow = true;
     // water at sea level; lakes, rivers (`water_lake`, `water_river`, prompt 60) and fountain water (`water_pool`,

@@ -119,6 +119,8 @@ and care as the last one: keep this file up to date when you learn something tha
   capital, `--city villas` and a world of another seed, and never fix one house for its own sake.
 - **Order work by what it moves.** Before tuning anything on a plan, list the open prompts whose fingerprint allows `plan/*`
   (a Python loop over docs/prompts and the ROADMAP's ticks does it) and do those first.
+- **A cause is proved by taking one thing out.** Facades read a test failure as door-windows in baths; on the merged code none of
+  the failing rooms had one, and `gable_windows = 0` passed. Ask for that one run before repeating a cause to Ali.
 
 ## 4. Gotchas on Ali's Mac
 

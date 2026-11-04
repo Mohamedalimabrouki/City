@@ -105,11 +105,12 @@ Entry format:
     One helper at a time on each set of files; the lead runs its own survey BEFORE main moves. Ask Ali past 55% weekly.
   - merge-3d is merged into main (5f4e99e, the entry below), and so are prompts 59, 70, 81 (c4eb74b, the entry above it).
     names-60 too (0211472, the entry above them). Not merged yet: prompt 55 (furn-55, furn-55b, fix-55, fix-glow),
-    rivers-60 (an old start of prompt 60), wip/facades (running, on the old capital), godot-72, styles-94; houses-patio
-    is dropped. Order, changed on 4 November so interiors are tuned once: prompts 60, 61, 62 come BEFORE the interiors,
+    rivers-60 (an old start of prompt 60, reused by wip/valleys), godot-72, styles-94; houses-patio is dropped. wip/facades
+    is merged (e9e5ad8). wip/valleys (prompts 60 and 61 together) is running. Order, changed on 4 November so interiors are tuned once: prompts 60, 61, 62 come BEFORE the interiors,
     since they change the capital's plan (the 64 km capital has three rivers through it, and any moved town moves its
-    roads and redeals the quick capital). So: (1) 60, 61, 62; (2) facades; (3) interiors on those final buildings, judged on
-    several plans; (4) furniture; (5) leftovers, with the street islands of 4 villages (`tools/street_survey.py`). The
+    roads and redeals the quick capital). So: (1) 60, 61, 62; (2) facades, done; (3) interiors on those final buildings, judged on
+    several plans, starting with small slab wcs (the xfail), the room behind a balcony (docs/wip/facades.md section 8) and the
+    ladder check; (4) furniture; (5) leftovers, with the street islands of 4 villages (`tools/street_survey.py`). The
     histories picked again once: Ali's before/after examples of review-81's 5 and 9 wait for the final world.
     Salt crust: prompt 60 should take prompt 65's flat crust, so salt lakes are never blue water and that surface is built once.
 - State: prompts 1-50 are done (branch `claude/procedural-city-generator-xop72h`; CP4, prompt 43, on 25
@@ -177,6 +178,26 @@ Entry format:
   instead (a billing test passed); how to use it: `docs/LEAD.md`, section 4. Used up since 31 October:
   the chain run (`.venv-sdk/credit_chain.sh`, 10:42-13:12) stopped with "Credit balance is too low"
   (its session recorded about $42), so that route needs new credit first (checked 3 November).
+
+## 2026-11-04 - Facades (step 2 of the order)
+- Commit: e9e5ad8 (merge of wip/facades, on the new capital). Notes: docs/wip/facades.md, section 0 first.
+- Changed: dressing.py, props.py, kit.py, outside.py, mesh.py, plancheck.py, dar.py, bayplan.py, furnish.py, viewer,
+  styles, SPEC, tests, tools/balcony_survey.py (new).
+- Every iron balcony stands before a porte-fenetre (2,028 in the quick capital, 0 before a plain window); balconies 1.8 x
+  0.8 m so the shutters fold inside the rail; 901 balconnets; windows on slab gables (slab 237 -> 274), colonial ground
+  floors and street gaps, short court walls (colonial 7 -> 10). Slab balconies had their own door: the claim above was
+  wrong. Cream panels proved (camera inside a building) and cured in the viewer: a wall piece shows only from its wall's
+  side. Question 15 closed (tab: 2ac52f7; light slots gone, stair windows under the slab; closed persiennes have a back).
+- Checks: pytest 235; slow: test_furnish_required_share 49/2,142, 2.29%, bar 2% (1.71% on main): the slab gables leave a
+  1.3 m2 wc in stacked plans (30/2,127 without them); no warned room has a door-window. Fingerprint 32 parts, all named;
+  hash seeds identical; drawn triangles +16.5%. Slab ladder warnings 33 -> 41.
+- Look: docs/wip/facades-*.png.
+- Doubts: kit-family door 1.91 m high, its glass 0.06 m above the neighbours'.
+- The lead's own checks before main moved: pytest 235 passed, slow 21 + 2 xfailed; fingerprint of main against it, 32 of 300 parts;
+  `tools/balcony_survey.py`, 0 before a plain window; his own interior survey, the same counts (colonial 10/271, slab 274/340, the rest
+  unchanged); the diff read, every picture looked at. `test_furnish_required_share` (49 of 2,142, 2.3%, bar 2%) carries an xfail that
+  names its cause, small slab wcs moved by the gable windows: the interiors step fixes it and takes the mark off. The first
+  reading of that cause, door-windows in baths, was wrong: taking one thing out at a time found it.
 
 ## 2026-11-04 - names-60: prompt 87, feminine agreement, names and identity follow the place
 - Commit: 0211472 (merge of wip/names-60). Merged fix-87 (arabic-87, review-87), rev-fix87's findings 1-4 and 7.

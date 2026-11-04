@@ -453,14 +453,14 @@ def along(job, region, entry, floor: int, cfg: dict, which: str, deep: float):
     beyond the couloir blind pieces. None when the ways come apart."""
     from shapely.geometry import LineString
     from shapely.ops import nearest_points
-    from .cuts import clip, parts, snap, solid
+    from .cuts import clip, parts, polygonal, snap, solid
     lit = lit_edges(job, region, floor, which)
     if lit is None:
         return None
     c = cfg["couloir"]
     near = lit.buffer(deep, cap_style="flat", join_style="mitre")
-    band = solid(shapely.intersection(region, shapely.difference(
-        lit.buffer(deep + c, cap_style="flat", join_style="mitre"), near), grid_size=1e-6))
+    band = solid(shapely.intersection(region, polygonal(shapely.difference(
+        lit.buffer(deep + c, cap_style="flat", join_style="mitre"), near)), grid_size=1e-6))   # no sliver line in the overlay
     fd = P.door_frame(entry)
     sizes = [(cfg["hall"][0], cfg["hall_width"][0])]
     if middle(job):                                     # the least hall too small: deeper, then wider

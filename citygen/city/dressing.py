@@ -226,6 +226,7 @@ class Dresser:
             spots = self._entrances(k, b, walls, front, boxes)
             self._fronts[k] = (front[:3], spots)
             self._homes(k, b, walls, spots, high, out, boxes)
+            self._ground_windows(k, b, walls, front, shadow, high, out)
             if paths is not None:
                 paths += [s.path for s in spots if s.path is not None]
         if self.lit_cfg:
@@ -267,6 +268,7 @@ class Dresser:
             spots = self._entrances(k, b, walls, front, boxes)
             self._fronts[k] = (front[:3], spots)
             self._homes(k, b, walls, spots, high, out, boxes)
+            self._ground_windows(k, b, walls, front, shadow, high, out)
         return out
 
     def fronts(self, k: int) -> tuple:
@@ -551,7 +553,7 @@ class Dresser:
                     if role:
                         self.put(out, role, rng, p, base + sill, yaw, on_ground=False)
                         if slots is not None:
-                            slots.append([f, i, count, floor, p, False, False])
+                            slots.append([f, i, count, floor, p, False, False, out[-1], tint])
                     if laundry and floor >= 1 and count == 1 and f.length >= 3.6:
                         laundry -= 1
                         self.put(out, "wall_laundry", rng, p, base + sill - 0.15, yaw, on_ground=False)
@@ -568,7 +570,7 @@ class Dresser:
         if role:
             self.put(out, role, wrng, p, z, yaw, on_ground=False)
             if slots is not None:
-                slots.append([f, i, count, floor, p, True, False])
+                slots.append([f, i, count, floor, p, True, False, out[-1], tint])
 
     def _window_role(self, tint: str, traditional: bool, bay: bool, floor: int, roll: float) -> str | None:
         style = ("bay" if bay and floor >= 1 and roll < self.cfg.get("bay_window", 0.35) else
@@ -654,32 +656,43 @@ class Dresser:
         home = self.homes.get(k)
         tint = (home.door if home else "door_blue")[5:]
         rng = self.rng("court", k)
+        short = self.rng("court-short", k)
         floors = max(1, int(b.floors))
         fh = b.height / floors
         sill = float(self.cfg.get("window_sill", 0.95))
         spacing, least = float(cfg.get("spacing", 2.8)), float(cfg.get("wall", 1.8))
+        tiny = float(cfg.get("short", least))
+        for a, u, length, yaw, size in self._court_walls(b, cfg):
+            if length < tiny:
+                continue
+            wall = rng if length >= least else short       # a short wall: one small window, on its own stream
+            count = max(1, int(length // spacing))
+            for i in range(count):
+                p = a + u * (i + 0.5) * length / count
+                for floor in range(floors):
+                    kind = weighted(wall, cfg.get("style", [["shutter", 1.0]]))
+                    role = next((r for r in (f"window_{kind}_{tint}", f"window_grille_{tint}") if self.has(r)), None)
+                    if role:
+                        self.put(out, role, wall, p, high + floor * fh + sill, yaw, on_ground=False,
+                                 scale=size if length >= least else min(size, float(cfg.get("well_scale", 0.75))))
+
+    def _court_walls(self, b, cfg: dict) -> list:
+        """(start, along, length, outward yaw, window size) of each court wall, but for those against a party
+        wall, which stay blank (no draw); a light well's windows are smaller."""
         well, scale = float(cfg.get("well_side", 4.0)), float(cfg.get("well_scale", 0.75))
-        styles = cfg.get("style", [["shutter", 1.0]])
         courts = self.world.style.get("courts", {})
-        party = float(courts.get("own", 0.3)) + float(courts.get("snug", 0.3)) + 0.05   # a court against a party
-        outline = orient(b.footprint, 1.0).exterior                  # wall: that wall stays blank (no draw)
+        party = float(courts.get("own", 0.3)) + float(courts.get("snug", 0.3)) + 0.05
+        outline = orient(b.footprint, 1.0).exterior
+        out = []
         for hole in orient(b.footprint, 1.0).interiors:
             ring = np.asarray(hole.coords)[:-1, :2]
             size = scale if frame(Polygon(ring))[3] < well - 1e-6 else 1.0
             for a, c in zip(ring, np.roll(ring, -1, axis=0)):
                 length = float(np.hypot(*(c - a)))
-                if length < least or outline.distance(Point(*((a + c) / 2))) < party:
-                    continue
-                u = (c - a) / length
-                yaw = yaw_of(np.array([u[1], -u[0]]))       # a court ring runs clockwise: out into the court
-                count = max(1, int(length // spacing))
-                for i in range(count):
-                    p = a + u * (i + 0.5) * length / count
-                    for floor in range(floors):
-                        kind = weighted(rng, styles)
-                        role = next((r for r in (f"window_{kind}_{tint}", f"window_grille_{tint}") if self.has(r)), None)
-                        if role:
-                            self.put(out, role, rng, p, high + floor * fh + sill, yaw, on_ground=False, scale=size)
+                if outline.distance(Point(*((a + c) / 2))) >= party:
+                    u = (c - a) / max(length, 1e-9)
+                    out.append((a, u, length, yaw_of(np.array([u[1], -u[0]])), size))   # a court ring runs clockwise
+        return out
 
     # --- colonial arcades and iron balconies (prompt 22) ----------------------------------------
     def _colonial(self, b, k: int, walls: Walls, high: float, street: list, slots: list) -> tuple:
@@ -688,14 +701,58 @@ class Dresser:
         arcade's slab or pillars would cut (a vine or a hood over a door) are left out, and the pillar
         boxes (from the wall out to each pillar) keep every home's new doors under the arches."""
         district = self.kinds[b.district]
-        arcade, shadow, runs = [], NO_BOXES, []
+        arcade, shadow, runs, solid = [], NO_BOXES, [], NO_BOXES
         if self.arcade_cfg and district in self.arcade_cfg.get("districts", ()):
             runs, corners, bent = self._arcade_runs(b, k, walls, street, high)
             if runs:
                 arcade, shadow, solid = self._arcade_pieces(b, walls, high, runs, corners, bent)
                 street = self._clear_of(street, solid)
+        if district in self.cfg.get("fill", {}).get("districts", ()):
+            street = street + self._clear_of(self._gaps(k, b, walls, high, slots), solid)
         iron = self._iron(k, b, high, runs, slots, street) if district in self.iron_cfg.get("districts", ()) else []
         return street, arcade, iron, shadow
+
+    def _gaps(self, k: int, b, walls: Walls, high: float, slots: list) -> list:
+        """The windows a colonial street wall lacks: an upper-floor place the old chance left empty (a blank
+        hole in a regular facade, a room in the dark) and the one window of a street wall too short for the
+        old spacing. Each draws on its own `rng("fill", k, wall, floor, i)`, nothing else moves, and joins the
+        `slots`: it may get a balcony like any other."""
+        cfg = self.cfg.get("fill", {})
+        home = self.homes.get(k)
+        tint = (home.door if home else "door_blue")[5:]
+        have = {(s[0].wall, s[3], s[1]) for s in slots}
+        spacing, sill = float(self.cfg.get("window_spacing", 3.2)), float(self.cfg.get("window_sill", 0.95))
+        fh = b.height / max(1, int(b.floors))
+        out: list = []
+        for f in self.facades(b, walls):
+            count = int(f.length // spacing) or int(f.length >= float(cfg.get("wall", 2.0)))
+            tops = self._floors_on(b, f.a, f.u, (np.arange(count) + 0.5) * f.length / max(count, 1))
+            for i in range(count):
+                p = f.at((i + 0.5) / count)
+                for floor in range(1, int(tops[i])):
+                    if (f.wall, floor, i) not in have:
+                        rng = self.rng("fill", k, f.wall, floor, i)
+                        role = self._window_role(tint, False, False, floor, rng.random())
+                        if role and self.put(out, role, rng, p, high + floor * fh + sill, yaw_of(f.n), on_ground=False):
+                            slots.append([f, i, count, floor, p, False, False, out[-1], tint])
+        return out
+
+    def _ground_windows(self, k: int, b, walls: Walls, front: tuple, shadow: tuple, high: float, out: list) -> None:
+        """Barred ground-floor windows on a colonial building's street and open walls, a little higher than
+        those upstairs (the flats down there have a street at the sill), in the columns of the floors above,
+        clear of every door, shop and pillar. Own stream `rng("ground", k)`, no other draw moves."""
+        cfg = self.cfg.get("ground_windows", {})
+        if self.kinds[b.district] not in cfg.get("districts", ()):
+            return
+        home = self.homes.get(k)
+        role = (f"window_grille_{(home.door if home else 'door_blue')[5:]}", float(cfg.get("sill", 1.3)))
+        solid = [p for p in out if self.kit.pieces[p.piece].category != "arcade"]   # under an arch: only its pillars count
+        boxes = joined(piece_boxes(self.kit, solid, front[4] or 0.0), shadow)
+        spacing = float(self.cfg.get("window_spacing", 3.2))
+        rng = self.rng("ground", k)
+        for i in np.nonzero(((walls.street >= 0) | walls.open) & (walls.length >= float(cfg.get("wall", 2.0))))[0]:
+            cells = [(s, high, [role]) for s in self._columns(float(walls.length[i]), spacing)]
+            self._wall_pieces(out, cells, rng, walls, int(i), boxes)
 
     def _arcaded(self, kind: str, district: str) -> bool:
         """Does a wall of this district facing a street of this kind carry an arcade?"""
@@ -991,7 +1048,8 @@ class Dresser:
         each facade): a floor has them with a chance that grows with the household's wealth, then each
         window, two neighbours sometimes sharing one long balcony. A rich household's old mashrabiya
         spot always gets one. None on the floor right above an arcade (its terrace), none where a
-        clothesline hangs or another piece is in the way."""
+        clothesline hangs, another piece is in the way or the arcade took the window. A window that gets
+        a balcony becomes a door-window (`_door_window`), then come the balconnets."""
         cfg = self.iron_cfg
         single, long_ = self._first("balcony_iron"), self._first("balcony_iron_long")
         if not slots or single is None:
@@ -1009,8 +1067,10 @@ class Dresser:
             covered.setdefault(r.wall, []).append((r.cuts[0] - pw, r.cuts[-1] + pw))
         boxes = piece_boxes(self.kit, [p for p in street if self.kit.pieces[p.piece].category != "window"], high)
         rows: dict = {}
+        standing = {id(p) for p in street}
         for slot in slots:
-            rows.setdefault((slot[0].wall, slot[3]), {})[slot[1]] = slot
+            if id(slot[7]) in standing:
+                rows.setdefault((slot[0].wall, slot[3]), {})[slot[1]] = slot
         out = []
         for (wall, floor), cols in rows.items():
             f = next(iter(cols.values()))[0]
@@ -1040,12 +1100,57 @@ class Dresser:
                                      stretch=float((gap + width) / (span + width)))
                     if self._clear(cand, boxes):
                         out.append(cand)
+                        self._door_window(cols[i])
+                        self._door_window(cols[i + 1])
                         i += 2
                         continue
                 cand = Placement(single, float(p[0]), float(p[1]), z, yaw_of(f.n), False)
                 if self._clear(cand, boxes):
                     out.append(cand)
+                    self._door_window(cols[i])
                 i += 1
+        return out + self._balconnets(k, floorless(rows), covered, boxes, out)
+
+    def _door_window(self, slot: list) -> None:
+        """The window of `slot` becomes the door-window of its family and household color: same place, same
+        anchor, same floor for the night lights (a grille takes the shutter form). A replacement, no draw."""
+        p, tint = slot[7], slot[8]
+        family = "kit_" if p.piece.startswith("tounes/") else ""
+        p.piece = next(n for n in (f"window_door_{family}{tint}", f"window_door_{tint}") if n in self.kit.pieces)
+
+    def _balconnets(self, k: int, walls: dict, covered: dict, boxes: tuple, iron: list) -> list:
+        """Flush rails on some tall windows of a colonial building's upper floors: own stream `rng("balconnet",
+        k, wall)`, two draws per street wall, so the facade keeps a rhythm: a wall has them with a chance
+        that grows with the household's wealth, on every floor that has no iron balcony, at every window
+        or at every second column. None on the arcade's terrace floor, none where a clothesline hangs or
+        another piece is in the way."""
+        cfg = self.cfg.get("balconnet", {})
+        if not cfg or "balconnet_iron" not in self.kit.pieces:
+            return []
+        home = self.homes.get(k)
+        wealth = home.wealth if home else 0.4
+        chance = float(np.clip(cfg.get("row", 0.3) + cfg.get("wealth", 0.7) * (wealth - 0.5), 0.0, 1.0))
+        boxes = joined(boxes, piece_boxes(self.kit, iron, 0.0))
+        out = []
+        for wall, rows in sorted(walls.items()):
+            rng = self.rng("balconnet", k, wall)
+            has, every = rng.random((2,))
+            if has >= chance:
+                continue
+            step = 1 if every < cfg.get("every", 0.6) else 2
+            for floor, cols in sorted(rows.items()):
+                if any(s[7].piece.startswith("window_door_") for s in cols.values()):
+                    continue                              # a floor of iron balconies stays as it is
+                for i, slot in sorted(cols.items()):
+                    f = slot[0]
+                    s = float(np.dot(slot[4] - f.a, f.u))
+                    if floor < 1 or i % step or slot[6] or (floor == 1 and any(s0 < s < s1 for s0, s1 in covered.get(wall, ()))):
+                        continue
+                    w = slot[7]
+                    cand = Placement("balconnet_iron", w.x, w.y, w.z, w.yaw, False)
+                    if self._clear(cand, boxes):
+                        out.append(cand)
+                        self._door_window(slot)
         return out
 
     def _clear(self, cand: Placement, boxes: tuple) -> bool:
@@ -1448,6 +1553,24 @@ class Dresser:
                 cells += [(s, high + f * fh, [("slab_balcony", 0.0)] + window if balcony and f >= 1 else window)
                           for f in range(int(tops[col]))]
             self._wall_pieces(out, cells, rng, walls, int(i), boxes)
+        self._gable_windows(k, b, walls, high, boxes, window, flen, out)
+
+    def _gable_windows(self, k: int, b, walls: Walls, high: float, boxes, window: list, flen: float, out: list) -> None:
+        """The windows of a modern block's open short ends, in the rooms' rhythm: the rooms at each end of a
+        block have no other wall (own stream `rng("gable", k)`, no other draw moves)."""
+        cfg = self.slab_cfg
+        bay = float(cfg.get("gable_windows", 0.0))
+        if bay <= 0:
+            return
+        rng = self.rng("gable", k)
+        fh = b.height / max(1, int(b.floors))
+        for i in np.nonzero(walls.open & (walls.street < 0) & (walls.length > 1.5))[0]:
+            if float(walls.length[i]) >= float(cfg.get("long", 0.6)) * flen:
+                continue
+            cols = self._columns(float(walls.length[i]), bay)
+            tops = self._floors_on(b, walls.a[i], walls.u[i], cols)
+            self._wall_pieces(out, [(s, high + f * fh, window) for col, s in enumerate(cols) for f in range(int(tops[col]))],
+                              rng, walls, int(i), boxes)
 
     def _open_windows(self, k: int, b, walls: Walls, high: float, boxes, out: list) -> None:
         """Windows on walls facing open ground, by the district's rules (traditional houses look inward:
@@ -1882,6 +2005,14 @@ class Dresser:
         b = self.plan.buildings[best[1]]
         top = float(self.ground.height(best[2][0], best[2][1])) + float(wall_height(b, best[2])[0])
         return best[2], top
+
+
+def floorless(rows: dict) -> dict:
+    """{(wall, floor): columns} as {wall: {floor: columns}}."""
+    out: dict = {}
+    for (wall, floor), cols in rows.items():
+        out.setdefault(wall, {})[floor] = cols
+    return out
 
 
 def stair_columns(length: float, cfg: dict) -> tuple:

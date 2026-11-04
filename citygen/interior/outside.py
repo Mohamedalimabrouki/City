@@ -25,7 +25,6 @@ FACADE = ("door", "window", "shop", "balcony")   # piece categories that stand i
 GLASS = ("glass_dark", "glass_lit", "shop_dark")  # hole materials: the glass, a shop's dark inside
 TURN = math.radians(1.0)    # a wall whose outward normal lies within this of the piece front carries it
 ON_WALL = 0.05              # meters: ... and passes this near the hole's center
-BESIDE = 0.1                # meters: a balcony this near a window stands in front of it (no hole of its own)
 
 
 class Outside:
@@ -128,16 +127,14 @@ def facade_openings(o: Outside, frame: float) -> list:
     """One `Opening` per door, window, shop front and balcony of the facade (SPEC 6c bridge step 4)."""
     kit, ps = o.kit, o.placements
     category = [kit.pieces[p.piece].category if p.piece in kit.pieces else "" for p in ps]
-    windows = np.array([(p.x, p.y, p.z) for p, cat in zip(ps, category) if cat == "window"]).reshape(-1, 3)
+    railings = o.ctx.world.style.get("interiors", {}).get("openings", {}).get("railings", ())
     segs = wall_segments(o.b)
     floors = max(1, int(o.b.floors))
     holes: dict = {}
     out = []
     for i, (p, cat) in enumerate(zip(ps, category)):
-        if cat not in FACADE:
+        if cat not in FACADE or p.piece in railings:   # a rail stands in front of its door-window's hole
             continue
-        if cat == "balcony" and len(windows) and np.linalg.norm(windows - (p.x, p.y, p.z), axis=1).min() < BESIDE:
-            continue                                   # an iron balcony in front of its own window
         if p.piece not in holes:
             holes[p.piece] = hole(kit, p.piece, frame)
         x0, x1, y0, y1 = holes[p.piece]
