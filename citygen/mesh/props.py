@@ -212,6 +212,7 @@ def window_slab(color: str, shut: bool = False) -> MeshBuilder:
         _faces(mb, frame, "plastic_white")
         leaves = [(-w / 2, -0.01), (0.01, w / 2)]
         _faces(mb, [_front(x0, x1, f, h - f, 0.07) for x0, x1 in leaves], color)
+        _faces(mb, [_front(x0, x1, f, h - f, 0.06, back=True) for x0, x1 in leaves], color)   # seen from the room
         _faces(mb, [q for x0, x1 in leaves for q in _slats(x0, x1, f, h - f, 0.07, 9)], color)
         return mb
     _faces(mb, frame + [_front(-0.025, 0.025, f, h - f, 0.05)], "plastic_white")

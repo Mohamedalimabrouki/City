@@ -1129,7 +1129,7 @@ def test_colonial_arcades_and_iron_balconies(world, plan, ground, homes, colonia
             assert run >= length - cfg["bay_relaxed"][1] - 0.5, (k, run, length)   # at most a short plain end
             covered += run
         for p in out:
-            if not p.piece.startswith("balcony_iron"):
+            if not p.piece.startswith(("balcony_iron", "balconnet")):
                 continue
             balconies += 1
             floor = (p.z - sill - high) / fh
@@ -3639,6 +3639,102 @@ def _facade_pieces(outside) -> list:
     cat = [kit.pieces[p.piece].category if p.piece in kit.pieces else "" for p in ps]
     return [p for p, c in zip(ps, cat) if c in ("door", "window", "shop", "balcony")
             and not p.piece.startswith(("balcony_iron", "balconnet"))]   # a rail stands before its door-window's hole
+
+
+RAILS = ("balcony_iron", "balconnet_iron")
+
+
+def _colonial_pieces(ctx, plan, dresser=None, every: int = 1) -> dict:
+    """Building -> its placements, as `Dresser.building` gives them, for every colonial house and block (or
+    every `every`th one)."""
+    from citygen.city.dressing import building_highs
+    d = dresser or ctx.dresser(plan)
+    out = {}
+    ks = [k for k, b in enumerate(plan.buildings)
+          if plan.districts[b.district].kind == "colonial" and b.kind in ("house", "apartments")]
+    for k in ks[::every]:
+        out[k] = d.building(k, float(building_highs(ctx.ground, [plan.buildings[k]])[0]))
+    return out
+
+
+def _stripped(name: str) -> str:
+    return name[:-4] if name.endswith("_lit") else name
+
+
+def test_every_iron_balcony_stands_before_door_windows(interior_ctx):
+    """On the real quick capital: each rail has its door-window (two for a long balcony) at its floor, no plain
+    window behind any rail, and no door-window without a rail: nobody steps out over a sill or into the air."""
+    from citygen.interior.context import city_plan
+    plan = city_plan(interior_ctx)
+    kit, rails, doors = interior_ctx.kit, 0, 0
+    iron = interior_ctx.world.style["dressing"]["balcony_iron"]
+    span, width = float(iron["span"]), float(iron["width"])
+    for k, ps in _colonial_pieces(interior_ctx, plan).items():
+        at = {(round(p.x, 3), round(p.y, 3), round(p.z, 3)): _stripped(p.piece) for p in ps
+              if not p.piece.startswith(RAILS)}
+        served = set()
+        for p in ps:
+            if not p.piece.startswith(RAILS):
+                continue
+            rails += 1
+            u = np.array([math.cos(p.yaw), math.sin(p.yaw)])
+            gap = (span + width) * p.stretch - width if p.piece.endswith("long") else 0.0   # between its two doors
+            for sign in (-1, 1) if gap else (0,):
+                q = np.array([p.x, p.y]) + u * sign * gap / 2
+                key = min(at, key=lambda c: math.dist(c, (*q, p.z)))
+                assert math.dist(key, (*q, p.z)) < 0.01 and at[key].startswith("window_door_"), (k, p.piece, at[key])
+                served.add(key)
+        doors += sum(n.startswith("window_door_") for n in at.values())
+        assert all(c in served for c, n in at.items() if n.startswith("window_door_")), k
+        for p in ps:
+            if kit.pieces[p.piece].category == "window":      # a plain window never behind a rail
+                assert not any(r.piece.startswith(RAILS) and math.hypot(r.x - p.x, r.y - p.y) < kit.pieces[r.piece].width / 2
+                               * r.stretch - 0.3 and abs(r.z - p.z) < 0.1 and abs(math.sin(r.yaw - p.yaw)) < 0.02 for r in ps), (k, p)
+    assert rails > 500 and doors >= rails
+
+
+def test_door_windows_reach_the_floor_under_the_window_head(interior_ctx):
+    """Each door-window has a lit twin, a hole down to the floor and the head of its window family."""
+    from citygen.interior.outside import hole
+    kit = interior_ctx.kit
+    sill = float(interior_ctx.world.style["dressing"]["window_sill"])
+    names = [n for n in kit.pieces if n.startswith("window_door_") and not n.endswith("_lit")]
+    assert len(names) == 8
+    for n in names:
+        assert "glass_lit" in kit.pieces[n + "_lit"].parts and "glass_dark" not in kit.pieces[n + "_lit"].parts
+        x0, x1, y0, y1 = hole(kit, n, 0.12)
+        assert abs(y0 + sill) < 1e-6 and x1 - x0 >= 0.8 - 1e-6 and y1 + sill >= 1.9, n     # a person walks through
+        window = "tounes/window_shutter_blue" if "_kit_" in n else "window_shutter_blue"
+        assert abs(kit.pieces[n].top - kit.pieces[window].top) < 1e-6, n                   # the head line
+        assert kit.pieces[n].category == "balcony"                  # a light of the room, never a street door
+    shutters = max(kit.pieces[n].bounds[1][0] for n in names)
+    assert kit.pieces["balcony_iron"].width / 2 - 0.03 > shutters    # the open shutters fold back inside the rail
+
+
+def test_door_windows_and_balconnets_draw_nothing(interior_ctx):
+    """Without them every other piece of a colonial building stays where it was: the door-window replaces a
+    window in place (no draw on an old stream), a balconnet only adds a rail."""
+    from citygen.city.dressing import Dresser
+    from citygen.interior.context import city_plan
+    plan = city_plan(interior_ctx)
+    kit = interior_ctx.kit
+    plain = Dresser(interior_ctx.world, plan, kit, interior_ctx.ground)
+    plain._door_window = lambda slot: None
+    plain._balconnets = lambda *a: []
+    now, before = (_colonial_pieces(interior_ctx, plan, d, 3) for d in (interior_ctx.dresser(plan), plain))
+    swapped = 0
+    for k in now:
+        a = [p for p in now[k] if p.piece != "balconnet_iron" and not p.piece.endswith("_pane_lit")]
+        b = [p for p in before[k] if not p.piece.endswith("_pane_lit")]
+        assert len(a) == len(b), k
+        for p, q in zip(a, b):
+            assert (p.x, p.y, p.z, p.yaw, p.scale) == (q.x, q.y, q.z, q.yaw, q.scale), (k, p, q)
+            if p.piece.startswith("window_door_"):
+                swapped += 1
+                assert kit.pieces[q.piece].category == "window", (k, q)
+            else:
+                assert _stripped(p.piece) == _stripped(q.piece), (k, p, q)
+    assert swapped > 300
 
 
 def test_interior_folders_for_three_layouts(interior_build, interior_ctx, tmp_path):
