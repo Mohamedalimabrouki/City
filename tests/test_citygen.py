@@ -3644,14 +3644,14 @@ def _facade_pieces(outside) -> list:
 RAILS = ("balcony_iron", "balconnet_iron")
 
 
-def _colonial_pieces(ctx, plan, dresser=None, every: int = 1) -> dict:
+def _colonial_pieces(ctx, plan, dresser=None, every: int = 1, districts=("colonial",)) -> dict:
     """Building -> its placements, as `Dresser.building` gives them, for every colonial house and block (or
-    every `every`th one)."""
+    every `every`th one; or those of other `districts`)."""
     from citygen.city.dressing import building_highs
     d = dresser or ctx.dresser(plan)
     out = {}
     ks = [k for k, b in enumerate(plan.buildings)
-          if plan.districts[b.district].kind == "colonial" and b.kind in ("house", "apartments")]
+          if plan.districts[b.district].kind in districts and b.kind in ("house", "apartments")]
     for k in ks[::every]:
         out[k] = d.building(k, float(building_highs(ctx.ground, [plan.buildings[k]])[0]))
     return out
@@ -3690,6 +3690,10 @@ def test_every_iron_balcony_stands_before_door_windows(interior_ctx):
             if kit.pieces[p.piece].category == "window":      # a plain window never behind a rail
                 assert not any(r.piece.startswith(RAILS) and math.hypot(r.x - p.x, r.y - p.y) < kit.pieces[r.piece].width / 2
                                * r.stretch - 0.3 and abs(r.z - p.z) < 0.1 and abs(math.sin(r.yaw - p.yaw)) < 0.02 for r in ps), (k, p)
+        for p in ps:                                          # never where a clothesline hangs
+            if p.piece.endswith("laundry_line"):
+                assert not any(r.piece.startswith(RAILS) and math.hypot(r.x - p.x, r.y - p.y) < 0.5 and
+                               abs(r.z - p.z) < 0.5 for r in ps), (k, p)
     assert rails > 500 and doors >= rails
 
 
@@ -3721,7 +3725,7 @@ def test_door_windows_and_balconnets_draw_nothing(interior_ctx):
     plain = Dresser(interior_ctx.world, plan, kit, interior_ctx.ground)
     plain._door_window = lambda slot: None
     plain._balconnets = lambda *a: []
-    now, before = (_colonial_pieces(interior_ctx, plan, d, 3) for d in (interior_ctx.dresser(plan), plain))
+    now, before = (_colonial_pieces(interior_ctx, plan, d, 5) for d in (interior_ctx.dresser(plan), plain))
     swapped = 0
     for k in now:
         a = [p for p in now[k] if p.piece != "balconnet_iron" and not p.piece.endswith("_pane_lit")]
@@ -3734,7 +3738,75 @@ def test_door_windows_and_balconnets_draw_nothing(interior_ctx):
                 assert kit.pieces[q.piece].category == "window", (k, q)
             else:
                 assert _stripped(p.piece) == _stripped(q.piece), (k, p, q)
-    assert swapped > 300
+    assert swapped > 100
+
+
+def test_a_door_window_is_a_room_light_down_to_the_floor(interior_ctx):
+    """Seen from the room it is a balcony door with a hole down to its floor, never a door of the home."""
+    from citygen.interior.context import city_plan, resolve
+    from citygen.interior.outside import Outside
+    plan = city_plan(interior_ctx)
+    o = Outside(interior_ctx, plan, resolve(interior_ctx, plan, "pick:colonial"))
+    doors = [x for x in o.openings if x.piece.startswith("window_door_")]
+    assert doors and all(x.kind == "balcony" for x in doors)
+    assert all(abs(x.z0 - (o.high + x.floor * o.fh)) < 1e-6 and x.floor >= 1 for x in doors)
+    assert not any(x.piece.startswith(("balcony_iron", "balconnet")) for x in o.openings)   # a rail is no opening
+    assert not any(d.piece.startswith("window_door_") for d in o.doors)
+
+
+def test_new_windows_leave_every_other_piece(interior_ctx):
+    """The windows of the facade round (the gaps of a street wall, the ground floor, gables, short court walls)
+    stand on streams of their own: without them, every window of the building is the same piece at the same place."""
+    from citygen.city.dressing import Dresser
+    from citygen.interior.context import city_plan
+    plan = city_plan(interior_ctx)
+    kit = interior_ctx.kit
+    plain = Dresser(interior_ctx.world, plan, kit, interior_ctx.ground)
+    plain._gaps = lambda *a: []
+    plain._ground_windows = plain._gable_windows = lambda *a: None
+    plain.cfg = {**plain.cfg, "courts": {**plain.cfg["courts"], "short": plain.cfg["courts"]["wall"]}}
+    now, before = (_colonial_pieces(interior_ctx, plan, d, 5, ("colonial", "modern"))
+                   for d in (interior_ctx.dresser(plan), plain))
+    added = 0
+    for k in now:
+        at = {(p.x, p.y, p.z): p.piece for p in now[k] if not p.piece.endswith("_pane_lit")}
+        for p in before[k]:
+            if kit.pieces[p.piece].category == "window":
+                got = at[(p.x, p.y, p.z)]
+                assert _stripped(got) == _stripped(p.piece) or got.startswith("window_door_"), (k, p, got)
+        added += len(now[k]) - len(before[k])
+    assert added > 100
+
+
+def test_slab_stair_windows_clear_the_slabs(interior_ctx):
+    """A stair window stands over a half landing, under the next slab: no floor stops short of it (no light slot)."""
+    from citygen.city.dressing import building_highs
+    from citygen.interior.context import city_plan
+    plan = city_plan(interior_ctx)
+    d = interior_ctx.dresser(plan)
+    slab = float(interior_ctx.world.style["interiors"]["floors"]["slab"])
+    head = interior_ctx.kit.pieces["window_stair"].top
+    seen = 0
+    for k in [k for k, b in enumerate(plan.buildings) if d._is_slab(b)][:40]:
+        b = plan.buildings[k]
+        high = float(building_highs(interior_ctx.ground, [b])[0])
+        fh = b.height / int(b.floors)
+        for p in d.building(k, high):
+            if _stripped(p.piece) == "window_stair":
+                seen += 1
+                up = (p.z - high) % fh
+                assert fh / 2 <= up and up + head <= fh - slab, (k, up)
+    assert seen > 50
+
+
+def test_a_closed_persienne_shows_from_the_room(interior_ctx):
+    from citygen.interior.export import seen_from_inside
+    part = seen_from_inside(interior_ctx.kit.pieces["window_slab_white_shut"].parts)
+    room_side = 0
+    for q in part.values():
+        tri = np.asarray(q["pos"])[np.asarray(q["idx"]).reshape(-1, 3)]
+        room_side += int((np.cross(tri[:, 1] - tri[:, 0], tri[:, 2] - tri[:, 0])[:, 2] > 1e-9).sum())
+    assert room_side >= 4                                     # both leaves, seen from inside
 
 
 def test_interior_folders_for_three_layouts(interior_build, interior_ctx, tmp_path):

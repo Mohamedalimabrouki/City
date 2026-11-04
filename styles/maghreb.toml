@@ -1339,10 +1339,23 @@ lower = { lamp = 2.2, souk_awning = 1.8 }   # roles lowered under a roof instead
 
 [dressing.courts]          # windows on the court walls of colonial blocks and maisons (47.2, Dresser._court_windows)
 spacing = 2.8              # meters of court wall per window column (at least one on a wall of `wall` m)
-wall = 1.8                 # meters: shorter court walls stay blank
+wall = 1.8                 # meters: a shorter court wall gets one small window, on its own stream ...
+short = 1.2                # ... and one shorter than this stays blank
 style = [["shutter", 0.65], ["grille", 0.35]]   # plain courtyard windows in the household's color
 well_side = 4.0            # meters: a court narrower than this is a light well ...
 well_scale = 0.75          # ... and its windows are this much smaller
+
+# The windows a regular colonial facade lacks (Dresser._gaps): upper places the old chance left empty, one
+# window on a short street wall.
+[dressing.fill]
+districts = ["colonial"]
+wall = 2.0                 # meters: a street wall from this long takes one window
+
+# Barred windows of the ground-floor flats (Dresser._ground_windows), clear of doors, shops and pillars.
+[dressing.ground_windows]
+districts = ["colonial"]
+sill = 1.3                 # meters from the floor: above the eyes of the street
+wall = 2.0                 # meters: shorter walls stay blank
 
 # Walls facing open ground (no building within `clear` m in front of them) get windows too, by district.
 [dressing.open_walls]
@@ -1357,13 +1370,14 @@ share = { medina = 0.45, village = 0.45, colonial = 0.85, residential = 0.7, sub
 # stair doors along the long side facing the nearest street.
 [dressing.slab]
 bay = 3.2                  # meters per window column on a long side
-gable_bay = 0.0            # meters per window column on a short end (0: blind gable ends, as on most blocks)
+gable_bay = 0.0            # meters per window column on a short end, in the main rhythm (0: none)
+gable_windows = 3.2        # meters per window column on a short end, drawn apart from the long sides (the end rooms' only wall)
 long = 0.6                 # a wall at least this share of the block's length is a long side
 tints = [["white", 3], ["blue", 2], ["green", 2], ["brown", 1.5]]   # shutter color, one per block
 balconies = 0.85           # share of blocks with balconies
 balcony_period = [2, 3]    # one balcony column in every 2 or 3 columns, on every upper floor
 stair_spacing = [20.0, 25.0]   # meters between two stair doors
-stair_window = 0.55        # meters from a half landing up to its stair window's sill
+stair_window = 0.25        # meters from a half landing up to its stair window's sill: its head stays under the next slab
 
 # Paved paths from doors that open onto open ground to the nearest sidewalk or street edge.
 [dressing.paths]

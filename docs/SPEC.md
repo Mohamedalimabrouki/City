@@ -844,7 +844,7 @@ shaders (which ignore the image and the tint) and takes their palette color from
 - **Dresser** (`city/dressing.py`): per building (one random stream each) the main facade gets a
   shop (souks), a cafe (colonial) or a door with lamp, hood, pots, bench, cat, climber, parked
   moped; other walls get windows by floor (grilles, shutters, birdcage bays, one mashrabiya
-  balcony for rich households; in the colonial district a window with an iron balcony instead); flat roofs get tanks, dishes, laundry racks and pots inside the
+  balcony for rich households; in the colonial district a door-window with an iron balcony instead); flat roofs get tanks, dishes, laundry racks and pots inside the
   parapet and off the stair room. Per street:
   laundry, cables, lantern strings, bunting and sabats across alleys and souks (none under a souk roof),
   arches over alley
@@ -873,7 +873,7 @@ shaders (which ignore the image and the tint) and takes their palette color from
   every floor, ground floor too (`slab_window_<tint>`, one tint per block, some shutters closed),
   concrete balconies stacked in a rhythm of columns, blind gable ends; stair doors (`stair_door`,
   glazed, with a canopy and light; `stair` stream) every `stair_spacing` m on the long side facing
-  the nearest street, each in a window column whose stair windows sit half a floor up. Doors on
+  the nearest street, each in a window column whose stair windows sit over the half landings, under the next slab. Doors on
   open ground in `[dressing.paths] districts` get a paving ribbon straight to the nearest
   sidewalk or street edge that crosses no building; it is draped on `Ground.drawn` (the terrain
   mesh as drawn) with a small lift, and the door threshold is the path top. Other doors on open
@@ -921,11 +921,24 @@ shaders (which ignore the image and the tint) and takes their palette color from
   tile) whose trunk falls within the pillars, cornice, `tree_trunk` and `tree_clear` of such a wall move
   straight out toward the curb until clear, turned so a palm leans over the street; left out unless they
   then stand `tree_curb` m inside the sidewalk. Iron balconies
-  (`balcony_iron` 1.2 x 0.6 m, 278 triangles; `balcony_iron_long` across two windows, stretched to their
+  (`balcony_iron` 1.8 x 0.8 m, 374 triangles: wide enough for the open shutters to fold back inside the
+  rail, deep enough to stand on; `balcony_iron_long` across two windows, stretched to their
   spacing; a stone slab on consoles, bars with faces on both sides, a frieze of rings) go on street
-  windows of the upper floors, never on the floor right above an arcade: per floor of each facade one
+  windows of the upper floors, never on the floor right above an arcade, nor where the arcade took the
+  window: per floor of each facade one
   draw on `rng("balcony-iron", k, wall, floor)` for the row (`row` + `wealth` x (wealth - 0.5)), then per
-  window. Quick capital: 312 bays on 95 facades, 17 corners, 1,523 + 335 balconies; 19 lamps and 10
+  window. A window that gets a balcony becomes a door-window (facade round, `Dresser._door_window`, a
+  replacement, no draw): `window_door_<color>` beside the generator's windows, `window_door_kit_<color>`
+  (blue, green, brown) beside the Tounes kit's, same anchor at the sill, same column and floor (so the same
+  night light), glass and two leaves down to the floor, the head line of its family, its shutters folded
+  back, the household's color (a grille takes the shutter form); category `balcony`, 0.8 m clear (2.05 m
+  high, 1.91 m in the kit family, whose frame leaves less room under the cornice), a `_lit` twin, `[dressing.door_window]`.
+  Balconnets (`Dresser._balconnets`, `[dressing.balconnet]`, `balconnet_iron`, the balcony's rail with no
+  slab, 0.12 m off the wall): stream `rng("balconnet", k, wall)`, two draws per street wall: a wall has them
+  with a chance `row` + `wealth` x (wealth - 0.5), on every upper floor with no iron balcony, at every window
+  (`every`) or every second column; never on the arcade's terrace floor, where a clothesline hangs or
+  another piece is in the way. Quick capital: 1,714 + 327 balconies, 865 balconnets, 0 balconies before a
+  plain window (`tools/balcony_survey.py`). Before the facade round, quick capital: 312 bays on 95 facades, 17 corners, 1,523 + 335 balconies; 19 lamps and 10
   palms moved to the curb, 2 palms left out. Cut corners (prompt 23): a cut's faces read their street
   from the old corner point (`massing.probes`) and carry the arcade of a facade they turn from; each
   face gets its bays, each turn of 45 degrees (`arcade_bend`) or 22.5 degrees (`arcade_bend_round`,
@@ -1249,9 +1262,9 @@ tiles: every piece, position and yaw the same); it draws nothing new and only re
    zone meets the owning tile) and `land_zone(plan, style["port"]["props"])` (when the plan has props and
    that zone meets the owning tile), in `build_tile`'s order and under its conditions.
 3. `doors = dresser.entrances(k)`: the `DoorSpot`s, main door first (one per stair door in a slab).
-4. Facade openings: every placement whose piece category is `door`, `window`, `shop` or `balcony` (a
-   balcony only when no window stands within 0.1 m of its anchor: an iron balcony stands in front of its
-   own window, a mashrabiya instead of one). Its rectangle in the piece frame (x along the wall, y up,
+4. Facade openings: every placement whose piece category is `door`, `window`, `shop` or `balcony`, but for
+   the rails (`[interiors.openings] railings`: an iron balcony or balconnet stands in front of its
+   door-window, whose piece is the opening, kind `balcony`, a hole down to the floor). Its rectangle in the piece frame (x along the wall, y up,
    glTF axes) is the first of: the kit manifest's glass (`Kit.panes`); the bounds of its parts in the hole
    materials (a door: `glass_dark`, `glass_lit`, `shop_dark` and its leaf `door_*` together; any other
    piece: the glass and `shop_dark`, or its `door_*` parts only when it has no glass, because the open
@@ -1338,8 +1351,7 @@ the room it swings into (not a way through: couloir, hall, palier, droj, skifa, 
 `doors` keyed by the opening id: open (`open_share` 0.4) by `open_angle` 70-100 degrees, the hinge side.
 A bortal's court arches are horseshoe holes (`builder._horseshoe`) with `add_arch`'s stone band 0.01 m
 proud (`panel=False`). A `dado` (1.2 m) of `zellige` covers the faces of the `dado_rooms` (bit, maqsura,
-skifa, ghorfa, koubba) of `dar`, `compact`, `small` and `koubba` houses, broken by the holes. An iron balcony
-(`[interiors.openings] railings`) is a railing on a solid wall: no hole. Every window, court window,
+skifa, ghorfa, koubba) of `dar`, `compact`, `small` and `koubba` houses, broken by the holes. Every window, court window,
 inner window and balcony hole holds a glazed casement `casement_inset` (0.08 m) from the wall's inner
 face: stiles and rails `casement` (0.05 m) wide, `casement_depth` 0.04 m, a middle stile over `mullion` (0.6 m),
 `casement_wood` in traditional houses, `casement_white` elsewhere, panes in `glass_inner` (alpha 0.18,
@@ -1870,7 +1882,7 @@ smallest count with riser at most `riser_max` (traditional 0.21 m, modern 0.18 m
   landing (depth = width) on the door or hall side, the half landing at the far end. Box: length 2 x width
   + (n/2 - 1) x tread, width 2 x width + 0.1. The same rectangle on every floor it serves; each upper slab
   is open over the box but its floor landing, so the headroom is fh - slab - waist (at least 2.5 m). A
-  slab's stair window sits half a floor above its landing: the landing above stops short of it (Floors).
+  slab's stair window sits over the half landing, its head under the next slab (`stair_window`): no slab or landing meets it.
 - `steps` at an entrance: when the door's threshold (`DoorSpot.z`) lies more than 0.15 m below floor 0
   (up) or above it (down), risers of at most 0.18 m and treads of 0.3 m inside the entry room from the
   door, as wide as the opening + 0.2 m; where the room is too short, risers up to 0.22 m and a warning.
