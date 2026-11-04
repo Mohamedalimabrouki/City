@@ -7,6 +7,8 @@ drains, even on filled flats. Filled basins deep and wide enough are lakes; in s
 desert they are always closed (salt) basins where rivers end, and a hollow left inside one
 counts as a basin in its turn; one that no river reaches stays bare ground. Flow is the
 catchment area weighted by moisture; rivers follow the cells where it passes `[rivers] min_flow`.
+Each river's line then wanders (`_meander`) and gets the height of its water (`_surfaces`), which `carve.py` cuts
+into the ground and `mesh/water.py` draws (prompts 60, 61).
 """
 from __future__ import annotations
 
@@ -488,11 +490,9 @@ def _surfaces(rivers: list, lakes: list, terrain, rc: dict) -> None:
         c = channel(r, rc)
         z = low_ground(r, terrain, c["half"] + c["lip"], float(rc["bank_drop"]))
         z = z - free * (c["rise"] / max(float(c["rise"].max()), 1e-9))
-        for at, end in joins.get(r.id, []):
-            z[at] = min(z[at], end)
         if r.source is not None:         # the lake's own level until it has left the lake's water
             z[_in_zone(r, lakes[r.source], shore)] = lakes[r.source].level
-        low[r.id] = np.minimum.accumulate(z)
+        low[r.id] = _taking_in(np.minimum.accumulate(z), along(r.coords), joins.get(r.id, []), float(rc["mouth_slope"]))
         if r.mouth == "river" and r.into is not None:
             main = rivers[r.into].coords
             at = np.searchsorted(along(main), LineString(main).project(Point(r.coords[-1])))
@@ -519,6 +519,18 @@ def _surfaces(rivers: list, lakes: list, terrain, rc: dict) -> None:
             z[_in_zone(r, lakes[r.source], shore)] = lakes[r.source].level
             z = np.minimum.accumulate(z)
         r.surface = z
+
+
+def _taking_in(z, s, joins: list, slope: float) -> np.ndarray:
+    """The heights `z`, never rising, brought down to each tributary that arrives lower: from the junction on, and fading
+    in upstream at `slope`, so the main river has no waterfall where it meets it."""
+    z = z.copy()
+    for at, end in sorted(joins):
+        drop = float(z[at]) - end
+        if drop > 0.0:
+            z[at:] = np.minimum(z[at:], end)
+            z[:at] -= drop * np.clip(1.0 - (s[at] - s[:at]) * slope / drop, 0.0, 1.0)
+    return np.minimum.accumulate(z)
 
 
 def _in_zone(r: River, lake: Lake, shore: float) -> np.ndarray:

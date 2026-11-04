@@ -337,6 +337,7 @@ def _receiving(world, r):
 def test_water_never_rises_and_meets_what_it_runs_into_with_no_step(world):
     for r in world.rivers:
         assert len(r.surface) == len(r.coords) and np.all(np.diff(r.surface) <= 1e-9), r.id
+        assert (-np.diff(r.surface) / np.hypot(*np.diff(r.coords, axis=0).T)).max() < 0.5, r.id   # a rapid, no waterfall
         end = _receiving(world, r)
         if end is not None:
             assert abs(r.surface[-1] - end) < 1e-6 and r.surface.min() >= end - 1e-6, r.id

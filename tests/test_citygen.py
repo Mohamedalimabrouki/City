@@ -5087,7 +5087,7 @@ def test_furnish_required_share(interior_ctx):
 
 def test_furnish_household(furnish_homes, interior_ctx):
     """A weaver's dar has its loom, a tailor's home its sewing machine, a teacher's home its books, and the
-    children their beds (a cot for each small child)."""
+    children their beds (a cot for a small child where a room has its place)."""
     import copy
     from citygen.interior import furnish as FU
     style = interior_ctx.world.style
@@ -6131,3 +6131,18 @@ def test_a_lake_is_flat_in_tile_and_lod1_and_roads_keep_off_it():
     for mb in (build_tile(tc, i, j)[0], build_lod(tc, i, j, False)):
         pos = _points(mb, "water_lake")
         assert np.ptp(pos[:, 2]) == 0.0 and pos[0, 2] == lake.level
+
+
+@pytest.mark.slow  # the 64 km world
+def test_a_city_s_land_leaves_a_lake_out_where_the_ground_meets_its_level():
+    from citygen.city.layout import lake_water, land_near
+    world = generate_world(load_config())
+    shores = world.carve.shores
+    s = next(s for s in world.settlements if s.kind in ("capital", "city")
+             and any(sh.polygon.distance(shapely.Point(s.x, s.y)) < s.radius for sh in shores))
+    land = land_near(world.terrain, s.x, s.y, s.radius * 1.35)
+    wet = lake_water(world.terrain, land, shores)
+    assert wet is not None and wet.area > 1e5
+    sh = next(sh for sh in shores if sh.polygon.distance(shapely.Point(s.x, s.y)) < s.radius)
+    x, y = (np.asarray(v) for v in wet.intersection(sh.zone).buffer(-10.0).representative_point().xy)
+    assert world.terrain.height(x, y)[0] < sh.level

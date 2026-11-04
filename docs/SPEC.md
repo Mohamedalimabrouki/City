@@ -55,6 +55,8 @@ config.load_config()          defaults.toml + worlds/*.toml + CLI overrides
                               ground), settlements, roads (whole country, seconds)
     city.plan_city()          one settlement -> CityPlan (seconds to a minute)
       layout                  land polygon, city limit, old town outline, neighborhoods, kinds
+      river                   a river's corridor: the old town on one bank, neighborhoods cut along it after the
+                              deal, quays, crossings, the riverside walk (prompt 61)
       medina                  great mosque, gates, souks, alleys (spanning tree), ramparts
       kasbah                  the citadel on the old town's high edge (capital and cities);
                               placed before the alleys, its buildings appended last
@@ -87,6 +89,7 @@ config.load_config()          defaults.toml + worlds/*.toml + CLI overrides
                               blended into natural terrain at the city limit; `height` is the
                               ground, `surface` the top of the ground, street ribbon or walk
   mesh.tile.export_tile()     one 512 m square -> .glb (terrain, water, roads, city)
+    mesh.water                lakes, salt flats, river ribbons, the fine ground round a channel
     city.covered              which souk stretches are roofed (one rule for mesher and dresser)
     mesh.vaults               the souk vaults, impost bands, arches and light openings
     city.dressing             doors, windows, shops, goods, lamps, plants, spans, sabats, trees,
@@ -259,7 +262,8 @@ block on `rng("impasse", block)`: lot line jitter, widths, covered share and len
   of a dry river: the desert never shows blue water, and water does not stop at a junction. `source`: the lake a river
   flows out of. `surface` (N): the water's height, or a dry oued's floor (`hydro._surfaces`): `freeboard` (0.3 m) under
   the lowest ground met so far along the line and its two banks (each bank counts down to `bank_drop` m under the
-  center line: on a shore the other bank is the lake's floor), tributaries first as for the beds, then, main rivers
+  center line: on a shore the other bank is the lake's floor), tributaries first as for the beds (a tributary that
+  arrives lower brings its main river down, fading in upstream at `mouth_slope`: no waterfall), then, main rivers
   first, raised to what it runs into: the sea at 0, a lake's level, the main river's water, and what still hangs
   over that fades in at `mouth_slope`. So it never rises, is one height across and meets the sea, a lake or a main river
   with no step. An outlet stands at its lake's level until it leaves the lake's drawn water. `channel(r, rc)` gives the
@@ -269,17 +273,18 @@ block on `rng("impasse", block)`: lot line jitter, widths, covered share and len
   last, so bed and banks are the same inside and outside cities:
   - `fill`: the ground is raised only where water would end in the air: a rim `sill` m over a lake's level on a closed
     ring just past its zone (`shore` m, 45, off the coarse shore; the rim blends out over 24 m inside, `sill_fade` m
-    outside: 2-4% of a shore needs it, about 1 m, at most 2.5 m on six worlds), and a low bank (levee, slope `levee`)
-    along a drawn reach whose water stands higher than `freeboard` under a bank (its water pinned to a lake, or a
-    hollow beside it: 200-300 of 40,000 segments of the 64 km worlds).
+    outside: on three 64 km worlds 6-10% of that ring is raised, 0.3 m on average, 2.75 m at most), and a low bank
+    (levee, slope `levee`) along a drawn reach whose water stands higher than `freeboard` under a bank (its water pinned
+    to a lake, or a hollow beside it: about 1% of the segments, up to 4.5 m high).
   - `cut`: height = smooth min(ground, water(s) + section(d)), s the nearest point of the line, d the distance to it,
     measured off the line and never along it (a steep river's lower reach must not undercut its own banks upstream);
     numbers soft-averaged over the segments within about `SOFT` (6 m) of the nearest, so the surface is continuous at a
     junction and between two reaches of a meander. Section: a U of `depth` (`depth_k` x width, 0.4-1.4 m) under the
     water, a bank up `bank_rise` over `bank_width` m, a valley floor `valley_k` x width wide at slope `valley_flat`,
-    then walls rising `valley_curve` x the square of the distance: a deep cut (10.7 m at worst on seed 42, 18 m on seed
-    7) is a valley with rocky upper walls, not a slot. A dry oued (`oued_bed` x width of gravel floor, `oued_depth`,
-    `oued_rise`). Springs taper over `taper` m. The smooth min (`bank_round`: 0.8 m at the bank, growing 0.06 per
+    then walls rising `valley_curve` x the square of the distance: a deep cut (10.7 m at worst on seed 42, 19.9 on seed
+    7, 36 on seed 3) is a valley with rocky upper walls, not a slot. A dry oued (`oued_bed` x width of gravel floor,
+    `oued_depth`, `oued_rise`). Springs taper over `taper` m; a channel stops at a lake's real shore or the coast, its
+    bed coming up over the last 40 m and staying under the water. The smooth min (`bank_round`: 0.8 m at the bank, growing 0.06 per
     meter past it, 4 m at most) rounds a valley's edge and never reaches the water.
   - Exact distances, not a distance raster: a stream 3 m wide has no place on a 20 m raster, and distances interpolated
     across a center line or a junction are wrong. The raster is the index: squares of `CELL` (64 m) listing the
@@ -318,11 +323,11 @@ block on `rng("impasse", block)`: lot line jitter, widths, covered share and len
   sea wall's top edge, point for point opposite, along the street's direction; `span` (start, end) meters along
   the street; `stairs` [(x, y, ux, uy)] flights to the beach at the sea edge, (ux, uy) out to sea; `beach` meters
   with at least `beach_min` m of sand beyond the wall).
-- `Walk(kind, polygon, width, street, side, district, block, edge)`: a raised sidewalk (`sidewalk`),
-  the boulevard's central promenade (`promenade`) or a piece of the corniche's seafront promenade
-  (`seafront`, prompt 36, `edge` its stretch's curb line). `width` is the actual width after a tight
-  street narrows it; `street` and `side` (`+1` left, `-1` right) let later street features find
-  the carriageway edge.
+- `Walk(kind, polygon, width, street, side, district, block, edge)`: a raised sidewalk (`sidewalk`, never across
+  another street's carriageway), the boulevard's central promenade (`promenade`), a piece of the corniche's seafront
+  promenade (`seafront`, prompt 36, `edge` its stretch's curb line) or of a riverside walk (`riverside`, prompt 61). `width`
+  is the actual width after a tight street narrows it; `street` and `side` (`+1` left, `-1` right) let later
+  street features find the carriageway edge.
 - `Tree(x, y, kind, height)`: kinds `broadleaf`, `palm`, `cypress`, `olive`, `citrus` (prompt 24).
   The dresser picks each tree's kit variant and turn from `rng("tree", k)` by its index k, so new
   trees are only ever appended: `stats["greenery"]` counts the ones `city/greenery.py` added at the end.
@@ -719,12 +724,15 @@ the shore is where the land really meets the level, not the coarse ring, and the
 (`Carve.fill` closes the zone). A river's water is a ribbon one height across on `River.surface`, `water_river`,
 1.5 m wider than the water, from its spring or the end of its lake's water to the end of the water it meets (where it
 reaches 0 the sea plane takes over; a tile with a bed under 0 has one). A dry oued has no ribbon. The cells a channel
-crosses (within 6 m of the bank) are drawn on a finer grid, `[rivers] mesh_step` (2 m), each split along its flatter
-diagonal, so a bank never saws; the points on the edge of those cells stay on the coarse edge, so no crack. They are
-one material, `river_bed`, whose points carry the colors of `[water]`, so a bank fades into the land with no stair of
+crosses (a corner within 2 m past a bank) are drawn on a finer grid, `[rivers] mesh_step` (2 m), each split along its
+flatter diagonal, so a bank never saws; the points on the edge of those cells stay on the coarse edge, so no crack. They
+are one material, `river_bed`, whose points carry the colors of `[water]`, so a bank fades into the land with no stair of
 cells: the land's own color (its material's, from afar, over `river_bed`'s), bare earth on a bank, dark pebbles under the
-water, pale gravel on an oued's floor. A lake's rim (`rim_height` over its level, `salt_rim_height` round a salt flat,
-which pales to `salt_rim`) is drawn the same way, on the tile's own cells. The land along a river is tinted by
+water, pale gravel on an oued's floor. Two more kinds of cell are drawn the same way, on the tile's own 8 m grid: a lake's
+rim (`rim_height` over its level, `salt_rim_height` round a salt flat, which pales to `salt_rim`), and a valley's steep
+cut walls (`wall_cells`), the land's material from before the cut, fading to rock between the slopes of `rock_slope`,
+where rock cells would stand in stairs. Water is written as one quad per run of cells, a salt crust cell by cell for its
+tint. The land along a river is tinted by
 `[ground_tint] riparian` (`land_tint`), fading `riparian_fade` m past the valley floor. The viewer's `/^water/` rule gives
 all of them the water look; only `water` starts its sea. `Ground.drawn` follows the 8 m cells: nothing is laid on the
 fine ones (the corridor keeps buildings off them).
