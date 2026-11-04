@@ -140,7 +140,8 @@ def _facts(ctx, style, facts, d, fields) -> list:
     if by["kasbah"] and "kasbah" in t:
         out.append(("kasbah", t["kasbah"].format(kasbah=by["kasbah"][0], **fields)))
     if by["cathedral"] and by["theatre"] and "boulevard" in t:
-        out.append(("boulevard", t["boulevard"].format(cathedral=by["cathedral"][0], theatre=by["theatre"][0], **fields)))
+        text = t["boulevard"].format(cathedral=by["cathedral"][0], theatre=by["theatre"][0], **fields)
+        out.append(("boulevard", text))
     elif (by["cathedral"] or by["theatre"]) and "civic" in t:
         out.append(("civic", t["civic"].format(civic=(by["cathedral"] + by["theatre"])[0], **fields)))
     if by["station"] and "station" in t:
@@ -177,7 +178,8 @@ def _where(style, facts, d) -> str:
     a, b = m.polygon.centroid, d.polygon.centroid
     turn = math.atan2(b.y - a.y, b.x - a.x) / (2 * math.pi / len(compass))
     word = compass[int(round(turn)) % len(compass)]
-    near = str(style.get("near_word", "")) if d.polygon.buffer(float(style.get("near_m", 5.0))).intersects(m.polygon) else ""
+    touching = d.polygon.buffer(float(style.get("near_m", 5.0))).intersects(m.polygon)
+    near = str(style.get("near_word", "")) if touching else ""
     return str(style.get("where", "")).format(near=near, dir=word)
 
 

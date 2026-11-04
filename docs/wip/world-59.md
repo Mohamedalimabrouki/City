@@ -28,7 +28,8 @@ answers on rivers and the lead's review of 77cfe16. Worktree `/tmp/claude-501/wo
    14.5 m under the level of their lake, with the ground above it. Water cannot climb an inner rim of 47 m. `_routing` now
    finds lakes in rounds, each on the flow and heights the last one left, until a round adds no lake. The biome at a
    pocket's own bottom decides salt or fresh; a fresh one fills to its spill and runs on into the lake below. (b)'s aim
-   stands: a pocket under the thresholds still drains in, and no river ends where no shore is drawn.
+   stands: a pocket under the thresholds still drains in, and no river ends where no shore is drawn. Lakes per round: seed 42
+   89, 25, 1; seed 7 80, 39, 4, 3; seed 3 87, 15, 5, 2 (and a last round that adds none). `flat` still falls along every `recv`.
 3. **The bed is not the prompt's "filled height". A deviation, on purpose.** Filled heights fly over every hollow a river
    crosses (55 m at worst), and prompt 60's `min(terrain, bed + bank)` can cut the ground, never lift it. The bed is the
    running minimum of the ground under the drawn line. Per river that left 21 of 63 tributaries up to 37 m under their
@@ -132,7 +133,10 @@ The filled bed of fix-59 flew up to 55 m over the ground; now it lies at most 0.
 - **The only stretch over 20 m in all six worlds:** seed 3, river 60, 0.41 km up to 32.8 m. Its low point is a pit in the open
   of 21 cells, 37.8 m deep: 2 cells under `lake_min_area` (23), so it is no lake and the river cuts through its rim. The
   thresholds are the prompt's; I left them. Tell me if you want a deep small pit to count.
-- What stays under lake levels: pits under the thresholds on the way to the lake, 4.5 m at worst.
+- What stays under lake levels: pits under the thresholds on the way to the lake, 4.5 m at worst. `lead_water.py` also shows
+  a "gap" of 10.3 m at a salt lake's mouth (river 111), with 0.0 km of trench: a salt river ends on the lake's floor, under
+  the water, so that gap is depth of water and no fault. Your scripts agree with every number above (`lead_water2.py`: no
+  stretch over 10 m on seed 42).
 
 **River network, seed 42:** 148 rivers: 54 end in a salt lake, 42 join a river, 31 end in a fresh lake, 18 at the sea, 3 at the
 border; 13 are oueds. Sources: median 301 m (10% 71 m, 90% 545 m). Rivers reach 11.8 m wide, oueds 1.8 m.
@@ -149,7 +153,10 @@ bound under lake levels (rounds off). Three rules of 70 and 81 likewise on the o
 `test_streets_json_two_processes`, `test_world_json_two_processes`. Stronger, by hand: whole quick builds under
 PYTHONHASHSEED 1 and 2: 0 of 283 parts differ.
 
-**Builds:** `build --quick` 7.1 s (7.0 s at the baseline). `--force`: 0 of 283 parts change. FULLBUILD
+**Builds:** `build --quick` 7.1 s (7.0 s at the baseline). `--force`: 0 of 283 parts change. `build --out output/full` on the final code: 89 s, with
+the survey running beside it. Info 11: the 64 km capital plans in 64 s; its `streets_json` takes 4.4 s while the workers run
+(16,156 nodes, 18,472 edges, 4.8 MB). Over all 131 settlements that would be about 40 s beside 615 s of planning. Other
+worlds also build on the final code: `--seed 7`, `--seed 3`, `worlds/example.toml`.
 
 **Fingerprint `compare w59`:** 283 parts, 5 changed, each by its cause:
 - `files/cities/goumosbane/streets.json`: added (70).
@@ -160,7 +167,8 @@ PYTHONHASHSEED 1 and 2: 0 of 283 parts differ.
 No tile, no other plan part, no city map changed. The quick world has no pocket over the thresholds and no wet basin, so
 your two changes leave all 283 parts byte-identical to 77cfe16 (`compare w59_a`: 0 changed); they show on the 64 km world.
 
-**Country step (64 km world, quiet machine):** COUNTRY Budget 10 s.
+**Country step (64 km world, quiet machine, 5 runs):** `generate_world` 1.26-1.41 s, of which drainage 0.71 s (0.51 s before
+the rounds). Budget 10 s.
 
 **Maps, looked at myself:** rivers rise in the hills, join, run through chains of lakes to the sea; oueds end in salt lakes on
 drawn shores. Fresh lakes now sit in the forest hollows. A village dot still stands inside the big lake west of Sota, and Sota
@@ -172,7 +180,18 @@ Kabine (salt); 9 villages. The older notes name Sota as touching before the pock
 **Interior survey:** the settlements are called today Goumosbane (capital, quick world id 0) and Ain Chilel (town, id 3);
 names and places change in a later step.
 
-SURVEY2
+| Goumosbane | before | after | | Ain Chilel | before | after |
+|---|---|---|---|---|---|---|
+| dar | 155/159 | 155/159 | | villa | 168/178 | 168/178 |
+| compact | 266/277 | 266/277 | | maison | 499/616 | 499/616 |
+| small | 81/83 | 81/83 | | | | |
+| koubba | 21/22 | 21/22 | | | | |
+| colonial | 5/270 | 5/270 | | | | |
+| slab | 253/353 | 253/353 | | | | |
+| shop | 130/136 | 130/136 | | | | |
+
+No change to explain: with the clock readings ("slowest ... s") taken out, both reports are byte-identical, ladder
+warnings, failure kinds and failing buildings included (45 and 35 lines). Expected: no plan moved.
 
 **Street survey:** quick world 12 of 12 in one part. 64 km world: 125 of 131 in one part, `street_graph` costs 10 s in all, 1.2 s at worst.
 
@@ -193,7 +212,7 @@ SURVEY2
   Notes: docs/wip/world-59.md
 - Checks: tests 206 passed, slow 15 passed + the old xfail; build --quick 7.1 s, --force identical; fingerprint 5 of 283 parts:
   streets.json added, gazetteer and districts (histories only), world (rivers and lakes only), country map. Tiles and
-  plans unchanged. Country step WLCOUNTRY (budget 10 s). Interior survey unchanged.
+  plans unchanged. Country step 1.3 s (budget 10 s). Interior survey unchanged.
 - Rivers (Ali's answers): every dry basin over 3 m and 0.5 km2 stays a closed salt lake; towns by salt lakes accepted;
   min_flow 3.0. The lead's decisions (Ali: "you are the boss"): every wet basin over the two thresholds is a lake up to
   its spill (the prompt says such a basin IS a lake, and water cannot drain out of a hollow), and a pocket of a closed
