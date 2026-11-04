@@ -457,12 +457,18 @@ class Ground:
 
     def cut(self, x, y, h, sample=None) -> np.ndarray:
         """`uncut` heights `h` with the rivers cut in: together, `height`. `sample`: `Carve.sample(x, y)` if at hand."""
-        return h if self.carve is None else self.carve.cut(x, y, h, sample=sample).reshape(np.shape(h))
+        if self.carve is None:
+            return h
+        xf, yf = np.ravel(np.asarray(x, dtype=np.float64)), np.ravel(np.asarray(y, dtype=np.float64))
+        return self._quay_tops(xf, yf, self.carve.cut(xf, yf, h, sample=sample)).reshape(np.shape(h))
 
     def far(self, x, y, h=None) -> np.ndarray:
         """The ground for coarse meshes: as `height`, the valleys in but not the river channels. `h`: its `uncut`."""
         h = self.uncut(x, y) if h is None else h
-        return h if self.carve is None else self.carve.cut(x, y, h, floor=True).reshape(h.shape)
+        if self.carve is None:
+            return h
+        xf, yf = np.ravel(np.asarray(x, dtype=np.float64)), np.ravel(np.asarray(y, dtype=np.float64))
+        return self._quay_tops(xf, yf, self.carve.cut(xf, yf, h, floor=True)).reshape(h.shape)
 
     def side_height(self, x, y, side: str) -> np.ndarray:
         """Ground height on the "raised" side (quay, corniche) or the "sea" side of a harbor's walls."""

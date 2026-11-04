@@ -139,25 +139,22 @@ def link_banks(ctx, streets: list, crossings: list) -> list:
 
 
 def riverside_walks(ctx, streets: list, keep_off) -> list:
-    """The paved walk along the corridor's edge, in pieces a tile can own; `keep_off` the old town and what else
-    it must leave alone."""
+    """The paved walk along the corridor's edge, off the streets and off `keep_off` (the old town), in pieces a tile
+    can own."""
     width, piece = walk_width(ctx), float(ctx.style.get("river", {}).get("walk_piece", 64.0))
     if width <= 0.0:
         return []
     band = ctx.water.buffer(width, quad_segs=4).difference(ctx.water).intersection(ctx.boundary)
     cuts = [st.line.buffer(st.width / 2, quad_segs=2, cap_style="flat") for st in streets
             if st.line.distance(band) < st.width]
-    band = band.difference(unary_union(cuts + ([keep_off] if keep_off is not None else [])))
+    band = band.difference(unary_union(cuts + ([keep_off] if keep_off is not None else []))).buffer(0.0)
     x0, y0, x1, y1 = band.bounds if not band.is_empty else (0.0, 0.0, 0.0, 0.0)
     xs = np.arange(x0 // piece, x1 // piece + 1) * piece
     ys = np.arange(y0 // piece, y1 // piece + 1) * piece
-    squares = [box(x, y, x + piece, y + piece) for x in xs for y in ys]
-    near = band.buffer(0.0)
     out = []
-    for sq in squares:
-        for p in polygons(sq.intersection(near)):
-            if p.area > 12.0 and not p.buffer(-0.8).is_empty:
-                out.append(Walk("riverside", p, width))
+    for sq in (box(x, y, x + piece, y + piece) for x in xs for y in ys):
+        out += [Walk("riverside", p, width) for p in polygons(sq.intersection(band))
+                if p.area > 12.0 and not p.buffer(-0.8).is_empty]
     return out
 
 
