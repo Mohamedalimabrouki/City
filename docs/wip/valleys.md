@@ -1,6 +1,6 @@
 # valleys: prompts 60 and 61 as one step (helper's notes for the lead)
 
-Branch `wip/valleys`, worktree `/tmp/claude-501/valleys`, built on main f4581c1. Every number below can be rerun with the
+Branch `wip/valleys`, worktree `/tmp/claude-501/valleys`, built on main f4581c1, main eb25c71 merged in at 94c80f5. Every number below can be rerun with the
 scripts named in section 14. Blender was never started (the rule): the two shaders only compile.
 
 ## 1. What was done
@@ -37,8 +37,8 @@ smoothed line that still touches a lake is smoothed again from points 200 m apar
 
 ## 2. The four decisions: what happened
 
-1. **Capital and cities never move:** see section 6, all of them stay to the meter on all 6 worlds. `land_near` is unchanged;
-   `lake_water` then takes the lakes out. What each city lost is in section 6.
+1. **Capital and cities never move:** see 5.5, all of them stay to the meter on all 6 worlds. `land_near` is unchanged;
+   `lake_water` then takes the lakes out. What each city lost is in 5.5.
 2. **Towns and villages:** center off lakes, beds and banks (`Carve.wet`, on the grid and after the population draw), the disc may meet
    water, the score `river_bonus` exp(-d / `river_reach`) for towns and villages only. They moved once here.
 3. **Salt lakes:** done, level crust, dry pale rim, no water. Prompt 65's text now says so and leaves it the dunes.
@@ -58,7 +58,7 @@ smoothed line that still touches a lake is smoothed again from points 200 m apar
   undercuts its own banks upstream. The section is measured off the nearest point; numbers are a soft mean over about 6 m.
 - **"Plan as today, then cut" is not what I did.** It would leave walls across the river, half a mosque and a kasbah in the bed. Cutting
   the districts after the deal costs little and gives quays on both banks and a true river city; a street still crossing is cut as you
-  described. It also keeps the kinds of the quick capital (see 6).
+  described. It also keeps the kinds and names of the quick capital (5.8, and the map sheets in section 6).
 - **Beds under a lake's level near a mouth:** `surface` is the water, not `profile`. The water stands at the level, `profile` may be
   under it by 5.6 m (the old test became `test_no_water_lies_under_the_level_of_the_lake_it_reaches`). Where the ground beside such a reach lies
   lower than the water, a levee holds it: 1% of the segments, 4.5 m at the worst on three seeds, 3 m typical top. I looked at it as
@@ -84,14 +84,14 @@ The last two code commits (c5682c4, ee6ec20) only change `plan.crossings`, never
 
 ### 5.1 Tests
 
-`pytest -q` on ee6ec20: 262 passed, 27 deselected. `pytest -m slow`: 25 passed, 2 xfailed on c5682c4 (both xfails are main's own, open item 47.1 and the furnishing share). PROVISIONAL: the slow run on ee6ec20 is still going (`/tmp/claude-501/va_tmp/slow9.log`); the two slow street tests already passed there.
+`pytest -q` on ee6ec20, the last code commit: 262 passed, 27 deselected, 69.7 s (main eb25c71: 235 passed, 70.6 s, so the new fast tests add nothing you can measure). `pytest -m slow` on a frozen copy of ee6ec20: 25 passed, 2 xfailed, both main's own (open item 47.1 on colonial flats and slabs, and the furnishing share).
 
 ### 5.2 Builds and fingerprints
 
 - `build --quick --force` finishes. Against main f4581c1, allow list `world,gazetteer,plan/*,tiles/*,maps/*,files/*`: 284 parts, 34 changed, all inside the list. The merge against main eb25c71, same list: 301 parts, 34 changed, all inside the list (no `kit/*`).
-- Two hash seeds (`PYTHONHASHSEED=1` and `2`, frozen copy): 284 parts, 0 changed.
+- Two hash seeds (`PYTHONHASHSEED=1` and `2`, final code): 301 parts, 0 changed.
 - A second `build --quick` with nothing changed reuses everything: 1.8 s real.
-- Final commit against the frozen copy: 284 parts, 4 changed: `tiles/tile_12_22.glb` and its lod1, `tiles/index`, `maps/goumosbane.png` (what those two commits do).
+- c3f5fcd against the frozen copy: 284 parts, 4 changed: `tiles/tile_12_22.glb` and its lod1, `tiles/index`, `maps/goumosbane.png` (what the quay and map commits do). The numbers moved into the settings: 0 changed. The last two commits: 0 changed.
 - Box builds, base against new, each with its own fingerprint (`tools/fingerprint.py save box_N <base box>`, compare with the new box):
 
 | box (km) | what it holds | parts | changed |
@@ -125,12 +125,12 @@ worlds are 2 samples in 55,000 and 2 in 57,000, at most 40 cm. "Step" is the dra
 |---|---|---|---|---|---|---|---|---|---|---|
 | quick 42 | 14 | 0 | 2 | 0 | 0.0 | 1 | 2 | 1 | 1 | 0 |
 | quick 7 | 14 | 0 | 1 | 0 | 0.0 | 4 | 2 | 2 | 1 | 0 |
-| quick 3 | 14 | 0 | 3 | 0 | 0.0 | 6 | 1 | 0 | 2 | 1 |
-| full 42 | 131 | 0 | 33 | 0 | 64.0 | 42 | 8 | 3 | 12 | 4 |
+| quick 3 | 14 | 0 | 3 | 0 | 0.0 | 5 | 1 | 0 | 2 | 0 |
+| full 42 | 131 | 0 | 33 | 0 | 64.0 | 42 | 8 | 3 | 12 | 3 |
 | full 7 | 131 | 0 | 21 | 0 | 31.5 | 57 | 8 | 5 | 11 | 3 |
-| full 3 | 131 | 0 | 28 | 0 | 27.5 | 76 | 8 | 5 | 12 | 4 |
+| full 3 | 131 | 0 | 28 | 0 | 27.5 | 76 | 8 | 5 | 12 | 2 |
 
-"Street surface in the corridor" is the corner of a street's end where a crossing starts (64 m2 in all of 131 settlements at worst). All capitals and cities keep their old town and station; all river
+"Street surface in the corridor" is the corner of a street's end where a crossing starts (64 m2 in all of 131 settlements at worst). Fewer crossings than an earlier draft: `link_banks` now drops the ones no street reaches (section 8). All capitals and cities keep their old town and station; all river
 towns keep an old town.
 
 ### 5.5 Who moved, what land was lost
@@ -204,18 +204,27 @@ So the base code itself passes about 95% of its dars on a world it was not tuned
 
 ### 5.9 Street survey
 
-`tools/street_survey.py` (final code, c5682c4):
+`tools/street_survey.py` and, for seeds 7 and 3, the last column of 5.4, which uses the same `crossing_nodes` (final code):
 
-| world | main | here, as streets are | here, crossings as links |
+| world | main | here, as streets are | here, with the crossings as links |
 |---|---|---|---|
 | quick 42 | 11 of 11 in one part, 0 under 99.5% | 10 of 11 in one part, 1 under | 0 under |
+| quick 7 | | 12 of 13 in one part, 1 under | 0 under |
+| quick 3 | | 11 of 13 in one part, 2 under | 0 under |
 | 64 km 42 | 122 of 131 in one part, 4 under | 116 of 131 in one part, 12 under | 3 under |
+| 64 km 7 | | 117 of 131 in one part, 11 under | 3 under |
+| 64 km 3 | | 118 of 131 in one part, 12 under | 2 under |
 
-The 3: Zaouiet Noudel 88.54 and Douar Koghka 94.26, villages that are old gaps and under on main too; Ksar Saba 97.46, small old-town alley parts. The other 2 under on main, Ain Chigba and Zouknane el Melh, are in one part here. Lowest as streets are: towns Tikmine 55.33% and Bordj Zasakel 56.85%, city Tazoubka 60.55%, all three 100% with their crossings.
+Under the bar with the crossings counted, and why none of them is a river waiting for a bridge:
+- Seed 42: Zaouiet Noudel 88.54, Douar Koghka 94.26 (villages, old gaps, under on main too), Ksar Saba 97.46 (small old-town alley parts).
+- Seed 7: villages Zoudjouna 87.69, Tatouka 97.62, Kiroubta el Bey 99.40, no crossing in any of them.
+- Seed 3: village Gouma 89.69, no crossing; town Menzel Kheches 99.25: a street part of 373 m stops 12 m short of its neighbor on its own bank, no river between.
+
+The other 2 under on main, Ain Chigba and Zouknane el Melh, are in one part here. Lowest as streets are on seed 42: towns Tikmine 55.33% and Bordj Zasakel 56.85%, city Tazoubka 60.55%, all 100% with their crossings.
 
 ## 6. Pictures (same cameras, before on the left, GPU browser)
 
-All in `/tmp/claude-501/valleys/output/checks/` (not in git: `va_look.py` makes them again, see 14). The cameras are in `va_look.py`.
+All in `/tmp/claude-501/valleys/output/checks/` (`va_look.py` makes them again, see 14; the cameras are in it). Seven are kept in the repo as JPEGs, `docs/wip/valleys-valley.jpg`, `-salt`, `-town`, `-capital-river`, `-shore`, `-map-country`, `-map-q7`.
 
 | file | what it shows | my verdict |
 |---|---|---|
@@ -308,8 +317,8 @@ WORKLOG:
   mesh/tile.py, mesh/lod.py, export/maps.py, export/lore.py, build.py, defaults.toml, styles/maghreb.toml, tools/blender_beauty.py, tools/viewer/index.html, tools/street_survey.py, SPEC, prompt 65's text.
 - Rivers cut their valleys (Ground.height: grade first, carve last), water in every tile and lod1 (water_lake, water_river), salt flats built (a level crust, prompt 65 keeps the dunes), oueds dry,
   a river a barrier in the plan: quays on both banks, the old town on one bank, a riverside walk, crossings for prompt 62. Capital and cities never move; towns and villages stay off water and like rivers.
-- Checks: NUMBERS
-- Doubts: a river city is apart at its river until prompt 62 (the graph test counts the crossings as links and says so); rivers ending in a salt basin are dry oueds (63 of 148 rivers): Ali to judge.
+- Checks: `pytest -q` 262 passed, `-m slow` 25 passed, 2 xfailed. Quick against main: 301 parts, 34 changed, none outside the list; two hash seeds 0 changed. 3 seeds at both sizes: 0 roads in a lake, longest river crossing 51 m, 0 town or village centers on water, 0 buildings in a corridor, water never rises, no step at a mouth. Capital and cities never move. Country 2.3 s, terrain tile +12.6%, capital 104 s as before.
+- Doubts: a river city is apart at its river until prompt 62 (three graph tests count the crossings as links and say so); rivers ending in a salt basin are dry oueds (63 of 148 rivers): Ali to judge; the river's two Blender shaders are not run yet.
 ```
 
 HANDOFF, "Decisions and lessons":
@@ -351,10 +360,10 @@ HANDOFF, "Decisions and lessons":
 
 ## 13. State of the branch, and what comes next
 
-**State:** PROVISIONAL, saved at a limit check while the last gates run on ee6ec20: all code committed and pushed, main eb25c71 merged in, fast tests pass, slow tests passed one commit earlier. Table 5.4 and section 5.9 are from c5682c4 and will move a little (crossings only). When the gates end: rerun `va_tables.py` on `gates_final9.log`, update 5.1, 5.4 and 5.9, then this paragraph.
+**State:** Prompts 60 and 61 are done. Everything is committed and pushed on `wip/valleys`, main eb25c71 is merged in, tests pass, all gates ran, nothing is half made. It waits for your review; nothing is merged to main. What was not done: Blender was never run (the rule). What is older than the last commit: the pictures (3351f25: since then only one tile's quay top and the city maps changed, plus main's facades), the box builds (3351f25) and the six-world interior table (before the merge).
 
 **Next, in order, for the lead:**
-1. Rerun what you doubt: section 14 has the scripts, `/tmp/claude-501/va_tree7` is a frozen copy of the merge, `/tmp/claude-501/va_main` of main eb25c71, `/tmp/claude-501/va_base_src` of f4581c1.
+1. Rerun what you doubt: section 14 has the scripts, `/tmp/claude-501/va_tree9` is a frozen copy of the last code commit, `/tmp/claude-501/va_main` of main eb25c71, `/tmp/claude-501/va_base_src` of f4581c1.
 2. Judge three things: the extended dry rule (section 2, point 4), cutting districts instead of "plan as today, then cut" (section 3), the street graph test (section 8).
 3. Look at the two shaders of `tools/blender_beauty.py` in Blender after the merge: never run here. Run `tools/make_blend.py` then (fingerprint shows `tiles/*` changes).
 4. Merge `wip/valleys` into main: main eb25c71 is already merged into the branch (one comment in one test differed), I stayed out of `citygen/city/dressing.py`, `citygen/mesh/props.py` and `[dressing]`. If main moved again, merge it first and run the fast tests.
@@ -365,9 +374,11 @@ HANDOFF, "Decisions and lessons":
 
 Run each from a frozen tree (`cd` into it) with the main `.venv/bin/python`.
 
-- `va_gates.py SEED SIZE`, `va_plans.py SEED SIZE`, `va_gates_all.sh`: the tables of 5.3 and 5.4; `va_tables.py` prints them from the log.
+- `va_gates.py SEED SIZE`, `va_plans.py SEED SIZE`, `va_gates_all.sh`, `va_plans9.sh`: the tables of 5.3 and 5.4; `va_tables.py` prints them from the log `/tmp/claude-501/va_tmp/gates_final9.log`.
 - `va_final.sh`: box builds with their fingerprints, capital, quick fingerprint, hash seeds, reuse, surveys.
 - `va_moved.py`: who moved, land lost.
 - `va_look.py NAME`: the before and after sheets (sandbox off). `va_baseline.sh`: the base builds in `/tmp/claude-501/va_base_out`.
-- `va_time2.py`: every 6th tile of the 64 km world, for 5.7.
+- `va_time3.sh` (with `va_time2.py`): the idle-machine times of 5.7.
+- `va_seeds.sh SEED`, `va_slabs.sh SEED`, `va_failnear.py`, `va_furn.py`, `va_axis.py`, `va_plandiff.py`: the interior explanation of 5.8.
+- `va_street.py` (a seed through `SEED=`), `va_part.py`, `va_cross.py`, `va_cross2.py`: the streets of 5.9 and section 8.
 - `va_steps.py`, `va_probe1-10.py`, `va_lakes.py`, `va_lakeshore.py`, `va_inbox.py`, `va_r73.py`: one-off probes.
