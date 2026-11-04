@@ -4,8 +4,9 @@ A pure function of the terrain, no randomness. On a coarse grid (`[rivers] cell`
 priority flood (Barnes et al. 2014, with an epsilon gradient) runs inward from the sea and
 the map border: each land cell drains to the cell the flood reached it from, so every cell
 drains, even on filled flats. Filled basins deep and wide enough are lakes; in steppe and
-desert they are always closed (salt) basins where rivers end. Flow is the catchment area
-weighted by moisture; rivers follow the cells where it passes `[rivers] min_flow`.
+desert they are always closed (salt) basins where rivers end, and a hollow left inside one
+counts as a basin in its turn. Flow is the catchment area weighted by moisture; rivers follow
+the cells where it passes `[rivers] min_flow`.
 """
 from __future__ import annotations
 
@@ -207,7 +208,7 @@ def _basins(depth, H, biome, flow, cell, rc) -> tuple:
 def _water(h, m, wet: int, spill: float) -> tuple:
     """(cells, level) of a basin's lake (`m` the basin in its box of the grid): the water around the basin's
     bottom, at the lowest level that covers `wet` cells or at the spill. Its cells are 4-connected, so its shore
-    is one ring; the hollows of the basin it does not reach stay out, and their water runs on from there."""
+    is one ring; the hollows of the basin it does not reach stay out, for the next round of `_routing`."""
     bottom = np.unravel_index(np.argmin(np.where(m, h, np.inf)), h.shape)
 
     def pocket(level):
@@ -362,9 +363,9 @@ def _beds(out, lines, g: _Routing, terrain) -> dict:
     """{river id: bed height along its smoothed line}, tributaries first (ids run from the biggest river down).
 
     The highest beds that never rise, never lie above the ground and take every tributary in: valleys can
-    only be cut into the ground, never lifted out of it. So where a river crosses a hollow it goes down to the
-    floor and cuts through the rim, and its main river stays below it from their junction on. Over a lake
-    the bed is `flat`: the lake's level (a fresh lake's outlet starts there), a salt lake's floor."""
+    only be cut into the ground, never lifted out of it. So where a river crosses a pit too small for a lake it
+    goes down to the floor and cuts through the rim, and its main river stays below it from their junction on.
+    Over a lake the bed is `flat`: the lake's level (a fresh lake's outlet starts there), a salt lake's floor."""
     step = g.c[1] - g.c[0]
     joins, beds = {}, {}
     for rid, _, _, _, _, mouth, into in reversed(out):

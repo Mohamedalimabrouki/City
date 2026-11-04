@@ -1,7 +1,7 @@
 # world-59 (4 November): the first step of the "world first" order
 
-Branch `wip/world-59` on main (fc93425). Merges prompts 70, 81 and 59, fixes what their reviews left, applies
-Ali's four answers on rivers. Worktree `/tmp/claude-501/world-59`. Nothing here needs Blender: no tile changed.
+Branch `wip/world-59` on main (fc93425). Merges prompts 70, 81 and 59, fixes what their reviews left, applies Ali's four
+answers on rivers and the lead's review of 77cfe16. Worktree `/tmp/claude-501/world-59`. No tile changed, so no Blender.
 
 ## 1. What was merged, and the conflicts
 
@@ -12,118 +12,144 @@ Ali's four answers on rivers. Worktree `/tmp/claude-501/world-59`. Nothing here 
 | eb664ca | fixes of 70 and 81 | |
 | 8c9e2be | merge `wip/fix-59` | `docs/SPEC.md`: section 5 (both new paragraphs kept), section 6 table (the rows of both sides) |
 | 4ec2642 | Ali's answers, the reviews of 59, the street-end rule | |
-| 24d60da and the last commit | `tools/street_survey.py`, small test and doc tidying, these notes | |
+| 24d60da, 77cfe16 | `tools/street_survey.py`, tidying, first notes | |
+| 4edc903, ad22101 | the lead's review: every wet basin is a lake (ad22101 fixes a test bound; 4edc903 went out with it failing, my slip) | |
+| 5c8a0b9 | the lead's review: pockets over the thresholds are basins of their own | |
+| last commit | these notes, the pictures | |
 
-## 2. Prompt 59: four things for the lead to read first
+## 2. The water: what to read first
 
-1. **The bed is not the prompt's "filled height" any more. This is a deviation, on purpose.** The prompt says
-   "the filled height along its D8 path". Filled heights fly over every hollow a river crosses: on the 64 km world
-   45 rivers ran over 5 m above the ground, 6 over 20 m, worst 55 m. Prompt 60's carve is `min(terrain, bed +
-   bank)`: it can cut the ground, never lift it, so that water would hang in the air. review-59 finding 2 said
-   "lake or carve those basins". The bed is now the running minimum of the ground under the drawn line, the highest
-   line that never rises and never lies above the ground. A plain running minimum per river was NOT enough:
-   21 of 63 tributaries ended under their main bed, worst 37 m (water would have to climb out at the junction), so
-   the minimum also runs down the network, tributaries first (`hydro._beds`). That is the only bed that meets all
-   three rules: any other digs deeper or floats. Nothing on the map changes because of it.
-   The price: rivers cut through rims. On the 64 km world 36 km of the 525 km of river run over 10 m under the
-   ground, 20 km over 20 m, worst 59 m; 24 of 150 rivers have a stretch over 10 m deep. Going back to the prompt's
-   words is one line (`_beds`: `z = g.flat[cells]`), but prompt 60 would then have to lift ground.
-2. **Lakes grow from the basin's bottom** (`hydro._water`). The brief's (b) read literally (keep the bottom's piece
-   of the old water mask) leaves 8 of the 73 lakes under `lake_min_area` (down to 17 cells, 23 is the minimum) and 20
-   under their balanced size, against (a). So the level is the lowest one whose connected water around the bottom
-   covers the balanced number of cells: all the basin's water ends in that one lake, so that lake takes the whole
-   area. Pockets it does not reach drain into it, as (b) says. Seed 42: no lake under 23 cells. On 3 of 5 other seeds
-   the smallest lake holds 18-22: a basin of 23 or more whose cells are joined only at a corner. Accepted, it is rare.
-3. **A fault no review had seen:** the same two-piece bug hit one fresh lake (id 38: 40 + 10 cells joined only at a
-   corner). The ring drew the 40, its outlet started in the 10, 505 m from any drawn shore. Every lake is now
-   4-connected, fresh ones too (the new bed test found this).
-4. **Shores:** the ring sat half a cell inside the water (it forced every neighbor to level + 50), and at the
-   lake's extreme rows nothing better was possible (no real neighbor in the box). It now follows the true contour,
-   with one cell of margin: ring against ground on a test bowl, worst error 6.6 m -> 1.9 m (salt: 0.2 m). Prompt
-   60's flat water needs that edge on the ground. Drawn salt lakes grow (median 0.37 -> 0.51 km2); the smallest
-   ring is 0.39 km2 although the lake holds 23 cells = 0.52 km2, as the ring passes through the highest cell.
+1. **Every wet basin over the two thresholds is a lake up to its spill. Decided by the lead** (Ali: "you are the boss").
+   The prompt says a filled basin over them IS a lake, and water cannot drain out of a hollow. Before, river 21 reached
+   lake 38 with its bed 15.3 m under the level, 1.5 km of trench below the lake. Fresh lakes 10 -> 26 on that step.
+2. **A pocket of a closed basin over the two thresholds is a basin of its own** (the lead's review, which narrows Ali's
+   (b)). With the first change on, all 20 stretches over 10 m had their low point inside a salt basin: basin 39 (140
+   km2, 171 m deep) sent nine rivers up to 51 m under the ground, and rivers 3 and 17 ran 2.6 and 2.4 km with beds 11.8 and
+   14.5 m under the level of their lake, with the ground above it. Water cannot climb an inner rim of 47 m. `_routing` now
+   finds lakes in rounds, each on the flow and heights the last one left, until a round adds no lake. The biome at a
+   pocket's own bottom decides salt or fresh; a fresh one fills to its spill and runs on into the lake below. (b)'s aim
+   stands: a pocket under the thresholds still drains in, and no river ends where no shore is drawn.
+3. **The bed is not the prompt's "filled height". A deviation, on purpose.** Filled heights fly over every hollow a river
+   crosses (55 m at worst), and prompt 60's `min(terrain, bed + bank)` can cut the ground, never lift it. The bed is the
+   running minimum of the ground under the drawn line. Per river that left 21 of 63 tributaries up to 37 m under their
+   main bed, so it runs down the network, tributaries first (`hydro._beds`): the only bed that never rises, never floats
+   and takes every tributary in. With 1 and 2 only small pits are left to cut through, so the price almost vanished:
+   35.6 km of river over 10 m under the ground -> 0.0 km, worst 58.6 m -> 10.3 m (seed 42).
+4. **Lakes grow from their basin's bottom** (`hydro._water`), one 4-connected piece: read literally, (b) leaves 8 of 73
+   salt lakes under `lake_min_area` (down to 17 cells; 23 is the minimum). Rare leftover: a basin of 23 or more whose cells
+   are joined only at a corner gives a lake of 18-22 cells (on 3 of 5 other seeds, measured before the rounds).
+5. **Shores** follow the true contour with one cell of margin: on a test bowl the ring's worst error against the ground
+   went 6.6 m -> 1.9 m (salt: 0.2 m). Prompt 60's flat water needs that edge on the ground.
+
+**Left as it is, on purpose (your question): a first lake's `wet` counts its whole basin's inflow, although pockets found
+later keep theirs.** So 23 salt lakes of seed 42 are over 20% bigger than what really reaches them says; lake 3 holds 452
+cells where its true inflow gives 58. Correcting it is not simple: a loop that shrinks lakes, re-floods their basins and
+looks for new pockets (a prototype took about 25 lines, 0 order faults). And it looks worse: the great chotts by Sota and
+Bebgia go, every salt lake becomes a small patch of about the same size, salt area 88 -> 49 km2, 92 salt lakes. Picture:
+`docs/wip/world-59-inflow.png`. I read a big lake as the floor of its whole basin, and kept it. Say if you want it anyway:
+the prototype is the scratchpad's `w59_patch_shrink.py`.
+
+**The dry country is more speckled, as you feared.** 87 salt lakes against 63 before the pockets: 66 are under 1 km2, 19 of
+1-5 km2, 2 over 5 km2 (seeds 7 and 3: 93 and 81 lakes, 73 and 59 under 1 km2). See `docs/wip/world-59-maps.png`. To my eye it
+reads like a land of small sebkhas with the great chotts still standing out, but it is busier. No threshold touched.
 
 ## 3. Every finding, fixed or why not
 
-**review-59:** 1 (dry basins): fixed, Ali's (a). 2 (bed against ground): fixed, section 2. 3 (`_snap`): fixed for real,
-see rev-fix59 1. 4 (pockets): fixed, Ali's (b). 5 (drainage order): test `test_every_cell_drains_to_a_lower_one`, on
-both worlds; 0 faults in 24 worlds (12 seeds x 2 sizes), so no Kahn sort is needed. 6 (a test that could not fail):
-replaced, beds now checked against the ground and against the running minimum. 7 (only the quick world): every
-structural test runs on quick and 64 km; synthetic hollows added. 8 (numbers in code): `[rivers] basin_depth`,
-`map_line`. "Time the country step": 1.11 s, section 5.
-**rev-fix59:** 1 (`_snap` docstring): the rule became simple, so the docstring is simply true: a tributary ends on the
-main bed, always (test: 63 of 63, gap 0.0). 2 (xfail test): a normal test now, `at=14700, ridge=25`, a scene the old
-rule fails and the new passes (ridge 29 stopped being a two-pocket scene under the new level); it asserts its own
-starting conditions (one salt lake, two pockets under the level), so it cannot pass for a wrong reason.
-3: covered by the bed test.
-**review-70:** Low 3 (z against itself): an independent check against `ground.height` + the street's lift, which
-FOUND A BUG, below. Low 4: fine as is, the review says so. Low 5: union length. Low 6: fixed, with a case that really
-fails without it. Low 7, 8, 9: SPEC wording. Info 10: left, it matches `mesh/tile.py`. Info 11, 12: section 5.
+**review-59:** 1 (dry basins): fixed, Ali's (a). 2 (bed against ground): fixed, section 2. 3 (`_snap`): fixed for real, see
+rev-fix59 1. 4 (pockets): fixed, Ali's (b) as narrowed. 5 (drainage order): `test_every_cell_drains_to_a_lower_one` on both
+worlds; 0 faults in 24 worlds with the rounds (12 seeds x 2 sizes), so no Kahn sort is needed. 6 (a test that could not
+fail): replaced. 7 (only the quick world): every structural test runs on quick and 64 km; synthetic hollows added. 8
+(numbers in code): `[rivers] basin_depth`, `map_line`. "Time the country step": section 4.
+**rev-fix59:** 1 (`_snap` docstring): the rule became simple, so the docstring is true: a tributary ends on the main bed,
+always (gap 0.0). 2 (xfail test): a normal test, on a scene the old rule fails, that asserts its own starting conditions
+(one salt lake, two pockets under the level, the second under the threshold). 3: covered by the bed test.
+**review-70:** Low 3 (z against itself): an independent check, which FOUND A BUG, below. Low 4: fine as is, the review says
+so. Low 5: union length. Low 6: fixed, with a case that really fails without it. Low 7, 8, 9: SPEC wording. Info 10: left,
+it matches `mesh/tile.py`. Info 11, 12: section 4.
 **rev-fix70:** 1 stderr shown; 2 renamed `[street_graph] grid`; 3 accepted (the comment says what the grid does); 4, 5
 accepted, as the review says; 6 blank line.
 **review-81:** 12 (SPEC) done; 10 (keying): noted in SPEC, for prompt 84. **5 and 9 NOT done, as briefed.**
-**rev-fix81:** 1 (the medium): every choice has its own stream (`origin`, `facts`, `today`, `fact.<key>`). 2: the
-`"{name}."` fallback is gone, ` and ` moved to `and_word`. 3: `era_in_default` / `era_since_default`, no English left in
-the code. 4: test that every era has its words; the era check uses the whole phrase. 5: exact polygon first; 0 of 37
-landmarks and 0 of 44 souks change district on six settlements, so no overlap with review-81's 5. 6: plural table by
-ending; no trade of today changes.
+**rev-fix81:** 1 (the medium): every choice has its own stream (`origin`, `facts`, `today`, `fact.<key>`). 2: the `"{name}."`
+fallback is gone, ` and ` moved to `and_word`. 3: `era_in_default` / `era_since_default`, no English left in the code. 4:
+test that every era has its words; the era check uses the whole phrase. 5: exact polygon first; 0 of 37 landmarks and 0 of
+44 souks change district on six settlements, so no overlap with review-81's 5. 6: plural table by ending.
 
 **Found on the way, fixed:**
-- `streets.json` z: 94 of 595 nodes of the quick capital sat on the bare ground, 18-30 cm under the drawn street top
-  (snapping leaves a street's end a few cm past its flat ribbon end). `node_tops`: such a node takes the ribbon within
-  one grid step. Now 577 of 595 are within 1.5 cm of ribbon height, the worst 4 cm low, the rest on a curb or a
-  higher ribbon.
-- Street graph on all 131 settlements (Info 12): 8 villages under the 99.5% bar. Six were graph faults, a street
-  ending on another's surface short of its center line: every street end now gets the stub impasse mouths had.
-  One connected part: 115 -> 125 of 131; under the bar: 2. On the capital a road link's node moves onto the junction
-  it really is (2.6 m from the crossing), so that test's bound became the road's half width.
-- `origin.park`: "..., south-east of the medina free of houses" lacked its comma. A typo-level fix, not review-81's
-  wording work.
-Every new test was shown to fail: each rule of 59 removed in turn (8 removals, all caught, `w59_mutate.py`); the three
-rules of 70 and 81 on the old code.
+- One fresh lake (id 38, before the rounds) was 40 + 10 cells joined at a corner: its outlet started 505 m from any shore.
+- `streets.json` z: 94 of 595 nodes of the quick capital sat on bare ground, 18-30 cm under the drawn street top (snapping
+  leaves a street's end a few cm past its flat ribbon end). `node_tops` fixes it; now 577 of 595 are within 1.5 cm of the
+  ribbon height, the worst 4 cm low, the rest on a curb or a higher ribbon.
+- Street graph on all 131 settlements: 8 villages under the 99.5% bar. Six were graph faults, a street ending on another's
+  surface short of its center line: every street end now gets the stub impasse mouths had. One part: 115 -> 125 of 131.
+- `origin.park` lacked a comma. A typo-level fix, not review-81's wording work.
 
 **Left, on purpose:**
-- Street islands in the plans, where ribbons really do not touch: Ain Khatane (97.4%, village), Sota, Ksar el
-  Djabrar (two), Zouchir, Bazar el Djedid (all over 99.8%): 0.3 to 13 m between the ribbons, all checked. A gap in
-  the planner; fixing it moves plans, not allowed here. Gamar (97.5%): two alleys overlapping side by side, no end on the other. The graph must not invent streets.
-  All villages move at prompt 60: recheck there with the new `tools/street_survey.py`.
-- Tests pinned to a number: none went stale, as no plan moved. Four will at the names step:
-  `tests/test_citygen.py` lines 2246, 2703, 5353 (`world.settlements[3]`, `[5]`) and 5356 (`plan.buildings[369]`).
+- Street islands where ribbons really do not touch: Ain Khatane (97.4%, village), Sota, Ksar el Djabrar (two), Zouchir,
+  Bazar el Djedid (all over 99.8%): 0.3 to 13 m between ribbons, all checked. A gap in the planner; fixing it moves plans.
+  Gamar (97.5%): two alleys overlapping side by side. All villages move at prompt 60: recheck with `tools/street_survey.py`.
+- Tests pinned to a number: none went stale, no plan moved. Four will at the names step: `tests/test_citygen.py` lines 2246,
+  2703, 5353 (`world.settlements[3]`, `[5]`) and 5356 (`plan.buildings[369]`).
+- Prompt 60 will move more towns: see "towns touching a lake" below.
 
-## 4. Question for Ali (belongs to him, blocks nothing today, answer before prompt 60)
+**What Ali should look at:** `docs/wip/world-59-maps.png`, before and now. The histories changed their picks once (same
+sentences to choose from), so his before/after examples of review-81's 5 and 9 should be made from this branch.
 
-The wet hollows. 16 hollows of green and forest country, over 3 m and 0.5 km2, get too little water to fill by the
-balance rule, so they "just drain" (the helper's rule; the prompt itself says every such basin is a lake). Today their
-rivers cut through the rim. Option: make them lakes up to the spill, a one-line change (`_basins`, `elif wet < size`).
+## 4. Results
 
-| | Today | Option |
-|---|---|---|
-| Lakes (64 km) | 10 fresh, 63 salt | 26 fresh, 63 salt |
-| River under the ground by over 10 m / 20 m | 36 km / 20 km | 24 km / 15 km |
-| Settlements touching a lake | 9 | 12 |
-| Roads crossing a lake | 13 | 18 |
+**Water, 64 km world, seed 42, step by step** (measured the way `lead_water.py` does):
 
-Picture: `docs/wip/world-59-maps.png` (before, now, option). My advice: take the option. A hollow that a river enters
-fills up, it reads natural in the picture, and it removes the worst cut (59 m). I did not do it because it adds 16
-lakes nobody chose. Prompt 60 then moves a few more towns.
+| | fix-59 | Ali's answers (77cfe16) | wet lakes (ad22101) | now, pockets too |
+|---|---|---|---|---|
+| Lakes, fresh + salt | 10 + 31 | 10 + 63 | 26 + 63 | 28 + 87 |
+| Rivers, km of river | 157, 525 | 150, 526 | 154, 495 | 148, 424 |
+| Over 10 m under the ground, km | | 35.6 | 24.0 | 0.0 |
+| Over 20 m, km | | 20.2 | 14.7 | 0.0 |
+| Worst cut, m | | 58.6 | 50.9 | 10.3 |
+| Bed under its lake's level, ground above, worst m | | 15.3 | 14.5 | 3.1 |
+| Towns touching a lake | 9 | 9 | 12 | 14 |
+| Roads crossing a lake | 12 | 13 | 18 | 19 |
 
-**What Ali should look at:** that picture, and his answer to this one question. The histories changed their picks once
-(same sentences to choose from), so his before/after examples of review-81's 5 and 9 should be made from this branch.
-No Blender refresh: no tile changed.
+The filled bed of fix-59 flew up to 55 m over the ground; now it lies at most 0.01 m over it, off lakes.
 
-## 5. Results
+**Now, by seed and size** (`output/checks/w59/audit.txt` here; script: the scratchpad's `w59_audit.py`):
 
-**Tests:** merge of 70 + 81: 178 passed. After their fixes: 182. After 59 and the rest: 201 passed, 16 slow deselected, 63 s. `-m slow`: 15 passed, 1 xfailed, 178 s (the xfail is the
-old colonial one of prompt 47, `tests/test_citygen.py:4228`, not new). All of `tests/test_hydro.py` takes 2.3 s, fix-59's
-own version 2.1 s; the new slow tests 13 s and 5 s.
-Two-process byte tests, all in `-m slow`, all pass: `test_interior_two_processes`, `test_home_kit_deterministic`,
-`test_streets_json_two_processes` and the new `test_world_json_two_processes` (64 km world). Stronger, once by hand:
-whole quick builds under PYTHONHASHSEED 1 and 2: 0 of 283 parts differ.
+| World | Rivers, km | Lakes, fresh + salt | Over 10 m, km | Over 20 m, km | Worst, m | Under lake level: km, worst m | Towns | Roads |
+|---|---|---|---|---|---|---|---|---|
+| 64 km, seed 42 | 424 | 28 + 87 | 0.0 | 0.0 | 10.3 | 2.8, 3.1 | 14 of 131 | 19 of 141 |
+| 64 km, seed 7 | 419 | 33 + 93 | 0.7 | 0.0 | 18.4 | 1.5, 3.3 | 7 of 131 | 19 of 143 |
+| 64 km, seed 3 | 425 | 28 + 81 | 1.5 | 0.3 | 33.4 | 2.7, 4.5 | 19 of 131 | 22 of 144 |
+| Quick, seed 42 | 34 | 0 + 4 | 0.1 | 0.0 | 10.4 | 0.0, 2.6 | 0 of 14 | 0 of 14 |
+| Quick, seed 7 | 26 | 0 + 7 | 0.0 | 0.0 | 4.0 | 0.5, 0.5 | 0 of 14 | 2 of 14 |
+| Quick, seed 3 | 37 | 0 + 4 | 0.1 | 0.0 | 11.8 | 0.0, 0.0 | 1 of 14 | 1 of 14 |
 
-**Builds:** `build --quick` 7.2 s (7.0 s before). `build --quick --force` then `fingerprint compare`: 0 changed
-(nothing hangs on the cache). `build --out output/full`: 89 s, with the survey running beside it. Info 11: the 64 km capital plans in
-64 s; its `streets_json` takes 4.4 s while the workers run (16,156 nodes, 18,472 edges, 4.8 MB). Over all 131 settlements
-that would be about 40 s beside 615 s of planning. Other worlds also build: `--seed 7`, `--seed 3`, `worlds/example.toml`.
+**Every stretch over 10 m, by cause** (what lies at the low point upstream of it; 64 km unless said):
+- Seed 42: none. Its worst cut, 10.3 m, is one point; no stretch averages over 10 m.
+- Seed 7: 4 stretches, 0.71 km: 3 from pits in the open under the thresholds (2-21 cells, 3-18 m deep), 1 from a tributary's
+  bed (0.17 km, 16.6 m).
+- Seed 3: 10 stretches, 1.49 km: 7 from pits in the open, 2 from pockets of closed basins under the thresholds (7 and 9
+  cells, 8 m deep), 1 from a tributary's bed.
+- Quick: seed 42 one (0.05 km, a pit of 14 cells), seed 3 one (0.09 km, a pit of 12 cells), seed 7 none.
+- **The only stretch over 20 m in all six worlds:** seed 3, river 60, 0.41 km up to 32.8 m. Its low point is a pit in the open
+  of 21 cells, 37.8 m deep: 2 cells under `lake_min_area` (23), so it is no lake and the river cuts through its rim. The
+  thresholds are the prompt's; I left them. Tell me if you want a deep small pit to count.
+- What stays under lake levels: pits under the thresholds on the way to the lake, 4.5 m at worst.
+
+**River network, seed 42:** 148 rivers: 54 end in a salt lake, 42 join a river, 31 end in a fresh lake, 18 at the sea, 3 at the
+border; 13 are oueds. Sources: median 301 m (10% 71 m, 90% 545 m). Rivers reach 11.8 m wide, oueds 1.8 m.
+Over 12 seeds at both sizes (24 worlds): 0 drainage-order faults, 0 rising beds, 0 mouths off a shore, every lake cell inside
+its ring, junction gap 0, bed over the ground 0.055 m at worst, off lakes.
+
+**Tests:** merge of 70 + 81: 178 passed. After their fixes: 182. Now: 206 passed, 16 slow deselected, 62 s. `-m slow`: 15 passed, 1 xfailed,
+182 s (the xfail is the old colonial one of prompt 47, `tests/test_citygen.py:4228`).
+All of `tests/test_hydro.py` takes about 3 s. Each rule of 59 was removed once to see a test fail: 11 of 11 caught. The tests
+you asked for each fail without their rule: two pockets (rounds off), small pocket (rule b off), wet hollow (old rule), the
+bound under lake levels (rounds off). Three rules of 70 and 81 likewise on the old code.
+
+**Two-process tests,** all in `-m slow`: `test_interior_two_processes`, `test_home_kit_deterministic`,
+`test_streets_json_two_processes`, `test_world_json_two_processes`. Stronger, by hand: whole quick builds under
+PYTHONHASHSEED 1 and 2: 0 of 283 parts differ.
+
+**Builds:** `build --quick` 7.1 s (7.0 s at the baseline). `--force`: 0 of 283 parts change. FULLBUILD
 
 **Fingerprint `compare w59`:** 283 parts, 5 changed, each by its cause:
 - `files/cities/goumosbane/streets.json`: added (70).
@@ -131,52 +157,26 @@ that would be about 40 s beside 615 s of planning. Other worlds also build: `--s
 - `plan/goumosbane/districts`: `history` only: without that key the digest is the baseline's (cde6faec...).
 - `world` 9613 -> 33239 bytes: `rivers` and `lakes` only: without them the digest is the baseline's (a006bcb7...).
 - `maps/country.png`: the water.
-No tile, no other plan part, no city map changed.
+No tile, no other plan part, no city map changed. The quick world has no pocket over the thresholds and no wet basin, so
+your two changes leave all 283 parts byte-identical to 77cfe16 (`compare w59_a`: 0 changed); they show on the 64 km world.
 
-**Country step (64 km world, machine quiet, 5 runs):** `generate_world` 1.09-1.11 s, of which drainage 0.51 s. Budget 10 s.
+**Country step (64 km world, quiet machine):** COUNTRY Budget 10 s.
 
-**Water, seed 42:**
+**Maps, looked at myself:** rivers rise in the hills, join, run through chains of lakes to the sea; oueds end in salt lakes on
+drawn shores. Fresh lakes now sit in the forest hollows. A village dot still stands inside the big lake west of Sota, and Sota
+itself now touches a salt pocket to its north (1.4 km2): the overlap Ali accepted, for prompt 60. Prompt 59's "Done when" is met.
 
-| | fix-59 | now |
-|---|---|---|
-| Quick | 11 rivers, 1 salt lake | 10 rivers, 4 salt lakes |
-| 64 km rivers | 157 | 150 (13 oueds, 525 km) |
-| 64 km lakes | 41 (31 salt) | 73 (63 salt) |
-| Mouths | 51 basin, 18 sea, 17 lake, 5 border, 66 river | 48 basin, 18 sea, 17 lake, 4 border, 63 river |
-| Bed over the ground | up to 55 m | 0.01 m, off lakes |
-| Settlements touching a lake | 9 | the same 9: Chilel, Takiret, Ras Kabine and 6 villages |
-| Roads crossing a lake | 12 | 13 of 141 |
+**Towns touching a lake (seed 42):** cities Chilel (salt), Sota (salt), Takiret (fresh); towns Betane el Kebir (fresh), Ras
+Kabine (salt); 9 villages. The older notes name Sota as touching before the pockets: it did not, it was 1.0 km clear.
 
-The older notes also name Sota: it never touched a lake (1.0 km clear of its edge, before and now).
-River sources: median 310 m (10% 73 m, 90% 549 m). Rivers reach 11.8 m wide, oueds 3.3 m. Over 12 seeds at both sizes:
-0 order faults, 0 rising beds, 0 mouths off a shore, every lake cell inside its ring, junction gap 0.
-
-**Maps, looked at myself** (`output/checks/w59/` here; before/now/option in `docs/wip/world-59-maps.png`): rivers rise in
-the hills, join, run through chains of lakes to the sea; oueds end in salt lakes on drawn shores. The quick map goes
-from one odd-shaped salt lake to four rounder ones. A village dot still stands inside the big lake west of Sota, the
-overlap Ali accepted; prompt 60 moves it. Prompt 59's "Done when" is met.
-
-**Interior survey:** settlements are called today Goumosbane (capital, quick world id 0) and Ain Chilel (town, id 3);
+**Interior survey:** the settlements are called today Goumosbane (capital, quick world id 0) and Ain Chilel (town, id 3);
 names and places change in a later step.
 
-| Goumosbane | before | after | | Ain Chilel | before | after |
-|---|---|---|---|---|---|---|
-| dar | 155/159 | 155/159 | | villa | 168/178 | 168/178 |
-| compact | 266/277 | 266/277 | | maison | 499/616 | 499/616 |
-| small | 81/83 | 81/83 | | | | |
-| koubba | 21/22 | 21/22 | | | | |
-| colonial | 5/270 | 5/270 | | | | |
-| slab | 253/353 | 253/353 | | | | |
-| shop | 130/136 | 130/136 | | | | |
+SURVEY2
 
-No change to explain: with the clock readings ("slowest ... s") taken out, both reports are byte-identical, ladder
-warnings, failure kinds and failing buildings included (45 and 35 lines). Expected: no plan moved. The slowest times
-differ only because tests and builds ran beside the second survey.
+**Street survey:** quick world 12 of 12 in one part. 64 km world: 125 of 131 in one part, `street_graph` costs 10 s in all, 1.2 s at worst.
 
-**Street graph, all settlements:** quick world 12 of 12 one part. 64 km world: 125 of 131 one part; `street_graph` costs
-10 s in all, 1.2 s at worst.
-
-## 6. Text to paste
+## 5. Text to paste
 
 ### docs/ROADMAP.md
 - [x] 59 B1a Rivers (citygen/hydro.py; World.rivers, World.lakes; country map)
@@ -186,23 +186,32 @@ differ only because tests and builds ran beside the second survey.
 ### docs/WORKLOG.md
 ```
 ## 2026-11-04 - Prompts 59, 70, 81 (world-59): rivers and lakes, street graph, district histories
-- Commit: <merge> | Model: Opus 5.5, max
+- Commit: <merge>
 - Changed: citygen/hydro.py, citygen/export/streets.py, citygen/city/history.py (new); citygen/world.py,
   build.py, export/maps.py, export/lore.py, city/__init__.py, city/model.py, defaults.toml; styles/maghreb.toml;
-  tests/test_hydro.py (new), tests/test_citygen.py; docs/SPEC.md. Notes: docs/wip/world-59.md
-- Checks: tests 201 passed, slow 15 passed + the old xfail; build --quick 7.2 s, --force identical; fingerprint 5 of 283 parts:
+  tests/test_hydro.py (new), tests/test_citygen.py; tools/street_survey.py (new); docs/SPEC.md.
+  Notes: docs/wip/world-59.md
+- Checks: tests 206 passed, slow 15 passed + the old xfail; build --quick 7.1 s, --force identical; fingerprint 5 of 283 parts:
   streets.json added, gazetteer and districts (histories only), world (rivers and lakes only), country map. Tiles and
-  plans unchanged. Country step 1.1 s (budget 10 s). Interior survey unchanged.
-- Rivers (Ali's answers): every dry basin over 3 m and 0.5 km2 stays a closed salt lake (64 km: 31 -> 63); a lake is
-  one piece around the basin's bottom, other pockets drain into it; towns by salt lakes accepted; min_flow 3.0.
+  plans unchanged. Country step WLCOUNTRY (budget 10 s). Interior survey unchanged.
+- Rivers (Ali's answers): every dry basin over 3 m and 0.5 km2 stays a closed salt lake; towns by salt lakes accepted;
+  min_flow 3.0. The lead's decisions (Ali: "you are the boss"): every wet basin over the two thresholds is a lake up to
+  its spill (the prompt says such a basin IS a lake, and water cannot drain out of a hollow), and a pocket of a closed
+  basin over them is a basin of its own (water cannot climb an inner rim; a smaller pocket still drains in, so no river
+  ends where no shore is drawn). 64 km world: 28 fresh + 87 salt lakes, 148 rivers, 424 km.
   Deviation from the prompt: the bed is the running minimum of the ground down the whole network, not the filled
-  height, which flies up to 55 m over hollows and which prompt 60's min() cannot use. Rivers cut through rims.
+  height, which flies up to 55 m over hollows and which prompt 60's min() cannot use. Rivers cut through the rims of pits
+  too small for a lake: 10.3 m at worst on seed 42, 33 m over 0.4 km on seed 3 (a 38 m deep pit, 2 cells under the area).
+- Known: 23 salt lakes are over 20% bigger than their true inflow says: a first lake counts its whole basin's inflow
+  (counting only what reaches it loses the great chotts, picture docs/wip/world-59-inflow.png). The dry country is busier
+  (66 of 87 salt lakes under 1 km2). 14 towns touch a lake and 19 roads cross one, for prompt 60 to move.
 - Street graph: nodes on bare ground fixed (94 of 595); any street end on another's surface gets a stub: 125 of 131
-  settlements one part. Left: real gaps in the plans (Ain Khatane 97.4%) and Gamar 97.5%: recheck at prompt 60.
+  settlements one part. Left: real gaps in the plans (Ain Khatane 97.4%) and Gamar 97.5%: recheck at prompt 60 with
+  tools/street_survey.py.
 - Histories: every choice on its own stream, so the capital's picks changed once, same templates (8 of 9 districts).
   Review-81 findings 5 and 9 wait for Ali's before/after examples.
-- Look: docs/wip/world-59-maps.png.
-- Doubts and questions for Ali: the 16 wet hollows, lakes or cuts? (docs/wip/world-59.md section 4; advice: lakes.)
+- Look: docs/wip/world-59-maps.png (before and now).
+- Doubts and questions for Ali: none; the lead decided the wet hollows and the pockets.
 ```
 
 ### docs/LEAD.md, section 3
@@ -210,13 +219,19 @@ differ only because tests and builds ran beside the second survey.
   the settlements of more than one part and the bar of 99.5%. Run it after any step that moves villages.
 
 ### docs/HANDOFF.md, "Decisions and lessons"
-- **River beds (prompt 59).** A bed must be under the ground on the whole network, not on each river: the terrain can
-  only be cut (`min(terrain, bed + bank)`, prompt 60). The filled height flies over hollows; a running minimum per
-  river leaves tributaries under their main bed. The running minimum down the network, tributaries first, is the
-  highest bed that never rises, never floats and takes every tributary in. Ids run from the biggest river, so a
-  tributary's id is always above its main river's.
+- **River beds and hollows (prompt 59).** The terrain can only be cut (`min(terrain, bed + bank)`, prompt 60), so a bed must
+  stay under the ground on the whole network: the filled height flies over hollows, and a running minimum per river leaves
+  tributaries under their main bed. The running minimum down the network, tributaries first, is the highest bed that never
+  rises, never floats and takes every tributary in. But a bed cannot leave a big hollow without a deep trench, so that rule
+  only works if every hollow over the two thresholds holds a lake: wet ones up to their spill, and each pocket of a closed
+  basin as a basin of its own. Doing both took the worst cut from 59 m to 10 m and 36 km of deep river to none (seed 42).
+- **Water does not climb.** Two rules that sounded fine broke this: "a hollow too big for its water drains" and "a pocket
+  drains into the lake of its basin". Ask of each hollow where its water goes; a small pit is the only one that may just
+  be crossed.
+- **A lake's size is a look as much as a number.** Pockets keep most of a big basin's water, so a strict balance shrinks
+  every chott to a small patch. The first lake keeps its whole basin's inflow on purpose: read it as the basin's floor.
 - **Connected cells, one ring.** A shore is drawn per 4-connected piece: water labelled with 8 connections can hold a
-  piece no ring shows, and a river then ends or starts where no shore is drawn (it happened in salt and fresh lakes).
+  piece no ring shows, and a river then ends or starts where no shore is drawn.
 - **Contours need real neighbors.** A box that stops at the mask gives the contour nothing to interpolate at its
   extreme rows: keep one cell of real ground around it.
 - **Test a street graph against something else than `Ground.surface`.** Compared with `ground.height` plus the street's
@@ -228,3 +243,4 @@ differ only because tests and builds ran beside the second survey.
   every later sentence of that district. Adding a list must change nothing.
 - **Prove a test can fail.** Remove each rule once and watch its test go red. In this round the pocket test still
   passed with its rule removed (its scene no longer tripped the old rule) and nothing noticed a shore half a cell off.
+- **Read the test result before you commit.** A chained command pushed a failing test here; check, then commit.
