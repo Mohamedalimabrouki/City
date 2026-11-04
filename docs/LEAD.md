@@ -114,6 +114,11 @@ and care as the last one: keep this file up to date when you learn something tha
   Ask of every number the helper calls a price: which single cause makes most of it?
 - **The street graph of every settlement:** `tools/street_survey.py` (`--quick`, or the 64 km world in about 10 minutes):
   the settlements of more than one part and the bar of 99.5%. Run it after any step that moves villages.
+- **Judge interiors on more than one plan.** Rounds of fixes won the bars house by house on one capital; a fresh deal of the same
+  city fell by 3-5 points in four groups (names-60). A rate on one plan is partly memory of that plan: run the survey on the
+  capital, `--city villas` and a world of another seed, and never fix one house for its own sake.
+- **Order work by what it moves.** Before tuning anything on a plan, list the open prompts whose fingerprint allows `plan/*`
+  (a Python loop over docs/prompts and the ROADMAP's ticks does it) and do those first.
 
 ## 4. Gotchas on Ali's Mac
 

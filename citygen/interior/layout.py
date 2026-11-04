@@ -42,7 +42,7 @@ def plan_interior(outside, style: dict) -> Interior:
     home = next((h for h in getattr(plan, "households", ()) if h.building == k), None)
     household = None if home is None else {"building": home.building, "family": home.family, "trade": home.trade,
                                            "wealth": home.wealth, "door": home.door, "members": home.members}
-    interior = Interior(outside.ctx.world.seed, plan.settlement.name, plan.settlement.id, k, b.kind, layout,
+    interior = Interior(outside.ctx.world.seed, plan.settlement.name, plan.settlement.key, k, b.kind, layout,
                         outside.district, outside.high, outside.fh, household, walls)
     interior.storeys = storeys(outside, walls["exterior"], walls["court"])
     if not interior.storeys:

@@ -28,7 +28,7 @@ import time
 from shapely.geometry import LineString
 from shapely.ops import unary_union
 
-from ..names import NameMaker
+from ..names import NameMaker, fixed_name
 from ..rng import stream
 from .buildings import cemetery_and_parks, make_buildings, neighborhood_mosques
 from .greenery import greenery
@@ -64,7 +64,7 @@ class CityContext:
         self.boundary = None
 
     def rng(self, *path):
-        return stream(self.seed, "city", self.s.id, *path)
+        return stream(self.seed, "city", self.s.key, *path)
 
 
 def plan_city(world, settlement) -> CityPlan:
@@ -81,7 +81,7 @@ def plan_city(world, settlement) -> CityPlan:
     streets, buildings, landmarks, cut, kasbah = [], [], [], None, None
     if medina is not None:
         kind = "village" if medina is boundary else "medina"
-        name = s.name if kind == "village" else "Medina of " + s.name
+        name = s.label if kind == "village" else fixed_name(world.style, "medina", s=s.label)
         districts.insert(0, District(0, kind, name, medina, axis))
         for i, d in enumerate(districts):
             d.id = i

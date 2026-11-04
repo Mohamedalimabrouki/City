@@ -12,6 +12,13 @@ class District:
     polygon: object  # shapely Polygon or MultiPolygon
     angle: float = 0.0  # street grid direction, radians counter-clockwise from east
     history: str = ""   # city/history.py: two to four sentences for stories (prompt 81)
+    name_ar: str = ""   # the name in Arabic script ("" when the style or a pin gives none)
+
+    def __post_init__(self):
+        # a Name from citygen.names carries its Arabic spelling; the plan keeps plain strings
+        if not self.name_ar:
+            self.name_ar = getattr(self.name, "ar", "")
+        self.name = str(self.name)
 
 
 @dataclass
@@ -83,6 +90,13 @@ class Landmark:
     name: str
     x: float
     y: float
+    name_ar: str = ""
+
+    def __post_init__(self):
+        # a Name from citygen.names carries its Arabic spelling; the plan keeps plain strings
+        if not self.name_ar:
+            self.name_ar = getattr(self.name, "ar", "")
+        self.name = str(self.name)
 
 
 @dataclass

@@ -95,7 +95,8 @@ def slim_plan(plan: dict, box: tuple) -> dict:
             geom = {"type": "Polygon", "coordinates": [r1(g["coordinates"][0])]}
         else:
             geom = {"type": "MultiPolygon", "coordinates": [[r1(c[0])] for c in g["coordinates"]]}
-        districts.append({"id": d["id"], "kind": d["kind"], "name": d["name"], "geometry": geom})
+        districts.append({"id": d["id"], "kind": d["kind"], "name": d["name"],
+                          **({"name_ar": d["name_ar"]} if d.get("name_ar") else {}), "geometry": geom})
     return {"format": plan["format"], "settlement": plan["settlement"], "buildings": buildings,
             "streets": [{"kind": s["kind"], "width": s["width"],
                          "coords": r1(s["coords"]) if inside(s["coords"]) else [[0, 0]]} for s in plan["streets"]],

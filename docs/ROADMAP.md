@@ -101,7 +101,7 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
 - [ ] 84 D3 Canon for everything
 - [ ] 85 D4a Timeline
 - [ ] 86 D4b Factions
-- [ ] 87 D5a Arabic place names
+- [x] 87 D5a Arabic place names
 - [ ] 88 D5b Arabic people and street names
 - [ ] 89 D2a Country poster map
 - [ ] 90 D2b City poster map

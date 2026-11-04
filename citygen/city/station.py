@@ -434,7 +434,7 @@ def buildings(ctx, station: Station | None) -> tuple:
                     str(cfg["canopy_material"]), facade=facade)]
     c = head.centroid
     namer = NameMaker(ctx.style, ctx.rng("station", "name"))
-    return out, [Landmark("station", namer.district("station", s=ctx.s.name), float(c.x), float(c.y))]
+    return out, [Landmark("station", namer.district("station", s=ctx.s.label), float(c.x), float(c.y))]
 
 
 def view(plan, ground) -> dict | None:

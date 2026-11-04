@@ -767,7 +767,7 @@ def build_tile(tc: TileContext, i: int, j: int) -> tuple:
             if b.kind in LANDMARK_KINDS:                       # the cathedral and the theatre (prompt 32)
                 building_mesh(mb, b, tc.height, landmarks=tc.landmarks)
                 continue
-            roofs = roof_layouts(b, kind, roof_stream(tc.world.seed, plan.settlement.id, int(k)), tc.roofs)
+            roofs = roof_layouts(b, kind, roof_stream(tc.world.seed, plan.settlement.key, int(k)), tc.roofs)
             building_mesh(mb, b, tc.height, plinth=plinth, frontage=frontage, roofs=roofs, ground_z=under[int(k)])
             if dresser is not None:
                 dresser.keep_roof(int(k), roofs)

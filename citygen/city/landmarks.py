@@ -29,7 +29,7 @@ from shapely.geometry.polygon import orient
 from shapely.ops import unary_union
 from shapely.strtree import STRtree
 
-from ..names import NameMaker
+from ..names import Name, NameMaker
 from .model import Building, Landmark, Parcel
 from .streets import view_spot
 
@@ -311,8 +311,10 @@ def buildings(ctx, chosen: list) -> tuple:
 def _name(ctx, kind: str, spec: dict) -> str:
     """'Cathedral of St Aurele de <invented place>' or 'Theatre Municipal de <city>', on its own stream."""
     namer = NameMaker(ctx.style, ctx.rng("landmarks", kind, "name"))
-    saint = namer._pick(spec.get("saints", ["Aurele"]))
-    return namer.district(kind, s=ctx.s.name, g=saint)
+    saints = spec.get("saints", ["Aurele"])
+    i, saint = namer._pick_i(saints)
+    twins = spec.get("saints_ar", [])
+    return namer.district(kind, s=ctx.s.label, g=Name(saint, twins[i] if i < len(twins) else ""))
 
 
 def clear_fronts(trees: list, chosen: list, reach: float) -> list:

@@ -272,8 +272,8 @@ the `villas` fixture's town (a `BuildContext(world, [town], town settlement)`) g
 - `test_only_dwellings`: one building of every other kind in the plan is refused.
 
 **Check.** Fingerprint: `--allow ""`. Look: `.venv/bin/python tools/interior_plans.py pick:slab
-pick:colonial "pick:villa:2@Ain Chilel" --out output/checks/47.png` (Ain Chilel is settlement 3 of the
-quick world, the `villas` fixture's town; check with `python -m citygen list --quick`). Look at it
+pick:colonial "pick:villa:2@villas" --out output/checks/47.png` (`@villas` is the biggest town with villas,
+the `villas` fixture's town). Look at it
 yourself: cores at the stair doors, S+n flats with the salon on a facade, the villa's hall, salon and stair.
 
 **Done when.** Every dwelling layout (dar, compact, small, koubba, colonial, slab, villa, maison, with

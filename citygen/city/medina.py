@@ -14,6 +14,7 @@ from shapely.ops import unary_union
 from ..mesh.builder import rectangle
 from . import kasbah as citadel
 from .geo import jittered_grid, largest, lines, polygons, ray_exit, tangent_angle
+from ..names import fixed_name
 from .model import Building, Landmark, Street
 
 
@@ -243,7 +244,7 @@ def old_town(ctx, medina, district, axis, crossings) -> tuple:
     kind = "village" if kc["medina_radius"] >= 1.0 else "medina"
     dc = ctx.style["district"][kind]
     width, hall_depth, court_depth = kc["great_mosque"]
-    name = ("Great Mosque of " + s.name) if kind == "medina" else ("Mosque of " + s.name)
+    name = fixed_name(ctx.style, "great_mosque" if kind == "medina" else "village_mosque", s=s.label)
     center = largest(medina.buffer(-0.5 * width)) if medina.area > 4 * width * width else None
     c = Point(s.x, s.y)
     if center is None or not center.contains(c):

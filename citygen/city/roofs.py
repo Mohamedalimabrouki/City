@@ -58,9 +58,9 @@ class RoofLayout:
         return out
 
 
-def roof_stream(seed: int, city_id: int, k: int):
+def roof_stream(seed: int, city_key: int, k: int):
     """The random stream of one building's roof (same for the mesh and the dressing)."""
-    return stream(seed, "roof", city_id, k)
+    return stream(seed, "roof", city_key, k)
 
 
 def _parapet(poly, kind: str, cfg: dict) -> RoofLayout:

@@ -67,6 +67,7 @@
   #info-title { font-size: 15px; font-weight: 650; padding-right: 22px; overflow-wrap: anywhere; }
   #info-lines { color: var(--muted); margin-top: 2px; }
   #info-lines div + div { margin-top: 1px; }
+  #info-lines .ar { color: var(--ink); font-size: 15px; text-align: right; font-family: "Geeza Pro", "SF Arabic", "Noto Naskh Arabic", serif; }
   #info-more:empty { display: none; }
   #info-more { margin-top: 7px; color: var(--muted); }
   #info-more button {
@@ -1587,26 +1588,35 @@ function describe(p, x, y) {
       };
     }
     const title = landmark ? landmark.m.name : b.kind.replace(/_/g, ' ');
-    return { title: title.charAt(0).toUpperCase() + title.slice(1), lines: [plural(b.floors, 'floor'), where, `No. ${building}`],
-             k: building, dwelling: HOUSING.has(b.kind) };
+    return { title: title.charAt(0).toUpperCase() + title.slice(1), ar: landmark ? landmark.m.name_ar : '',
+             lines: [plural(b.floors, 'floor'), where, `No. ${building}`], k: building, dwelling: HOUSING.has(b.kind) };
   }
   if (street >= 0) {
     const souk = p.souks.get(street);
     const st = p.plan.streets[street];
-    if (souk) return { title: souk.name, lines: [souk.trade, where] };
+    if (souk) return { title: souk.name, ar: souk.name_ar, lines: [souk.trade, where] };
     return { title: st.kind.charAt(0).toUpperCase() + st.kind.slice(1), lines: [`${st.width} m wide`, where] };
   }
-  if (landmark) return { title: landmark.m.name, lines: [where] };
-  return district ? { title: district.name, lines: [KIND[district.kind] || district.kind] } : null;
+  if (landmark) return { title: landmark.m.name, ar: landmark.m.name_ar, lines: [where] };
+  return district ? { title: district.name, ar: district.name_ar, lines: [KIND[district.kind] || district.kind] } : null;
 }
 
 function fillCard(found) {
   $('info-title').textContent = found.title;
-  $('info-lines').replaceChildren(...found.lines.filter(Boolean).map((line) => {
+  const rows = found.lines.filter(Boolean).map((line) => {
     const div = document.createElement('div');
     div.textContent = line;
     return div;
-  }));
+  });
+  if (found.ar) {   // the name in Arabic script (prompt 87), right to left
+    const div = document.createElement('div');
+    div.textContent = found.ar;
+    div.dir = 'rtl';
+    div.lang = 'ar';
+    div.className = 'ar';
+    rows.unshift(div);
+  }
+  $('info-lines').replaceChildren(...rows);
   $('info-more').replaceChildren();
   $('info').hidden = false;
 }

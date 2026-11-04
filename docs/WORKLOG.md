@@ -104,10 +104,14 @@ Entry format:
     at night, the butane mix, brass spouts, themed shelves, Ali's looks; (5) the review leftovers and LEAD notes.
     One helper at a time on each set of files; the lead runs its own survey BEFORE main moves. Ask Ali past 55% weekly.
   - merge-3d is merged into main (5f4e99e, the entry below), and so are prompts 59, 70, 81 (c4eb74b, the entry above it).
-    Not merged yet: arabic-87 + fix-87, prompt 55 (furn-55, furn-55b, fix-55, fix-glow), rivers-60 (after the names
-    fix), godot-72, styles-94; houses-patio is dropped. Next in order: names-60 (fix-87, feminine agreement, names and
-    identity follow the place), then prompt 60. The histories picked again once: Ali's before/after examples of
-    review-81's 5 and 9 wait for the final world.
+    names-60 too (0211472, the entry above them). Not merged yet: prompt 55 (furn-55, furn-55b, fix-55, fix-glow),
+    rivers-60 (an old start of prompt 60), wip/facades (running, on the old capital), godot-72, styles-94; houses-patio
+    is dropped. Order, changed on 4 November so interiors are tuned once: prompts 60, 61, 62 come BEFORE the interiors,
+    since they change the capital's plan (the 64 km capital has three rivers through it, and any moved town moves its
+    roads and redeals the quick capital). So: (1) 60, 61, 62; (2) facades; (3) interiors on those final buildings, judged on
+    several plans; (4) furniture; (5) leftovers, with the street islands of 4 villages (`tools/street_survey.py`). The
+    histories picked again once: Ali's before/after examples of review-81's 5 and 9 wait for the final world.
+    Salt crust: prompt 60 should take prompt 65's flat crust, so salt lakes are never blue water and that surface is built once.
 - State: prompts 1-50 are done (branch `claude/procedural-city-generator-xop72h`; CP4, prompt 43, on 25
   October; the interiors 44-47 on 29 October, 48 (walls and openings) on 30-31 October). Continue when Ali
   says (for example "Do prompt 49." or "continue the playbook").
@@ -173,6 +177,22 @@ Entry format:
   instead (a billing test passed); how to use it: `docs/LEAD.md`, section 4. Used up since 31 October:
   the chain run (`.venv-sdk/credit_chain.sh`, 10:42-13:12) stopped with "Credit balance is too low"
   (its session recorded about $42), so that route needs new credit first (checked 3 November).
+
+## 2026-11-04 - names-60: prompt 87, feminine agreement, names and identity follow the place
+- Commit: 0211472 (merge of wip/names-60). Merged fix-87 (arabic-87, review-87), rev-fix87's findings 1-4 and 7.
+- Feminine agreement in both scripts (`descriptors_f`, `descriptors_f_ar`). Own streams for towns and villages, population per
+  cell for all but the capital, names per kind and cell, lore per key, `Settlement.key` (capital 0, else cell + 1) in every
+  stream, pins on the generated name, a dead pin warns. One rename: the capital, its id and the country keep their names; all
+  8 of 8 capital and cities keep their place; every town and village moved, so the roads into the capital changed and the quick
+  capital was dealt anew (10% of footprints the same; full capital 98%). Proved: with the old roads the plan is identical.
+- Checks: pytest -q 228 passed, -m slow 21 passed and 1 xfailed; fingerprint 31 of 283 parts, all explained in docs/wip/names-60.md; rates in the same notes.
+- Rates, old capital and Ain Chilel -> new capital and Takobka: dar 97.5 -> 99.4, compact 96.0 -> 99.3, small 97.6 -> 94.9, koubba 95.5
+  -> 92.6, shop 95.6 -> 91.9, colonial 1.9 -> 2.6, slab 71.7 -> 69.7, villa 94.4 -> 90.7, maison 81.0 -> 76.7. Street bar: 127 of 131.
+- The lead's own checks before main moved: pytest 229 passed, slow 21 + the old xfail, on the final commit; his fingerprint of main
+  against it, 31 of 283 parts as the notes say; his own interior survey, the same counts; the diff read; the maps looked at. He
+  undid one relaxed test (a road meeting the corniche in mid-block is now a real node, d36392a) and took the old town's bar to 10%.
+- New rule from these rates: the bars were won house by house on one plan and fell on a fresh deal, so from now on judge interiors
+  on more than one plan (the capital, the villa town and a world of another seed), never on the failing list of one.
 
 ## 2026-11-04 - Prompts 59, 70, 81 (world-59): rivers and lakes, street graph, district histories
 - Commit: c4eb74b (merge of wip/world-59)

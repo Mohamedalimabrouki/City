@@ -334,4 +334,4 @@ def landmark(ctx, kas: Kasbah) -> Landmark:
     """'Kasbah of <city>' or a Dar el Bey-like name, on its own stream; it stands at the gate (where the
     old town meets it and a sabil may stand)."""
     namer = NameMaker(ctx.style, ctx.rng("kasbah", "name"))
-    return Landmark("kasbah", namer.district("kasbah", s=ctx.s.name), float(kas.face[0]), float(kas.face[1]))
+    return Landmark("kasbah", namer.district("kasbah", s=ctx.s.label), float(kas.face[0]), float(kas.face[1]))

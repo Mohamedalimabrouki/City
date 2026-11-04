@@ -3,7 +3,8 @@
     python tools/interior_plans.py SPEC[@CITY] ... [--folder BUILD] [--out PNG]
 
 SPEC is a building number or pick:<layout>[:<floors>], as for `python -m citygen interior`. @CITY names a
-city of the build, or any settlement of the world (the tool then plans it, under a second for a town).
+city of the build, or any settlement of the world (the tool then plans it, under a second for a town), and
+@villas the biggest town with villas.
 Each interior is one row: its storeys side by side (and the roof when it holds rooms), north up, all at
 one scale (at most 1800 px wide). Rooms are filled by type, exterior and court walls black, partitions
 grey, facade and court doors red, windows blue, inner doors as gaps, stairs hatched with an arrow up.
@@ -53,7 +54,7 @@ def interiors(specs: list, folder: Path, ctx=None) -> list:
     already loaded)."""
     from citygen.city import plan_city
     from citygen.export.lore import slug
-    from citygen.interior.context import BuildContext, city_plan, load_build, resolve
+    from citygen.interior.context import BuildContext, city_plan, load_build, resolve, villa_town
     from citygen.interior.layout import plan_interior
     from citygen.interior.outside import Outside
     ctx = ctx or load_build(folder, log=lambda m: None)
@@ -62,7 +63,12 @@ def interiors(specs: list, folder: Path, ctx=None) -> list:
     for spec in specs:
         building, _, city = spec.partition("@")
         use = ctx
-        if city:
+        if city.strip().lower() == "villas":                 # the biggest town with villas, by what it is
+            if "villas" not in extra:
+                town = villa_town(ctx.world)
+                extra["villas"] = BuildContext(ctx.world, [town], town.settlement)
+            use, city = extra["villas"], extra["villas"].focus.name
+        elif city:
             want = city.strip().lower()
             if not any(p.settlement.name.lower() == want or slug(p.settlement.name) == want for p in ctx.plans):
                 if want not in extra:
