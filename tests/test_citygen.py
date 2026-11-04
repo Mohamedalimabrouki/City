@@ -3898,7 +3898,7 @@ def test_old_town_plans_are_valid(old_town):
     assert len(old_town) == 50
     assert all(interior.layout in ("dar", "compact", "small") for interior, _ in old_town)
     faults = {i.building: rooms.check(i)[:2] for i, _ in old_town if rooms.check(i)}
-    assert len(faults) <= 0.2 * len(old_town), faults
+    assert len(faults) <= 0.1 * len(old_town), faults
 
 
 def test_fallbacks_report_their_layout(interior_ctx, old_town):
@@ -5394,9 +5394,28 @@ def test_street_graph_is_connected_and_its_edges_match_their_lines(world, plan):
     drawn = shapely.unary_union([st.line for st in plan.streets]).length   # a street under a boulevard counts once
     assert drawn - 1.0 < total < drawn * 1.01     # impasse mouths add their stubs to the street centers
     streets = shapely.union_all([line for _k, line, _a, _b in edges])
-    for link in road_links(world, plan, nodes):   # each country road reaches the graph where it enters: on a
-        limit = link["width"] / 2                 # street of the limit, or at a connector starting on its surface
-        assert streets.distance(Point(link["x"], link["y"])) < limit
+    for link in road_links(world, plan, nodes, edges):   # each country road joins the graph at a junction where it
+        p = Point(link["x"], link["y"])                  # enters: on a street of the limit or at a connector
+        assert streets.distance(p) < link["width"] / 2
+        met = max(st.width for st in plan.streets if st.line.distance(p) < link["width"] / 2)
+        assert link["distance"] <= max(met, link["width"]) / 2
+
+
+def test_a_road_meeting_a_street_in_mid_block_is_a_junction_of_the_graph():
+    from types import SimpleNamespace as NS
+    from citygen.city.model import Street
+    from citygen.export.streets import road_links, street_graph
+    from shapely.geometry import LineString, box
+    plan = NS(streets=[Street("street", 8.0, LineString([(0.0, 0.0), (100.0, 0.0)]))], boundary=box(-5.0, -1.0, 105.0, 20.0))
+    nodes, edges = street_graph(plan.streets, 0.05)
+    road = NS(id=4, kind="regional", width=8.0, coords=[(30.0, -30.0), (30.0, 0.0)])
+    links = road_links(NS(roads=[road]), plan, nodes, edges)
+    assert links == [{"road": 4, "kind": "regional", "width": 8.0, "x": 30.0, "y": -1.0, "node": 2, "distance": 1.0}]
+    assert nodes[2] == (30.0, 0.0) and [(a, b) for _k, _line, a, b in edges] == [(0, 2), (2, 1)]
+    assert [line.coords[0] for _k, line, _a, _b in edges] == [nodes[0], nodes[2]]
+    assert [line.length for _k, line, _a, _b in edges] == [30.0, 70.0]
+    near_a_node = NS(id=5, kind="regional", width=8.0, coords=[(3.0, -30.0), (3.0, 0.0)])
+    assert road_links(NS(roads=[near_a_node]), plan, nodes, edges)[0]["node"] == 0 and len(nodes) == 3   # within the street
 
 
 def test_street_graph_joins_a_street_that_stops_on_another_s_surface():

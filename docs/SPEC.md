@@ -635,8 +635,10 @@ street, measured with `city/parking.walk_widths` like the paint does, but for ev
 where there is none; left is left of the edge's direction), `surface` (palette material), `length` (meters, of
 `line`), `from`, `to` (node ids) and `line` (the center line from `from` to `to`, running the way its
 street runs). `roads`: one link per point where a country road (`world.json` roads) crosses the city
-limit: `road` (its id), `kind`, `width`, `x`, `y` (the crossing) and `node` (the nearest node,
-`distance` meters away, about where the planner's connector street starts). Built by noding every center
+limit: `road` (its id), `kind`, `width`, `x`, `y` (the crossing) and `node`, `distance` meters away, where it
+joins the graph: the nearest node, about where the planner's connector street starts, or, for a road that
+meets a street in mid-block (farther than half that street's width from every node), a node of its own,
+which splits that street's edge in two. Built by noding every center
 line on a 5 cm grid (`[street_graph] grid` in defaults.toml; `shapely.set_precision`, then `unary_union(grid_size=...)`): plain `unary_union`
 misses junctions where grid streets end on district borders only up to rounding. A piece lying on
 several streets (a grid street left under a boulevard) belongs to the widest. A street that stops on the
