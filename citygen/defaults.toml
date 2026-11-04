@@ -111,6 +111,7 @@ kits = ["tounes"]         # extra 3D piece kits from the kits/ folder (pieces ma
 cell = 150.0              # meters between grid points of the drainage
 lake_min_depth = 3.0      # meters: a filled hollow is a lake only if deeper than this...
 lake_min_area = 0.5       # ...and larger than this many square kilometers (smaller pits just drain)
+basin_depth = 0.01        # meters: cells the flood fills deeper than this make up a basin
 
 min_flow = 3.0            # square kilometers of catchment (weighted by moisture) where a river begins
 min_points = 4            # grid cells: shorter streams with no tributary are left out
@@ -121,3 +122,4 @@ seasonal_moisture = 0.3   # rivers whose catchment is drier than this on average
 oued_scale = 0.6          # ...and this much thinner
 dry_weight = 0.15         # rain weight of the driest desert (1 = the wettest coast): storms still feed oueds
 lake_area_per_flow = 0.04 # square kilometers of lake surface that evaporate the water of 1 km2 of catchment
+map_line = [0.8, 6.0]     # country map: a river's line is [0] + its width in meters / [1] pixels wide (at 1800 px)

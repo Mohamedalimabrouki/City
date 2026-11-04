@@ -4,8 +4,8 @@ A pure function of the terrain, no randomness. On a coarse grid (`[rivers] cell`
 priority flood (Barnes et al. 2014, with an epsilon gradient) runs inward from the sea and
 the map border: each land cell drains to the cell the flood reached it from, so every cell
 drains, even on filled flats. Filled basins deep and wide enough are lakes; in steppe and
-desert they are endorheic (salt) basins where rivers end. Flow is the catchment area weighted
-by moisture; rivers follow the cells where it passes `[rivers] min_flow`.
+desert they are always closed (salt) basins where rivers end. Flow is the catchment area
+weighted by moisture; rivers follow the cells where it passes `[rivers] min_flow`.
 """
 from __future__ import annotations
 
@@ -53,9 +53,31 @@ class Lake:
                 "level": round(self.level, 2), "salt": self.salt}
 
 
+@dataclass
+class _Routing:
+    """Where the water of each grid cell goes (cells numbered row by row, `n` to a side)."""
+    n: int
+    c: np.ndarray        # (n,) the cell centers' x (and y), meters
+    sea: np.ndarray      # (n * n,) bool
+    flat: np.ndarray     # (n * n,) the flood's heights, closed basins re-flooded: each cell above its `recv`
+    recv: np.ndarray     # (n * n,) the cell each cell drains to, -1 for the sea, a salt lake and the map border
+    flow: np.ndarray     # (n * n,) rain-weighted catchment, km2
+    catch: np.ndarray    # (n * n,) plain catchment, km2
+    lake_id: np.ndarray  # (n * n,) the lake on each cell, -1 for none
+    salt: np.ndarray     # (n * n,) bool: a salt lake's cell
+    lakes: list
+
+
 def drainage(terrain, cfg: dict) -> tuple:
     """(rivers, lakes) of the whole country."""
     rc = cfg["rivers"]
+    g = _routing(terrain, rc)
+    river = (~g.sea) & (g.lake_id < 0) & (g.flow >= float(rc["min_flow"]))
+    return _rivers(_chains(g.recv, g.flow, river, g.lake_id, g.n), g, terrain, rc), g.lakes
+
+
+def _routing(terrain, rc: dict) -> _Routing:
+    """The drainage of the grid: the flood, then the lakes, then the flow with the lakes in place."""
     size = terrain.size
     n = max(8, int(math.ceil(size / float(rc["cell"]))))
     cell = size / n
@@ -71,18 +93,18 @@ def drainage(terrain, cfg: dict) -> tuple:
     dry = float(rc["dry_weight"])       # desert storms still feed oueds
     weight = np.where(sea, 0.0, dry + (1.0 - dry) * M).ravel() * area
     flow, _ = _accumulate(np.argsort(-filled.ravel(), kind="stable"), recv, weight, np.full(n * n, area))
-    labels, basins = _basins(np.where(sea, 0.0, filled - H), H, filled, biome, flow.reshape(n, n), cell, rc)
+    labels, basins = _basins(np.where(sea, 0.0, filled - H), H, biome, flow.reshape(n, n), cell, rc)
     lake_id = np.full(n * n, -1, dtype=np.int64)
     salt = np.zeros(n * n, dtype=bool)
     lakes = []
     boxes = ndimage.find_objects(labels)
     flat = filled.ravel()
     gid = np.arange(n * n).reshape(n, n)
-    for k, (lab, level, is_salt) in enumerate(basins):
+    for k, (lab, wet, is_salt) in enumerate(basins):
         sy, sx = boxes[lab - 1]
         m, h, g = labels[sy, sx] == lab, H[sy, sx], gid[sy, sx]
-        water = m & (h <= level)
-        if is_salt:                     # endorheic: the basin drains to its lake, which keeps the water
+        water, level = _water(h, m, wet, float(filled[sy, sx][m].max()))
+        if is_salt:                     # endorheic: the whole basin drains to its lake, which keeps the water
             # a tiny epsilon keeps every basin cell below the spill, so `flat` still falls downstream
             sub_f, sub_r = _flood(h, water, wall=~m, border=False, eps=EPS * 1e-3)
             dry_cells = (m & ~water).ravel()
@@ -92,13 +114,11 @@ def drainage(terrain, cfg: dict) -> tuple:
             recv[g[water]] = -1
         lake_id[g[water]] = k
         salt[g[water]] = is_salt
-        lakes.append(_lake(k, water, h, c[sx], c[sy], level, is_salt))
+        wy, wx = slice(max(sy.start - 1, 0), sy.stop + 1), slice(max(sx.start - 1, 0), sx.stop + 1)
+        lakes.append(_lake(k, lake_id.reshape(n, n)[wy, wx] == k, H[wy, wx], c[wx], c[wy], level, is_salt))
     # every cell lies higher in `flat` than the cell it drains to: highest first is upstream first
     flow, catch = _accumulate(np.argsort(-flat, kind="stable"), recv, weight, np.full(n * n, area))
-    river = (~sea.ravel()) & (lake_id < 0) & (flow >= float(rc["min_flow"]))
-    chains = _chains(recv, flow, river, lake_id, n)
-    rivers = _rivers(chains, flat, flow, catch, sea.ravel(), salt, lake_id, c, n, rc)
-    return rivers, lakes
+    return _Routing(n, c, sea.ravel(), flat, recv, flow, catch, lake_id, salt, lakes)
 
 
 def _flood(H: np.ndarray, sea: np.ndarray, wall=None, border: bool = True, eps: float = EPS) -> tuple:
@@ -150,13 +170,14 @@ def _flood(H: np.ndarray, sea: np.ndarray, wall=None, border: bool = True, eps: 
     return np.asarray(filled)[idx].reshape(n_rows, n_cols), recv_inner
 
 
-def _basins(depth, H, filled, biome, flow, cell, rc) -> tuple:
-    """Labels of the filled basins and the lakes among them: [(label, level, salt)].
+def _basins(depth, H, biome, flow, cell, rc) -> tuple:
+    """Labels of the filled basins and the lakes among them: [(label, cells of water, salt)].
 
     A lake spreads until evaporation from its surface (`lake_area_per_flow` km2 per km2 of
     inflow) takes all the water that reaches it: a basin of wet country that fills up spills
-    over and its river goes on; in steppe and desert the basin keeps its water (endorheic)."""
-    labels, count = ndimage.label(depth > 0.01, np.ones((3, 3), dtype=bool))
+    over and its river goes on, one that does not fill just drains. In steppe and desert every
+    basin keeps its water (endorheic), in a lake of at least `lake_min_area`."""
+    labels, count = ndimage.label(depth > float(rc["basin_depth"]), np.ones((3, 3), dtype=bool))
     min_cells = float(rc["lake_min_area"]) * 1e6 / (cell * cell)
     cells = np.bincount(labels.ravel(), minlength=count + 1)
     ids = np.flatnonzero(cells >= min_cells)
@@ -164,7 +185,6 @@ def _basins(depth, H, filled, biome, flow, cell, rc) -> tuple:
     if len(ids) == 0:
         return labels, []
     deepest = ndimage.maximum(depth, labels, ids)
-    spill = ndimage.maximum(filled, labels, ids)
     inflow = ndimage.maximum(flow, labels, ids)
     bottom = ndimage.minimum_position(H, labels, ids)
     out = []
@@ -174,20 +194,41 @@ def _basins(depth, H, filled, biome, flow, cell, rc) -> tuple:
             continue                    # a shallow pit: it just drains
         wet = math.ceil(float(rc["lake_area_per_flow"]) * inflow[k] * 1e6 / (cell * cell))
         is_salt = int(biome[bottom[k]]) in (STEPPE, DESERT)
-        if wet < min_cells or (not is_salt and wet < size):
-            continue                    # too little water to keep a lake: a damp hollow that drains
-        if wet >= size:
-            level = float(spill[k])
-        else:
-            level = float(np.sort(H[labels == ids[k]])[wet - 1])
-        out.append((int(ids[k]), level, is_salt))
+        if is_salt:
+            wet = max(wet, math.ceil(min_cells))
+        elif wet < size:
+            continue                    # too little water to fill it: a damp hollow that drains
+        out.append((int(ids[k]), wet, is_salt))
     return labels, out
 
 
+def _water(h, m, wet: int, spill: float) -> tuple:
+    """(cells, level) of a basin's lake (`m` the basin in its box of the grid): the water around the basin's
+    bottom, at the lowest level that covers `wet` cells or at the spill. Its cells are 4-connected, so its shore
+    is one ring; the hollows of the basin it does not reach stay out, and their water runs on from there."""
+    bottom = np.unravel_index(np.argmin(np.where(m, h, np.inf)), h.shape)
+
+    def pocket(level):
+        parts, _ = ndimage.label(m & (h <= level))
+        return parts == parts[bottom]
+
+    heights = np.sort(h[m])
+    if wet >= len(heights):
+        return pocket(spill), spill
+    lo, hi = wet - 1, len(heights) - 1
+    while lo < hi:                      # the lowest level whose pocket covers `wet` cells
+        mid = (lo + hi) // 2
+        if np.count_nonzero(pocket(heights[mid])) >= wet:
+            hi = mid
+        else:
+            lo = mid + 1
+    return pocket(heights[lo]), float(heights[lo])
+
+
 def _lake(k, mask, H, cx, cy, level, is_salt) -> Lake:
-    """The shore of one basin (its box of the grid): where the ground inside it meets `level`."""
+    """The shore of one lake (`mask`, in a box of the grid one cell wider): where the ground meets `level`."""
     level = level + 1e-6                # the shore around every cell at or below the level
-    f = np.where(mask, H, level + 50.0)
+    f = np.where(mask, H, np.maximum(H, level + 1.0))   # other hollows under the level stay out
     f = np.pad(f, 1, constant_values=level + 50.0)
     step = float(cx[1] - cx[0]) if len(cx) > 1 else float(cy[1] - cy[0])
     gx = np.concatenate([[cx[0] - step], cx, [cx[-1] + step]])
@@ -250,7 +291,9 @@ def _chains(recv, flow, river, lake_id, n) -> list:
     return chains
 
 
-def _rivers(chains, filled, flow, catch, sea, salt, lake_id, c, n, rc) -> list:
+def _rivers(chains, g: _Routing, terrain, rc: dict) -> list:
+    flow, catch, sea, salt, lake_id, c, n = g.flow, g.catch, g.sea, g.salt, g.lake_id, g.c, g.n
+
     def own(path, kind):                # the chain's own river cells
         return path[(1 if lake_id[path[0]] >= 0 else 0):(None if kind == "border" else -1)]
 
@@ -269,7 +312,6 @@ def _rivers(chains, filled, flow, catch, sea, salt, lake_id, c, n, rc) -> list:
         dry = float(rc["dry_weight"])   # flow / catchment is the catchment's mean rain weight
         seasonal = flow[last] / catch[last] < dry + (1.0 - dry) * float(rc["seasonal_moisture"])
         xy = np.column_stack([c[cells % n], c[cells // n]])
-        z = np.minimum.accumulate(filled[cells])
         f = flow[cells].copy()
         if kind != "border":
             f[-1] = f[-2] if len(f) > 1 else f[-1]   # the mouth cell's own flow is the water's
@@ -285,24 +327,24 @@ def _rivers(chains, filled, flow, catch, sea, salt, lake_id, c, n, rc) -> list:
             mouth, into = "sea", None
         else:
             mouth, into = ("basin" if salt[end] else "lake"), int(lake_id[end])
-        out.append([new_id[k], xy, w, float(f[-1]), bool(seasonal), z, mouth, into])
-    smooth = {r[0]: _smooth(r[1], r[2], r[5]) for r in out}
+        out.append((new_id[k], xy, w, float(f[-1]), bool(seasonal), mouth, into))
+    lines = {r[0]: _smooth(r[1], r[2]) for r in out}
+    beds = _beds(out, lines, g, terrain)
     rivers = []
-    for rid, _, _, fl, seas, _, mouth, into in out:
-        xy, w, z = smooth[rid]
+    for rid, _, _, fl, seas, mouth, into in out:
+        xy, w = lines[rid]
+        z = beds[rid]
         if mouth == "river" and into is not None:
-            xy, z = _snap(xy, z, smooth[into][0], smooth[into][2])
+            xy, z = _snap(xy, z, lines[into][0], beds[into])
         rivers.append(River(rid, xy, w, fl, seas, z, mouth, into))
     return rivers
 
 
-def _smooth(xy, w, z, rounds: int = 2) -> tuple:
-    """Rounded D8 staircase: a moving average, then Chaikin corner cutting; the ends stay put.
-
-    Every new value is an average of neighbors, so a profile that never rises stays so."""
+def _smooth(xy, w, rounds: int = 2) -> tuple:
+    """Rounded D8 staircase: a moving average, then Chaikin corner cutting; the ends stay put."""
     if len(xy) < 3:
-        return xy, w, z
-    a = np.column_stack([xy, w, z])
+        return xy, w
+    a = np.column_stack([xy, w])
     for _ in range(2):
         a[1:-1, :2] = (a[:-2, :2] + a[1:-1, :2] + a[2:, :2]) / 3.0
     for _ in range(rounds):
@@ -311,19 +353,45 @@ def _smooth(xy, w, z, rounds: int = 2) -> tuple:
         mid = np.empty((2 * len(q), a.shape[1]))
         mid[0::2], mid[1::2] = q, r
         a = np.vstack([a[:1], mid, a[-1:]])
-    return a[:, :2], a[:, 2], np.minimum.accumulate(a[:, 3])
+    return a[:, :2], a[:, 2]
+
+
+def _beds(out, lines, g: _Routing, terrain) -> dict:
+    """{river id: bed height along its smoothed line}, tributaries first (ids run from the biggest river down).
+
+    The highest beds that never rise, never lie above the ground and take every tributary in: valleys can
+    only be cut into the ground, never lifted out of it. So where a river crosses a hollow it goes down to the
+    floor and cuts through the rim, and its main river stays below it from their junction on. Over a lake
+    the bed is `flat`: the lake's level (a fresh lake's outlet starts there), a salt lake's floor."""
+    step = g.c[1] - g.c[0]
+    joins, beds = {}, {}
+    for rid, _, _, _, _, mouth, into in reversed(out):
+        xy = lines[rid][0]
+        i, j = np.clip(np.floor(xy / step).astype(np.int64), 0, g.n - 1).T
+        cells = j * g.n + i
+        z = np.where(g.lake_id[cells] >= 0, g.flat[cells], terrain.height(xy[:, 0], xy[:, 1]))
+        for at, low in joins.get(rid, []):
+            z[at] = min(z[at], low)
+        beds[rid] = np.minimum.accumulate(z)
+        if mouth == "river" and into is not None:
+            main = lines[into][0]
+            at = np.searchsorted(_along(main), LineString(main).project(Point(xy[-1])))
+            joins.setdefault(into, []).append((max(int(at) - 1, 0), float(beds[rid][-1])))
+    return beds
+
+
+def _along(xy) -> np.ndarray:
+    return np.concatenate([[0.0], np.cumsum(np.hypot(*np.diff(xy, axis=0).T))])
 
 
 def _snap(xy, z, main_xy, main_z) -> tuple:
-    """A tributary ends on its main river's smoothed line. Its last height is the main bed there, unless
-    the point before is lower: the profile never rises, so then it ends below the main bed."""
+    """A tributary ends on its main river's smoothed line, on the main bed there (`_beds` keeps that bed
+    no higher than the tributary's, so its profile still never rises)."""
     line = LineString(main_xy)
     s = line.project(Point(xy[-1]))
     p = line.interpolate(s)
-    seg = np.concatenate([[0.0], np.cumsum(np.hypot(*np.diff(main_xy, axis=0).T))])
-    zm = float(np.interp(s, seg, main_z))
     xy = xy.copy()
     xy[-1] = (p.x, p.y)
     z = z.copy()
-    z[-1] = max(min(z[-1], z[-2] if len(z) > 1 else z[-1]), zm)
-    return xy, np.minimum.accumulate(z)
+    z[-1] = float(np.interp(s, _along(main_xy), main_z))
+    return xy, z

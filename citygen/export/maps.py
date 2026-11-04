@@ -110,13 +110,14 @@ def country_map(world, path, width: int = 1800) -> Path:
 def _draw_water(draw, world, px, width):
     """Lakes and salt basins, then rivers drawn wider where they carry more water."""
     scale = width / 1800
+    base, per_px = (float(v) for v in world.cfg["rivers"]["map_line"])
     for lake in world.lakes:
         fill, line = SALT_RGB if lake.salt else LAKE_RGB
         draw.polygon([px(x, y) for x, y in lake.polygon], fill=fill, outline=line)
     for r in sorted(world.rivers, key=lambda r: r.flow):
         color = OUED_RGB if r.seasonal else RIVER_RGB
         pts = [px(x, y) for x, y in r.coords]
-        px_w = np.maximum(1, np.round((0.8 + r.widths / 6.0) * scale)).astype(int)
+        px_w = np.maximum(1, np.round((base + r.widths / per_px) * scale)).astype(int)
         start = 0
         for i in range(1, len(pts)):    # one line per run of equal drawn width
             if i == len(pts) - 1 or px_w[i] != px_w[start]:

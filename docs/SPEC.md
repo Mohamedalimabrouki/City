@@ -169,14 +169,17 @@ block on `rng("impasse", block)`: lot line jitter, widths, covered share and len
   terrain, computed right after it in `generate_world`, no randomness). On a grid of `cell` m (150) a
   priority flood (Barnes et al. 2014, epsilon gradient 1e-4 m) runs inward from the sea and the map
   border; each land cell drains to the cell the flood reached it from, so every cell drains, even on
-  filled flats. A filled basin (8-connected cells whose filled height is over the ground) is considered
-  for a lake only if deeper than `lake_min_depth` (3 m) and larger than `lake_min_area` (0.5 km2); its
-  lake surface is `lake_area_per_flow` (0.04) km2 per km2 of rain-weighted inflow: a basin of wet country
-  that this fills spills over (a fresh lake at the spill level, its river goes on from the outlet); one
-  it cannot fill just drains; a basin whose lowest cell is steppe or desert is endorheic: a salt lake of
-  that balanced size (level: the height that gives that area), its rim re-flooded from the lake so every
-  cell of the basin drains into it, and rivers end there (prompt 65 turns them into chotts). Lakes under
-  `lake_min_area` are left out. Flow: catchment area weighted by rain, `dry_weight + (1 - dry_weight) x
+  filled flats. A filled basin (8-connected cells the flood fills deeper than `basin_depth`, 1 cm) is
+  considered for a lake only if deeper than `lake_min_depth` (3 m) and larger than `lake_min_area` (0.5
+  km2); its lake surface is `lake_area_per_flow` (0.04) km2 per km2 of rain-weighted inflow. A basin of wet
+  country that this fills spills over (a fresh lake at the spill level, its river goes on from the outlet);
+  one it does not fill just drains. A basin whose lowest cell is steppe or desert always stays closed
+  (Ali, 4 November): a salt lake of that balanced size, never under `lake_min_area`, however little water
+  reaches it; the rest of the basin is re-flooded from the lake so every cell of it drains in, and rivers
+  end there (prompt 65 turns them into chotts). A lake is the 4-connected water around the basin's lowest
+  cell, at the lowest level that covers its cells (so its shore is one ring and all a closed basin's water
+  counts for one lake); other hollows under that level stay out: their water drains on into the lake, so
+  no river ends where no shore is drawn. Flow: catchment area weighted by rain, `dry_weight + (1 - dry_weight) x
   moisture` (0.15: desert storms still feed oueds); a river where it passes `min_flow` (3 km2). Rivers run
   from a source to the sea, a lake, a basin, the map border or the river they join (the upstream branch
   with more flow carries the name downstream); streams under `min_points` cells with no tributary are left
@@ -184,10 +187,16 @@ block on `rng("impasse", block)`: lot line jitter, widths, covered share and len
   first; `coords` the D8 path rounded (two 3-point moving averages, two Chaikin cuts, ends fixed; a
   tributary's end snapped onto its main river's line); `widths` `width_k x sqrt(flow)` clipped to
   `width_min..width_max` (oueds x `oued_scale`); `flow` km2 at the mouth; `seasonal` when the catchment's
-  mean moisture is under `seasonal_moisture` (an oued); `profile` the bed height per point: the filled
-  height along the D8 path, made non-increasing with a running minimum (smoothing only averages it, so it
-  never rises downstream); `mouth` `sea` | `lake` | `basin` | `border` | `river`, `into` the lake or river
-  id. `Lake(id, polygon, level, salt)`: the shore ring where the ground inside the basin meets `level`.
+  mean moisture is under `seasonal_moisture` (an oued); `profile` the bed height per point, the highest bed
+  that never rises downstream, never lies above the ground under the drawn line and lets every tributary end
+  exactly on its main river's bed: the running minimum of the ground along the line, worked out tributaries
+  first, each tributary's end carried into its main river. Prompt 59 first asked for the filled height, but
+  that flies over every hollow a river crosses (up to 55 m on the 64 km world) and prompt 60 can only cut
+  the ground, never lift it; so a river crossing a hollow goes down to the floor and cuts through the rim,
+  and its main river stays under it from their junction on (on the 64 km world 36 km of the 525 km of rivers
+  run over 10 m under the ground). Over a lake the bed is the lake's level (a fresh lake's outlet starts
+  there), or a salt lake's floor. `mouth` `sea` | `lake` | `basin` | `border` | `river`, `into` the lake or
+  river id. `Lake(id, polygon, level, salt)`: the shore ring where the ground meets `level`.
 - `District.history` (prompt 81, `citygen/city/history.py`, `[history]` in the style): two to four sentences for
   stories, built last in `plan_city` from the finished plan, so nothing else moves: an origin, up to `facts` (2)
   facts the map holds (gates, kasbah, boulevard landmarks, station, a neighborhood mosque, souks, a cemetery's
@@ -588,15 +597,17 @@ where there is none; left is left of the edge's direction), `surface` (palette m
 `line`), `from`, `to` (node ids) and `line` (the center line from `from` to `to`, running the way its
 street runs). `roads`: one link per point where a country road (`world.json` roads) crosses the city
 limit: `road` (its id), `kind`, `width`, `x`, `y` (the crossing) and `node` (the nearest node,
-`distance` meters away; the planner's connector street starts there). Built by noding every center
+`distance` meters away, about where the planner's connector street starts). Built by noding every center
 line on a 5 cm grid (`[street_graph] grid` in defaults.toml; `shapely.set_precision`, then `unary_union(grid_size=...)`): plain `unary_union`
 misses junctions where grid streets end on district borders only up to rounding. A piece lying on
-several streets (a grid street left under a boulevard) belongs to the widest. An impasse starts inside
-the surface of the street its mouth opens on (prompt 20.2): its edge starts with a stub from the nearest
-point of that street's center line, which also becomes a vertex of that street (even for a mouth on the
-line itself, with no stub), so both snap to one node; the impasse's `length` includes the stub. Pieces of one street meeting where nothing else does
+several streets (a grid street left under a boulevard) belongs to the widest. A street that stops on the
+surface of another, short of its center line (every impasse's mouth, prompt 20.2; some alleys and
+connectors), gets a stub from the nearest point of that center line, which also becomes a vertex of that
+street (even for an end on the line itself, with no stub), so both snap to one node; the edge's `length`
+includes the stub. Pieces of one street meeting where nothing else does
 are joined. The largest connected part holds at least 99.5% of the street length (tested; the quick
-capital is one part).
+capital is one part). A part stays apart only where the ribbons really do not meet (or two alleys overlap
+side by side with no end on the other): the graph never invents a street the map does not draw.
 
 **.glb conventions:** one root node per tile with `translation = [x0, 0, -y0]`; vertices are
 local to it. One primitive per material; material names are palette names from the style pack

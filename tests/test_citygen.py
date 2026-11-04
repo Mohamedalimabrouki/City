@@ -5398,7 +5398,21 @@ def test_street_graph_is_connected_and_its_edges_match_their_lines(world, plan):
     drawn = shapely.unary_union([st.line for st in plan.streets]).length   # a street under a boulevard counts once
     assert drawn - 1.0 < total < drawn * 1.01     # impasse mouths add their stubs to the street centers
     for link in road_links(world, plan, nodes):   # each country road reaches the graph where it enters
-        assert link["distance"] < 1.0 and Point(nodes[link["node"]]).distance(plan.boundary.exterior) < 1.0
+        limit = link["width"] / 2                 # the connector may start on the surface of a street at the limit
+        assert link["distance"] < limit and Point(nodes[link["node"]]).distance(plan.boundary.exterior) < limit
+
+
+def test_street_graph_joins_a_street_that_stops_on_another_s_surface():
+    """An alley ending on a street's surface, short of its center line, is a junction; one ending beside it is not."""
+    from citygen.city.model import Street
+    from citygen.export.streets import street_graph
+    from shapely.geometry import LineString
+    street = Street("street", 8.0, LineString([(0.0, 0.0), (100.0, 0.0)]))
+    nodes, edges = street_graph([street, Street("alley", 4.0, LineString([(40.0, 3.9), (40.0, 30.0)]))], 0.05)
+    assert len(nodes) == 4 and len(edges) == 3 and (40.0, 0.0) in nodes
+    assert sum(line.length for k, line, _a, _b in edges if k == 1) == pytest.approx(30.0, abs=0.06)   # with its stub
+    nodes, edges = street_graph([street, Street("alley", 4.0, LineString([(40.0, 4.2), (40.0, 30.0)]))], 0.05)
+    assert len(nodes) == 4 and len(edges) == 2
 
 
 def test_street_graph_nodes_a_mouth_exactly_on_its_street():

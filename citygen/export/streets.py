@@ -16,30 +16,47 @@ from ..city.parking import walk_widths
 
 
 def center_lines(streets, grid: float) -> list:
-    """Each street's center line. An impasse's starts at the nearest point of the street its mouth opens
-    on (the planner starts the lane inside that street's surface, short of its center line), and that
-    point becomes a vertex of the street too, so the grid snaps both to the same node."""
-    out = [st.line for st in streets]
-    others = [k for k, st in enumerate(streets) if st.kind != "impasse"]
-    if len(others) == len(streets) or not others:
-        return out
-    tree = STRtree([streets[k].line for k in others])
+    """Each street's center line. A street that stops on another's surface, short of its center line, gets a
+    stub from the nearest point of that line, and that point becomes a vertex of the other street too, so the
+    grid snaps both to the same node. Impasses need it at their mouth: the planner starts the lane inside the
+    surface of its street."""
+    lines = [st.line for st in streets]
+    if len(lines) < 2:
+        return lines
+    tree = STRtree(lines)
+    reach = max(st.width for st in streets) / 2 + grid
     cuts: dict = {}
+    stubs: dict = {}
     for k, st in enumerate(streets):
-        if st.kind != "impasse":
-            continue
-        mouth = Point(st.line.coords[0])
-        h = others[int(tree.nearest(mouth))]
-        d = streets[h].line.project(mouth)
-        q = streets[h].line.interpolate(d)
-        off = mouth.distance(q)
-        if off <= streets[h].width / 2 + grid:
-            if off > 0.0:
-                out[k] = LineString([(q.x, q.y), *st.line.coords])
+        for first in (True, False):
+            end = Point(st.line.coords[0 if first else -1])
+            h = _surface_under(streets, tree, k, end, reach, grid)
+            if h is None:
+                continue
+            d = lines[h].project(end)
+            q = lines[h].interpolate(d)
             cuts.setdefault(h, []).append(d)
-    for h, ds in cuts.items():
-        out[h] = _with_vertices(streets[h].line, sorted(ds))
+            if end.distance(q) > 0.0:
+                stubs[k, first] = (q.x, q.y)
+    out = [_with_vertices(line, sorted(cuts[k])) if k in cuts else line for k, line in enumerate(lines)]
+    for k, line in enumerate(out):
+        head, tail = stubs.get((k, True)), stubs.get((k, False))
+        if head is not None or tail is not None:
+            out[k] = LineString(([head] if head else []) + list(line.coords) + ([tail] if tail else []))
     return out
+
+
+def _surface_under(streets, tree, k: int, end, reach: float, grid: float):
+    """The street whose surface the `end` of street k lies on, the nearest (the lowest index on a tie), or None.
+    An impasse opens on a real street, never on another impasse."""
+    found = []
+    for h in tree.query(end, predicate="dwithin", distance=reach).tolist():
+        if h == k or (streets[k].kind == "impasse" and streets[h].kind == "impasse"):
+            continue
+        d = end.distance(streets[h].line)
+        if d <= streets[h].width / 2 + grid:
+            found.append((d, h))
+    return min(found)[1] if found else None
 
 
 def _with_vertices(line, ds: list):
