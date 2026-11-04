@@ -42,6 +42,11 @@ prefixes_ar.village = ["بئر", "عين", "هنشير", "سيدي", "سيدي �
 prefixes_ar.town = ["منزل", "قصر", "سوق", "برج", "عين", "سيدي", "حمام", "قلعة", "بو", "رأس"]
 prefixes_ar.city = ["ال", "منزل", "قصر"]
 descriptors_ar = ["كبير", "صغير", "جديد", "بحري", "غربي", "شرقي", "زيتون", "رمل", "ملح", "نخلة", "غار", "سوق", "باي"]   # the article ال is added
+# A describing word agrees with a feminine core (its Arabic ends in ة, its Latin in one of these): Kalaa el Kebira.
+# The same draw picks the same place in these lists, one entry per descriptor; a noun (Zitoun, Souk) stays as it is.
+feminine_endings = ["a"]
+descriptors_f = ["Kebira", "Sghira", "Djedida", "Bahria", "Gharbia", "Cherguia", "Zitoun", "Rmel", "Melh", "Nakhla", "Ghar", "Souk", "Bey"]
+descriptors_f_ar = ["كبيرة", "صغيرة", "جديدة", "بحرية", "غربية", "شرقية", "زيتون", "رمل", "ملح", "نخلة", "غار", "سوق", "باي"]
 # names built without a draw: the old town, its great mosque (a village's mosque), the souk repeats
 medina = "Medina of {s}"
 medina_ar = "مدينة {s} العتيقة"

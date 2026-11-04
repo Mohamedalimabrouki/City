@@ -224,6 +224,15 @@ class NameMaker:
         lat, ar = self._part("country_endings")
         return Name(stem + lat, _spell_ar([(stem, stem.ar), (lat, ar)]) if self.ar else "")
 
+    def _descriptor(self, core: str) -> tuple:
+        """A (Latin, Arabic) describing word for `core`. It agrees with a feminine core: the same single draw
+        picks the same place in the feminine lists (el Kebir, but Kalaa el Kebira and القلعة الكبيرة)."""
+        n = self.n
+        i, _ = self._pick_i(n["descriptors"])
+        feminine = "descriptors_f" in n and core.endswith(tuple(n.get("feminine_endings", ())))
+        key = "descriptors_f" if feminine else "descriptors"
+        return n[key][i], (self.ar[key][i] if self.ar else "")
+
     def settlement(self, kind: str) -> Name:
         n = self.n
         core = self.core()
@@ -238,7 +247,7 @@ class NameMaker:
                 return Name(f"{prefix} {article(core)} {core}", join_ar(pre_ar, "ال", core.ar) if self.ar else "")
             return Name(f"{prefix} {core}", join_ar(pre_ar, core.ar) if self.ar else "")
         if n.get("descriptors") and roll < prefix_chance + compound_chance:
-            desc, desc_ar = self._part("descriptors")
+            desc, desc_ar = self._descriptor(core)
             return Name(f"{core} {article(desc)} {desc}", join_ar(core.ar, "ال", desc_ar) if self.ar else "")
         return core
 
@@ -257,7 +266,7 @@ class NameMaker:
 def fixed_name(style: dict, key: str, **fields) -> Name:
     """A name from one fixed template of [names] (no random draw), with its `key_ar` twin."""
     n = style["names"]
-    latin = n.get(key, FIXED_DEFAULTS[key]).format(**fields)
+    latin = (n[key] if key in n else FIXED_DEFAULTS[key]).format(**fields)
     twin = n.get(key + "_ar")
     return Name(latin, fill_ar(twin, **fields) if twin and _twins(n) else "")
 
@@ -265,11 +274,15 @@ def fixed_name(style: dict, key: str, **fields) -> Name:
 def _twins(n: dict) -> dict:
     """The Arabic twins of the [names] lists, or {} when the style has none (every name then has no Arabic).
     With `g_ar` set, every Latin "g" onset is spelled with it (ڨ, the Tunisian g) instead of ق."""
+    if "descriptors_f" in n and len(n["descriptors_f"]) != len(n.get("descriptors", [])):
+        raise ValueError("[names] descriptors_f must have one entry per entry of descriptors")
     if not all(k + "_ar" in n for k in TWINS) or "prefixes_ar" not in n:
         return {}
     for k in TWINS:
         if len(n.get(k, [])) != len(n[k + "_ar"]):
             raise ValueError(f"[names] {k}_ar has {len(n[k + '_ar'])} entries, {k} has {len(n.get(k, []))}")
+    if "descriptors_f" in n and len(n.get("descriptors_f_ar", [])) != len(n["descriptors_f"]):
+        raise ValueError("[names] descriptors_f_ar must have one entry per entry of descriptors_f")
     for kind, prefixes in n.get("prefixes", {}).items():
         if len(prefixes) != len(n["prefixes_ar"].get(kind, [])):
             raise ValueError(f"[names] prefixes_ar.{kind} must have one twin per entry of prefixes.{kind}")
@@ -278,4 +291,6 @@ def _twins(n: dict) -> dict:
     if g:
         out["onsets"] = [g if lat == "g" else ar for lat, ar in zip(n["onsets"], out["onsets"])]
     out["prefixes"] = n["prefixes_ar"]
+    if "descriptors_f" in n:
+        out["descriptors_f"] = n["descriptors_f_ar"]
     return out

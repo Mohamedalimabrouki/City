@@ -5521,6 +5521,7 @@ def test_arabic_twin_lists_match_their_latin_lists():
     n = style["names"]
     for key in TWINS:
         assert len(n[key + "_ar"]) == len(n[key]), key
+    assert len(n["descriptors_f"]) == len(n["descriptors_f_ar"]) == len(n["descriptors"])
     for kind, latin in n["prefixes"].items():
         assert len(n["prefixes_ar"][kind]) == len(latin), kind
     for kind, latin in n["districts"].items():
@@ -5528,7 +5529,7 @@ def test_arabic_twin_lists_match_their_latin_lists():
     cathedral = style["landmarks"]["cathedral"]
     assert len(cathedral["saints_ar"]) == len(cathedral["saints"])
     assert len(n["souk_repeats_ar"]) == len(n["souk_repeats"])
-    words = [k["word_ar"] for k in style["souk"]] + [w for k in TWINS for w in n[k + "_ar"] if w]
+    words = [k["word_ar"] for k in style["souk"]] + [w for k in TWINS for w in n[k + "_ar"] if w] + n["descriptors_f_ar"]
     words += [w for ws in n["prefixes_ar"].values() for w in ws] + cathedral["saints_ar"]
     assert all(is_arabic(w) for w in words), [w for w in words if not is_arabic(w)]
 
@@ -5554,6 +5555,38 @@ def test_arabic_names_take_no_draw_and_use_arabic_letters_only():
     gaf = NameMaker(style, stream(5, "names-ar"))
     names = [gaf.settlement("town") for _ in range(80)]
     assert all(("ڨ" in n.ar) == ("g" in n.lower().replace("gh", "")) for n in names)
+
+
+def test_a_describing_word_agrees_with_a_feminine_core():
+    """Ali's answer on prompt 87: after a core whose Arabic ends in ة the describing word is feminine in both
+    scripts, picked by the same draw; a masculine core keeps its word. The Latin rule needs no Arabic list."""
+    from citygen.config import load_style
+    from citygen.names import NameMaker, _twins
+    style = load_style("maghreb")
+    n = style["names"]
+    for key in ("endings", "berber_endings"):                # the Latin rule is the Arabic rule, ending by ending
+        for lat, ar in zip(n[key], n[key + "_ar"]):
+            assert lat.endswith(tuple(n["feminine_endings"])) == ar.endswith("ة"), (lat, ar)
+    adjectives = {w: f for w, f in zip(n["descriptors"], n["descriptors_f"]) if w != f}
+    assert set(adjectives) == {"Kebir", "Sghir", "Djedid", "Bahri", "Gharbi", "Chergui"}
+    twin = dict(zip(n["descriptors_f"], n["descriptors_f_ar"]))
+    plain = {**style, "names": {k: v for k, v in n.items() if k not in ("descriptors_f", "descriptors_f_ar")}}
+    made, old = NameMaker(style, stream(5, "agree")), NameMaker(plain, stream(5, "agree"))
+    agreed = kept = 0
+    for _ in range(4000):
+        a, b = made.settlement("village"), old.settlement("village")     # the same draws, with and without the lists
+        word = b.split()[-1]
+        if word in adjectives and b.ar.split()[0].endswith("ة"):
+            assert a == f"{b.rsplit(' ', 1)[0]} {adjectives[word]}" and a.ar.endswith(" ال" + twin[adjectives[word]]), (a, a.ar)
+            agreed += 1
+        else:
+            assert a == b and a.ar == b.ar, (a, b)
+            kept += word in adjectives
+    assert agreed > 20 and kept > 20
+    with pytest.raises(ValueError, match="descriptors_f must"):
+        _twins(dict(n, descriptors_f=n["descriptors_f"][:-1]))
+    with pytest.raises(ValueError, match="descriptors_f_ar"):
+        _twins(dict(n, descriptors_f_ar=n["descriptors_f_ar"][:-1]))
 
 
 def test_world_and_plan_carry_arabic_names(world, plan):
@@ -5597,9 +5630,38 @@ def test_arabic_names_leave_every_other_field_alone(monkeypatch):
 
 def test_fixed_names_and_arabic_twins_fail_clearly():
     from citygen.names import TWINS, _twins, fixed_name
-    assert str(fixed_name({"names": {}}, "medina", s="X")) == "Medina of X"   # built-in Latin, no Arabic
+    medina = fixed_name({"names": {}}, "medina", s="X")
+    assert str(medina) == "Medina of X" and medina.ar == ""                   # built-in Latin, no Arabic
+    assert str(fixed_name({"names": {"harbour": "Harbour of {s}"}}, "harbour", s="X")) == "Harbour of X"   # no default needed
     n = {**{k: ["a"] for k in TWINS}, **{k + "_ar": ["ا"] for k in TWINS}, "prefixes_ar": {}}
     assert _twins(n)["onsets"] == ["ا"]
+    n["prefixes"] = {"city": ["El"]}
+    with pytest.raises(ValueError, match="prefixes_ar.city"):
+        _twins(n)
+    del n["prefixes"]
     n["codas_ar"] = []
     with pytest.raises(ValueError, match="codas_ar"):
         _twins(n)
+
+
+def test_a_country_ending_cut_to_nothing_stays_valid():
+    # a core whose last part is empty once cut must not fail on `lat[-1]` (review-87 finding 2)
+    from citygen.names import NameMaker
+    style = _no_arabic_style()
+    style["names"]["endings"] = [""]
+    style["names"]["berber_chance"] = 0.0
+    made = NameMaker(style, stream(5, "empty-ending")).country()
+    assert made and made[-1] in "ae"
+
+
+def test_gazetteer_has_no_arabic_column_without_arabic_names(world, plan, monkeypatch):
+    # review-87 finding 5: the column appears only when some settlement has an Arabic name
+    from citygen.export.lore import gazetteer
+    def rows(text):
+        return [line for line in text.splitlines() if line.startswith("|")]
+    assert "Arabic" in rows(gazetteer(world, []))[0] and all(r.count("|") == 9 for r in rows(gazetteer(world, [])))
+    for s in world.settlements:
+        monkeypatch.setattr(s, "name_ar", "")
+    monkeypatch.setattr(world, "name_ar", "")
+    table = rows(gazetteer(world, []))
+    assert "Arabic" not in table[0] and all(r.count("|") == 8 for r in table)     # 7 cells each
