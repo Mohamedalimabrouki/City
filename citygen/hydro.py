@@ -499,18 +499,20 @@ def _surfaces(rivers: list, lakes: list, terrain, rc: dict) -> None:
             joins.setdefault(r.into, []).append((max(int(at) - 1, 0), float(low[r.id][-1])))
     for r in rivers:                     # main rivers first
         z = low[r.id]
-        end = None
+        s = along(r.coords)
+        end, stop = None, s[-1]
         if r.mouth == "sea":
             end = 0.0
         elif r.mouth in ("lake", "basin"):
             end = lakes[r.into].level
         elif r.mouth == "river" and r.into is not None:
             main = rivers[r.into]
-            end = float(np.interp(LineString(main.coords).project(Point(r.coords[-1])), along(main.coords), main.surface))
+            at = LineString(main.coords).project(Point(r.coords[-1]))
+            end = float(np.interp(at, along(main.coords), main.surface))
+            stop -= float(np.interp(at, along(main.coords), channel(main, rc)["half"])) + 2.0   # flat across its bank
         if end is not None:              # what still stands over the water it meets fades in, at `mouth_slope`
-            s = along(r.coords)
-            drop = max(float(z[-1]) - end, 0.0)
-            reach = np.clip(1.0 - (s[-1] - s) * float(rc["mouth_slope"]) / max(drop, 1e-9), 0.0, 1.0)
+            drop = max(float(np.interp(stop, s, z)) - end, 0.0)
+            reach = np.clip(1.0 - (stop - s) * float(rc["mouth_slope"]) / max(drop, 1e-9), 0.0, 1.0)
             z = np.maximum(z - drop * reach, end)
         if r.source is not None:
             z = np.minimum(z, lakes[r.source].level)

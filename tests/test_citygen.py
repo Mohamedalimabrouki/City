@@ -6083,6 +6083,21 @@ def test_a_salt_flat_is_a_level_crust_with_no_water(water_tiles):
     assert np.ptp(crust[:, 2]) == 0.0 and crust[0, 2] == salt.level
 
 
+def test_a_valley_s_steep_cut_wall_fades_to_rock_point_by_point(water_tiles):
+    from citygen.mesh.water import shore_colors, wall_cells
+    tc = water_tiles[0]
+    cut, deep = np.zeros((4, 4)), np.zeros((4, 4))
+    deep[1, 1] = 1.0                                           # one corner cut a meter into the land
+    steep = np.full((4, 4), 0.3)
+    walls = wall_cells(tc, cut + deep, cut, steep)
+    assert walls.sum() == 4 and walls[0, 0] and walls[1, 1]    # the four cells round that corner...
+    assert not wall_cells(tc, cut + deep, cut, steep * 0.1).any()   # ...if the wall is steep enough to bare the rock
+    x, y, z = np.array([100.0, 100.0]), np.array([100.0, 100.0]), np.array([500.0, 500.0])
+    names = np.array(["forest", "forest"], dtype=object)
+    rock, land = shore_colors(tc, x, y, z, names, np.array([0.6, 0.0]))
+    assert not np.allclose(rock, land) and rock[0] > land[0]   # pale rock, not the forest's color
+
+
 def test_the_fine_ground_meets_its_neighbour_with_no_seam(water_tiles):
     tc, tiles, east, _ = water_tiles
     i, j, mb, _ = tiles["river"]

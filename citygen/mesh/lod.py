@@ -146,12 +146,11 @@ class Terrain:
         ys = y0 + np.arange(-1, n + 2) * s
         X, Y = np.meshgrid(xs, ys)
         Hu = tc.ground.uncut(X, Y)
-        He = tc.ground.far(X, Y, Hu)
-        gx = (He[1:-1, 2:] - He[1:-1, :-2]) / (2 * s)
-        gy = (He[2:, 1:-1] - He[:-2, 1:-1]) / (2 * s)
         Xg, Yg = X[1:-1, 1:-1], Y[1:-1, 1:-1]
         self.levels = (Xg, Yg, Hu[1:-1, 1:-1])             # lakes and salt flats (mesh/water.py)
-        self.names, self.cut = cell_materials(tc, Xg, Yg, He[1:-1, 1:-1], gx, gy, s)
+        ux = (Hu[1:-1, 2:] - Hu[1:-1, :-2]) / (2 * s)      # the land's own materials: no 32 m rock cells up a valley's walls
+        uy = (Hu[2:, 1:-1] - Hu[:-2, 1:-1]) / (2 * s)
+        self.names, self.cut = cell_materials(tc, Xg, Yg, Hu[1:-1, 1:-1], ux, uy, s)
         self.split = (Xg[:-1, :-1][self.cut], Yg[:-1, :-1][self.cut], self.names[self.cut])
         self.tris: list = []                      # triangles as lattice points (i, j) in steps of f from x0, y0
         self.mats: list = []

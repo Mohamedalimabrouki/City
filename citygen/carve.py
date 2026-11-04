@@ -7,16 +7,16 @@ cities ("grade first, carve last"):
   fill   raises the ground only where water would otherwise end in the air: a rim `sill` m over a lake's level
          on a ring `shore` m off its coarse shore, and a low bank (levee) along a reach whose water is pinned to
          what it runs into but stands above the ground
-  cut    height = min(ground, water(s) + section(d)), s along the river, d off its center line: a U under the
-         water, a bank of `bank_width` m up to `bank_rise` m, a flat valley floor, then valley walls that steepen
-         with height, so even a cut of 30 m through a pit's rim is a valley and not a slot. It only ever lowers,
-         and the top of a bank or a wall is rounded into the land, not a crease.
+  cut    height = smooth min(ground, water(s) + section(d)), s the nearest point of the river's line, d the distance
+         to it: a U under the water, a bank of `bank_width` m up to `bank_rise` m, a flat valley floor, then valley
+         walls that steepen with height, so even a cut of 30 m through a pit's rim is a valley and not a slot. It
+         only ever lowers, and the top of a bank or a wall is rounded into the land, not a crease.
 
 Exact distances to the river's segments, not a raster of them: a stream 3 m wide has no place on a 20 m raster,
 and distances interpolated across a center line or a junction are wrong. The raster here is the index: a grid of
-`cell` m that lists the segments whose valley reaches each square (a point on no listed square costs one array
-look-up), each segment's reach measured once on the land (`_reaches`). A point takes the lowest surface over
-all the segments listed, so two rivers meet with no seam and no choice of "nearest".
+`CELL` m that lists the segments whose valley reaches each square (a point on no listed square costs one array
+look-up), each segment's reach measured once on the land (`_reaches`). The numbers of the section are a soft mean over
+the segments about as near as the nearest, so two rivers meet with no seam and a meander's two reaches too.
 
 The water itself (`mesh/water.py`): a lake's level or a salt crust wherever the ground lies below it inside
 `shore` m of its coarse shore, so the shore is where the land really meets the level; a river's ribbon, one
@@ -52,7 +52,6 @@ class Shore:
     ring: object         # the coarse shore as a line
     reach: float         # meters off the shore where `fill` still acts
     box: tuple           # bounds of `zone`
-    halo: Polygon        # `zone` and the rim of bare ground round it
 
 
 @dataclass
@@ -105,30 +104,8 @@ class Carve:
         self.shores = self._shores(lakes, float(rc["shore"]))
         self.rivers = rivers
         self.ribbons = {}
-        table, levees, reaches, cuts = [], [], [], []
-        for r in rivers:
-            if len(r.coords) < 2:
-                continue
-            ch = channel(r, rc)
-            rib = self._ribbon(terrain, r, ch)
-            s = rib.along
-            seg = np.flatnonzero((s[1:] >= rib.start) & (s[:-1] <= rib.dug))   # no channel on a lake's floor
-            if not len(seg):
-                continue
-            into = np.clip((rib.dug - s) / MOUTH_FADE, 0.3, 1.0) if r.mouth in ("sea", "lake", "basin") else 1.0
-            out = np.clip((s - rib.start) / MOUTH_FADE, 0.3, 1.0) if r.source is not None else 1.0
-            depth = ch["depth"] * into * out                  # the bed comes up to the water it meets, and stays under it
-            mid = lambda v: 0.5 * (v[seg] + v[seg + 1])       # noqa: E731
-            a, b = r.coords[seg], r.coords[seg + 1]
-            table.append(np.column_stack([a, b, r.surface[seg], r.surface[seg + 1], ch["half"][seg], ch["half"][seg + 1],
-                                          mid(depth), mid(ch["lip"]), mid(ch["rise"]), mid(ch["plain"]),
-                                          np.full(len(seg), r.id)]))
-            reaches.append(self._reaches(terrain, r, ch)[seg])
-            under = np.maximum(terrain.height(r.coords[:, 0], r.coords[:, 1]) - r.surface - ch["rise"], 0.0)
-            cuts.append(mid(under))
-            if not r.seasonal:
-                self.ribbons[r.id] = rib
-                levees.append(self._levee(terrain, r, ch, rib))
+        rows = [row for row in (self._river(terrain, r, rc) for r in rivers if len(r.coords) > 1) if row is not None]
+        table, reaches, cuts, levees = zip(*rows) if rows else ((), (), (), ())
         self.table = np.concatenate(table) if table else np.zeros((0, 13))
         self.cuts = np.concatenate(cuts) if cuts else np.zeros(0)
         self.zones = shapely.union_all([sh.zone for sh in self.shores]) if self.shores else None
@@ -145,13 +122,38 @@ class Carve:
 
     # --- what is built once ---------------------------------------------------------------------------------
 
+    def _river(self, terrain, r, rc: dict) -> tuple | None:
+        """(table rows, reaches, how deep it runs, levees) of one river, None when nothing of it is on land. Its channel
+        stops at the shore: no channel on a lake's floor, and a bed comes up to the water it meets."""
+        ch = channel(r, rc)
+        rib = self._ribbon(terrain, r, ch)
+        s = rib.along
+        seg = np.flatnonzero((s[1:] >= rib.start) & (s[:-1] <= rib.dug))
+        if not len(seg):
+            return None
+        into = np.clip((rib.dug - s) / MOUTH_FADE, 0.3, 1.0) if r.mouth in ("sea", "lake", "basin") else 1.0
+        out = np.clip((s - rib.start) / MOUTH_FADE, 0.3, 1.0) if r.source is not None else 1.0
+
+        def mid(v):
+            return 0.5 * (v[seg] + v[seg + 1])
+
+        row = np.column_stack([r.coords[seg], r.coords[seg + 1], r.surface[seg], r.surface[seg + 1], ch["half"][seg],
+                               ch["half"][seg + 1], mid(ch["depth"] * into * out), mid(ch["lip"]), mid(ch["rise"]),
+                               mid(ch["plain"]), np.full(len(seg), r.id)])
+        under = np.maximum(terrain.height(r.coords[:, 0], r.coords[:, 1]) - r.surface - ch["rise"], 0.0)
+        levee = np.zeros((0, 8))
+        if not r.seasonal:
+            self.ribbons[r.id] = rib
+            levee = self._levee(terrain, r, ch, rib)
+        return row, self._reaches(terrain, r, ch)[seg], mid(under), levee
+
     def _shores(self, lakes: list, shore: float) -> list:
         out = []
         for k in lakes:
             poly = Polygon(k.polygon).buffer(0)
             reach = shore + 8.0 + self.sill_fade
             zone = poly.buffer(shore)
-            out.append(Shore(k.level, k.salt, poly, zone, poly.exterior, reach, zone.bounds, zone.buffer(self.sill_fade)))
+            out.append(Shore(k.level, k.salt, poly, zone, poly.exterior, reach, zone.bounds))
         return out
 
     def _reaches(self, terrain, r, ch: dict) -> np.ndarray:
@@ -196,9 +198,10 @@ class Carve:
         line = LineString(r.coords)
         start, end, dug = 0.0, float(s[-1]), None
         ground = np.asarray(terrain.height(r.coords[:, 0], r.coords[:, 1]))
-        if r.source is not None:
-            land = np.flatnonzero(ground >= self.shores[r.source].level)
-            start = float(s[max(int(land[0]) - 2, 0)]) if len(land) else 0.0
+        if r.source is not None:                        # or from the edge of its lake's drawn water, if that comes first
+            sh = self.shores[r.source]
+            away = np.flatnonzero((ground >= sh.level) | ~shapely.contains_xy(sh.zone, r.coords[:, 0], r.coords[:, 1]))
+            start = float(s[max(int(away[0]) - 2, 0)]) if len(away) else 0.0
         if r.mouth == "sea":
             wet, land = np.flatnonzero(r.surface <= 0.0), np.flatnonzero(ground > 0.0)
             end = float(s[wet[0]]) if len(wet) else end
@@ -395,9 +398,11 @@ class Carve:
                 sh = self.shores[k]
                 t = 1.0 - np.clip((z[sel] - sh.level) / (salt_height if sh.salt else height), 0.0, 1.0)
                 on = np.flatnonzero(t > 0.0)
-                on = on[shapely.contains_xy(sh.halo, x[sel[on]], y[sel[on]])]
-                if len(on):
-                    w[sel[on]], salt[sel[on]] = np.maximum(w[sel[on]], t[on] * t[on] * (3.0 - 2.0 * t[on])), sh.salt
+                if len(on):                  # it fades out `sill_fade` m past the zone on the flattest land
+                    t[on] *= 1.0 - np.clip(shapely.distance(sh.zone, shapely.points(x[sel[on]], y[sel[on]]))
+                                           / self.sill_fade, 0.0, 1.0)
+                    w[sel[on]] = np.maximum(w[sel[on]], t[on] * t[on] * (3.0 - 2.0 * t[on]))
+                    salt[sel[on]] |= sh.salt & (t[on] > 0.0)
         return w, salt
 
     def touches(self, poly) -> bool:

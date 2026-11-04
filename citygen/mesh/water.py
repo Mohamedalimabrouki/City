@@ -101,11 +101,11 @@ def land_tint(tc, x, y, sample=None) -> np.ndarray:
     return col
 
 
-def shore_colors(tc, x, y, z, names) -> np.ndarray:
+def shore_colors(tc, x, y, z, names, slope=None) -> np.ndarray:
     """(N, 3) COLOR_0 of the ground drawn in `river_bed`, which carries one pale gravel while its points carry every
     color: the land's own (its material's over `river_bed`'s, from afar) out in the band, bare earth on a bank or a
     lake's rim, dark wet pebbles under the water, pale gravel on a dry oued's floor, a pale crust on a salt flat's
-    rim. So a shore fades into the land, with no stair of cells."""
+    rim, bare rock up a valley's steep wall (`slope`, per point). So a shore fades into the land, with no stair of cells."""
     flat = _flat_colors(tc)
     base = flat["river_bed"]
     land = np.array([flat[str(n)] for n in names]) / base
@@ -121,6 +121,10 @@ def shore_colors(tc, x, y, z, names) -> np.ndarray:
     col = land + (channel - land) * w
     shore, salt = carve.rims(x, y, z, float(style["rim_height"]), float(style["salt_rim_height"]))
     col += (np.where(salt[:, None], rim, bank) - col) * shore[:, None] * (1.0 - w)
+    if slope is not None:
+        lo, hi = (float(v) for v in style["rock_slope"])
+        t = np.clip((slope - lo) / (hi - lo), 0.0, 1.0)
+        col += (flat["rock"] / base - col) * (t * t * (3.0 - 2.0 * t))[:, None]
     return np.clip(col, 0.0, 1.0) * land_tint(tc, x, y, f)
 
 
@@ -131,13 +135,22 @@ def rim_cells(tc, Xg, Yg, H) -> np.ndarray:
     return np.maximum.reduce([w[:-1, :-1], w[1:, :-1], w[:-1, 1:], w[1:, 1:]]) > 0.0
 
 
-def rim_mesh(mb: MeshBuilder, tc, quads, pos, nrm, uv, names, n: int) -> None:
+def wall_cells(tc, Hu, H, slope) -> np.ndarray:
+    """The terrain cells on a river valley's steep walls: cut into the land and steep enough to bare the rock. The
+    8 m cells of a rock material would stand out in stairs, so these fade to it point by point (`shore_colors`)."""
+    lo = float(tc.world.style["water"]["rock_slope"][0])
+    cut = Hu - H
+    return ((np.maximum.reduce([cut[:-1, :-1], cut[1:, :-1], cut[:-1, 1:], cut[1:, 1:]]) > 0.2)
+            & (np.maximum.reduce([slope[:-1, :-1], slope[1:, :-1], slope[:-1, 1:], slope[1:, 1:]]) > lo))
+
+
+def rim_mesh(mb: MeshBuilder, tc, quads, pos, nrm, uv, names, n: int, slope) -> None:
     """Terrain cells `quads` (node numbers of a grid of `n` + 1 to a side) in `river_bed`, each node colored."""
     tris = np.concatenate([quads[:, [0, 1, 2]], quads[:, [0, 2, 3]]])
     used, remap = np.unique(tris, return_inverse=True)
     j, i = np.minimum(used // (n + 1), n - 1), np.minimum(used % (n + 1), n - 1)
     mb.add("river_bed", pos[used], nrm[used], uv[used], remap.reshape(-1, 3),
-           shore_colors(tc, pos[used, 0], pos[used, 1], pos[used, 2], names[j, i]))
+           shore_colors(tc, pos[used, 0], pos[used, 1], pos[used, 2], names[j, i], slope.ravel()[used]))
 
 
 def _linear(color: str) -> np.ndarray:
@@ -173,11 +186,17 @@ def level_cells(mb: MeshBuilder, tc, Xg, Yg, Hu, s: float) -> None:
 
 
 def _flat(mb: MeshBuilder, tc, mat: str, m: np.ndarray, Xg, Yg, z: float) -> None:
-    """The cells `m` of a grid of nodes at height z. A salt crust keeps every node, for its tint."""
+    """The cells `m` of a grid of nodes at height z. A salt crust keeps every node, for its tint; water is one
+    long quad per run of cells along a row."""
     cols = Xg.shape[1]
-    jj, ii = np.nonzero(m)
-    v00 = jj * cols + ii
-    quads = np.stack([v00, v00 + 1, v00 + cols + 1, v00 + cols], axis=-1)
+    if mat == "salt_crust":
+        jj, ii = np.nonzero(m)
+        v00 = jj * cols + ii
+        quads = np.stack([v00, v00 + 1, v00 + cols + 1, v00 + cols], axis=-1)
+    else:
+        edges = np.diff(np.pad(m.astype(np.int8), ((0, 0), (1, 1))), axis=1)
+        (jj, first), (_, last) = np.nonzero(edges == 1), np.nonzero(edges == -1)
+        quads = np.stack([jj * cols + first, jj * cols + last, (jj + 1) * cols + last, (jj + 1) * cols + first], axis=-1)
     tris = np.concatenate([quads[:, [0, 1, 2]], quads[:, [0, 2, 3]]])
     used, remap = np.unique(tris, return_inverse=True)
     x, y = Xg.ravel()[used], Yg.ravel()[used]

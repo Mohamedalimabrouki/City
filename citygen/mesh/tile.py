@@ -43,7 +43,7 @@ from .port import (armour_placements, breakwater_meshes, ground_masks, keep_zone
 from .props import tree_mesh
 from .textures import images_for
 from .vaults import covered_meshes
-from .water import fine_ground, land_tint, level_cells, rim_cells, rim_mesh, river_meshes
+from .water import fine_ground, land_tint, level_cells, rim_cells, rim_mesh, river_meshes, wall_cells
 
 ROAD_LIFT = 0.34
 
@@ -176,6 +176,15 @@ def terrain_mesh(mb: MeshBuilder, tc: TileContext, x0: float, y0: float, corners
     if carve is not None:
         fine, low = fine_ground(tc, X, Y, Hu, He, rivers.past.reshape(X.shape), names, split, s, mb)
     rim = (rim_cells(tc, Xg, Yg, H) if carve is not None else fine) & ~split & ~fine
+    land = names
+    if carve is not None:
+        slope = np.hypot(gx, gy)
+        walls = wall_cells(tc, Hu[1:-1, 1:-1], H, slope) & ~split & ~fine
+        if walls.any():                     # the land's own material, as it was before the valley was cut
+            ux = (Hu[1:-1, 2:] - Hu[1:-1, :-2]) / (2 * s)
+            uy = (Hu[2:, 1:-1] - Hu[:-2, 1:-1]) / (2 * s)
+            land = np.where(walls, cell_materials(tc, Xg, Yg, Hu[1:-1, 1:-1], ux, uy, s)[0], names)
+            rim |= walls
     cols = n + 1
     iy, ix = np.meshgrid(np.arange(n), np.arange(n), indexing="ij")
     v00 = iy * cols + ix
@@ -187,7 +196,7 @@ def terrain_mesh(mb: MeshBuilder, tc: TileContext, x0: float, y0: float, corners
         used, remap = np.unique(tris, return_inverse=True)
         mb.add(str(mat), pos[used], nrm[used], uv[used], remap.reshape(-1, 3), col[used])
     if rim.any():
-        rim_mesh(mb, tc, quads[rim], pos, nrm, uv, names, n)
+        rim_mesh(mb, tc, quads[rim], pos, nrm, uv, land, n, slope)
     if split.any():
         split_cells(mb, tc, Xg[:-1, :-1][split], Yg[:-1, :-1][split], names[split], s)
     level_cells(mb, tc, Xg, Yg, Hu[1:-1, 1:-1], s)

@@ -478,6 +478,7 @@ oued = "#D2C4A6"            # a dry oued's pale gravel
 salt_rim = "#D9D3C4"        # the dry crust round a salt flat
 rim_height = 1.0            # meters over a lake's level its shore stays bare...
 salt_rim_height = 2.4       # ...and a salt flat's rim stays pale
+rock_slope = [0.22, 0.42]   # a valley's cut walls fade to bare rock between these slopes
 bank_fade = 3.5             # meters past the bank over which it fades into the land
 bed_fade = 1.2              # meters from the water's edge to the full color of the bed
 
