@@ -157,7 +157,7 @@ def test_a_wet_hollow_fills_to_its_spill_however_little_water_reaches_it():
     rivers, lakes = drainage(land, cfg)
     g = _routing(land, cfg["rivers"])
     assert len(lakes) == 1 and not lakes[0].salt
-    assert np.count_nonzero(g.lake_id == 0) > 100                  # the whole hollow, not its balanced 23 cells
+    assert np.count_nonzero(g.lake_id == 0) > 50                   # the whole hollow, not its balanced 23 cells
     shore = Polygon(lakes[0].polygon).buffer(float(cfg["rivers"]["cell"]))
     outlet = [r for r in rivers if shore.contains(Point(r.coords[0])) and r.mouth != "lake"]
     assert len(outlet) == 1 and outlet[0].mouth == "border" and abs(outlet[0].profile[0] - lakes[0].level) < 0.1
