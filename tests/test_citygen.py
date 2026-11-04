@@ -5278,3 +5278,82 @@ def test_villa_369_plan_is_valid(world):
     interior = plan_interior(Outside(ctx, plan, 369), world.style)
     assert interior.layout == "villa", interior.layout
     assert rooms.check(interior) == [], rooms.check(interior)[:3]
+
+
+def _graph_parts(nodes: list, edges: list) -> dict:
+    """{root node: street length} of each connected part of a street graph (edges as (a, b, length))."""
+    parent = list(range(len(nodes)))
+
+    def root(a):
+        while parent[a] != a:
+            parent[a] = parent[parent[a]]
+            a = parent[a]
+        return a
+    for a, b, _length in edges:
+        parent[root(a)] = root(b)
+    parts = collections.Counter()
+    for a, _b, length in edges:
+        parts[root(a)] += length
+    return parts
+
+
+def test_street_graph_is_connected_and_its_edges_match_their_lines(world, plan):
+    from shapely.geometry import Point
+    from citygen.export.streets import road_links, street_graph
+    nodes, edges = street_graph(plan.streets, float(world.cfg["streets"]["graph_grid"]))
+    assert len(set(nodes)) == len(nodes) and len(edges) >= len(plan.streets)
+    for k, line, a, b in edges:   # every edge's ends are nodes, and it runs along its street
+        assert 0 <= a < len(nodes) and 0 <= b < len(nodes)
+        assert line.coords[0] == nodes[a] and line.coords[-1] == nodes[b] and line.length > 0.0
+        mid = line.interpolate(0.5, normalized=True)
+        assert plan.streets[k].line.distance(mid) < plan.streets[k].width / 2 + 0.1
+        if not plan.streets[k].line.is_closed:   # it runs the way its street runs (left sidewalk on its left)
+            ahead = [plan.streets[k].line.project(line.interpolate(t, normalized=True)) for t in (0.25, 0.75)]
+            assert ahead[0] <= ahead[1]
+    parts = _graph_parts(nodes, [(a, b, line.length) for _k, line, a, b in edges])
+    total = sum(parts.values())
+    assert max(parts.values()) >= 0.995 * total   # the largest connected part holds the streets
+    drawn = sum(st.line.length for st in plan.streets)
+    assert drawn - 1.0 < total < drawn * 1.01     # impasse mouths add their stubs to the street centers
+    for link in road_links(world, plan, nodes):   # each country road reaches the graph where it enters
+        assert link["distance"] < 1.0 and Point(nodes[link["node"]]).distance(plan.boundary.exterior) < 1.0
+
+
+@pytest.mark.slow  # sidewalk widths of the whole city, about 3 s
+def test_streets_json_lists_nodes_on_the_drawn_street_and_measured_edges(world, plan, ground):
+    from citygen.export.streets import streets_json
+    data = json.loads(json.dumps(streets_json(world, plan, ground)))
+    assert data["format"] == "citygen-streets/1" and data["roads"]
+    nodes, edges = data["nodes"], data["edges"]
+    assert [n["id"] for n in nodes] == list(range(len(nodes)))
+    xy = np.array([[n["x"], n["y"]] for n in nodes])
+    assert np.allclose([n["z"] for n in nodes], ground.surface(xy[:, 0], xy[:, 1]), atol=0.01)
+    degree = collections.Counter(i for e in edges for i in (e["from"], e["to"]))
+    assert all(n["degree"] == degree[n["id"]] for n in nodes)
+    for e in edges:
+        line = np.array(e["line"])
+        assert line[0].tolist() == xy[e["from"]].tolist() and line[-1].tolist() == xy[e["to"]].tolist()
+        assert abs(e["length"] - np.hypot(*np.diff(line, axis=0).T).sum()) < 0.02
+        assert e["kind"] == plan.streets[e["street"]].kind and min(e["sidewalks"]) >= 0.0
+        assert sum(e["sidewalks"]) < e["width"]
+    assert any(max(e["sidewalks"]) > 0.0 for e in edges)
+    parts = _graph_parts(nodes, [(e["from"], e["to"], e["length"]) for e in edges])
+    assert max(parts.values()) >= 0.995 * sum(parts.values())
+
+
+@pytest.mark.slow  # two processes plan the quick capital, about 20 s
+def test_streets_json_two_processes(tmp_path):
+    import os
+    import subprocess
+    import sys
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    code = ("import sys; from citygen.config import load_config; from citygen.world import generate_world; "
+            "from citygen.city import plan_city; from citygen.city.ground import Ground; "
+            "from citygen.export.streets import streets_json; from citygen.export.lore import write_json; "
+            "w = generate_world(load_config(quick=True)); p = plan_city(w, w.capital()); "
+            "write_json(sys.argv[1], streets_json(w, p, Ground(w, [p])))")
+    for name, seed in (("a", "1"), ("b", "2")):
+        subprocess.run([sys.executable, "-c", code, str(tmp_path / f"{name}.json")], cwd=root,
+                       env={**os.environ, "PYTHONHASHSEED": seed}, check=True, capture_output=True)
+    assert (tmp_path / "a.json").read_bytes() == (tmp_path / "b.json").read_bytes()
