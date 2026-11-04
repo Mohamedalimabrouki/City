@@ -39,6 +39,7 @@ CHUNK = 8          # river points to one reach
 SOFT = 6.0         # meters: segments this much farther than the nearest still count a third
 FADE = math.exp(-3.0)   # and three times that, nothing
 MARGIN = 12.0      # meters added to a measured reach
+MOUTH_FADE = 40.0  # meters over which a bed comes up to meet a lake or the sea
 
 
 @dataclass
@@ -78,6 +79,7 @@ class Ribbon:
     half: np.ndarray
     start: float         # the ribbon runs from here...
     end: float           # ...to here, in meters along the line
+    dug: float           # the channel runs on to here: past a ribbon's end at 0, the sea comes up it
 
 
 def _section(d, half, depth, lip, rise, plain, flat, curve):
@@ -105,21 +107,28 @@ class Carve:
         self.ribbons = {}
         table, levees, reaches, cuts = [], [], [], []
         for r in rivers:
-            ch = channel(r, rc)
-            n = len(r.coords) - 1
-            if n < 1:
+            if len(r.coords) < 2:
                 continue
-            a, b = r.coords[:-1], r.coords[1:]
-            mid = lambda v: 0.5 * (v[:-1] + v[1:])       # noqa: E731
-            lo, hi = r.surface[:-1], r.surface[1:]
-            table.append(np.column_stack([a, b, lo, hi, ch["half"][:-1], ch["half"][1:], mid(ch["depth"]), mid(ch["lip"]),
-                                          mid(ch["rise"]), mid(ch["plain"]), np.full(n, r.id)]))
-            reaches.append(self._reaches(terrain, r, ch))
-            depth = np.maximum(terrain.height(r.coords[:, 0], r.coords[:, 1]) - r.surface - ch["rise"], 0.0)
-            cuts.append(0.5 * (depth[:-1] + depth[1:]))
+            ch = channel(r, rc)
+            rib = self._ribbon(terrain, r, ch)
+            s = rib.along
+            seg = np.flatnonzero((s[1:] >= rib.start) & (s[:-1] <= rib.dug))   # no channel on a lake's floor
+            if not len(seg):
+                continue
+            into = np.clip((rib.dug - s) / MOUTH_FADE, 0.3, 1.0) if r.mouth in ("sea", "lake", "basin") else 1.0
+            out = np.clip((s - rib.start) / MOUTH_FADE, 0.3, 1.0) if r.source is not None else 1.0
+            depth = ch["depth"] * into * out                  # the bed comes up to the water it meets, and stays under it
+            mid = lambda v: 0.5 * (v[seg] + v[seg + 1])       # noqa: E731
+            a, b = r.coords[seg], r.coords[seg + 1]
+            table.append(np.column_stack([a, b, r.surface[seg], r.surface[seg + 1], ch["half"][seg], ch["half"][seg + 1],
+                                          mid(depth), mid(ch["lip"]), mid(ch["rise"]), mid(ch["plain"]),
+                                          np.full(len(seg), r.id)]))
+            reaches.append(self._reaches(terrain, r, ch)[seg])
+            under = np.maximum(terrain.height(r.coords[:, 0], r.coords[:, 1]) - r.surface - ch["rise"], 0.0)
+            cuts.append(mid(under))
             if not r.seasonal:
-                self.ribbons[r.id] = self._ribbon(terrain, r, ch)
-                levees.append(self._levee(terrain, r, ch, self.ribbons[r.id]))
+                self.ribbons[r.id] = rib
+                levees.append(self._levee(terrain, r, ch, rib))
         self.table = np.concatenate(table) if table else np.zeros((0, 13))
         self.cuts = np.concatenate(cuts) if cuts else np.zeros(0)
         self.zones = shapely.union_all([sh.zone for sh in self.shores]) if self.shores else None
@@ -185,14 +194,15 @@ class Carve:
         or, on the way to the sea, to where the water reaches 0 and the sea plane takes over."""
         s = along(r.coords)
         line = LineString(r.coords)
-        start, end = 0.0, float(s[-1])
+        start, end, dug = 0.0, float(s[-1]), None
         ground = np.asarray(terrain.height(r.coords[:, 0], r.coords[:, 1]))
         if r.source is not None:
             land = np.flatnonzero(ground >= self.shores[r.source].level)
             start = float(s[max(int(land[0]) - 2, 0)]) if len(land) else 0.0
         if r.mouth == "sea":
-            wet = np.flatnonzero(r.surface <= 0.0)
+            wet, land = np.flatnonzero(r.surface <= 0.0), np.flatnonzero(ground > 0.0)
             end = float(s[wet[0]]) if len(wet) else end
+            dug = float(s[min(int(land[-1]) + 2, len(s) - 1)]) if len(land) else end
         elif r.mouth in ("lake", "basin"):
             land = np.flatnonzero(ground >= self.shores[r.into].level)
             end = float(s[min(int(land[-1]) + 2, len(s) - 1)]) if len(land) else end
@@ -200,8 +210,8 @@ class Carve:
             main = self.rivers[r.into]
             at = LineString(main.coords).project(shapely.points(r.coords[-1]))
             end -= 0.25 * float(np.interp(at, along(main.coords), main.widths))
-        half = ch["half"]
-        return Ribbon(line, s, r.surface, half, start, max(end, start))
+        end = max(end, start)
+        return Ribbon(line, s, r.surface, ch["half"], start, end, end if dug is None else max(dug, end))
 
     def _index(self, reach: np.ndarray) -> None:
         """The grid: each square lists the segments whose reach touches it, the levees' and the lakes' too."""

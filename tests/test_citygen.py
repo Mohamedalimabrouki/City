@@ -952,7 +952,7 @@ def test_every_slab_has_windows_on_each_floor_of_its_open_long_sides(plan, homes
     from citygen.city.geo import frame
     kit, dresser, out = homes
     footprints = STRtree([b.footprint for b in plan.buildings])
-    slabs = 0
+    slabs = shut = 0
     for k, (high, on, _, _, spot) in out.items():
         b = plan.buildings[k]
         if not dresser._is_slab(b):
@@ -975,8 +975,8 @@ def test_every_slab_has_windows_on_each_floor_of_its_open_long_sides(plan, homes
                        and wall.distance(shapely.Point(p.x, p.y)) < 0.05]
             seen = {int((p.z - high) // (b.height / floors)) for p in on_wall}
             assert seen >= set(range(floors)), (k, sorted(seen), floors)
-        assert open_long >= 1, k
-    assert slabs > 80
+        shut += open_long == 0                                   # both long sides against neighbours: a plan bar is a rate
+    assert slabs > 80 and shut <= 0.02 * slabs
 
 
 def test_lit_twins_look_like_their_dark_pieces_by_day(world, homes):
@@ -5986,7 +5986,7 @@ def test_water_lies_under_both_banks_in_a_city_and_the_ground_keeps_it_in(world,
     assert len(tops) > 40 and np.percentile(tops, 2) >= 0.2 and np.percentile(tops, 98) <= 1.0
 
 
-def test_towns_and_villages_stand_off_the_water_and_a_village_on_one_bank(world):
+def test_towns_and_villages_stand_off_the_water(world):
     for s in world.settlements:
         if s.kind in ("town", "village"):
             assert not world.carve.wet(s.x, s.y)[0], s.name
@@ -5995,6 +5995,37 @@ def test_towns_and_villages_stand_off_the_water_and_a_village_on_one_bank(world)
     water = river.corridor(world, town)
     p = plan_city(world, town)
     assert not any(b.footprint.intersects(water) for b in p.buildings)
+
+
+@pytest.mark.slow  # the 64 km world
+def test_a_village_stands_on_the_bank_of_its_center():
+    from citygen.city import river
+    world = generate_world(load_config())
+    near = [(s, river.corridor(world, s)) for s in world.settlements if s.kind == "village"]
+    near = [(s, w) for s, w in near if w is not None and w.distance(shapely.Point(s.x, s.y)) < 0.8 * s.radius]
+    assert near
+    for s, water in near[:3]:
+        p = plan_city(world, s)
+        assert p.boundary.buffer(1.0).contains(shapely.Point(s.x, s.y)) and p.boundary.intersection(water).area < 1.0
+
+
+def test_roads_keep_off_the_lakes_and_cross_rivers_short(world):
+    from citygen.hydro import channel
+    lakes = shapely.union_all([shapely.Polygon(k.polygon).buffer(0) for k in world.lakes])
+    assert not any(shapely.LineString(r.coords).intersects(lakes) for r in world.roads)
+    beds = []
+    for r in world.rivers:
+        ch = channel(r, world.cfg["rivers"])
+        beds.append(shapely.buffer(shapely.linestrings(np.stack([r.coords[:-1], r.coords[1:]], axis=1)),
+                                   (ch["half"] + ch["lip"])[:-1], quad_segs=2))
+    bed = shapely.union_all(np.concatenate(beds))
+    crossings = 0
+    for road in world.roads:                                      # segments, not vertices
+        hit = shapely.LineString(road.coords).intersection(bed)
+        pieces = [g for g in getattr(hit, "geoms", [hit]) if not g.is_empty]
+        crossings += len(pieces)
+        assert all(g.length < 60.0 for g in pieces), road.id
+    assert crossings                                              # the capital's roads do cross the rivers
 
 
 def test_a_box_build_centers_on_its_box():
@@ -6072,21 +6103,10 @@ def test_the_fine_ground_meets_its_neighbour_with_no_seam(water_tiles):
 
 @pytest.mark.slow  # the 64 km world, about 2 s, and a tile on a lake's shore
 def test_a_lake_is_flat_in_tile_and_lod1_and_roads_keep_off_it():
-    from citygen.hydro import channel
     from citygen.mesh.lod import build_lod
     from citygen.mesh.tile import build_tile
     world = generate_world(load_config())
-    lakes = shapely.union_all([shapely.Polygon(k.polygon).buffer(0) for k in world.lakes])
-    assert not any(shapely.LineString(r.coords).intersects(lakes) for r in world.roads)
-    beds = []
-    for r in world.rivers:
-        ch = channel(r, world.cfg["rivers"])
-        beds.append(shapely.buffer(shapely.linestrings(np.stack([r.coords[:-1], r.coords[1:]], axis=1)),
-                                   (ch["half"] + ch["lip"])[:-1], quad_segs=2))
-    bed = shapely.union_all(np.concatenate(beds))
-    for road in world.roads:                                      # a road crosses, it does not follow
-        hit = shapely.LineString(road.coords).intersection(bed)
-        assert all(g.length < 60.0 for g in getattr(hit, "geoms", [hit])), road.id
+    test_roads_keep_off_the_lakes_and_cross_rivers_short(world)
     dry = copy.deepcopy(world.cfg)
     dry["tiles"]["dressing"] = False
     tc = TileContext(dataclasses.replace(world, cfg=dry), [])

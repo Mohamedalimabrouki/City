@@ -255,7 +255,7 @@ block on `rng("impasse", block)`: lot line jitter, widths, covered share and len
   Prompts 60-61 add: `line_rounds` (4) corner cuts, so a point every 10 m, and `meander`, the line bent by a field of
   offsets, a pure function of position ([wavelength, meters] per layer on `Fractal(seed, "meander-k-axis")`), so every
   junction holds (two lines through one point move alike), fading out `meander_fade` m from a lake or the sea, so
-  the mouth stays on the shore. `seasonal` is also true for a network that ends in a salt basin and for a tributary
+  the mouth stays on the shore; the width breathes along the way (`width_wander`: [90 m, it may lose 35%]). `seasonal` is also true for a network that ends in a salt basin and for a tributary
   of a dry river: the desert never shows blue water, and water does not stop at a junction. `source`: the lake a river
   flows out of. `surface` (N): the water's height, or a dry oued's floor (`hydro._surfaces`): `freeboard` (0.3 m) under
   the lowest ground met so far along the line and its two banks (each bank counts down to `bank_drop` m under the
@@ -2773,7 +2773,7 @@ full about 5 s. Pieces per interior at lived-in: dar 91, compact 48, small 24, k
 ## 7. Style pack (`styles/<name>.toml`)
 
 `[names]` sounds and templates (with their `*_ar` twins and the feminine `descriptors_f`), `[lore]` eras and products, `[palette]` materials (color and
-optional `texture` + `texture_size`), `[textures]` generated-surface noise strengths, `[ground_tint]` the terrain `COLOR_0` tint,
+optional `texture` + `texture_size`), `[textures]` generated-surface noise strengths, `[ground_tint]` the terrain `COLOR_0` tint and the green along rivers, `[water]` the colors of the ground by a river or a lake, `[river]` a river in a city (walk, tree row),
 `[plinth]` the base material and height per district kind, `[impasse]` lane rules and, per
 district kind, width range, surface, `max_length`, `min_lot` and the covered share, `[streets]` curb height, minimum
 carriageway, promenade width, the paint numbers and the outline

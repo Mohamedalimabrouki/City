@@ -119,8 +119,8 @@ basin_depth = 0.01        # meters: cells the flood fills deeper than this make 
 
 min_flow = 3.0            # square kilometers of catchment (weighted by moisture) where a river begins
 min_points = 4            # grid cells: shorter streams with no tributary are left out
-width_k = 0.9             # river width in meters = width_k x square root of the flow
-width_min = 3.0           # meters
+width_k = 1.5             # river width in meters = width_k x square root of the flow
+width_min = 3.5           # meters
 width_max = 60.0          # meters
 seasonal_moisture = 0.3   # rivers whose catchment is drier than this on average are seasonal oueds...
 oued_scale = 0.6          # ...and this much thinner
@@ -130,6 +130,7 @@ map_line = [0.8, 6.0]     # country map: a river's line is [0] + its width in me
 line_rounds = 4           # rounds of corner cutting on a river's line: 4 leave a point every 10 m or so
 meander = [[900.0, 70.0], [320.0, 34.0], [110.0, 11.0]]   # the line wanders: [wavelength, meters] of each layer of offsets
 meander_fade = 400.0      # meters from a lake or the sea over which that fades out, so the river stays on the shore
+width_wander = [90.0, 0.35]   # a river's width breathes: wavelength in meters, the share it may lose
 # The river in the ground (prompts 60, 61, citygen/carve.py): Ground.height = min(graded ground, water + cross-section)
 freeboard = 0.3           # meters the water lies under the lower of its two banks, at the least
 bank_drop = 1.5           # meters under the center line that a bank counts for that, at the most

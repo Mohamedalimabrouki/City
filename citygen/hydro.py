@@ -366,7 +366,8 @@ def _rivers(chains, g: _Routing, terrain, rc: dict) -> list:
     seed = getattr(terrain, "seed", 0)
     field = [(float(size), axis, Fractal(seed, f"meander-{k}-{axis}", float(wave), 1))
              for k, (wave, size) in enumerate(rc["meander"]) for axis in (0, 1)]
-    lines = {r[0]: _meander(*_smooth(r[1], r[2], int(rc["line_rounds"])), field, r[7] is not None,
+    wander = (float(rc["width_wander"][1]), Fractal(seed, "width", float(rc["width_wander"][0]), 2))
+    lines = {r[0]: _meander(*_smooth(r[1], r[2], int(rc["line_rounds"])), field, wander, r[7] is not None,
                             r[5] in ("sea", "lake", "basin"), float(rc["meander_fade"])) for r in out}
     beds = _beds(out, lines, g, terrain)
     rivers = []
@@ -395,10 +396,11 @@ def _smooth(xy, w, rounds: int = 2) -> tuple:
     return a[:, :2], a[:, 2]
 
 
-def _meander(xy, w, field: list, fix_start: bool, fix_end: bool, fade: float) -> tuple:
+def _meander(xy, w, field: list, wander: tuple, fix_start: bool, fix_end: bool, fade: float) -> tuple:
     """The line bent by a field of offsets, a pure function of position, so a river wanders like a river and every
     junction holds: two lines through one point are moved alike. `[rivers] meander`: [wavelength, meters] per layer.
-    Where it leaves a lake or meets the sea or a lake the offsets fade out, so it stays on that shore."""
+    Where it leaves a lake or meets the sea or a lake the offsets fade out, so it stays on that shore. Its width
+    breathes along the way (`width_wander`: [wavelength, share]), never over what it had."""
     s = along(xy)
     t = np.ones(len(s))
     if fix_start:
@@ -408,7 +410,8 @@ def _meander(xy, w, field: list, fix_start: bool, fix_end: bool, fade: float) ->
     out = xy.copy()
     for size, axis, noise in field:
         out[:, axis] += size * t * noise(xy[:, 0], xy[:, 1])
-    return out, w
+    share, noise = wander
+    return out, w * (1.0 - share * (0.5 + 0.5 * np.clip(noise(xy[:, 0], xy[:, 1]), -1.0, 1.0)))
 
 
 def _beds(out, lines, g: _Routing, terrain) -> dict:
