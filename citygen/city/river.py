@@ -28,7 +28,6 @@ from ..names import NameMaker
 from .geo import lines, polygons
 from .model import District, Tree, Walk
 
-MIN_PIECE = 6000.0   # square meters: a smaller piece of a neighborhood across the river is left to the bank
 
 
 @dataclass
@@ -82,11 +81,12 @@ def split_districts(ctx, districts: list) -> list:
     borders = unary_union([d.polygon.boundary for d in outer]).intersection(ctx.banks) if outer else None
     namer = NameMaker(ctx.style, ctx.rng("river", "district-names"))
     namer.used.update(d.name.split()[-1] for d in districts)
+    least, inset = ctx.style["river"]["min_piece"]
     for d in outer:
         if not d.polygon.intersects(ctx.banks):
             continue
         pieces = sorted(polygons(d.polygon.difference(ctx.banks)), key=lambda p: -p.area)
-        fit = [p for p in pieces if p.area > MIN_PIECE and not p.buffer(-12.0).is_empty]
+        fit = [p for p in pieces if p.area > least and not p.buffer(-inset).is_empty]
         d.polygon = (fit or pieces or [Polygon()])[0]
         kind = "industrial" if d.kind == "port" else d.kind      # one harbor to a port: its largest piece
         for p in fit[1:]:

@@ -490,6 +490,8 @@ tree = "broadleaf"          # the row of shade trees along it
 tree_spacing = 16.0         # meters
 tree_height = [6.0, 10.0]   # meters
 min_part = 60.0             # meters of street: a smaller piece of a bank gets no crossing of its own
+min_piece = [6000.0, 12.0]  # a piece of a neighborhood across the river, square meters and meters of inset it must
+                            # survive: a smaller one is left to the bank
 
 # --- streets ---------------------------------------------------------------------
 # Raised sidewalks (prompt 13) and their crisp curb. Widths per district are below.

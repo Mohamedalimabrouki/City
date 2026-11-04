@@ -36,10 +36,8 @@ from .hydro import along, channel, low_ground
 CELL = 64.0        # meters: the index grid
 PROBES = (24.0, 40.0, 64.0, 96.0, 136.0, 192.0, 256.0, 340.0)   # meters off a river where its reach is measured
 CHUNK = 8          # river points to one reach
-SOFT = 6.0         # meters: segments this much farther than the nearest still count a third
-FADE = math.exp(-3.0)   # and three times that, nothing
+FADE = math.exp(-3.0)   # the weight of a segment `3 x soft` m farther than the nearest: nothing
 MARGIN = 12.0      # meters added to a measured reach
-MOUTH_FADE = 40.0  # meters over which a bed comes up to meet a lake or the sea
 
 
 @dataclass
@@ -99,6 +97,7 @@ class Carve:
         self.keep = float(rc["keep"])
         self.round_near, self.round_grow, self.round = (float(v) for v in rc["bank_round"])
         self.sill, self.sill_fade = float(rc["sill"]), float(rc["sill_fade"])
+        self.soft, self.mouth_fade = float(rc["soft"]), tuple(float(v) for v in rc["mouth_fade"])
         self.levee_slope = float(rc["levee"])
         self.n = int(math.ceil(self.size / CELL)) + 1
         self.shores = self._shores(lakes, float(rc["shore"]))
@@ -131,8 +130,9 @@ class Carve:
         seg = np.flatnonzero((s[1:] >= rib.start) & (s[:-1] <= rib.dug))
         if not len(seg):
             return None
-        into = np.clip((rib.dug - s) / MOUTH_FADE, 0.3, 1.0) if r.mouth in ("sea", "lake", "basin") else 1.0
-        out = np.clip((s - rib.start) / MOUTH_FADE, 0.3, 1.0) if r.source is not None else 1.0
+        fade, least = self.mouth_fade
+        into = np.clip((rib.dug - s) / fade, least, 1.0) if r.mouth in ("sea", "lake", "basin") else 1.0
+        out = np.clip((s - rib.start) / fade, least, 1.0) if r.source is not None else 1.0
 
         def mid(v):
             return 0.5 * (v[seg] + v[seg + 1])
@@ -312,13 +312,13 @@ class Carve:
     def _sample(self, out: Sample, sel, x, y, ids, floor: bool) -> None:
         """One square's points. The section is measured off the nearest point of the line, never along it: a steep
         river's lower reach must not undercut its own banks upstream. Its numbers are a soft mean over the segments
-        about as near as the nearest (within `3 x SOFT` m, weights fading to nothing there), so the surface stays
+        about as near as the nearest (within `3 x soft` m, weights fading to nothing there), so the surface stays
         continuous where two reaches or a tributary and its main river are equally near."""
         t = self.table[ids]
         d, u = self._along(x, y, t)
         near = d.min(axis=1)
-        pi, si = np.nonzero(d < near[:, None] + 3.0 * SOFT)
-        w = np.exp((near[pi] - d[pi, si]) / SOFT) - FADE
+        pi, si = np.nonzero(d < near[:, None] + 3.0 * self.soft)
+        w = np.exp((near[pi] - d[pi, si]) / self.soft) - FADE
         v, along_it = t[si], u[pi, si]
         total = np.bincount(pi, w, len(x))
 

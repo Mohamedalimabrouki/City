@@ -278,7 +278,7 @@ block on `rng("impasse", block)`: lot line jitter, widths, covered share and len
     to a lake, or a hollow beside it: about 1% of the segments, up to 4.5 m high).
   - `cut`: height = smooth min(ground, water(s) + section(d)), s the nearest point of the line, d the distance to it,
     measured off the line and never along it (a steep river's lower reach must not undercut its own banks upstream);
-    numbers soft-averaged over the segments within about `SOFT` (6 m) of the nearest, so the surface is continuous at a
+    numbers soft-averaged over the segments within about `soft` (6 m) of the nearest, so the surface is continuous at a
     junction and between two reaches of a meander. Section: a U of `depth` (`depth_k` x width, 0.4-1.4 m) under the
     water, a bank up `bank_rise` over `bank_width` m, a valley floor `valley_k` x width wide at slope `valley_flat`,
     then walls rising `valley_curve` x the square of the distance: a deep cut (10.7 m at worst on seed 42, 19.9 on seed

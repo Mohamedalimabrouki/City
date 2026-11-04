@@ -23,7 +23,6 @@ from ..city.geo import lines
 from .builder import MeshBuilder, ribbon_edges
 from .gltf import hex_to_rgb, srgb_to_linear
 
-TUCK = 1.5   # meters a ribbon's edge reaches under the bank
 
 
 def upsample(a: np.ndarray, k: int) -> np.ndarray:
@@ -223,13 +222,14 @@ def ribbons_in(tc, tile) -> list:
 
 def river_meshes(mb: MeshBuilder, tc, tile) -> None:
     """The water of the rivers on this tile, one height across."""
+    tuck = float(tc.world.cfg["rivers"]["tuck"])
     for rib, lo, hi in ribbons_in(tc, tile):
         edges = ribbon_edges(substring(rib.line, lo, hi).coords, 2.0)
         if edges is None:
             continue
         p, seg, left, right = edges
         s = lo + np.concatenate([[0.0], np.cumsum(seg)])
-        half = np.interp(s, rib.along, rib.half) + np.where(np.interp(s, rib.along, rib.half) > 0.05, TUCK, 0.0)
+        half = np.interp(s, rib.along, rib.half) + np.where(np.interp(s, rib.along, rib.half) > 0.05, tuck, 0.0)
         z = np.interp(s, rib.along, rib.surface)
         pos = np.empty((len(p), 2, 3))
         pos[:, 0, :2], pos[:, 1, :2] = p + (left - p) * half[:, None], p + (right - p) * half[:, None]

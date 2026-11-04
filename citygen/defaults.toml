@@ -148,6 +148,9 @@ oued_bed = 4.0            # a dry oued's gravel floor is this many times its wid
 oued_depth = 0.12         # ...almost flat...
 oued_rise = 1.1           # ...between low banks of this height
 mouth_slope = 0.04        # a river hanging over the water it meets comes down to it at this slope
+mouth_fade = [40.0, 0.3]  # meters over which a bed comes up to meet a lake or the sea, and the share of its depth left there
+soft = 6.0                # meters: segments this much farther than the nearest still count a third, three times that nothing
+tuck = 1.5                # meters a ribbon's edge reaches under the bank
 shore = 45.0              # meters off a lake's coarse shore its drawn water or salt may reach: the ground is
                           # raised to the level there if it lies lower, so the water never ends in the air
 sill = 0.3                # meters over the level that raised rim stands
