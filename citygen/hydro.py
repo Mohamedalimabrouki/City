@@ -77,7 +77,9 @@ def drainage(terrain, cfg: dict) -> tuple:
 
 
 def _routing(terrain, rc: dict) -> _Routing:
-    """The drainage of the grid: the flood, then the lakes, then the flow with the lakes in place."""
+    """The drainage of the grid: the flood, then lakes round by round. The rest of a closed basin is re-flooded
+    from its lake, and a hollow left in it that meets the same two thresholds is a basin of its own (water cannot
+    climb its rim), so each round works on the flow and heights the last one left, until a round adds no lake."""
     size = terrain.size
     n = max(8, int(math.ceil(size / float(rc["cell"]))))
     cell = size / n
@@ -92,33 +94,36 @@ def _routing(terrain, rc: dict) -> _Routing:
     area = cell * cell / 1e6
     dry = float(rc["dry_weight"])       # desert storms still feed oueds
     weight = np.where(sea, 0.0, dry + (1.0 - dry) * M).ravel() * area
-    flow, _ = _accumulate(np.argsort(-filled.ravel(), kind="stable"), recv, weight, np.full(n * n, area))
-    labels, basins = _basins(np.where(sea, 0.0, filled - H), H, biome, flow.reshape(n, n), cell, rc)
     lake_id = np.full(n * n, -1, dtype=np.int64)
     salt = np.zeros(n * n, dtype=bool)
     lakes = []
-    boxes = ndimage.find_objects(labels)
     flat = filled.ravel()
     gid = np.arange(n * n).reshape(n, n)
-    for k, (lab, wet, is_salt) in enumerate(basins):
-        sy, sx = boxes[lab - 1]
-        m, h, g = labels[sy, sx] == lab, H[sy, sx], gid[sy, sx]
-        water, level = _water(h, m, wet, float(filled[sy, sx][m].max()))
-        if is_salt:                     # endorheic: the whole basin drains to its lake, which keeps the water
-            # a tiny epsilon keeps every basin cell below the spill, so `flat` still falls downstream
-            sub_f, sub_r = _flood(h, water, wall=~m, border=False, eps=EPS * 1e-3)
-            dry_cells = (m & ~water).ravel()
-            gi = g.ravel()
-            recv[gi[dry_cells]] = gi[sub_r[dry_cells]]
-            flat[gi[m.ravel()]] = np.where(dry_cells, sub_f.ravel(), h.ravel())[m.ravel()]
-            recv[g[water]] = -1
-        lake_id[g[water]] = k
-        salt[g[water]] = is_salt
-        wy, wx = slice(max(sy.start - 1, 0), sy.stop + 1), slice(max(sx.start - 1, 0), sx.stop + 1)
-        lakes.append(_lake(k, lake_id.reshape(n, n)[wy, wx] == k, H[wy, wx], c[wx], c[wy], level, is_salt))
-    # every cell lies higher in `flat` than the cell it drains to: highest first is upstream first
-    flow, catch = _accumulate(np.argsort(-flat, kind="stable"), recv, weight, np.full(n * n, area))
-    return _Routing(n, c, sea.ravel(), flat, recv, flow, catch, lake_id, salt, lakes)
+    while True:
+        # every cell lies higher in `flat` than the cell it drains to: highest first is upstream first
+        flow, catch = _accumulate(np.argsort(-flat, kind="stable"), recv, weight, np.full(n * n, area))
+        depth = np.where(sea | (lake_id.reshape(n, n) >= 0), 0.0, flat.reshape(n, n) - H)
+        labels, basins = _basins(depth, H, biome, flow.reshape(n, n), cell, rc)
+        if not basins:                  # a pit that failed once fails again, so this ends
+            return _Routing(n, c, sea.ravel(), flat, recv, flow, catch, lake_id, salt, lakes)
+        boxes = ndimage.find_objects(labels)
+        for lab, wet, is_salt in basins:
+            sy, sx = boxes[lab - 1]
+            m, h, g = labels[sy, sx] == lab, H[sy, sx], gid[sy, sx]
+            k = len(lakes)
+            water, level = _water(h, m, wet, float(flat[g][m].max()))
+            if is_salt:                 # endorheic: the whole basin drains to its lake, which keeps the water
+                # a tiny epsilon keeps every basin cell below the spill, so `flat` still falls downstream
+                sub_f, sub_r = _flood(h, water, wall=~m, border=False, eps=EPS * 1e-3)
+                dry_cells = (m & ~water).ravel()
+                gi = g.ravel()
+                recv[gi[dry_cells]] = gi[sub_r[dry_cells]]
+                flat[gi[m.ravel()]] = np.where(dry_cells, sub_f.ravel(), h.ravel())[m.ravel()]
+                recv[g[water]] = -1
+            lake_id[g[water]] = k
+            salt[g[water]] = is_salt
+            wy, wx = slice(max(sy.start - 1, 0), sy.stop + 1), slice(max(sx.start - 1, 0), sx.stop + 1)
+            lakes.append(_lake(k, lake_id.reshape(n, n)[wy, wx] == k, H[wy, wx], c[wx], c[wy], level, is_salt))
 
 
 def _flood(H: np.ndarray, sea: np.ndarray, wall=None, border: bool = True, eps: float = EPS) -> tuple:

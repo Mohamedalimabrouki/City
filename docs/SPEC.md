@@ -96,7 +96,7 @@ build.build()                 orchestrates the above into output/<country>-<seed
 | `citygen/noise.py` | Perlin and fractal noise, smoothstep |
 | `citygen/terrain.py` | height, moisture, slope, biome classes |
 | `citygen/names.py` | invented names from the style's sounds |
-| `citygen/hydro.py` | `River`, `Lake`: drainage from the terrain (priority flood, lakes by water balance, flow, river lines and beds; prompt 59) |
+| `citygen/hydro.py` | `River`, `Lake`: drainage from the terrain (priority flood, lakes round by round, flow, river lines and beds; prompt 59) |
 | `citygen/world.py` | `World`, `Settlement`, `Road`; placement and road routing (Dijkstra on a cost grid) |
 | `citygen/city/*.py` | the city planner (see pipeline) |
 | `citygen/mesh/builder.py` | mesh primitives: extrude, walls, caps, domes, hip roofs, ribbons, trees |
@@ -177,10 +177,15 @@ block on `rng("impasse", block)`: lot line jitter, widths, covered share and len
   its river goes on from the outlet. A basin whose lowest cell is steppe or desert always stays closed
   (Ali, 4 November): a salt lake of `lake_area_per_flow` (0.04) km2 per km2 of rain-weighted inflow, never
   under `lake_min_area`, however little water reaches it; the rest of the basin is re-flooded from the lake
-  so every cell of it drains in, and rivers end there (prompt 65 turns them into chotts). A lake is the 4-connected water around the basin's lowest
-  cell, at the lowest level that covers its cells (so its shore is one ring and all a closed basin's water
-  counts for one lake); other hollows under that level stay out: their water drains on into the lake, so
-  no river ends where no shore is drawn. Flow: catchment area weighted by rain, `dry_weight + (1 - dry_weight) x
+  so every cell of it drains in, and rivers end there (prompt 65 turns them into chotts). Lakes are found in
+  rounds, each on the flow and heights the last one left, until a round adds no lake: water cannot climb an
+  inner rim, so a hollow left in a closed basin that meets the same two thresholds is a basin of its own, salt
+  or fresh by the biome at its own bottom (a fresh one fills to its spill and runs on into the lake below).
+  A smaller hollow drains into its basin's lake, so no river ends where no shore is drawn. A lake is the
+  4-connected water around its basin's lowest cell, at the lowest level that covers its cells, so its shore is
+  one ring. Its inflow is that of its whole basin in the round it is found, although pockets found later
+  keep theirs: a great chott stays the floor of its whole basin (counting only what still reaches it turns
+  every salt lake into a small patch: 88 -> 49 km2 of salt on the 64 km world, and a loop more). Flow: catchment area weighted by rain, `dry_weight + (1 - dry_weight) x
   moisture` (0.15: desert storms still feed oueds); a river where it passes `min_flow` (3 km2). Rivers run
   from a source to the sea, a lake, a basin, the map border or the river they join (the upstream branch
   with more flow carries the name downstream); streams under `min_points` cells with no tributary are left
@@ -193,10 +198,10 @@ block on `rng("impasse", block)`: lot line jitter, widths, covered share and len
   exactly on its main river's bed: the running minimum of the ground along the line, worked out tributaries
   first, each tributary's end carried into its main river. Prompt 59 first asked for the filled height, but
   that flies over every hollow a river crosses (up to 55 m on the 64 km world) and prompt 60 can only cut
-  the ground, never lift it; so a river crossing a hollow goes down to the floor and cuts through the rim,
-  and its main river stays under it from their junction on (on the 64 km world 36 km of the 525 km of rivers
-  run over 10 m under the ground). Over a lake the bed is the lake's level (a fresh lake's outlet starts
-  there), or a salt lake's floor. `mouth` `sea` | `lake` | `basin` | `border` | `river`, `into` the lake or
+  the ground, never lift it; so a river crossing a pit too small for a lake goes down to its floor and cuts
+  through the rim, and its main river stays under it from their junction on (64 km world, seed 42: 10.3 m at
+  worst). Over a lake the bed is the lake's level (a fresh lake's outlet starts there), or a salt lake's
+  floor. `mouth` `sea` | `lake` | `basin` | `border` | `river`, `into` the lake or
   river id. `Lake(id, polygon, level, salt)`: the shore ring where the ground meets `level`.
 - `District.history` (prompt 81, `citygen/city/history.py`, `[history]` in the style): two to four sentences for
   stories, built last in `plan_city` from the finished plan, so nothing else moves: an origin, up to `facts` (2)

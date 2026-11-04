@@ -8,7 +8,7 @@ from scipy import ndimage
 from shapely.geometry import LineString, Point, Polygon
 
 from citygen.config import load_config
-from citygen.hydro import _routing, drainage
+from citygen.hydro import _flood, _routing, drainage
 from citygen.terrain import Terrain
 from citygen.world import generate_world
 
@@ -73,6 +73,21 @@ def test_tributaries_end_on_their_main_river_s_bed(world):
         assert abs(np.interp(at, along, main.profile) - r.profile[-1]) < 1e-6, r.id
 
 
+def test_no_bed_lies_far_under_the_level_of_the_lake_it_reaches(world):
+    """A lake's flat water would stand as a wall at its shore over a trench cut below its level."""
+    worst = 0.0
+    for r in world.rivers:
+        end = r
+        while end.mouth == "river":
+            end = world.rivers[end.into]
+        if end.mouth in ("lake", "basin"):
+            level = world.lakes[end.into].level
+            dry = (r.profile < level) & (world.terrain.height(r.coords[:, 0], r.coords[:, 1]) > level)
+            if dry.any():
+                worst = max(worst, float((level - r.profile[dry]).max()))
+    assert worst < 5.0
+
+
 def test_every_river_reaches_the_sea_a_lake_a_basin_or_the_border(world):
     size, cell = world.size, world.cell
     lakes = {k.id: Polygon(k.polygon).buffer(cell) for k in world.lakes}
@@ -128,8 +143,29 @@ class _Valley:
         return np.full(np.shape(h), self.wet)
 
 
+class _WetWest(_Valley):
+    """A valley rainy west of `at` and dry east of it."""
+    def moisture(self, x, y, h):
+        return np.where(np.asarray(x, float) < self.at, 0.9, 0.02)
+
+
 def _ends_in(river, lake, cell):
     return Polygon(lake.polygon).buffer(cell).contains(Point(river.coords[-1]))
+
+
+def _lake_reached(g, cell):
+    """The lake a grid cell's water ends in, -1 for the sea or the border."""
+    while g.recv[cell] >= 0:
+        cell = g.recv[cell]
+    return g.lake_id[cell]
+
+
+def _one_basin(land, g, rc):
+    """The flood sees the hollow as one basin: what splits it is its inner rim."""
+    X, Y = np.meshgrid(g.c, g.c)
+    H = land.height(X, Y)
+    filled, _ = _flood(H, H <= 0.0)
+    return ndimage.label(filled - H > rc["basin_depth"], np.ones((3, 3), dtype=bool))[1] == 1
 
 
 def _little_water():
@@ -195,19 +231,20 @@ def test_a_dry_hollow_stays_closed_however_little_water_reaches_it():
     assert not any(r.mouth == "border" and r.coords[0, 0] < 13000.0 for r in rivers)   # nothing runs through it
 
 
-def test_a_salt_basin_in_two_pockets_keeps_the_lowest_and_the_other_drains_into_it():
+def test_a_pocket_too_small_for_a_lake_drains_into_the_lake_of_its_basin():
     land, cfg = _Valley(0.02, ridge=25.0, at=14700.0), load_config(quick=True)
     rc = cfg["rivers"]
     cell = float(rc["cell"])
     rivers, lakes = drainage(land, cfg)
     assert len(lakes) == 1 and lakes[0].salt
-    # the scene this test is about: under the lake's level the ground of the hollow lies in two pockets
+    # the scene this test is about: under the lake's level the ground of the hollow lies in two pockets,
+    # the second one under `lake_min_area`
     g = _routing(land, rc)
     X, Y = np.meshgrid(g.c, g.c)
     H = land.height(X, Y)
     hollow = (X - 15000.0) ** 2 + (Y - 10000.0) ** 2 < 1000.0 ** 2
     pockets, count = ndimage.label(hollow & (H <= lakes[0].level))
-    assert count == 2
+    assert count == 2 and np.bincount(pockets.ravel())[1:].min() * cell * cell < rc["lake_min_area"] * 1e6
     into = [r for r in rivers if r.mouth == "basin"]
     assert into and all(_ends_in(r, lakes[0], cell) for r in into)   # no river ends where no shore is drawn
     drawn = Polygon(lakes[0].polygon)
@@ -216,10 +253,41 @@ def test_a_salt_basin_in_two_pockets_keeps_the_lowest_and_the_other_drains_into_
     for p, (i, j) in zip((1, 2), bottoms):
         assert drawn.contains(Point(X[i, j], Y[i, j])) == (p == lowest)
     (i, j) = bottoms[0 if lowest == 2 else 1]                          # the other pocket's water reaches the lake
-    cur = i * g.n + j
-    while g.recv[cur] >= 0:
-        cur = g.recv[cur]
-    assert g.lake_id[cur] == 0
+    assert _lake_reached(g, i * g.n + j) == 0
+
+
+def test_two_pockets_over_the_thresholds_behind_an_inner_rim_are_two_closed_salt_lakes():
+    land, cfg = _Valley(0.02, ridge=30.0), _little_water()
+    rc = cfg["rivers"]
+    rivers, lakes = drainage(land, cfg)
+    g = _routing(land, rc)
+    assert _one_basin(land, g, rc)
+    assert len(lakes) == 2 and all(k.salt for k in lakes) and np.all(g.recv[g.lake_id >= 0] == -1)
+    X, Y = (a.ravel() for a in np.meshgrid(g.c, g.c))
+    west, east = [lake.id for lake in sorted(lakes, key=lambda k: Polygon(k.polygon).centroid.x)]
+    hollow = np.flatnonzero((X - 15000.0) ** 2 + (Y - 10000.0) ** 2 < 900.0 ** 2)
+    assert {_lake_reached(g, c) for c in hollow[X[hollow] < 14900.0]} == {west}    # nothing crosses the rim
+    assert {_lake_reached(g, c) for c in hollow[X[hollow] > 15100.0]} == {east}
+    into = [r for r in rivers if r.mouth == "basin"]
+    assert into and all(r.into == west and r.coords[:, 0].max() < 15000.0 for r in into)
+
+
+def test_a_wet_pocket_of_a_dry_basin_fills_to_its_spill_and_runs_into_the_lake_below():
+    land, cfg = _WetWest(0.02, ridge=30.0), _little_water()
+    rc = cfg["rivers"]
+    rivers, lakes = drainage(land, cfg)
+    g = _routing(land, rc)
+    assert _one_basin(land, g, rc)
+    assert sorted(k.salt for k in lakes) == [False, True]              # each pocket by the biome at its own bottom
+    fresh, dry = sorted(lakes, key=lambda k: k.salt)
+    cells = np.flatnonzero(g.lake_id == fresh.id)
+    assert {_lake_reached(g, c) for c in cells} == {dry.id}            # its water runs on into the lake below
+    rim = cells[0]
+    while g.lake_id[rim] == fresh.id:
+        rim = g.recv[rim]
+    assert abs(land.height(g.c[rim % g.n], g.c[rim // g.n]) - fresh.level) < 2.0   # it stands up to its spill
+    drains = np.flatnonzero(g.recv >= 0)
+    assert np.all(g.flat[drains] > g.flat[g.recv[drains]])
 
 
 @pytest.mark.slow  # two processes generate the 64 km world, about 5 s
