@@ -121,5 +121,5 @@ width_max = 60.0          # meters
 seasonal_moisture = 0.3   # rivers whose catchment is drier than this on average are seasonal oueds...
 oued_scale = 0.6          # ...and this much thinner
 dry_weight = 0.15         # rain weight of the driest desert (1 = the wettest coast): storms still feed oueds
-lake_area_per_flow = 0.04 # square kilometers of lake surface that evaporate the water of 1 km2 of catchment
+lake_area_per_flow = 0.04 # salt lakes only: square kilometers of surface that evaporate the water of 1 km2 of catchment
 map_line = [0.8, 6.0]     # country map: a river's line is [0] + its width in meters / [1] pixels wide (at 1800 px)

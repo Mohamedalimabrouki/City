@@ -173,12 +173,11 @@ block on `rng("impasse", block)`: lot line jitter, widths, covered share and len
   border; each land cell drains to the cell the flood reached it from, so every cell drains, even on
   filled flats. A filled basin (8-connected cells the flood fills deeper than `basin_depth`, 1 cm) is
   considered for a lake only if deeper than `lake_min_depth` (3 m) and larger than `lake_min_area` (0.5
-  km2); its lake surface is `lake_area_per_flow` (0.04) km2 per km2 of rain-weighted inflow. A basin of wet
-  country that this fills spills over (a fresh lake at the spill level, its river goes on from the outlet);
-  one it does not fill just drains. A basin whose lowest cell is steppe or desert always stays closed
-  (Ali, 4 November): a salt lake of that balanced size, never under `lake_min_area`, however little water
-  reaches it; the rest of the basin is re-flooded from the lake so every cell of it drains in, and rivers
-  end there (prompt 65 turns them into chotts). A lake is the 4-connected water around the basin's lowest
+  km2). Water cannot drain out of a hollow, so a basin of wet country is a fresh lake up to its spill, and
+  its river goes on from the outlet. A basin whose lowest cell is steppe or desert always stays closed
+  (Ali, 4 November): a salt lake of `lake_area_per_flow` (0.04) km2 per km2 of rain-weighted inflow, never
+  under `lake_min_area`, however little water reaches it; the rest of the basin is re-flooded from the lake
+  so every cell of it drains in, and rivers end there (prompt 65 turns them into chotts). A lake is the 4-connected water around the basin's lowest
   cell, at the lowest level that covers its cells (so its shore is one ring and all a closed basin's water
   counts for one lake); other hollows under that level stay out: their water drains on into the lake, so
   no river ends where no shore is drawn. Flow: catchment area weighted by rain, `dry_weight + (1 - dry_weight) x

@@ -16,6 +16,7 @@ import warnings
 
 from shapely.geometry import Point
 
+
 def histories(ctx, plan) -> None:
     """Set `history` on every district of the plan."""
     style = ctx.style.get("history", {})

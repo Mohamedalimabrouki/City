@@ -173,10 +173,10 @@ def _flood(H: np.ndarray, sea: np.ndarray, wall=None, border: bool = True, eps: 
 def _basins(depth, H, biome, flow, cell, rc) -> tuple:
     """Labels of the filled basins and the lakes among them: [(label, cells of water, salt)].
 
-    A lake spreads until evaporation from its surface (`lake_area_per_flow` km2 per km2 of
-    inflow) takes all the water that reaches it: a basin of wet country that fills up spills
-    over and its river goes on, one that does not fill just drains. In steppe and desert every
-    basin keeps its water (endorheic), in a lake of at least `lake_min_area`."""
+    Water cannot drain out of a hollow, so a basin of wet country is a lake up to its spill and
+    its river goes on from there. In steppe and desert every basin keeps its water (endorheic):
+    its lake spreads until evaporation from its surface (`lake_area_per_flow` km2 per km2 of
+    inflow) takes all the water that reaches it, in `lake_min_area` at the least."""
     labels, count = ndimage.label(depth > float(rc["basin_depth"]), np.ones((3, 3), dtype=bool))
     min_cells = float(rc["lake_min_area"]) * 1e6 / (cell * cell)
     cells = np.bincount(labels.ravel(), minlength=count + 1)
@@ -192,12 +192,9 @@ def _basins(depth, H, biome, flow, cell, rc) -> tuple:
         size = cells[ids[k]]
         if deepest[k] < float(rc["lake_min_depth"]):
             continue                    # a shallow pit: it just drains
-        wet = math.ceil(float(rc["lake_area_per_flow"]) * inflow[k] * 1e6 / (cell * cell))
         is_salt = int(biome[bottom[k]]) in (STEPPE, DESERT)
-        if is_salt:
-            wet = max(wet, math.ceil(min_cells))
-        elif wet < size:
-            continue                    # too little water to fill it: a damp hollow that drains
+        balance = math.ceil(float(rc["lake_area_per_flow"]) * inflow[k] * 1e6 / (cell * cell))
+        wet = max(balance, math.ceil(min_cells)) if is_salt else int(size)
         out.append((int(ids[k]), wet, is_salt))
     return labels, out
 

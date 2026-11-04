@@ -115,13 +115,13 @@ class _Valley:
     """A small synthetic country: a valley sloping east to the border with one round hollow near its foot.
 
     `ridge` meters of ridge across the hollow at x = `at` split a dry basin's water into two pockets."""
-    def __init__(self, wet, ridge=0.0, at=15000.0):
-        self.size, self.wet, self.ridge, self.at = 20000.0, wet, ridge, at
+    def __init__(self, wet, ridge=0.0, at=15000.0, radius=1000.0, deep=40.0):
+        self.size, self.wet, self.ridge, self.at, self.radius, self.deep = 20000.0, wet, ridge, at, radius, deep
 
     def height(self, x, y):
         x, y = np.asarray(x, float), np.asarray(y, float)
-        bowl = np.clip(1 - ((x - 15000) ** 2 + (y - 10000) ** 2) / 1000.0 ** 2, 0, None)
-        h = 200.0 - 0.008 * x + 0.01 * np.abs(y - 10000) - 40.0 * bowl
+        bowl = np.clip(1 - ((x - 15000) ** 2 + (y - 10000) ** 2) / self.radius ** 2, 0, None)
+        h = 200.0 - 0.008 * x + 0.01 * np.abs(y - 10000) - self.deep * bowl
         return h + self.ridge * np.exp(-((x - self.at) / 200.0) ** 2) * bowl
 
     def moisture(self, x, y, h):
@@ -152,15 +152,26 @@ def test_a_wet_hollow_fills_to_a_fresh_lake_and_spills_on():
     assert abs(outlets[0].profile[0] - lakes[0].level) < 0.1   # and it starts at the lake's level
 
 
-def test_a_wet_hollow_too_big_for_its_water_drains_and_its_river_cuts_through_the_rim():
-    land = _Valley(0.9)
-    rivers, lakes = drainage(land, _little_water())
+def test_a_wet_hollow_fills_to_its_spill_however_little_water_reaches_it():
+    land, cfg = _Valley(0.9), _little_water()
+    rivers, lakes = drainage(land, cfg)
+    g = _routing(land, cfg["rivers"])
+    assert len(lakes) == 1 and not lakes[0].salt
+    assert np.count_nonzero(g.lake_id == 0) > 100                  # the whole hollow, not its balanced 23 cells
+    shore = Polygon(lakes[0].polygon).buffer(float(cfg["rivers"]["cell"]))
+    outlet = [r for r in rivers if shore.contains(Point(r.coords[0])) and r.mouth != "lake"]
+    assert len(outlet) == 1 and outlet[0].mouth == "border" and abs(outlet[0].profile[0] - lakes[0].level) < 0.1
+
+
+def test_a_river_cuts_through_the_rim_of_a_pit_too_small_for_a_lake():
+    land = _Valley(0.9, radius=350.0, deep=15.0)
+    rivers, lakes = drainage(land, load_config(quick=True))
     assert not lakes
     river = max(rivers, key=lambda r: r.flow)
     assert river.mouth == "border"
     ground = land.height(river.coords[:, 0], river.coords[:, 1])
     assert np.all(river.profile <= ground + 0.1) and np.all(np.diff(river.profile) <= 1e-9)
-    assert (ground - river.profile).max() > 10.0                   # the cut through the rim
+    assert (ground - river.profile).max() > 4.0                    # the cut through the rim
 
 
 def test_a_dry_hollow_keeps_its_water_in_a_salt_lake():
