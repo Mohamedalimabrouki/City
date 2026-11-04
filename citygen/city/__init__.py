@@ -64,7 +64,7 @@ class CityContext:
         self.boundary = None
 
     def rng(self, *path):
-        return stream(self.seed, "city", self.s.id, *path)
+        return stream(self.seed, "city", self.s.key, *path)
 
 
 def plan_city(world, settlement) -> CityPlan:

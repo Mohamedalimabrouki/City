@@ -39,7 +39,7 @@ def land_near(terrain, x: float, y: float, radius: float):
 
 def city_boundary(ctx, land):
     s = ctx.s
-    loop = noisy_loop(s.x, s.y, s.radius, Perlin(ctx.seed, "boundary", s.id), n=80, amp=0.12)
+    loop = noisy_loop(s.x, s.y, s.radius, Perlin(ctx.seed, "boundary", s.key), n=80, amp=0.12)
     inside = loop.intersection(land)
     parts = polygons(inside)
     center = Point(s.x, s.y)
@@ -74,7 +74,7 @@ def medina_outline(ctx, boundary):
     if kc["medina_radius"] >= 1.0:
         return boundary
     rng = ctx.rng("medina-shape")
-    shape = noisy_loop(s.x, s.y, kc["medina_radius"] * s.radius, Perlin(ctx.seed, "medina", s.id),
+    shape = noisy_loop(s.x, s.y, kc["medina_radius"] * s.radius, Perlin(ctx.seed, "medina", s.key),
                        n=48, amp=0.15, aspect=rng.uniform(0.68, 0.95), rotation=rng.uniform(0, math.pi))
     medina = largest(shape.intersection(boundary.buffer(-8.0)))
     if medina is None or medina.area < 5000.0:
@@ -173,7 +173,7 @@ def assign_kinds(ctx, districts, medina, axis: float, land) -> None:
             kinds[i] = "suburb"
 
     namer = NameMaker(ctx.style, ctx.rng("district-names"))
-    namer.used.update(t.name.split()[-1] for t in ctx.world.settlements)
+    namer.used.update(t.generated.split()[-1] for t in ctx.world.settlements)
     for i, d in enumerate(districts):
         d.kind = kinds[i]
         name = namer.district(d.kind)

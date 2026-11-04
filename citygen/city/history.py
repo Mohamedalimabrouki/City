@@ -22,11 +22,11 @@ def histories(ctx, plan) -> None:
     style = ctx.style.get("history", {})
     if not style:
         return
-    canon = ctx.world.cfg.get("canon", {}).get("histories", {}).get(ctx.s.name, {})
+    canon = ctx.world.cfg.get("canon", {}).get("histories", {}).get(ctx.s.generated, {})
     facts = _Facts(ctx, plan, style)
     unknown = sorted(set(canon) - {d.name for d in plan.districts})
     if unknown:
-        warnings.warn(f"[canon.histories.{ctx.s.name!r}] names no district of the city: {', '.join(unknown)}")
+        warnings.warn(f"[canon.histories.{ctx.s.generated!r}] names no district of the city: {', '.join(unknown)}")
     for d in plan.districts:
         if d.name in canon:
             d.history = str(canon[d.name])

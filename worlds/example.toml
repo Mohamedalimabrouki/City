@@ -15,11 +15,12 @@ sea_direction = 0    # the sea is to the north (compass bearing, or "random")
 area = "capital-center"
 
 # Story canon: once you have written about a place, pin its name here so it never changes.
-# The number is the settlement id shown by:  python -m citygen list --world worlds/example.toml
+# The key is the name the generator gave the place, shown by:  python -m citygen list --world worlds/example.toml
+# (the name stays with the place when the generator changes; a key that names no place gives a warning).
 [canon.names]
-# 0 = "Carthage Nova"
-# 12 = "Sidi Amor"
-# A pinned name has no Arabic spelling unless you pin that too (prompt 87):
+# "Tagabret" = "Carthage Nova"
+# "Soura el Bey" = "Sidi Amor"
+# A pinned name has no Arabic spelling unless you pin that too:
 [canon.names_ar]
-# 0 = "قرطاج الجديدة"
-# 12 = "سيدي عمر"
+# "Tagabret" = "قرطاج الجديدة"
+# "Soura el Bey" = "سيدي عمر"

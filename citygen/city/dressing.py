@@ -98,7 +98,7 @@ class Dresser:
         self.world, self.plan, self.kit, self.ground = world, plan, kit, ground
         self.cfg = world.style.get("dressing", {})
         self.roofs = world.style.get("roofs", {})
-        self.seed, self.sid = world.seed, plan.settlement.id
+        self.seed, self.sid = world.seed, plan.settlement.key
         self.surfaces = [st.line.buffer(st.width / 2, cap_style="flat") for st in plan.streets]
         self.surface_tree = STRtree(self.surfaces) if self.surfaces else None
         self.footprints = [b.footprint for b in plan.buildings]

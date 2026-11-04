@@ -129,7 +129,7 @@ class Flat:
 class Interior:
     seed: int
     city: str
-    city_id: int
+    city_id: int      # the settlement's `key`: what the random streams call it
     building: int
     kind: str
     layout: str

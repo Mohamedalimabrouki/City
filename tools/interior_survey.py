@@ -6,7 +6,8 @@ others fail (the lead's review tool since prompts 46-47; tests only see a fixtur
 Groups: dar, compact, small (by the layout each plan really got, a fallback included), koubba, colonial,
 slab, villa, maison, and shop (every house with a shop front). Prints per group the pass count, crashes,
 the stair warnings and the slowest plan, then the failure kinds (numbers dropped) and the first failing
-buildings. --city plans any settlement of the world (Ain Chilel holds the quick world's villas).
+buildings. --city plans any settlement of the world; `--city villas` plans the biggest town with villas, where
+the quick world's villas and maisons are.
 Default folder: the latest build. The old-town and new-district counts of prompts 46-47 are in the WORKLOG.
 """
 from __future__ import annotations
@@ -26,11 +27,17 @@ GROUPS = ("dar", "compact", "small", "koubba", "colonial", "slab", "villa", "mai
 def survey(folder: Path, city: str | None, groups: tuple, limit: int) -> None:
     from citygen.city import plan_city
     from citygen.interior import rooms as R
-    from citygen.interior.context import BuildContext, city_plan, layout_of, load_build
+    from citygen.interior.context import BuildContext, city_plan, layout_of, load_build, villa_town
     from citygen.interior.layout import plan_interior
     from citygen.interior.outside import Outside
     ctx = load_build(folder, log=lambda m: None)
-    if city:
+    if city == "villas":
+        town = villa_town(ctx.world)
+        if town is None:
+            raise SystemExit("No town of this world has villas.")
+        ctx, city = BuildContext(ctx.world, [town], town.settlement), town.settlement.name
+        print(f"the villa town: {city}")
+    elif city:
         s = next((s for s in ctx.world.settlements if s.name.lower() == city.lower()), None)
         if s is None:
             raise SystemExit(f"No settlement called {city!r} in this world.")
@@ -85,7 +92,8 @@ def survey(folder: Path, city: str | None, groups: tuple, limit: int) -> None:
 def main(argv=None) -> None:
     ap = argparse.ArgumentParser(description="City-wide survey of interior plans (rooms.check by group).")
     ap.add_argument("--folder", help="a build folder (default: the latest build)")
-    ap.add_argument("--city", help="a settlement of the world (default: the build's focus city)")
+    ap.add_argument("--city", help="a settlement of the world, or villas for the biggest town with villas "
+                                   "(default: the build's focus city)")
     ap.add_argument("--groups", default=",".join(GROUPS), help="comma-separated groups (default: all)")
     ap.add_argument("--limit", type=int, default=10**9, help="at most this many dwellings per group")
     args = ap.parse_args(argv)
