@@ -103,9 +103,11 @@ Entry format:
     the final buildings: the ladder check, colonial bedrooms and the bars, finish 54; (4) furniture: prompt 55, lamps
     at night, the butane mix, brass spouts, themed shelves, Ali's looks; (5) the review leftovers and LEAD notes.
     One helper at a time on each set of files; the lead runs its own survey BEFORE main moves. Ask Ali past 55% weekly.
-  - merge-3d is merged into main (5f4e99e, the entry below). Not merged yet: arabic-87 + fix-87, rivers-59 + fix-59
-    (with Ali's answers above), graph-70 + fix-70, lore-81 + fix-81b, prompt 55 (furn-55, furn-55b, fix-55,
-    fix-glow), rivers-60 (after the names fix), godot-72, styles-94; houses-patio is dropped.
+  - merge-3d is merged into main (5f4e99e, the entry below), and so are prompts 59, 70, 81 (c4eb74b, the entry above it).
+    Not merged yet: arabic-87 + fix-87, prompt 55 (furn-55, furn-55b, fix-55, fix-glow), rivers-60 (after the names
+    fix), godot-72, styles-94; houses-patio is dropped. Next in order: names-60 (fix-87, feminine agreement, names and
+    identity follow the place), then prompt 60. The histories picked again once: Ali's before/after examples of
+    review-81's 5 and 9 wait for the final world.
 - State: prompts 1-50 are done (branch `claude/procedural-city-generator-xop72h`; CP4, prompt 43, on 25
   October; the interiors 44-47 on 29 October, 48 (walls and openings) on 30-31 October). Continue when Ali
   says (for example "Do prompt 49." or "continue the playbook").
@@ -171,6 +173,40 @@ Entry format:
   instead (a billing test passed); how to use it: `docs/LEAD.md`, section 4. Used up since 31 October:
   the chain run (`.venv-sdk/credit_chain.sh`, 10:42-13:12) stopped with "Credit balance is too low"
   (its session recorded about $42), so that route needs new credit first (checked 3 November).
+
+## 2026-11-04 - Prompts 59, 70, 81 (world-59): rivers and lakes, street graph, district histories
+- Commit: c4eb74b (merge of wip/world-59)
+- Changed: citygen/hydro.py, citygen/export/streets.py, citygen/city/history.py (new); citygen/world.py,
+  build.py, export/maps.py, export/lore.py, city/__init__.py, city/model.py, defaults.toml; styles/maghreb.toml;
+  tests/test_hydro.py (new), tests/test_citygen.py; tools/street_survey.py (new); docs/SPEC.md.
+  Notes: docs/wip/world-59.md
+- Checks: tests 209 passed, slow 15 passed + the old xfail; build --quick 7.1 s, --force identical; fingerprint 5 of 283 parts:
+  streets.json added, gazetteer and districts (histories only), world (rivers and lakes only), country map. Tiles and
+  plans unchanged. Country step 1.4 s (budget 10 s). Interior survey unchanged.
+- Rivers (Ali's answers): every dry basin over 3 m and 0.5 km2 stays closed; towns by salt lakes accepted;
+  min_flow 3.0. The lead's decisions (Ali: "you are the boss"): every wet basin over the two thresholds is a lake up to
+  its spill (the prompt says such a basin IS a lake, and water cannot drain out of a hollow), and a pocket of a closed
+  basin over them is a basin of its own (water cannot climb an inner rim; a smaller pocket still drains in, so no river
+  ends where no shore is drawn); a salt lake needs a river that ends in it (49 of 87 had none and only speckled the dry
+  country; those hollows stay closed, on bare ground). 64 km world: 28 fresh + 38 salt lakes, 148 rivers, 424 km.
+  Deviation from the prompt: the bed is the running minimum of the ground down the whole network, not the filled
+  height, which flies up to 55 m over hollows and which prompt 60's min() cannot use. Rivers cut through the rims of pits
+  too small for a lake: 10.3 m at worst on seed 42, 33 m over 0.4 km on seed 3 (a 38 m deep pit, 2 cells under the area).
+- Known: 23 salt lakes are over 20% bigger than their true inflow says: a first lake counts its whole basin's inflow
+  (counting only what reaches it loses the great chotts, picture docs/wip/world-59-inflow.png). 10 towns touch a lake and
+  13 roads cross one, for prompt 60 to move.
+- Street graph: nodes on bare ground fixed (94 of 595); any street end on another's surface gets a stub: 125 of 131
+  settlements one part. Left: real gaps in the plans (Ain Khatane 97.4%) and Gamar 97.5%: recheck at prompt 60 with
+  tools/street_survey.py.
+- Histories: every choice on its own stream, so the capital's picks changed once, same templates (8 of 9 districts).
+  Review-81 findings 5 and 9 wait for Ali's before/after examples.
+- Look: docs/wip/world-59-maps.png (before and now).
+- Doubts and questions for Ali: none; the lead decided the wet hollows, the pockets and the fed salt lakes.
+- The lead's own checks before main moved (not the helper's): pytest 209 passed and slow 15 + the old xfail on the final
+  commit; his own fingerprint of main against it: 5 parts; world.json identical without rivers and lakes, plan.json without
+  `history` and the clock, the gazetteer without the histories; no file under citygen/interior changed since c7ef448, so the
+  rooms cannot change; lead_water*.py (scratchpad) confirm every water number. His review found the two faults the helper's
+  gates had passed: rivers through the rims of salt pockets (51 m), and 49 of 87 salt lakes with no river.
 
 ## 2026-11-03 - Merge of 14 reviewed branches (merge-3d): prompt 54 round 3, furniture fixes, colonial-k, villas-o
 - Commit: 5f4e99e (merges `wip/merge-3d` 41eae7c) | a merge helper in a worktree, about 55 min

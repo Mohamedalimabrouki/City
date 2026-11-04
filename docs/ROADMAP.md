@@ -73,7 +73,7 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
 - [ ] 56 H4a Hero scenes
 - [ ] 57 H4b Hero scenes in Blender
 - [ ] 58 CP5 Checkpoint: interiors
-- [ ] 59 B1a Rivers
+- [x] 59 B1a Rivers (citygen/hydro.py; World.rivers, World.lakes; country map)
 - [ ] 60 B1b Valleys and lakes
 - [ ] 61 B1c Rivers in towns
 - [ ] 62 B1d Bridges
@@ -84,7 +84,7 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
 - [ ] 67 B5 Hilltop ksar villages
 - [ ] 68 B6 Regions and natural names
 - [ ] 69 CP6 Checkpoint: countryside
-- [ ] 70 C4a Street graph for games
+- [x] 70 C4a Street graph for games (cities/<name>/streets.json; quick capital one connected part)
 - [ ] 71 C4b Building entrances
 - [ ] 72 C3a Godot: stream the city
 - [ ] 73 C3b Godot: walk the streets
@@ -95,7 +95,7 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
 - [ ] 78 CP7 Checkpoint: game-ready
 - [ ] 79 D7 Street names and addresses
 - [ ] 80 D6 Residents
-- [ ] 81 D1a District histories
+- [x] 81 D1a District histories
 - [ ] 82 D1b Notable families and guilds
 - [ ] 83 D1c Local legends
 - [ ] 84 D3 Canon for everything

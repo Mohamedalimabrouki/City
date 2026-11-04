@@ -109,6 +109,11 @@ and care as the last one: keep this file up to date when you learn something tha
 - **Scoring.** Declare criteria and weights before judging (the duel: result 30, solid work 25,
   thinking 15, efficiency 15, code 10, cost in the city 5), score with evidence, and say what the total
   hides (Opus max won on care, Opus high on looks and value).
+- **Take a number down to its causes.** "36 km of river deep under the ground" was accepted as a price until a list of every
+  stretch with what lay at its low point showed one cause, pockets of salt basins, and a two-line idea removed it all.
+  Ask of every number the helper calls a price: which single cause makes most of it?
+- **The street graph of every settlement:** `tools/street_survey.py` (`--quick`, or the 64 km world in about 10 minutes):
+  the settlements of more than one part and the bar of 99.5%. Run it after any step that moves villages.
 
 ## 4. Gotchas on Ali's Mac
 

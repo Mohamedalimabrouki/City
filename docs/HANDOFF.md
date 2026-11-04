@@ -112,6 +112,33 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`, and how the le
 
 ## Decisions and lessons (do not relearn them)
 
+- **River beds and hollows (prompt 59).** The terrain can only be cut (`min(terrain, bed + bank)`, prompt 60), so a bed must
+  stay under the ground on the whole network: the filled height flies over hollows, and a running minimum per river leaves
+  tributaries under their main bed. The running minimum down the network, tributaries first, is the highest bed that never
+  rises, never floats and takes every tributary in. But a bed cannot leave a big hollow without a deep trench, so that rule
+  only works if every hollow over the two thresholds holds a lake: wet ones up to their spill, and each pocket of a closed
+  basin as a basin of its own. Doing both took the worst cut from 59 m to 10 m and 36 km of deep river to none (seed 42).
+- **Water does not climb.** Two rules that sounded fine broke this: "a hollow too big for its water drains" and "a pocket
+  drains into the lake of its basin". Ask of each hollow where its water goes; a small pit is the only one that may just
+  be crossed.
+- **A lake needs water that reaches it.** 49 of 87 salt lakes had no river: a look fault (speckle) with a logic cause. Keep
+  a dry hollow closed, but show salt only where a river ends. Removing them moves no river, and fewer towns have to move.
+- **A lake's size is a look as much as a number.** Pockets keep most of a big basin's water, so a strict balance shrinks
+  every chott to a small patch. The first lake keeps its whole basin's inflow on purpose: read it as the basin's floor.
+- **Connected cells, one ring.** A shore is drawn per 4-connected piece: water labelled with 8 connections can hold a
+  piece no ring shows, and a river then ends or starts where no shore is drawn.
+- **Contours need real neighbors.** A box that stops at the mask gives the contour nothing to interpolate at its
+  extreme rows: keep one cell of real ground around it.
+- **Test a street graph against something else than `Ground.surface`.** Compared with `ground.height` plus the street's
+  lift it showed 94 of 595 nodes on bare ground: snapping can put a street's end a few cm past its flat ribbon end.
+- **Run graph checks on every settlement.** The quick capital was one part while 8 villages were under the bar.
+  A street ending on another's surface is a junction even if center lines never meet; snap rounding only nodes a point
+  whose pixel the other line crosses, so give both lines the meeting point as a vertex.
+- **One stream per choice for text (prompt 81).** A shared stream drawn in toml order means a new template rewrites
+  every later sentence of that district. Adding a list must change nothing.
+- **Prove a test can fail.** Remove each rule once and watch its test go red. In this round the pocket test still
+  passed with its rule removed (its scene no longer tripped the old rule) and nothing noticed a shore half a cell off.
+- **Read the test result before you commit.** A chained command pushed a failing test here; check, then commit.
 - **A decision draw and the thing it decides need two streams** (CP4): the seaside cafe tested
   `rng("terrace", "cafe", k).random() < 0.5`, then built the cafe from a fresh copy of that stream, so
   its first pick (the awning) reused the known-small number: never a yellow or cream awning. Decide on
