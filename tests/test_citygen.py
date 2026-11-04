@@ -1597,6 +1597,12 @@ def test_households_and_souks(plan):
     assert len({k.name for k in plan.souks}) == len(plan.souks)   # every souk has its own name
 
 
+def _phrases(text: str) -> set:
+    """Every run of words of a history, in lower case."""
+    words = text.lower().replace(",", " ").replace(".", " ").replace(";", " ").split()
+    return {" ".join(words[a:b]) for a in range(len(words)) for b in range(a + 1, min(a + 9, len(words)) + 1)}
+
+
 def test_district_histories(world, plan):
     """Prompt 81: 2-4 sentences per district from its own facts, never before the city's founding; canon wins."""
     import copy
@@ -1605,11 +1611,13 @@ def test_district_histories(world, plan):
     from citygen.city.history import histories
     eras = world.style["lore"]["eras"]
     founded = eras.index(plan.settlement.founded)
+    words = world.style["history"]
     for d in plan.districts:
         sentences = re.findall(r"[^.]+\.", d.history)
         assert 2 <= len(sentences) <= 4, d.history
         assert "\u2014" not in d.history and "{" not in d.history
-        assert all(eras.index(e) >= founded for e in eras if e in d.history)
+        told = [e for e in eras if {words["era_in"][e].lower(), words["era_since"][e].lower()} & _phrases(d.history)]
+        assert told and all(eras.index(e) >= founded for e in told), d.history
     medina = next(d for d in plan.districts if d.kind == "medina")
     assert plan.settlement.founded in medina.history   # the old town is as old as its city
     names = {m.name for m in plan.landmarks}
@@ -1634,6 +1642,41 @@ def test_district_histories(world, plan):
     assert again.districts[medina.id].history == "Pinned."
     assert [d.history for d in again.districts if d is not again.districts[medina.id]] == \
         [d.history for d in plan.districts if d.id != medina.id]
+
+
+def test_a_new_history_template_changes_no_sentence(world, plan):
+    """Every choice of a history has its own stream: a list the sentences never use moves no other draw."""
+    import copy
+    from citygen.city import CityContext
+    from citygen.city.history import histories
+    ctx = CityContext(world, plan.settlement)
+    ctx.style = dict(world.style, history=copy.deepcopy(world.style["history"]))
+    ctx.style["history"]["fact"] = {"aside": ["One.", "Two.", "Three."], **ctx.style["history"]["fact"]}
+    again = copy.copy(plan)
+    again.districts = [copy.copy(d) for d in plan.districts]
+    histories(ctx, again)
+    assert [d.history for d in again.districts] == [d.history for d in plan.districts]
+
+
+def test_history_words(world):
+    """The style words every era, the eras' names stay in those words, and plurals follow the style's endings."""
+    from citygen.city.history import _era_phrase, _plural
+    words = world.style["history"]
+    for era in world.style["lore"]["eras"]:
+        assert era in words["era_in"][era] and era in words["era_since"][era]
+    assert _era_phrase(words, "era_in", "the Flood") == "in the time of the Flood" and _era_phrase(words, "era_in", "") == ""
+    assert [_plural(words, w) for w in ("fisherman", "teacher", "secretary", "coach")] == \
+        ["fishermen", "teachers", "secretaries", "coaches"]
+
+
+def test_a_history_landmark_belongs_to_the_district_it_stands_in():
+    """A point near a shared border goes to the district it lies in, not to the lower number within reach."""
+    from types import SimpleNamespace as NS
+    from shapely.geometry import box
+    from citygen.city.history import _Facts
+    facts = _Facts.__new__(_Facts)
+    facts.plan, facts.inside = NS(districts=[NS(id=0, polygon=box(0, 0, 10, 10)), NS(id=1, polygon=box(10, 0, 20, 10))]), 1.0
+    assert [facts.district_at(x, 5.0) for x in (9.5, 10.5, 20.5, 25.0)] == [0, 1, 1, None]
 
 
 def test_fingerprint_tool(tmp_path, monkeypatch):
@@ -5339,7 +5382,7 @@ def _graph_parts(nodes: list, edges: list) -> dict:
 def test_street_graph_is_connected_and_its_edges_match_their_lines(world, plan):
     from shapely.geometry import Point
     from citygen.export.streets import road_links, street_graph
-    nodes, edges = street_graph(plan.streets, float(world.cfg["streets"]["graph_grid"]))
+    nodes, edges = street_graph(plan.streets, float(world.cfg["street_graph"]["grid"]))
     assert len(set(nodes)) == len(nodes) and len(edges) >= len(plan.streets)
     for k, line, a, b in edges:   # every edge's ends are nodes, and it runs along its street
         assert 0 <= a < len(nodes) and 0 <= b < len(nodes)
@@ -5352,21 +5395,45 @@ def test_street_graph_is_connected_and_its_edges_match_their_lines(world, plan):
     parts = _graph_parts(nodes, [(a, b, line.length) for _k, line, a, b in edges])
     total = sum(parts.values())
     assert max(parts.values()) >= 0.995 * total   # the largest connected part holds the streets
-    drawn = sum(st.line.length for st in plan.streets)
+    drawn = shapely.unary_union([st.line for st in plan.streets]).length   # a street under a boulevard counts once
     assert drawn - 1.0 < total < drawn * 1.01     # impasse mouths add their stubs to the street centers
     for link in road_links(world, plan, nodes):   # each country road reaches the graph where it enters
         assert link["distance"] < 1.0 and Point(nodes[link["node"]]).distance(plan.boundary.exterior) < 1.0
 
 
+def test_street_graph_nodes_a_mouth_exactly_on_its_street():
+    """A mouth on the center line itself needs no stub, but it must still become a vertex of that street:
+    snapped apart, the two lines of this case pass each other 3 cm off and the plain union finds no junction."""
+    from citygen.city.model import Street
+    from citygen.export.streets import street_graph
+    from shapely.geometry import LineString
+    street = LineString([(0.01, 0.01), (90.01, 37.01)])
+    mouth = street.interpolate(0.164, normalized=True)
+    assert mouth.distance(street.interpolate(street.project(mouth))) == 0.0
+    lane = LineString([(mouth.x, mouth.y), (mouth.x - 8.0, mouth.y + 20.0)])
+    nodes, edges = street_graph([Street("street", 8.0, street), Street("impasse", 3.0, lane)], 0.05)
+    assert len(nodes) == 4 and len(edges) == 3
+
+
 @pytest.mark.slow  # sidewalk widths of the whole city, about 3 s
 def test_streets_json_lists_nodes_on_the_drawn_street_and_measured_edges(world, plan, ground):
+    from citygen.city.ground import STREET_LIFT
     from citygen.export.streets import streets_json
     data = json.loads(json.dumps(streets_json(world, plan, ground)))
     assert data["format"] == "citygen-streets/1" and data["roads"]
     nodes, edges = data["nodes"], data["edges"]
     assert [n["id"] for n in nodes] == list(range(len(nodes)))
     xy = np.array([[n["x"], n["y"]] for n in nodes])
-    assert np.allclose([n["z"] for n in nodes], ground.surface(xy[:, 0], xy[:, 1]), atol=0.01)
+    z = np.array([n["z"] for n in nodes])
+    on = ground.lift(xy[:, 0], xy[:, 1]) > 0.0   # the others: a street's end snapped a few cm past its ribbon
+    assert np.allclose(z[on], ground.surface(xy[on, 0], xy[on, 1]), atol=0.01)
+    lift = collections.Counter()   # the highest ribbon meeting at each node, from the graph's own street kinds
+    for e in edges:
+        for i in (e["from"], e["to"]):
+            lift[i] = max(lift[i], STREET_LIFT[e["kind"]])
+    over = z - ground.height(xy[:, 0], xy[:, 1]) - np.array([lift[n["id"]] for n in nodes])
+    curb = float(world.style["streets"]["curb_height"])
+    assert over.min() > -0.05 and over.max() < curb + 0.1, (over.min(), over.max())   # on the ribbon, or a curb up
     degree = collections.Counter(i for e in edges for i in (e["from"], e["to"]))
     assert all(n["degree"] == degree[n["id"]] for n in nodes)
     for e in edges:
@@ -5393,6 +5460,7 @@ def test_streets_json_two_processes(tmp_path):
             "w = generate_world(load_config(quick=True)); p = plan_city(w, w.capital()); "
             "write_json(sys.argv[1], streets_json(w, p, Ground(w, [p])))")
     for name, seed in (("a", "1"), ("b", "2")):
-        subprocess.run([sys.executable, "-c", code, str(tmp_path / f"{name}.json")], cwd=root,
-                       env={**os.environ, "PYTHONHASHSEED": seed}, check=True, capture_output=True)
+        r = subprocess.run([sys.executable, "-c", code, str(tmp_path / f"{name}.json")], cwd=root,
+                           env={**os.environ, "PYTHONHASHSEED": seed}, capture_output=True)
+        assert r.returncode == 0, r.stderr.decode()[-2000:]
     assert (tmp_path / "a.json").read_bytes() == (tmp_path / "b.json").read_bytes()

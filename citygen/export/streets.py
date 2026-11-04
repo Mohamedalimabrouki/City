@@ -1,7 +1,7 @@
 """The street graph of a city for games (prompt 70): `cities/<name>/streets.json`, `citygen-streets/1`.
 
 Nodes are junctions and dead ends, edges the street pieces between them, built by noding every
-center line of `plan.streets` on a grid of `[streets] graph_grid` meters (5 cm, citygen/defaults.toml;
+center line of `plan.streets` on a grid of `[street_graph] grid` meters (5 cm, citygen/defaults.toml;
 `unary_union` alone misses junctions that meet only up to rounding) (SPEC 6 "Street graph").
 """
 from __future__ import annotations
@@ -13,6 +13,7 @@ from shapely.geometry import LineString, Point
 
 from ..city.geo import lines
 from ..city.parking import walk_widths
+
 
 def center_lines(streets, grid: float) -> list:
     """Each street's center line. An impasse's starts at the nearest point of the street its mouth opens
@@ -31,8 +32,10 @@ def center_lines(streets, grid: float) -> list:
         h = others[int(tree.nearest(mouth))]
         d = streets[h].line.project(mouth)
         q = streets[h].line.interpolate(d)
-        if 0.0 < mouth.distance(q) <= streets[h].width / 2 + grid:
-            out[k] = LineString([(q.x, q.y), *st.line.coords])
+        off = mouth.distance(q)
+        if off <= streets[h].width / 2 + grid:
+            if off > 0.0:
+                out[k] = LineString([(q.x, q.y), *st.line.coords])
             cuts.setdefault(h, []).append(d)
     for h, ds in cuts.items():
         out[h] = _with_vertices(streets[h].line, sorted(ds))
@@ -137,11 +140,24 @@ def road_links(world, plan, nodes: list) -> list:
     return out
 
 
+def node_tops(ground, xy, grid: float) -> np.ndarray:
+    """z of each node: the drawn street top there (`Ground.surface`). The grid can leave the end of a street just
+    past the flat end of its ribbon, on the bare ground: for such a node the ribbon `grid` meters away counts."""
+    if not len(xy):
+        return np.zeros(0)
+    x, y = xy[:, 0], xy[:, 1]
+    z = np.array(ground.surface(x, y), dtype=np.float64)
+    off = np.asarray(ground.lift(x, y)) == 0.0
+    z[off] = np.maximum(z[off], ground.height(x[off], y[off]) + ground.lift(x[off], y[off], reach=grid))
+    return z
+
+
 def streets_json(world, plan, ground) -> dict:
-    """The street graph of one city; z of a node is the drawn street top there (`Ground.surface`)."""
-    nodes, edges = street_graph(plan.streets, float(world.cfg["streets"]["graph_grid"]))
+    """The street graph of one city; z of a node is the drawn street top there."""
+    grid = float(world.cfg["street_graph"]["grid"])
+    nodes, edges = street_graph(plan.streets, grid)
     xy = np.asarray(nodes, dtype=np.float64).reshape(-1, 2)
-    z = np.asarray(ground.surface(xy[:, 0], xy[:, 1]), dtype=np.float64) if len(xy) else np.zeros(0)
+    z = node_tops(ground, xy, grid)
     widths, _promoted, _parks = walk_widths(world.style, plan.districts, plan.streets, getattr(plan, "walks", []))
     degree = np.bincount([n for _k, _p, a, b in edges for n in (a, b)], minlength=len(nodes))
     return {

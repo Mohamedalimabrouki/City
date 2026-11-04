@@ -76,9 +76,9 @@ crease = 45.0             # degrees: clustered faces meeting at a gentler angle 
 cluster_drop = ["glass_dark", "glass_lit", "iron", "wood", "lantern_glow", "rope", "stud_black", "dial_white",
                 "road_paint"]   # details left out of clustered meshes (windows, doors, ironwork)
 
-[streets]
+[street_graph]
 # The street graph for games (cities/<name>/streets.json, SPEC 6 "Street graph").
-graph_grid = 0.05         # meters: center lines are noded on this grid; it also sets the impasse-mouth stub reach
+grid = 0.05               # meters: center lines are noded on this grid; it also sets the impasse-mouth stub reach
 
 [ground]
 # Inside a city the ground is graded: smoothed and gently flattened under blocks, then

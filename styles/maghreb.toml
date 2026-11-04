@@ -67,7 +67,8 @@ products.mountain = ["cork", "marble", "pine honey", "goat cheese"]
 # the map holds, and a "today" sentence when fewer than three came. {name} the district, {city},
 # {era} and {since} from `era` (never before the city's founding), as `era_in` / `era_since` word it,
 # {where} ", just east of the medina" or "",
-# {place} city, town or village, {folk} "the neighborhood" or "the village". A fact given as a list: one is drawn.
+# {place} city, town or village, {folk} "the neighborhood" or "the village". A fact given as a list: one is
+# drawn, on a stream of its own (as are the origin, the "today" sentence and the sample of facts).
 # A world file's [canon.histories."<city>"] "<district>" = "..." replaces a generated text.
 [history]
 facts = 2
@@ -77,14 +78,16 @@ inside_m = 1.0         # a landmark this close to a district counts as in it
 near_m = 5.0           # a district this close to the medina lies "just" east of it
 # The words of the sentences: {place} by settlement kind (else the kind itself), {folk} by district
 # kind (else `default`), {where} from `where` ({near} = `near_word` when near, {dir} from `compass`,
-# counter-clockwise from east), counts in words, and trade plurals (first matching ending swapped).
+# counter-clockwise from east), counts in words, the last link of a list, and trade plurals (first matching
+# ending swapped).
 place = { capital = "city" }
 folk = { village = "the village", default = "the neighborhood" }
 where = ", {near}{dir} of the medina"
 near_word = "just "
 compass = ["east", "north-east", "north", "north-west", "west", "south-west", "south", "south-east"]
 numbers = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"]
-plural = { man = "men" }
+and_word = " and "
+plural = { man = "men", ry = "ries", ty = "ties", ss = "sses", ch = "ches", sh = "shes" }
 plural_default = "s"
 great_mosque_kinds = ["medina", "village"]   # the mosque in these districts is the great mosque, never "its own mosque"
 era.medina = ""          # "": the era the city was founded in
@@ -98,8 +101,10 @@ era.industrial = "the Republic"
 era.modern = "the Republic"
 era.residential = "the Republic"
 era.suburb = "the Republic"
-# How each era reads in a sentence: {era} "in the Caravan Age", {since} "since the Caravan Age"
-# (an era missing here reads "in the time of ..." and "since the time of ...")
+# How each era reads in a sentence: {era} "in the Caravan Age", {since} "since the Caravan Age"; an era missing
+# from these tables reads as the `_default` line (a test keeps every era of [lore] in them)
+era_in_default = "in the time of {era}"
+era_since_default = "since the time of {era}"
 era_in = { "the Salt Kings" = "under the Salt Kings", "the Caravan Age" = "in the Caravan Age", "the Exiles' Return" = "in the years of the Exiles' Return", "the Corsair Century" = "in the Corsair Century", "the Protectorate" = "under the Protectorate", "the Republic" = "under the Republic" }
 era_since = { "the Salt Kings" = "since the days of the Salt Kings", "the Caravan Age" = "since the Caravan Age", "the Exiles' Return" = "since the Exiles' Return", "the Corsair Century" = "since the Corsair Century", "the Protectorate" = "since the Protectorate", "the Republic" = "since the Republic" }
 # Products of [lore] that a harbor district may be said to live from
@@ -128,7 +133,7 @@ origin.port_old = ["Boats have put in here {old_since}, but the stone quays of {
                    "The fishermen of {city} have beached their boats here {old_since}; {name} got its stone quays {era}."]
 origin.park = ["{name} was planted {era}{where}, as a public garden for {city}.",
                "{name} was laid out as gardens {era}{where}.",
-               "{era}, {city} kept the open ground of {name}{where} free of houses and planted it."]
+               "{era}, {city} kept the open ground of {name} free of houses{where}, and planted it."]
 origin.cemetery = ["The {name} has received the dead of {city} {since}{where}.",
                    "{since}, {city} has buried its dead in the {name}{where}."]
 fact.gate = "{n} gate leads in: {some}."            # one gate

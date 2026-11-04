@@ -164,6 +164,18 @@ block on `rng("impasse", block)`: lot line jitter, widths, covered share and len
 - `Settlement(id, name, kind, x, y, population, radius, elevation, coastal, biome, known_for, founded)`;
   kinds: `capital`, `city`, `town`, `village`. Ids are stable for a given seed and settings.
 - `Road(id, kind, width, coords, ends)`; kinds `national`, `regional`, `local`.
+- `District.history` (prompt 81, `citygen/city/history.py`, `[history]` in the style): two to four sentences for
+  stories, built last in `plan_city` from the finished plan, so nothing else moves: an origin, up to `facts` (2)
+  facts the map holds (gates, kasbah, boulevard landmarks, station, a neighborhood mosque, souks, a cemetery's
+  shrines, quays and lighthouse, the harbor's trade, the households' top trades; drawn by `fact_weights`) and a
+  "today" sentence when fewer than `min_sentences` (3) came. Eras come from `[lore] eras`, never before the
+  city's founding, worded by `era_in` and `era_since`. All words live in `[history]`, none in the code. Each
+  choice has its own stream, `ctx.rng("history", district id, what)` (`origin`, `facts`, `today`, `fact.<key>`
+  for a list template), so editing one list changes no other sentence. A landmark belongs to the district it
+  lies in, else to the first within `inside_m` (1 m: a gate on the wall line). In a world file,
+  `[canon.histories."<city>"] "<district>" = "..."` replaces a text; unlike `[canon.names]`, which is keyed by
+  settlement id, it is keyed by names (prompt 84 settles one keying), and a district the city does not have
+  gives a warning.
 - `CityPlan`: `boundary`, `land` (with the quay aprons since prompt 34), `medina`, `districts`, `streets`, `blocks`, `parcels`,
   `buildings`, `trees`, `landmarks`, `walks`, `households`, `souks`, `paint`, `stats`, `station`
   (a `city.station.Station` or None: `facade`, `tracks`, `precinct`, `corridor`, `district`, `core`), `port`
@@ -528,10 +540,10 @@ the sea, the railing along the sea edge, no paint or parked car on it; everythin
 | File | Content |
 |---|---|
 | `world.json` | `citygen-world/1`: seed, name, size, settlements, roads (coords in meters) |
-| `cities/<name>/plan.json` | `citygen-city/1`: districts, streets, buildings, trees, landmarks, households, souks, and `rail` (track center lines, corridor) when the city has a station, `port` (quay edges and aprons,
+| `cities/<name>/plan.json` | `citygen-city/1`: districts (`history` since prompt 81), streets, buildings, trees, landmarks, households, souks, and `rail` (track center lines, corridor) when the city has a station, `port` (quay edges and aprons,
 breakwater lines, basins, lighthouses) when it has a harbor, `props` (`kind`, `x`, `y`, `yaw`, `scale`, `on`: boats, cranes, rails, cargo; empty without a harbor); GeoJSON-style geometry in world meters |
 | `cities/<name>/streets.json` | `citygen-streets/1`: the street graph for games (prompt 70, see "Street graph" below) |
-| `gazetteer.md` | readable guide for stories |
+| `gazetteer.md` | readable guide for stories; each planned city lists its district histories (prompt 81) |
 | `maps/country.png`, `maps/<city>.png` | 2D maps, north up |
 | `tiles/tile_<i>_<j>.glb` | 3D tile covering x `i*512..(i+1)*512`, y `j*512..(j+1)*512` |
 | `tiles/tile_<i>_<j>_lod1.glb` | the same tile for distant views (prompt 40): merged blocks, low-poly landmarks, 32 m terrain, flat colors |
@@ -542,21 +554,23 @@ breakwater lines, basins, lighthouses) when it has a harbor, `props` (`kind`, `x
 
 **Street graph (prompt 70, `citygen/export/streets.py`):** `cities/<name>/streets.json` is the
 graph of the city's streets, written with `plan.json`. `nodes`: `id`, `x`, `y`, `z` (the drawn street
-top there, `Ground.surface`), `degree` (1 = dead end; 2 only where two different streets meet end to
-end, for example a connector joining a boulevard). `edges`: `id`, `street` (index in `plan.json`
-`streets`), `kind`, `width` (curb to curb, sidewalks included), `sidewalks` ([left, right]: the widest
-sidewalk on each side of the street as the paint measures it, `city/parking.walk_widths`; 0 where there
-is none; left is left of the edge's direction), `surface` (palette material), `length` (meters, of
+top there, `Ground.surface`; a street's end that the grid leaves a few cm past its ribbon takes that
+ribbon's top), `degree` (1 = dead end; 2 only where two different streets meet end to end, for example
+a connector joining a boulevard, or at the start of a closed street). `edges`: `id`, `street` (index in
+`plan.json` `streets`), `kind`, `width` (the whole street ribbon, sidewalks included: the carriageway
+is `width` minus both sidewalks), `sidewalks` ([left, right]: the widest sidewalk on each side of the
+street, measured with `city/parking.walk_widths` like the paint does, but for every street kind; 0
+where there is none; left is left of the edge's direction), `surface` (palette material), `length` (meters, of
 `line`), `from`, `to` (node ids) and `line` (the center line from `from` to `to`, running the way its
 street runs). `roads`: one link per point where a country road (`world.json` roads) crosses the city
 limit: `road` (its id), `kind`, `width`, `x`, `y` (the crossing) and `node` (the nearest node,
 `distance` meters away; the planner's connector street starts there). Built by noding every center
-line on a 5 cm grid (`[streets] graph_grid` in defaults.toml; `shapely.set_precision`, then `unary_union(grid_size=...)`): plain `unary_union`
+line on a 5 cm grid (`[street_graph] grid` in defaults.toml; `shapely.set_precision`, then `unary_union(grid_size=...)`): plain `unary_union`
 misses junctions where grid streets end on district borders only up to rounding. A piece lying on
 several streets (a grid street left under a boulevard) belongs to the widest. An impasse starts inside
 the surface of the street its mouth opens on (prompt 20.2): its edge starts with a stub from the nearest
-point of that street's center line, which also becomes a vertex of that street, so both snap to one
-node; the impasse's `length` includes the stub. Pieces of one street meeting where nothing else does
+point of that street's center line, which also becomes a vertex of that street (even for a mouth on the
+line itself, with no stub), so both snap to one node; the impasse's `length` includes the stub. Pieces of one street meeting where nothing else does
 are joined. The largest connected part holds at least 99.5% of the street length (tested; the quick
 capital is one part).
 
