@@ -700,6 +700,14 @@ tile as finished only when its lod1 file exists at its written size. Sizes (full
 for 171 MB of full tiles; city tiles 3.6% of their full tile (densest 141 KB, 6,780 triangles, for 5.8 MB),
 terrain-only tiles 11%, worst 12.9% (a harbor tile). `stats --tiles` prints the lod1 total and ratios.
 
+**Wall pieces and the camera (facade round, `tools/viewer/index.html`):** the walls of a tile are one-sided, so a
+camera that has flown into a building sees through that building's walls; the windows and balconies on them would
+hang in the air (the backs of the stone frames, cream panels with colored edges; slabs and rails). The viewer draws
+an instanced piece on a wall (`ON_WALL`, by name) with a look of its own (`streetSideOnly`): the vertex shader drops
+the piece when the camera stands 1 to 80 m behind the plane of its wall (`BEHIND_WALL`). Further away a balcony may
+peek past the roof and stays. Shadows do not change, nothing changes in a tile, and an interior keeps every piece:
+a room looks out at its rail from behind the wall.
+
 **Viewer level of detail (prompt 41, `tools/viewer/index.html`):** one slot per index tile holds what is
 shown (`full`, `lod1` or nothing), the parsed versions in memory and the loads in flight. Every camera
 move recomputes each tile's want from `d`, the 3D distance from the camera to the tile's square at the
@@ -871,7 +879,8 @@ shaders (which ignore the image and the tint) and takes their palette color from
   walls get windows by district (`first` floor, `share`, `open` stream), never cutting a corner or
   overlapping any piece already on the building. Modern slabs: a window in every `bay` column on
   every floor, ground floor too (`slab_window_<tint>`, one tint per block, some shutters closed),
-  concrete balconies stacked in a rhythm of columns, blind gable ends; stair doors (`stair_door`,
+  concrete balconies stacked in a rhythm of columns, windows on the open short ends too (`gable_windows`
+  m per column, stream `rng("gable", k)`: the end rooms have no other wall); stair doors (`stair_door`,
   glazed, with a canopy and light; `stair` stream) every `stair_spacing` m on the long side facing
   the nearest street, each in a window column whose stair windows sit over the half landings, under the next slab. Doors on
   open ground in `[dressing.paths] districts` get a paving ribbon straight to the nearest
@@ -1120,10 +1129,15 @@ shaders (which ignore the image and the tint) and takes their palette color from
   width, `[dressing] window_half` m each side), so none floats above a lower step or on a set-back
   terrace's edge; staircase windows stop below their part's roof. Walls of a set-back floor or of a
   villa's main part facing their terrace get windows on every floor above it (`terrace` stream).
+  A colonial street wall gets the windows it lacks (facade round, `Dresser._gaps`, `[dressing.fill]`, stream
+  `rng("fill", k, wall, floor, i)`): an upper place the old chance left empty, one window on a wall of 2 to 3.2 m.
+  Its ground floor gets barred windows in the columns above (`Dresser._ground_windows`, `[dressing.ground_windows]`,
+  stream `rng("ground", k)`, sill 1.3 m), street and open walls, clear of doors, shops and pillars.
   Court walls of colonial blocks and maisons (47.2, `Dresser._court_windows`, `[dressing.courts]`, own
   stream `rng("court", k)`): a column every `spacing` m of each wall of `wall` m or more (at least one),
   a window on every floor in the household's color (`style`: shutters or grilles); a court narrower than
-  `well_side` m is a light well and its windows are `well_scale` the size. The interiors read them as
+  `well_side` m is a light well and its windows are `well_scale` the size; a wall from `short` to `wall` m
+  takes one small window (own stream `rng("court-short", k)`). The interiors read them as
   facade openings (`outside.wall_segments` holds the court rings, normals into the court).
   Props stand on the main roof (`main_mass`), off the stair room, menzah, machinery and a corner dome
   (`RoofLayout.rooms`); tank stands are the `tank_stand` piece (110 triangles) where massing put them.
