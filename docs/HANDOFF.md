@@ -112,6 +112,15 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`, and how the le
 
 ## Decisions and lessons (do not relearn them)
 
+- **Names and identity follow the place** (names-60): `Settlement.id` is only the rank in the list. Every stream about a place reads
+  `Settlement.key` (capital 0, else grid cell + 1). A town's or village's place, every place's size, name and lore come from
+  its own streams, so a refused place moves only its neighbours. A pin keys on the generated name, which stays with the place.
+- **A world change reaches the capital through its roads:** `plan_city` reads where roads cross its boundary, and a shifted crossing
+  deals the quick capital's houses anew. Moving a town is never a local change. To prove a cause: plan with the old roads.
+- **Tests pick places by what they are, plan bars are rates.** `context.villa_town`, never a settlement number, a house number
+  or a town's name; a list of failing houses goes stale with the next plan change. The survey gives the failing numbers of the day.
+- **The old bars were won house by house:** a fresh deal of the same capital gives the honest rate. Tests that demand every
+  house of a sample overfit to one plan.
 - **River beds and hollows (prompt 59).** The terrain can only be cut (`min(terrain, bed + bank)`, prompt 60), so a bed must
   stay under the ground on the whole network: the filled height flies over hollows, and a running minimum per river leaves
   tributaries under their main bed. The running minimum down the network, tributaries first, is the highest bed that never

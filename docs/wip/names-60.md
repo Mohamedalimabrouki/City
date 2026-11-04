@@ -98,8 +98,8 @@ Tests the new plan broke that were never about a number, each read down to its c
 - a walker's box touched a table box with 0.00 m2: more than 1 dm2 now counts;
 - a sidewalk polygon has a zero-width needle and `representative_point` fell on it: the test looks 2 cm inside;
 - a street-graph edge with a stub ran back 4 cm along its alley: only edges longer than their street's width count;
-- a regional road now meets the corniche in mid-block, so the nearest graph NODE is 43 m off: the test now asks for the
-  nearest street of the graph. A game reading `roads[].node` walks those 43 m on the corniche: harmless, but know it.
+- a regional road now meets the corniche in mid-block, so the nearest graph NODE was 43 m off. I relaxed the test; the lead undid
+  that (d36392a): such a road now splits the street's edge and links to a node of its own, and the strict bound is back.
 Thresholds that still pass (`len(walks) > 50`, `balconies > 500` and the like) stay; they did not fail on a new plan, so
 they have margin.
 
