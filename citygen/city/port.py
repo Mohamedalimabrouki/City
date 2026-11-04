@@ -99,7 +99,7 @@ def plan_port(ctx, districts: list, land) -> tuple:
             port.breakwaters.append(bw)
     for n, bw in enumerate(port.breakwaters):
         namer = NameMaker(ctx.style, ctx.rng("port", "lighthouse", n, "name"))
-        marks.append(Landmark("lighthouse", namer.district("lighthouse", s=ctx.s.name), bw.light[0], bw.light[1]))
+        marks.append(Landmark("lighthouse", namer.district("lighthouse", s=ctx.s.label), bw.light[0], bw.light[1]))
     _ground_zones(cfg, port, land)
     return port, marks, unary_union([land, port.apron])
 

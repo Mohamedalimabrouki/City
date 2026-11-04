@@ -6,6 +6,7 @@
 seed = 2026          # any whole number; each one is a different country
 size_km = 48         # 48 x 48 km
 name = ""            # e.g. "Zaria"; leave empty to let the generator invent a name
+name_ar = ""         # e.g. "زارية": the Arabic spelling of a pinned name (else the country has none)
 
 [terrain]
 sea_direction = 0    # the sea is to the north (compass bearing, or "random")
@@ -18,3 +19,7 @@ area = "capital-center"
 [canon.names]
 # 0 = "Carthage Nova"
 # 12 = "Sidi Amor"
+# A pinned name has no Arabic spelling unless you pin that too (prompt 87):
+[canon.names_ar]
+# 0 = "قرطاج الجديدة"
+# 12 = "سيدي عمر"

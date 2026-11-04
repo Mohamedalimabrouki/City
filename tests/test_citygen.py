@@ -3,6 +3,7 @@ import collections
 import functools
 import json
 import math
+import re
 
 import numpy as np
 import pytest
@@ -5486,3 +5487,119 @@ def test_streets_json_two_processes(tmp_path):
                            env={**os.environ, "PYTHONHASHSEED": seed}, capture_output=True)
         assert r.returncode == 0, r.stderr.decode()[-2000:]
     assert (tmp_path / "a.json").read_bytes() == (tmp_path / "b.json").read_bytes()
+
+
+# --- prompt 87: place names in Arabic script ------------------------------------------------------------
+
+def _no_arabic_style():
+    """The maghreb style with every *_ar key removed."""
+    import copy
+
+    from citygen.config import load_style
+    def strip(o):
+        if isinstance(o, dict):
+            return {k: strip(v) for k, v in o.items() if not k.endswith("_ar")}
+        if isinstance(o, list):
+            return [strip(v) for v in o]
+        return o
+    return strip(copy.deepcopy(load_style("maghreb")))
+
+
+def _drop_ar(o):
+    """JSON data without its name_ar fields (and without timings, which differ from run to run)."""
+    if isinstance(o, dict):
+        return {k: _drop_ar(v) for k, v in o.items() if k != "name_ar" and "seconds" not in k}
+    if isinstance(o, list):
+        return [_drop_ar(v) for v in o]
+    return o
+
+
+def test_arabic_twin_lists_match_their_latin_lists():
+    from citygen.config import load_style
+    from citygen.names import TWINS, is_arabic
+    style = load_style("maghreb")
+    n = style["names"]
+    for key in TWINS:
+        assert len(n[key + "_ar"]) == len(n[key]), key
+    for kind, latin in n["prefixes"].items():
+        assert len(n["prefixes_ar"][kind]) == len(latin), kind
+    for kind, latin in n["districts"].items():
+        assert len(n["districts_ar"][kind]) == len(latin), kind
+    cathedral = style["landmarks"]["cathedral"]
+    assert len(cathedral["saints_ar"]) == len(cathedral["saints"])
+    assert len(n["souk_repeats_ar"]) == len(n["souk_repeats"])
+    words = [k["word_ar"] for k in style["souk"]] + [w for k in TWINS for w in n[k + "_ar"] if w]
+    words += [w for ws in n["prefixes_ar"].values() for w in ws] + cathedral["saints_ar"]
+    assert all(is_arabic(w) for w in words), [w for w in words if not is_arabic(w)]
+
+
+def test_arabic_names_take_no_draw_and_use_arabic_letters_only():
+    from citygen.config import load_style
+    from citygen.names import NameMaker, is_arabic
+    with_ar = NameMaker(load_style("maghreb"), stream(5, "names-ar"))
+    without = NameMaker(_no_arabic_style(), stream(5, "names-ar"))
+    for kind in ("village", "town", "city", "capital", "colonial", "modern", "gate", "mosque", "park", "port"):
+        for _ in range(60):
+            if kind in ("village", "town", "city", "capital"):
+                a, b = with_ar.settlement(kind), without.settlement(kind)
+            else:
+                a, b = with_ar.district(kind), without.district(kind)
+            assert str(a) == str(b) and b.ar == ""
+            assert is_arabic(a.ar) and not re.search(r"[ةى]\S", a.ar), (a, a.ar)
+            assert "ال " not in a.ar and "بو " not in a.ar, a.ar      # the article and Bou are joined
+    a, b = with_ar.country(), without.country()
+    assert str(a) == str(b) and is_arabic(a.ar)
+    style = load_style("maghreb")
+    style["names"]["g_ar"] = "ڨ"                     # the Tunisian letter for g, behind a style option
+    gaf = NameMaker(style, stream(5, "names-ar"))
+    names = [gaf.settlement("town") for _ in range(80)]
+    assert all(("ڨ" in n.ar) == ("g" in n.lower().replace("gh", "")) for n in names)
+
+
+def test_world_and_plan_carry_arabic_names(world, plan):
+    from citygen.export.lore import plan_json
+    from citygen.names import is_arabic
+    assert is_arabic(world.name_ar) and is_arabic(world.to_json()["name_ar"])
+    assert all(is_arabic(s.name_ar) for s in world.settlements)
+    data = plan_json(plan)
+    named = data["districts"] + data["landmarks"] + data["souks"] + [data["settlement"]]
+    from citygen.export.lore import gazetteer
+    text = gazetteer(world, [plan])
+    assert f"{plan.settlement.name} ({plan.settlement.name_ar})" in text and plan.souks[0].name_ar in text
+    assert all(is_arabic(x.get("name_ar", "")) for x in named), [x["name"] for x in named if not x.get("name_ar")]
+    # settlements whose Arabic spellings are alike once short vowels are dropped (reported, not refused)
+    skeleton = lambda t: "".join(c for c in t if c not in "اوي ")   # noqa: E731
+    seen: dict = {}
+    for s in world.settlements:
+        seen.setdefault(skeleton(s.name_ar), []).append(s.name)
+    clashes = [v for v in seen.values() if len(v) > 1]
+    print("Arabic spellings alike without vowels:", clashes or "none")
+
+
+@pytest.mark.slow  # three worlds and two town plans, about 45 s
+def test_arabic_names_leave_every_other_field_alone(monkeypatch):
+    from citygen.export.lore import plan_json
+    cfg = load_config(quick=True)
+    normal = generate_world(cfg)
+    monkeypatch.setattr("citygen.world.load_style", lambda name: _no_arabic_style())
+    bare = generate_world(cfg)
+    assert _drop_ar(normal.to_json()) == bare.to_json() and "name_ar" not in json.dumps(bare.to_json())
+    a, b = plan_json(plan_city(normal, normal.settlements[3])), plan_json(plan_city(bare, bare.settlements[3]))
+    assert _drop_ar(a) == _drop_ar(b) and "name_ar" not in json.dumps(b)
+    pinned = generate_world(load_config(quick=True, overrides={"canon": {"names": {"2": "Testville"},
+                                                                         "names_ar": {"1": "تست"}}}))
+    assert pinned.settlements[2].name == "Testville" and pinned.settlements[2].name_ar == ""
+    assert pinned.settlements[1].name_ar == "تست"
+    # its plan's "{s}" names (medina, mosque, kasbah, ...) take no Arabic from a pinned Latin name either
+    marks = [m for m in plan_city(pinned, pinned.settlements[2]).landmarks if "Testville" in m.name]
+    assert marks and all(not getattr(m, "name_ar", "") for m in marks), [m.name for m in marks]
+
+
+def test_fixed_names_and_arabic_twins_fail_clearly():
+    from citygen.names import TWINS, _twins, fixed_name
+    assert str(fixed_name({"names": {}}, "medina", s="X")) == "Medina of X"   # built-in Latin, no Arabic
+    n = {**{k: ["a"] for k in TWINS}, **{k + "_ar": ["ا"] for k in TWINS}, "prefixes_ar": {}}
+    assert _twins(n)["onsets"] == ["ا"]
+    n["codas_ar"] = []
+    with pytest.raises(ValueError, match="codas_ar"):
+        _twins(n)

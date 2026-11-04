@@ -176,7 +176,8 @@ def assign_kinds(ctx, districts, medina, axis: float, land) -> None:
     namer.used.update(t.name.split()[-1] for t in ctx.world.settlements)
     for i, d in enumerate(districts):
         d.kind = kinds[i]
-        d.name = namer.district(d.kind)
+        name = namer.district(d.kind)
+        d.name, d.name_ar = str(name), name.ar
         if d.kind == "colonial":
             d.angle = axis
         else:
