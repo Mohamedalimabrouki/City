@@ -166,7 +166,7 @@ Entry format:
   (its session recorded about $42), so that route needs new credit first (checked 3 November).
 
 ## 2026-11-03 - Merge of 14 reviewed branches (merge-3d): prompt 54 round 3, furniture fixes, colonial-k, villas-o
-- Commit: 5f4e99e (merges `wip/merge-3d` 41eae7c) | Model: Opus 5.5, high (merge helper in a worktree, about 55 min)
+- Commit: 5f4e99e (merges `wip/merge-3d` 41eae7c) | a merge helper in a worktree, about 55 min
 - Merged: merge-prep (speed-n, flats-j, furnish-m), fix-side-54, test-scrap-hall, test-cache-warm, fix-dar-is,
   fix-materials, fix-hide, fix-brass, fix-goods, fix-textile (with their kit-* and shot-* commits), colonial-k,
   villas-o, test-villa-369, fix-little; and three review fixes, each with a test that fails before: the hidoura
@@ -177,9 +177,17 @@ Entry format:
   main); `build --quick` finishes; fingerprint 0 of 282 parts changed (a build runs no interior code: no make_blend).
 - Survey (helper; its baseline matched this log): colonial 3 -> 5/270, slab 247 -> 253/353, villa 167 -> 168/178,
   maison 499/616 and the old town unchanged; warned rooms 4.2% -> 1.9% (lived-in, 25 homes per layout).
-- Lead: SPEC lines updated (tray_brass 80 and pots_stack 180 triangles, `copper_ware` twice). Open: colonial-k's
-  chambres 4,895 -> 4,577 is not explained; 54 still needs the full-capital survey, its two look pictures and
-  Ali's look; Ali looks at the rug, cushions, brass and shop shelves in the interior view.
+- Lead: SPEC lines updated (tray_brass 80 and pots_stack 180 triangles, `copper_ware` twice). main moved on the
+  helper's survey plus the lead's tests and build; the lead's own survey came after (4 November, 2ddab41 against
+  c7ef448, all 2,094 homes): the pass counts above are confirmed, 9 won, 0 lost, 0 crashes. What it adds:
+  - Colonial: same 2,049 flats, chambres 4,895 -> 4,577 (2.39 -> 2.23 per flat), salle_a_manger +91, couloir +89;
+    rooms.check problems 3,448 -> 3,100 (155 blocks better, 23 worse). Net good; the other 138 chambres not traced.
+  - Slab ladders: 39 room-floor cases (32 before the merge) keep under 0.8 m beside a ladder in a couloir or hall,
+    about 20 of the 48 ladders, in 18 blocks; colonial 5 cases, unchanged. rooms.check does not measure this, so
+    such blocks can pass. Mostly older than the merge; flats-j added a few (review-mp-flats, flats.py about 599).
+    To do: a check for it, and the planner keeps `passage_min` clear; the slab count may fall when the check lands.
+  Open: 54 still needs a new full-capital survey (2.2% before the merge), its two look pictures and Ali's look;
+  nobody has seen the furniture in 3D yet; question 15 was never checked, only assumed settled.
 
 ## 2026-11-03 - Open item 47.2, flats round I (a narrow wet room's door by a corner)
 - Commit: (lead commits) | Model: Opus 5.5, high (flats helper, worktree /tmp/claude-501/flats-i, about 45 min)
