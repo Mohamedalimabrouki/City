@@ -349,13 +349,14 @@ class Prepared:
             along = np.array([math.cos(o.yaw), math.sin(o.yaw)])
             c = np.array([o.x, o.y])
             face = face_of(it, o, n)
-            if o.kind in DOORS:
-                wide = o.width if room.type in cfg.get("wet", ()) else o.width + 0.2
+            wet = room.type in cfg.get("wet", ())
+            if o.kind in DOORS and not (wet and o.kind == "balcony"):
+                wide = o.width if wet else o.width + 0.2
                 keeps.append((_box(c, along, n, wide, -0.4, face + door_keep), 0.0, 99.0, "door"))
                 if o.kind in ("inner", "court_door") and _swings_into(it, o, room, self.by_id):
                     keeps.append((_swept(it, o, c, along, n, face, self.style.get("interiors", {}).get("openings", {})), 0.0, 99.0, "door"))
                 inner.append(tuple(c + n * (face + 0.4)))
-            elif o.kind in WINDOWS:
+            elif o.kind in WINDOWS or o.kind == "balcony":     # nobody steps out of a bath: its door-window is a window
                 keeps.append((_box(c, along, n, o.width + 0.2, -0.4, face + window_keep),
                               o.z0 - room.z - 0.03, o.z1 - room.z, "window"))
         for s in it.stairs:

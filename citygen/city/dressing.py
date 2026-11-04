@@ -746,7 +746,8 @@ class Dresser:
             return
         home = self.homes.get(k)
         role = (f"window_grille_{(home.door if home else 'door_blue')[5:]}", float(cfg.get("sill", 1.3)))
-        boxes = joined(piece_boxes(self.kit, out, front[4] or 0.0), shadow)
+        solid = [p for p in out if self.kit.pieces[p.piece].category != "arcade"]   # under an arch: only its pillars count
+        boxes = joined(piece_boxes(self.kit, solid, front[4] or 0.0), shadow)
         spacing = float(self.cfg.get("window_spacing", 3.2))
         rng = self.rng("ground", k)
         for i in np.nonzero(((walls.street >= 0) | walls.open) & (walls.length >= float(cfg.get("wall", 2.0))))[0]:
