@@ -125,6 +125,8 @@ def plan_city(world, settlement) -> CityPlan:
     mosques, mosque_marks, used = neighborhood_mosques(ctx, districts, parcels)
     parcels, used, lanes = cut_impasses(ctx, blocks, districts, parcels, streets, used)
     streets += lanes   # appended last: every earlier street keeps its index (walks, souks, paint)
+    if ctx.water is not None:
+        bridges = river.link_banks(ctx, streets, bridges)
     sites = boulevard.sites(ctx, parcels, districts, streets, used)
     parcels, used = boulevard.merge(parcels, used, sites)   # merged lots at the end, nothing built on them
     houses, trees = make_buildings(ctx, parcels, districts, used | {s.parcel for s in sites})

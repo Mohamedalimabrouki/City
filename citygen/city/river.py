@@ -103,6 +103,41 @@ def split_districts(ctx, districts: list) -> list:
     return out
 
 
+def link_banks(ctx, streets: list, crossings: list) -> list:
+    """`crossings`, and one more for each part of the street graph no crossing reaches: the shortest way from it to
+    the rest of the city, where that way crosses the river. Prompt 62's bridges then join every bank."""
+    from ..export.streets import street_graph
+    nodes, edges = street_graph(streets, float(ctx.world.cfg["street_graph"]["grid"]))
+    parent = list(range(len(nodes)))
+
+    def root(a: int) -> int:
+        while parent[a] != a:
+            parent[a] = parent[parent[a]]
+            a = parent[a]
+        return a
+
+    for _k, _line, a, b in edges:
+        parent[root(a)] = root(b)
+    for c in crossings:
+        ends = shapely.points(np.asarray(c.line.coords)[[0, -1]])
+        a, b = (int(np.argmin(shapely.distance(shapely.points(nodes), e))) for e in ends)
+        parent[root(a)] = root(b)
+    parts: dict = {}
+    for _k, line, a, _b in edges:
+        parts.setdefault(root(a), []).append(line)
+    pieces = sorted((shapely.MultiLineString(v) for v in parts.values()), key=lambda g: (-g.length, g.bounds))
+    out = list(crossings)
+    joined = pieces[0] if pieces else None
+    for part in pieces[1:]:
+        if part.length < float(ctx.style["river"]["min_part"]):
+            continue
+        way = shapely.shortest_line(part, joined)
+        if way.intersects(ctx.water):
+            out.append(Crossing(way, "street", float(ctx.style["district"]["residential"]["street_width"])))
+            joined = joined.union(part)
+    return out
+
+
 def riverside_walks(ctx, streets: list, keep_off) -> list:
     """The paved walk along the corridor's edge, in pieces a tile can own; `keep_off` the old town and what else
     it must leave alone."""
@@ -127,15 +162,17 @@ def riverside_walks(ctx, streets: list, keep_off) -> list:
 
 
 def riverside_trees(ctx, walks: list) -> list:
-    """A row of shade trees along the walk, each on the walk's stream: appended last, like all new trees."""
-    cfg = ctx.style.get("river", {})
-    spacing = float(cfg.get("tree_spacing", 16.0))
+    """A row of shade trees down the middle of the walk, each stretch on its own stream: appended before the greenery,
+    which keeps clear of them."""
+    if not walks:
+        return []
+    cfg = ctx.style["river"]
+    spacing, width = float(cfg["tree_spacing"]), walks[0].width
+    middle = ctx.water.buffer(0.5 * width, quad_segs=4).boundary.intersection(unary_union([w.polygon for w in walks]))
     out = []
-    for k, w in enumerate(walks):
+    for k, line in enumerate(lines(shapely.line_merge(middle))):
         rng = ctx.rng("riverside", k)
-        draws = rng.random(3)
-        if w.polygon.area < spacing * w.width * 0.7:
-            continue
-        p = w.polygon.representative_point()
-        out.append(Tree(p.x, p.y, str(cfg["tree"]), 6.0 + 4.0 * float(draws[0])))
+        for d in np.arange(0.5 * spacing, line.length, spacing):
+            p = line.interpolate(float(d))
+            out.append(Tree(p.x, p.y, str(cfg["tree"]), float(rng.uniform(*cfg["tree_height"]))))
     return out

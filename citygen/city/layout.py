@@ -49,6 +49,8 @@ def lake_water(terrain, land, shores: list):
         xs = np.arange(max(x0, bx0) - step, min(x1, bx1) + 2 * step, step)
         ys = np.arange(max(y0, by0) - step, min(y1, by1) + 2 * step, step)
         H = terrain.height(*np.meshgrid(xs, ys))
+        if H.min() >= sh.level:
+            continue
         pts, offsets = contourpy.contour_generator(xs, ys, H, fill_type=contourpy.FillType.OuterOffset).filled(
             float(H.min()) - 1.0, sh.level)
         wet = [Polygon(p[o[k]:o[k + 1]]) for p, o in zip(pts, offsets) for k in range(len(o) - 1)

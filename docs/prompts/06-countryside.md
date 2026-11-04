@@ -163,15 +163,15 @@ build's tiles). Look: the same box as prompt 63.
 
 Model: Sonnet | Effort: high | Size: M | Needs: 60 | Look: aerial (box)
 
-**Do.** Chotts come from the hydrology: the endorheic dry basins of prompt 59 become salt flats
-(a level salt crust at the basin level, a pale slightly shiny material, a dry rim, no water
-surface); oueds end in them. Dunes: directional ridged noise (crescent-like ridges) in the far
-desert, a pure function of position. Terrain and biome changes only; maps show both.
+**Do.** The salt flats are built since the valleys step (prompts 60-61: `salt_crust`, a level crust at
+the lake's level, a pale rim, no water surface, oueds end in them, `tools/blender_beauty.py shade_salt`):
+leave them, unless the look asks for more. Dunes: directional ridged noise (crescent-like ridges) in
+the far desert, a pure function of position. Terrain and biome changes only; maps show both.
 
 **Check.** Fingerprint may change: `world`, `tiles/*`, `maps/*` (and plans if a settlement
 moved). Look: `--view aerial` on a box over a chott or dunes.
 
-**Done when.** A salt flat and a dune field read clearly from the air and on the map. Tick B3.
+**Done when.** A dune field reads clearly from the air and on the map, beside the salt flats. Tick B3.
 
 ## 66. B4 - Oasis towns
 

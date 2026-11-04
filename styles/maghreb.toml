@@ -487,6 +487,8 @@ walk_piece = 64.0           # meters: the walk in pieces of about this size, so 
 walk_step = 3.0             # meters between a walk's outline points in a river's valley, where the ground bends
 tree = "broadleaf"          # the row of shade trees along it
 tree_spacing = 16.0         # meters
+tree_height = [6.0, 10.0]   # meters
+min_part = 60.0             # meters of street: a smaller piece of a bank gets no crossing of its own
 
 # --- streets ---------------------------------------------------------------------
 # Raised sidewalks (prompt 13) and their crisp curb. Widths per district are below.
