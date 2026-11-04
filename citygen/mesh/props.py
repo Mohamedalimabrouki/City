@@ -165,7 +165,7 @@ def _side(x, y0, y1, z0, z1, left: bool = False) -> list:
 
 def _slats(x0, x1, z0, z1, y, count: int, depth: float = 0.025) -> list:
     """Louver slats of a shutter leaf: strips tilted down and out, seen from the street and above."""
-    step = (z1 - z0) / count
+    step = (z1 - z0) / max(count, 1)
     out = []
     for k in range(count):
         top = z1 - step * k - 0.01
@@ -212,6 +212,7 @@ def window_slab(color: str, shut: bool = False) -> MeshBuilder:
         _faces(mb, frame, "plastic_white")
         leaves = [(-w / 2, -0.01), (0.01, w / 2)]
         _faces(mb, [_front(x0, x1, f, h - f, 0.07) for x0, x1 in leaves], color)
+        _faces(mb, [_front(x0, x1, f, h - f, 0.06, back=True) for x0, x1 in leaves], color)   # seen from the room
         _faces(mb, [q for x0, x1 in leaves for q in _slats(x0, x1, f, h - f, 0.07, 9)], color)
         return mb
     _faces(mb, frame + [_front(-0.025, 0.025, f, h - f, 0.05)], "plastic_white")
@@ -804,11 +805,39 @@ def _rail_side(x, y0, y1, z, t: float) -> list:
             _flat(x - t / 2, x + t / 2, y0, y1, z + t / 2), _flat(x - t / 2, x + t / 2, y0, y1, z - t / 2, down=True)]
 
 
+def _iron_panel(x0, x1, yb, z0, rail: float) -> list:
+    """The front of an iron rail between x0 and x1 at depth yb, its floor at z0: hand rail, frieze rail and
+    foot rail, corner posts, thin bars and a frieze of rings (a simple scroll pattern), both faces of
+    each, seen from the street and from the room. Returns the quads and the three rail heights."""
+    w = x1 - x0
+    t, top, frieze, foot = 0.03, z0 + rail, z0 + rail - 0.2, z0 + 0.08
+    iron = []
+    for z in (top, frieze, foot):
+        iron += _rail(x0 + 0.03, x1 - 0.03, yb, z, t if z == top else 0.02)
+    for x in (x0 + 0.03, x1 - 0.03):                     # corner posts, both faces of each side
+        iron += [_front(x - 0.015, x + 0.015, z0, top, yb + 0.015), _front(x - 0.015, x + 0.015, z0, top, yb - 0.015, back=True),
+                 _side(x + 0.015, yb - 0.015, yb + 0.015, z0, top), _side(x - 0.015, yb - 0.015, yb + 0.015, z0, top, left=True)]
+    count = max(2, int(round((w - 0.06) / 0.11)))
+    for x in np.linspace(x0 + 0.03, x1 - 0.03, count + 1)[1:-1]:    # thin bars, both faces
+        iron += [_front(x - 0.008, x + 0.008, foot, frieze, yb + 0.004), _front(x - 0.008, x + 0.008, foot, frieze, yb - 0.004, back=True)]
+    rings = max(3, int(round((w - 0.06) / 0.34)))        # the frieze: rings between frieze and hand rail, a ring's
+    radius, cz = 0.08, (frieze + top) / 2 - 0.0025       # width apart, touching both rails
+    for cx in np.linspace(x0 + 0.03, x1 - 0.03, rings + 1)[:-1] + (w - 0.06) / rings / 2:
+        ring_in, ring_out = _arc(cx, radius - 0.006, cz, 4), _arc(cx, radius + 0.006, cz, 4)
+        for sgn in (1.0, -1.0):                          # upper and lower half
+            pi_, po = ring_in * [1, sgn] + [0, cz * (1 - sgn)], ring_out * [1, sgn] + [0, cz * (1 - sgn)]
+            for k in range(4):
+                for y, face in ((yb + 0.004, 1.0), (yb - 0.004, -1.0)):
+                    iron += _orient([[(pi_[k][0], y, pi_[k][1]), (pi_[k + 1][0], y, pi_[k + 1][1]),
+                                      (po[k + 1][0], y, po[k + 1][1]), (po[k][0], y, po[k][1])]], (0, face, 0))
+    return iron, top, frieze, foot
+
+
 def balcony_iron(cfg: dict | None = None, long: bool = False) -> MeshBuilder:
-    """A wrought-iron balcony of the ville nouvelle: a thin stone slab on two consoles and a rail of thin
-    bars under a frieze of rings (a simple scroll pattern), about 1.2 x 0.6 m, or `long` across two
-    windows `span` m apart. The origin is at the window sill on the wall face: the slab top is level with
-    the floor, `sill` m lower. Bars have faces on both sides (seen from the street and from the room)."""
+    """A wrought-iron balcony of the ville nouvelle: a thin stone slab on stone consoles and a rail, wide
+    enough for the door-window's open shutters to fold back inside it and deep enough to stand on (`width`
+    x `depth`), or `long` across two door-windows `span` m apart. The origin is at the window sill on the
+    wall face: the slab top is level with the floor, `sill` m lower."""
     c = {**IRON, **(cfg or {})}
     d, rail, z0 = float(c["depth"]), float(c["rail"]), -float(c["sill"])
     w = float(c["width"]) + (float(c["span"]) if long else 0.0)
@@ -827,34 +856,78 @@ def balcony_iron(cfg: dict | None = None, long: bool = False) -> MeshBuilder:
                           (x - k, d - 0.12, lo - 0.06)]], (0, 0.3, -1))
         slab.append(_front(x - k, x + k, lo - 0.06, lo, d - 0.12))
     _faces(mb, slab, "stone_frame")
-    t, yb = 0.03, d - 0.05                               # rail bars: hand rail, frieze rail, foot rail
-    top, frieze, foot = z0 + rail, z0 + rail - 0.2, z0 + 0.08
-    iron = []
-    for z in (top, frieze, foot):
-        iron += _rail(x0 + 0.03, x1 - 0.03, yb, z, t if z == top else 0.02)
+    yb = d - 0.05                                        # the rail stands just inside the slab's edge
+    iron, top, frieze, foot = _iron_panel(x0, x1, yb, z0, rail)
+    for z in (top, frieze, foot):                        # the rails' returns back to the wall
         for x in (x0 + 0.03, x1 - 0.03):
-            iron += _rail_side(x, 0.0, yb - 0.01, z, t if z == top else 0.02)
-    posts = [x0 + 0.03, x1 - 0.03] + ([0.0] if long else [])
-    for x in posts:                                      # corner posts, both faces of each side
-        iron += [_front(x - 0.015, x + 0.015, z0, top, yb + 0.015), _front(x - 0.015, x + 0.015, z0, top, yb - 0.015, back=True),
-                 _side(x + 0.015, yb - 0.015, yb + 0.015, z0, top), _side(x - 0.015, yb - 0.015, yb + 0.015, z0, top, left=True)]
-    count = max(2, int(round((w - 0.06) / 0.11)))
-    for x in np.linspace(x0 + 0.03, x1 - 0.03, count + 1)[1:-1]:    # thin bars, both faces
-        iron += [_front(x - 0.008, x + 0.008, foot, frieze, yb + 0.004), _front(x - 0.008, x + 0.008, foot, frieze, yb - 0.004, back=True)]
+            iron += _rail_side(x, 0.0, yb - 0.01, z, 0.03 if z == top else 0.02)
+    if long:                                             # the middle post
+        iron += [_front(-0.015, 0.015, z0, top, yb + 0.015), _front(-0.015, 0.015, z0, top, yb - 0.015, back=True),
+                 _side(0.015, yb - 0.015, yb + 0.015, z0, top), _side(-0.015, yb - 0.015, yb + 0.015, z0, top, left=True)]
     for y in np.arange(0.12, yb - 0.05, 0.12):          # side panels back to the wall
         for x in (x0 + 0.03, x1 - 0.03):
             iron += [_side(x + 0.004, y - 0.008, y + 0.008, foot, top), _side(x - 0.004, y - 0.008, y + 0.008, foot, top, left=True)]
-    rings = max(3, int(round((w - 0.06) / 0.34)))        # the frieze: rings between frieze and hand rail, a ring's
-    radius, cz = 0.08, (frieze + top) / 2 - 0.0025       # width apart, touching both rails
-    for cx in np.linspace(x0 + 0.03, x1 - 0.03, rings + 1)[:-1] + (w - 0.06) / rings / 2:
-        ring_in, ring_out = _arc(cx, radius - 0.006, cz, 4), _arc(cx, radius + 0.006, cz, 4)
-        for sgn in (1.0, -1.0):                          # upper and lower half
-            pi_, po = ring_in * [1, sgn] + [0, cz * (1 - sgn)], ring_out * [1, sgn] + [0, cz * (1 - sgn)]
-            for k in range(4):
-                for y, face in ((yb + 0.004, 1.0), (yb - 0.004, -1.0)):
-                    iron += _orient([[(pi_[k][0], y, pi_[k][1]), (pi_[k + 1][0], y, pi_[k + 1][1]),
-                                      (po[k + 1][0], y, po[k + 1][1]), (po[k][0], y, po[k][1])]], (0, face, 0))
     _faces(mb, iron, "iron")
+    return mb
+
+
+def balconnet_iron(cfg: dict | None = None) -> MeshBuilder:
+    """A balconnet: the balcony's rail with no slab, fixed to the jambs just in front of a door-window (the
+    door opens inward, the shutters fold back beside it). The origin is at the window sill on the wall
+    face, as for the door-window: its floor is `sill` m lower."""
+    c = {**IRON, **(cfg or {})}
+    b = c["balconnet"]
+    half, y, z0 = float(b["width"]) / 2, float(b["proud"]), -float(c["sill"])
+    mb = MeshBuilder()
+    iron, top, frieze, foot = _iron_panel(-half, half, y, z0 + 0.03, float(c["rail"]) - 0.03)
+    for z in (top, foot):                                # short arms back into the jambs
+        for x in (-half + 0.03, half - 0.03):
+            iron += _rail_side(x, 0.0, y - 0.01, z, 0.02)
+    _faces(mb, iron, "iron")
+    return mb
+
+
+def window_door(color: str, cfg: dict, family: str) -> MeshBuilder:
+    """A porte-fenetre in the place of a window (the origin is the same, at the window's sill on the wall
+    face, so a door-window takes a window's place with no other change): the glass and two wooden leaves
+    run down to the floor, `sill` m lower, under the same head line as its window `family` (the
+    generator's or the Tounes kit's frame, with its shutters folded back). A stone threshold lies under
+    it: on a balcony it is buried in the slab, under a balconnet it is the rail's foot."""
+    c = {**IRON, **cfg}
+    d, f = c["door"], c["door"][family]
+    z0 = -float(c["sill"])
+    x, jamb, head, top = float(d["width"]) / 2, float(f["jamb"]), float(f["head"]), float(f["top"])
+    out, proud, frame = x + jamb, float(f["proud"]), str(f["frame"])
+    s, g = float(d["stile"]), float(d["glass"])                # leaf frame width, glass depth
+    y = g + 0.015                                               # the leaves' face
+    mb = MeshBuilder()
+    _faces(mb, [_front(-x, x, z0, head, g)], "glass_dark")      # one sheet: the hole runs down to the floor
+    panel = z0 + float(d["panel"])
+    bars = [_front(-x, x, panel + (head - panel) * k / 3 - 0.01, panel + (head - panel) * k / 3 + 0.01, y) for k in (1, 2)]
+    _faces(mb, [_front(-x, x, z0, panel, y), _front(-x, -x + s, panel, head, y), _front(x - s, x, panel, head, y),
+                _front(-s / 2, s / 2, panel, head, y), _front(-x, x, head - s, head, y)] + bars, color)
+    lip, reach, drop = float(d["lip"]), float(d["reach"]), float(d["drop"])
+    gap = z0 - 0.005                                            # a hair under the floor: no flicker on a slab
+    jambs = [_front(-out, -x, z0, top, proud), _front(x, out, z0, top, proud), _front(-x, x, head, top, proud),
+             _side(-x, 0.0, proud, z0, head), _side(x, 0.0, proud, z0, head, left=True), _flat(-x, x, 0.0, proud, head, down=True),
+             _side(out, 0.0, proud, z0, top), _side(-out, 0.0, proud, z0, top, left=True), _flat(-out, out, 0.0, proud, top)]
+    foot = [_flat(-out - lip, out + lip, 0.0, reach, gap), _front(-out - lip, out + lip, gap - drop, gap, reach),
+            _flat(-out - lip, out + lip, 0.0, reach, gap - drop, down=True),
+            _side(out + lip, 0.0, reach, gap - drop, gap), _side(-out - lip, 0.0, reach, gap - drop, gap, left=True)]
+    _faces(mb, jambs + foot, frame)
+    y0, y1 = (float(v) for v in f["shutter"])                   # the shutters, folded back beside the frame
+    a, b, high = float(f["leaf"]), float(f["leaf_end"]), float(f.get("shutter_top", head))
+    leaves = []
+    for sd in (-1, 1):
+        lo, hi = sorted((sd * a, sd * b))
+        leaves += [_front(lo, hi, z0, high, y1), _side(hi, y0, y1, z0, high) if sd > 0 else _side(lo, y0, y1, z0, high, left=True),
+                   _flat(lo, hi, y0, y1, high)]
+        leaves += _slats(lo, hi, z0, high, y1, int(f.get("slats", 0)))
+    _faces(mb, leaves, color)
+    if "cornice" in f:
+        cw, c0, c1, cd = (float(v) for v in f["cornice"])
+        _faces(mb, [_front(-cw, cw, c0, c1, cd), _flat(-cw, cw, 0.0, cd, c1), _flat(-cw, cw, 0.0, cd, c0, down=True),
+                    _side(cw, 0.0, cd, c0, c1), _side(-cw, 0.0, cd, c0, c1, left=True)], str(f["cornice_frame"]))
     return mb
 
 
@@ -865,7 +938,8 @@ def catalog(rng, seed: int = 0, trees: dict | None = None, climber: dict | None 
     `trees` and `climber` are the style tables `[dressing.trees]` and `[dressing.climber]`; their
     shapes use their own random streams (from `seed`), never `rng`, so they cannot change any other
     piece. Without them the light tree pieces stay and no tree variants or climbers are made.
-    `arcade` and `iron` are `[dressing.arcade]` and `[dressing.balcony_iron]` (sizes only); `hedge_cfg` is
+    `arcade` and `iron` are `[dressing.arcade]` and `[dressing.balcony_iron]` (sizes only; `iron` also carries
+    `[dressing.door_window]` as "door" and `[dressing.balconnet]` as "balconnet"); `hedge_cfg` is
     `[dressing.hedge]` (prompt 24), and without it no hedge piece is made.
     """
     pieces = {}
@@ -923,6 +997,12 @@ def catalog(rng, seed: int = 0, trees: dict | None = None, climber: dict | None 
         "balcony_iron": (balcony_iron(iron), "balcony", "wall"),
         "balcony_iron_long": (balcony_iron(iron, long=True), "balcony", "wall"),
     })
+    if iron and "door" in iron:  # door-windows behind the balconies, balconnets (facade round); no random draws
+        for color in DOOR_COLORS:
+            pieces["window_door_" + color[5:]] = (window_door(color, iron, "plain"), "balcony", "wall")
+        for color in iron["door"]["kit"]["colors"]:
+            pieces["window_door_kit_" + color[5:]] = (window_door(color, iron, "kit"), "balcony", "wall")
+        pieces["balconnet_iron"] = (balconnet_iron(iron), "balcony", "wall")
     if hedge_cfg:               # villa garden hedges (prompt 24); no random draws
         pieces["hedge"] = (hedge(hedge_cfg), "plant", "ground")
     return pieces

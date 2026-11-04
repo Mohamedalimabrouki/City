@@ -101,7 +101,7 @@ def walls_mesh(mb, interior, outside, style: dict) -> list:
     index = _FaceIndex(faces)
     holes = []
     for o in interior.openings:
-        if not walled_in(interior, o, ops):
+        if not walled_in(o):
             continue
         o, hole = cut(index, interior, o, ops)
         if hole is not None:
@@ -113,10 +113,9 @@ def walls_mesh(mb, interior, outside, style: dict) -> list:
     return holes
 
 
-def walled_in(interior, o, ops: dict) -> bool:
-    """True for an opening the walls cut: not a skylight, not an iron balcony (`railings`: a railing in
-    front of the windows, on a solid wall). A roof room's door and windows are (prompt 49)."""
-    return o.kind != "skylight" and not (o.kind == "balcony" and o.piece in ops.get("railings", ()))
+def walled_in(o) -> bool:
+    """True for an opening the walls cut: not a skylight. A roof room's door and windows are (prompt 49)."""
+    return o.kind != "skylight"
 
 
 # --- faces ------------------------------------------------------------------------------------------
@@ -519,7 +518,7 @@ def faults(interior, holes: list, style: dict) -> list:
     out = []
     cut_ids = {h.id for h in holes}
     for o in interior.openings:
-        if walled_in(interior, o, ops) and o.id not in cut_ids:
+        if walled_in(o) and o.id not in cut_ids:
             out.append(f"opening {o.id} ({o.kind}) has no hole")
     parts = {}
     by_id = {o.id: o for o in interior.openings}
