@@ -96,6 +96,13 @@ Entry format:
     balcony is a salon or chambre (a kitchen for a service balcony, never a bath) and furniture keeps the door
     clear. The mashrabiya on a window stays. Do it after merge-3d, in one facade round with the extra windows;
     the same round checks the large cream panels standing out of walls on the right of his screenshot.
+  - Ali, 4 November: "fix everything, you are the boss; best quality always, work we won't do twice". The order, so
+    nothing is measured or tuned twice: (1) the world first, since it moves every plot: fix-70, fix-81b, prompt 59
+    with Ali's answers, then fix-87 with feminine agreement, names following places, prompt 60; (2) the facades:
+    door-windows, balconnets, windows on court and blank walls, the cream panels and question 15; (3) interiors on
+    the final buildings: the ladder check, colonial bedrooms and the bars, finish 54; (4) furniture: prompt 55, lamps
+    at night, the butane mix, brass spouts, themed shelves, Ali's looks; (5) the review leftovers and LEAD notes.
+    One helper at a time on each set of files; the lead runs its own survey BEFORE main moves. Ask Ali past 55% weekly.
   - merge-3d is merged into main (5f4e99e, the entry below). Not merged yet: arabic-87 + fix-87, rivers-59 + fix-59
     (with Ali's answers above), graph-70 + fix-70, lore-81 + fix-81b, prompt 55 (furn-55, furn-55b, fix-55,
     fix-glow), rivers-60 (after the names fix), godot-72, styles-94; houses-patio is dropped.
