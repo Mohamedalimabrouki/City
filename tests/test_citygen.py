@@ -3668,6 +3668,7 @@ def _stripped(name: str) -> str:
     return name[:-4] if name.endswith("_lit") else name
 
 
+@pytest.mark.slow
 def test_every_iron_balcony_stands_before_door_windows(interior_ctx):
     """On the real quick capital: each rail has its door-window (two for a long balcony) at its floor, no plain
     window behind any rail, and no door-window without a rail: nobody steps out over a sill or into the air."""
@@ -4673,7 +4674,8 @@ def test_stairs_connect_floors_with_headroom(interior_ctx, old_town, new_distric
                 if s.kind != "ladder":                # the first leaves its floor, the last reaches the next
                     rise = np.diff(np.concatenate([[run.z_from], z, [run.z_to]]))
                     sign = 1.0 if run.z_to >= run.z_from else -1.0
-                    assert (sign * rise > -1e-6).all() and abs(z[0] - run.z_from) > 1e-6, (interior.building, s.kind)
+                    assert (sign * rise > -1e-6).all(), (interior.building, s.kind)
+                    assert s.turn or abs(z[0] - run.z_from) > 1e-6, (interior.building, s.kind)   # a turned flight's landing
                     assert np.abs(rise).max() <= S.riser_max(s, st) + 1e-6, (interior.building, s.kind)
                 for poly, z0, z1 in over:             # 2 m clear over every tread point
                     if poly.is_empty:

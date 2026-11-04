@@ -3,7 +3,52 @@
 Branch `wip/facades` on main (8ea6008). Worktree `/tmp/claude-501/facades`. Tiles change: `make_blend` is the lead's.
 Why: Ali's screenshot of Megine, an iron balcony under a window with a sill at 0.95 m: nobody can step out.
 
-## 1. What to read first
+## 0. On main f4581c1 (the new capital): read this first
+
+Merged main (f4581c1) into the branch, no conflict. **All numbers in this section are on the merged code. Sections 2 to 9
+are the first round on 8ea6008, kept as the record: their designs hold, their counts were on the old capital.**
+
+| Group | Main f4581c1 | Merged | Ladder warnings |
+|---|---|---|---|
+| dar | 165/166 | 165/166 | 1 -> 1 |
+| compact | 266/268 | 266/268 | 5 -> 5 |
+| small | 74/78 | 74/78 | 4 -> 4 |
+| koubba | 25/27 | 25/27 | 0 -> 0 |
+| shop | 125/136 | 125/136 | 5 -> 5 |
+| colonial | 7/271 | **10/271** | 46 -> 47 |
+| slab | 237/340 | **274/340** | **33 -> 41** |
+| Takobka: villa | 136/150 | 136/150 | 2 -> 2 |
+| Takobka: maison | 386/503 | 386/503 | 23 -> 23 |
+| Takobka: dar, compact, small, koubba, shop | | 44/44, 66/66, 15/17, 4/4, 40/49 | |
+
+No group got worse in passes, 0 crashes. Slab ladder warnings rise with the gables: step 3's ladder check should look.
+
+| Gate | Result |
+|---|---|
+| `pytest -q` | 235 passed, 23 deselected |
+| `pytest -q -m slow` | 21 passed, 1 xfailed, **1 failed: `test_furnish_required_share`, 49 of 2,142, 2.29%, bar 2%** |
+| two hash seeds | 0 parts changed, tiles' sha identical |
+| `fingerprint compare main2 --allow` (saved from a clean f4581c1) | 300 parts, 32 changed, all named exactly, exit 0 |
+| `tools/balcony_survey.py` | 1,687 + 341 balconies, 901 balconnets, all door-windows, 0 plain (main: 1,862 plain), 0 door-window without a rail; 9,684 slab balconies before their own door |
+| placements against main | medina 675 identical; colonial 2,954 windows swapped, 2 `door_narrow` moved; modern only the stair windows moved |
+| budgets | drawn 5.16 M -> 6.01 M, +16.5%; densest tile 4.78 -> 4.86 MB |
+
+Tests: my capital-wide test is now `slow`. `test_stairs_connect_floors_with_headroom` failed on the merge: the sample's
+colonial block No. 928 now has a turned entry flight, whose walk starts flat on the door's landing (`stairs.turned_line`, a
+lead decision of 47.1/48.1), and the test's "the first point leaves its floor" did not allow for that. The test now says
+so, for a turned flight only; nothing else in it moved. No new stream reads `s.id`: `Dresser.rng` reads `plan.settlement.key`.
+
+**`test_furnish_required_share`: my reading in section 7 was wrong.** Read this time, by room:
+- 49 of 2,142 warned, 2.29%. Main: 36 of 2,106, 1.71%.
+- **0 of the 49 rooms has a door-window.** 5 have a slab balcony door (main has 7 of those).
+- **The rise is the slab gables.** Same code with `gable_windows` 0: 30 of 2,127, 1.41%, under main and under the bar. So
+  door-windows, balconnets and the other windows are harmless together here.
+- With gables, 14 slab wcs "have no wc" (1 on main) and 4 slab cuisines no fridge (0). Those wcs are the same room stacked
+  on each floor of Nos. 1255, 1275, 1248: 1.3 m2, 1.08 x 1.36 m, a narrow 0.7 m door. The light moved the plan and the wc
+  was left the leftover.
+- I have **not** added the `xfail`: it is not the reason the lead named. The gables are also what lifts the slab 237 -> 274.
+
+## 1. What to read first (first round)
 
 - **0 balconies before a plain window** in the quick capital and in Megine (the survey below). All 2,238 iron balconies
   of the capital stand before door-windows, the 10,067 slab balconies before their own door.
@@ -12,7 +57,7 @@ Why: Ali's screenshot of Megine, an iron balcony under a window with a sill at 0
 - **One gate fails: `-m slow`, `test_furnish_required_share`: 46 of 2,091 rooms warned, 2.2%, bar 2% (35 of 2,082, 1.7% on
   main).** Two honest attempts, then I stopped, see section 7. The bar is not lowered and the test is not skipped. It is
   prompt 54's bar, which step 3 of the order finishes, and most of the rise is a door-window in a bath, which only the
-  planner can cure (section 8).
+  planner can cure (section 8). **Wrong, see section 0: the gables cause it.**
 - Colonial blocks barely move in passes (8/270, was 5). Their rooms do get light (chambres without a window 866 ->
   740), but what fails them is mostly the "only through a chambre" family, the planner's. As the brief said: not chased.
 
@@ -216,17 +261,17 @@ which hides its frame: not visible from the street, and the door would melt into
 **WORKLOG (entry):**
 ```
 ## 2026-11-04 - Facades (step 2 of the order)
-- Branch wip/facades on 8ea6008, notes docs/wip/facades.md.
+- Branch wip/facades, merged on f4581c1, notes docs/wip/facades.md.
 - Changed: dressing.py, props.py, kit.py, outside.py, mesh.py, plancheck.py, dar.py, bayplan.py, furnish.py, viewer,
   styles, SPEC, tests, tools/balcony_survey.py (new).
-- Every iron balcony stands before a porte-fenetre (2,238 in the quick capital, 0 before a plain window); balconies 1.8 x
-  0.8 m so the shutters fold inside the rail; 953 balconnets; windows on slab gables (slab 253 -> 281), colonial ground
-  floors and street gaps, short court walls (colonial 5 -> 8, chambres without a window 866 -> 740). Slab balconies had
-  their own door: the claim above was wrong. Cream panels proved (camera inside a building) and cured in the viewer: a wall
-  piece shows only from its wall's side. Question 15 closed (tab: 2ac52f7; light slots gone, stair windows under the
-  slab; closed persiennes have a back).
-- Checks: pytest 216; slow: test_furnish_required_share 2.2%, bar 2% (1.7% on main), door-windows in baths; fingerprint
-  32 parts, all named; hash seeds identical; drawn triangles +17%.
+- Every iron balcony stands before a porte-fenetre (2,028 in the quick capital, 0 before a plain window); balconies 1.8 x
+  0.8 m so the shutters fold inside the rail; 901 balconnets; windows on slab gables (slab 237 -> 274), colonial ground
+  floors and street gaps, short court walls (colonial 7 -> 10). Slab balconies had their own door: the claim above was
+  wrong. Cream panels proved (camera inside a building) and cured in the viewer: a wall piece shows only from its wall's
+  side. Question 15 closed (tab: 2ac52f7; light slots gone, stair windows under the slab; closed persiennes have a back).
+- Checks: pytest 235; slow: test_furnish_required_share 49/2,142, 2.29%, bar 2% (1.71% on main): the slab gables leave a
+  1.3 m2 wc in stacked plans (30/2,127 without them); no warned room has a door-window. Fingerprint 32 parts, all named;
+  hash seeds identical; drawn triangles +16.5%. Slab ladder warnings 33 -> 41.
 - Look: docs/wip/facades-*.png.
 - Doubts: kit-family door 1.91 m high, its glass 0.06 m above the neighbours'.
 ```
