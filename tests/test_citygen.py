@@ -1,5 +1,7 @@
 """Fast checks for the whole pipeline (about 20 seconds). Run: python -m pytest -q"""
 import collections
+import copy
+import dataclasses
 import functools
 import json
 import math
@@ -5935,3 +5937,162 @@ def test_pinning_the_country_renames_no_place(world):
     pinned = generate_world(load_config(quick=True, overrides={"world": {"name": "Zaria", "name_ar": "زارية"}}))
     assert (pinned.name, pinned.name_ar) == ("Zaria", "زارية")
     assert [s.name for s in pinned.settlements] == [s.name for s in world.settlements]
+
+
+# --- rivers and lakes in the ground, the tiles and the plan (prompts 60, 61) ------------------------------------
+
+def _stations(world, r, every: int = 6) -> tuple:
+    """(points, unit normals, half widths to the bank's top, water) along a river's drawn water."""
+    from citygen.hydro import channel
+    ch, rib = channel(r, world.cfg["rivers"]), world.carve.ribbons[r.id]
+    on = np.flatnonzero((rib.along >= rib.start) & (rib.along <= rib.end) & (ch["half"] > 0.5))[::every]
+    d = np.gradient(r.coords, axis=0)[on]
+    return r.coords[on], np.stack([-d[:, 1], d[:, 0]], axis=1) / np.hypot(*d.T)[:, None], (ch["half"] + ch["lip"])[on], r.surface[on]
+
+
+def test_a_river_is_a_barrier_in_a_city(world, plan, ground):
+    from citygen.city import river
+    water = river.corridor(world, plan.settlement)
+    assert water is not None and water.intersects(plan.boundary)
+    assert not any(b.footprint.intersects(water) for b in plan.buildings)
+    assert sum(st.line.buffer(st.width / 2, cap_style="flat").intersection(water).area for st in plan.streets) < 1.0
+    assert not any(poly.intersects(water) for poly, _ in plan.blocks)
+    assert plan.crossings and all(c.line.intersects(water) and c.width > 0.0 for c in plan.crossings)
+    walks = [w for w in plan.walks if w.kind == "riverside"]
+    assert walks and not any(w.polygon.intersection(water).area > 1.0 for w in walks)
+    assert plan_json_crossings(plan)
+
+
+def plan_json_crossings(plan) -> list:
+    from citygen.export.lore import plan_json
+    return plan_json(plan)["crossings"]
+
+
+def test_water_lies_under_both_banks_in_a_city_and_the_ground_keeps_it_in(world, plan, ground):
+    """Bed and banks are the same inside and outside cities: grade first, carve last."""
+    tops = []
+    for r in world.rivers:
+        if r.seasonal:
+            continue
+        p, n, off, z = _stations(world, r, 1)
+        inside = shapely.contains_xy(plan.boundary, p[:, 0], p[:, 1])
+        if inside.any():
+            for side in (-1.0, 1.0):
+                q = p[inside] + n[inside] * (side * off[inside])[:, None]
+                tops.append(ground.height(q[:, 0], q[:, 1]) - z[inside])
+            bed = ground.height(p[inside, 0], p[inside, 1])
+            assert np.all(bed < z[inside])
+    tops = np.concatenate(tops)
+    assert len(tops) > 40 and np.percentile(tops, 2) >= 0.2 and np.percentile(tops, 98) <= 1.0
+
+
+def test_towns_and_villages_stand_off_the_water_and_a_village_on_one_bank(world):
+    for s in world.settlements:
+        if s.kind in ("town", "village"):
+            assert not world.carve.wet(s.x, s.y)[0], s.name
+    from citygen.city import river
+    town = next(s for s in world.settlements if s.kind == "town" and river.corridor(world, s) is not None)
+    water = river.corridor(world, town)
+    p = plan_city(world, town)
+    assert not any(b.footprint.intersects(water) for b in p.buildings)
+
+
+def test_a_box_build_centers_on_its_box():
+    from types import SimpleNamespace
+
+    from shapely.geometry import box as rect
+
+    from citygen.build import focus_xy
+    town = SimpleNamespace(x=100.0, y=200.0)
+    assert focus_xy("box:1,2,3,4", rect(1000.0, 2000.0, 3000.0, 4000.0), town) == (2000.0, 3000.0)
+    assert focus_xy("capital", rect(0.0, 0.0, 1.0, 1.0), town) == (100.0, 200.0)
+
+
+@pytest.fixture(scope="module")
+def water_tiles(world, plan):
+    """A tile with a river and one with a salt flat (no city there, no dressing: cheap), each with its lod1."""
+    from citygen.mesh.lod import build_lod
+    from citygen.mesh.tile import build_tile
+    dry = copy.deepcopy(world.cfg)
+    dry["tiles"]["dressing"] = False
+    bare = dataclasses.replace(world, cfg=dry)
+    tc = TileContext(bare, [])
+    t = tc.size
+    river = next(r for r in world.rivers if not r.seasonal and r.mouth == "sea")
+    x, y = river.coords[len(river.coords) // 2]
+    salt = next(k for k in world.lakes if k.salt)
+    sx, sy = salt.polygon.mean(axis=0)
+    out = {}
+    for name, (px, py) in (("river", (x, y)), ("salt", (sx, sy))):
+        i, j = int(px // t), int(py // t)
+        out[name] = (i, j, build_tile(tc, i, j)[0], build_lod(tc, i, j, False))
+    # the river's next tile to the east shares the edge with it
+    i, j = int(x // t), int(y // t)
+    return tc, out, build_tile(tc, i + 1, j)[0], salt
+
+
+def _points(mb, material: str) -> np.ndarray:
+    return next(pos for mat, pos, _tris, _fine in mb.arrays() if mat == material)
+
+
+def test_river_water_is_flat_across_and_never_the_sea(water_tiles, world):
+    tc, tiles, _, _ = water_tiles
+    _, _, mb, lod = tiles["river"]
+    assert mb.has("water_river") and mb.has("river_bed") and lod.has("water_river")
+    pos = _points(mb, "water_river")
+    assert np.array_equal(pos[::2, 2], pos[1::2, 2])              # one height across, at every station
+    assert not mb.has("water") or pos[:, 2].min() >= 0.0
+
+
+def test_a_salt_flat_is_a_level_crust_with_no_water(water_tiles):
+    tc, tiles, _, salt = water_tiles
+    _, _, mb, lod = tiles["salt"]
+    assert mb.has("salt_crust") and lod.has("salt_crust") and not mb.has("water_lake")
+    crust = _points(mb, "salt_crust")
+    assert np.ptp(crust[:, 2]) == 0.0 and crust[0, 2] == salt.level
+
+
+def test_the_fine_ground_meets_its_neighbour_with_no_seam(water_tiles):
+    tc, tiles, east, _ = water_tiles
+    i, j, mb, _ = tiles["river"]
+    edge = (i + 1) * tc.size
+
+    def on_edge(builder):
+        out = {}
+        for material, pos, _tris, _fine in builder.arrays():
+            if not material.startswith("water"):
+                for _x, y, z in pos[np.abs(pos[:, 0] - edge) < 1e-6]:
+                    out[round(float(y), 3)] = float(z)
+        return out
+
+    a, b = on_edge(mb), on_edge(east)
+    shared = sorted(set(a) & set(b))
+    assert len(shared) >= 65 and max(abs(a[k] - b[k]) for k in shared) < 1e-6
+
+
+@pytest.mark.slow  # the 64 km world, about 2 s, and a tile on a lake's shore
+def test_a_lake_is_flat_in_tile_and_lod1_and_roads_keep_off_it():
+    from citygen.hydro import channel
+    from citygen.mesh.lod import build_lod
+    from citygen.mesh.tile import build_tile
+    world = generate_world(load_config())
+    lakes = shapely.union_all([shapely.Polygon(k.polygon).buffer(0) for k in world.lakes])
+    assert not any(shapely.LineString(r.coords).intersects(lakes) for r in world.roads)
+    beds = []
+    for r in world.rivers:
+        ch = channel(r, world.cfg["rivers"])
+        beds.append(shapely.buffer(shapely.linestrings(np.stack([r.coords[:-1], r.coords[1:]], axis=1)),
+                                   (ch["half"] + ch["lip"])[:-1], quad_segs=2))
+    bed = shapely.union_all(np.concatenate(beds))
+    for road in world.roads:                                      # a road crosses, it does not follow
+        hit = shapely.LineString(road.coords).intersection(bed)
+        assert all(g.length < 60.0 for g in getattr(hit, "geoms", [hit])), road.id
+    dry = copy.deepcopy(world.cfg)
+    dry["tiles"]["dressing"] = False
+    tc = TileContext(dataclasses.replace(world, cfg=dry), [])
+    lake = max((k for k in world.lakes if not k.salt), key=lambda k: shapely.Polygon(k.polygon).area)
+    x, y = lake.polygon[0]
+    i, j = int(x // tc.size), int(y // tc.size)
+    for mb in (build_tile(tc, i, j)[0], build_lod(tc, i, j, False)):
+        pos = _points(mb, "water_lake")
+        assert np.ptp(pos[:, 2]) == 0.0 and pos[0, 2] == lake.level

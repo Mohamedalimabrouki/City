@@ -37,6 +37,7 @@ CELL = 64.0        # meters: the index grid
 PROBES = (24.0, 40.0, 64.0, 96.0, 136.0, 192.0, 256.0, 340.0)   # meters off a river where its reach is measured
 CHUNK = 8          # river points to one reach
 SOFT = 6.0         # meters: segments this much farther than the nearest still count a third
+FADE = math.exp(-3.0)   # and three times that, nothing
 MARGIN = 12.0      # meters added to a measured reach
 
 
@@ -51,6 +52,21 @@ class Shore:
     reach: float         # meters off the shore where `fill` still acts
     box: tuple           # bounds of `zone`
     halo: Polygon        # `zone` and the rim of bare ground round it
+
+
+@dataclass
+class Sample:
+    """The rivers at some points, as arrays, inf where no river reaches."""
+    surface: np.ndarray  # the height a river's section gives the ground
+    round: np.ndarray    # meters of height over which the land rounds into it
+    past: np.ndarray     # meters past the bank, negative in the channel
+    edge: np.ndarray     # meters past the edge of the water or of a dry oued's floor
+    lip: np.ndarray      # the bank's width
+    plain: np.ndarray    # the valley floor's width
+    dry: np.ndarray      # on a dry oued
+
+    def take(self, at) -> "Sample":
+        return Sample(*(getattr(self, f)[at] for f in self.__dataclass_fields__))
 
 
 @dataclass
@@ -102,7 +118,7 @@ class Carve:
             depth = np.maximum(terrain.height(r.coords[:, 0], r.coords[:, 1]) - r.surface - ch["rise"], 0.0)
             cuts.append(0.5 * (depth[:-1] + depth[1:]))
             if not r.seasonal:
-                self.ribbons[r.id] = self._ribbon(r, ch)
+                self.ribbons[r.id] = self._ribbon(terrain, r, ch)
                 levees.append(self._levee(terrain, r, ch, self.ribbons[r.id]))
         self.table = np.concatenate(table) if table else np.zeros((0, 13))
         self.cuts = np.concatenate(cuts) if cuts else np.zeros(0)
@@ -163,23 +179,23 @@ class Carve:
         fall = np.maximum(crest[seg] - low[seg], crest[seg + 1] - low[seg + 1]) / self.levee_slope
         return np.column_stack([a, b, crest[seg], crest[seg + 1], (ch["half"] + ch["lip"])[seg], fall])
 
-    def _ribbon(self, r, ch: dict) -> Ribbon:
-        """Where a river's water is drawn: from its spring, or from the end of its lake's drawn water, to the end of
-        the water it runs into (the sea plane takes over where the water reaches 0)."""
+    def _ribbon(self, terrain, r, ch: dict) -> Ribbon:
+        """Where a river's water is drawn: from its spring, or from its lake's real shore, where the land meets the
+        level, to the shore of the lake it runs into (a little over the lake, at its level: no gap at the cell steps)
+        or, on the way to the sea, to where the water reaches 0 and the sea plane takes over."""
         s = along(r.coords)
         line = LineString(r.coords)
         start, end = 0.0, float(s[-1])
+        ground = np.asarray(terrain.height(r.coords[:, 0], r.coords[:, 1]))
         if r.source is not None:
-            outside = np.flatnonzero(~shapely.contains_xy(self.shores[r.source].zone, r.coords[:, 0], r.coords[:, 1]))
-            first = int(outside[0]) if len(outside) else len(s) - 1
-            start = float(s[max(first - 2, 0)])         # a little over the lake: at its level, no gap at cell steps
+            land = np.flatnonzero(ground >= self.shores[r.source].level)
+            start = float(s[max(int(land[0]) - 2, 0)]) if len(land) else 0.0
         if r.mouth == "sea":
             wet = np.flatnonzero(r.surface <= 0.0)
             end = float(s[wet[0]]) if len(wet) else end
         elif r.mouth in ("lake", "basin"):
-            zone = self.shores[r.into].zone
-            inside = shapely.contains_xy(zone, r.coords[:, 0], r.coords[:, 1])
-            end = float(s[min(int(np.argmax(inside)) + 2, len(s) - 1)]) if inside.any() else end
+            land = np.flatnonzero(ground >= self.shores[r.into].level)
+            end = float(s[min(int(land[-1]) + 2, len(s) - 1)]) if len(land) else end
         elif r.mouth == "river" and r.into is not None:
             main = self.rivers[r.into]
             at = LineString(main.coords).project(shapely.points(r.coords[-1]))
@@ -280,60 +296,48 @@ class Carve:
         u = np.clip((px * dx + py * dy) / np.maximum(dx * dx + dy * dy, 1e-12), 0.0, 1.0)
         return np.hypot(px - u * dx, py - u * dy), u
 
-    def _surface(self, x, y, ids, floor: bool = False) -> tuple:
-        """(surface, least meters past the bank) of points x, y over segments `ids`. The section is measured off the
-        nearest point of the line, never along it: a steep river's lower reach must not undercut its own banks
-        upstream. Its numbers are a soft mean over the segments about as near as the nearest (`SOFT` m), so the
-        surface stays continuous where two reaches or a tributary and its main river are equally near. With
-        `floor`, no point counts as nearer the line than the bank's top."""
+    def _sample(self, out: Sample, sel, x, y, ids, floor: bool) -> None:
+        """One square's points. The section is measured off the nearest point of the line, never along it: a steep
+        river's lower reach must not undercut its own banks upstream. Its numbers are a soft mean over the segments
+        about as near as the nearest (within `3 x SOFT` m, weights fading to nothing there), so the surface stays
+        continuous where two reaches or a tributary and its main river are equally near."""
         t = self.table[ids]
         d, u = self._along(x, y, t)
         near = d.min(axis=1)
-        w = np.exp((near[:, None] - d) / SOFT)
-        w /= w.sum(axis=1, keepdims=True)
-        half = (w * (t[:, 6] + u * (t[:, 7] - t[:, 6]))).sum(axis=1)
-        water = (w * (t[:, 4] + u * (t[:, 5] - t[:, 4]))).sum(axis=1)
-        depth, lip, rise, plain = ((w * t[:, c]).sum(axis=1) for c in (8, 9, 10, 11))
+        pi, si = np.nonzero(d < near[:, None] + 3.0 * SOFT)
+        w = np.exp((near[pi] - d[pi, si]) / SOFT) - FADE
+        v, along_it = t[si], u[pi, si]
+        total = np.bincount(pi, w, len(x))
+
+        def mean(values):
+            return np.bincount(pi, w * values, len(x)) / total
+
+        half = mean(v[:, 6] + along_it * (v[:, 7] - v[:, 6]))
+        water = mean(v[:, 4] + along_it * (v[:, 5] - v[:, 4]))
+        depth, lip, rise, plain = (mean(v[:, c]) for c in (8, 9, 10, 11))
         past = near - half - lip
         off = np.maximum(near, half + lip) if floor else near
-        round_at = np.clip(np.minimum(self.round_near, rise) + self.round_grow * past, 1e-3, self.round)
-        return water + _section(off, half, depth, lip, rise, plain, self.flat, self.curve), past, round_at
+        out.surface[sel] = water + _section(off, half, depth, lip, rise, plain, self.flat, self.curve)
+        out.round[sel] = np.clip(np.minimum(self.round_near, rise) + self.round_grow * past, 1e-3, self.round)
+        out.past[sel], out.edge[sel], out.lip[sel], out.plain[sel] = past, near - half, lip, plain
+        out.dry[sel] = self.dry[ids[np.argmin(d, axis=1)]]
 
-    def _field(self, x, y, floor: bool = False) -> tuple:
+    def sample(self, x, y, floor: bool = False) -> Sample:
+        """The rivers at points x, y. With `floor`, no point counts as nearer the line than the bank's top: the valley
+        without the channel."""
         x, y = np.ravel(x), np.ravel(y)
-        z, k = np.full(len(x), np.inf), np.full(len(x), 1.0)
+        n = len(x)
+        out = Sample(np.full(n, np.inf), np.full(n, 1.0), np.full(n, np.inf), np.full(n, np.inf), np.zeros(n), np.zeros(n),
+                     np.zeros(n, dtype=bool))
         for key, sel in self._groups(x, y):
             ids = self.cells.get(key)
             if ids is not None:
-                z[sel], _, k[sel] = self._surface(x[sel], y[sel], ids, floor)
-        return z, k
+                self._sample(out, sel, x[sel], y[sel], ids, floor)
+        return out
 
     def past_bank(self, x, y) -> np.ndarray:
         """Meters past the nearest river's bank at each point, negative in the channel, inf where no river reaches."""
-        x, y = np.ravel(x), np.ravel(y)
-        out = np.full(len(x), np.inf)
-        for key, sel in self._groups(x, y):
-            ids = self.cells.get(key)
-            if ids is not None:
-                out[sel] = self._surface(x[sel], y[sel], ids)[1]
-        return out
-
-    def banks(self, x, y) -> tuple:
-        """(meters past the water's or the floor's edge, width of the bank, width of the valley floor, on a dry
-        oued) of the nearest channel at each point, for colors: inf where no river reaches."""
-        x, y = np.ravel(x), np.ravel(y)
-        off, lip, plain = np.full(len(x), np.inf), np.zeros(len(x)), np.zeros(len(x))
-        dry = np.zeros(len(x), dtype=bool)
-        for key, sel in self._groups(x, y):
-            ids = self.cells.get(key)
-            if ids is None:
-                continue
-            t = self.table[ids]
-            d, u = self._along(x[sel], y[sel], t)
-            e = d - (t[:, 6] + u * (t[:, 7] - t[:, 6]))
-            k = np.argmin(e, axis=1)
-            off[sel], lip[sel], plain[sel], dry[sel] = e[np.arange(len(sel)), k], t[k, 9], t[k, 11], self.dry[ids[k]]
-        return off, lip, plain, dry
+        return self.sample(x, y).past
 
     def fill(self, x, y, h) -> np.ndarray:
         """`h` raised at lake rims and along pinned reaches."""
@@ -391,12 +395,13 @@ class Carve:
         x0, y0, x1, y1 = poly.bounds
         return any(self.near.flat[key] for key in self._squares(x0, y0, x1, y1))
 
-    def cut(self, x, y, h, floor: bool = False) -> np.ndarray:
+    def cut(self, x, y, h, floor: bool = False, sample: Sample | None = None) -> np.ndarray:
         """`h` no higher than any river's surface, the top of a bank or a valley wall rounded, not a crease: a smooth
         minimum, over little height at the bank, where it must not reach the water, and more up the valley's walls.
         With `floor`, the valley without the channel: for the coarse lod1 terrain, whose 32 m points would drop
-        into a channel only now and then."""
-        z, k = self._field(x, y, floor)
+        into a channel only now and then. `sample`: this very call's `sample(x, y, floor)`, when the caller has it."""
+        f = self.sample(x, y, floor) if sample is None else sample
+        z, k = f.surface, f.round
         h = np.array(np.ravel(h), dtype=np.float64, copy=True)
         on = np.isfinite(z) & (z - h < k)
         if on.any():
@@ -409,7 +414,7 @@ class Carve:
 
     def one(self, x: float, y: float, h: float) -> float:
         """`ground` at one point: one look-up off the rivers, the same array code on them."""
-        key = min(int(y / CELL), self.n - 1) * self.n + min(int(x / CELL), self.n - 1)
+        key = max(min(int(y / CELL), self.n - 1), 0) * self.n + max(min(int(x / CELL), self.n - 1), 0)
         if not self.near.item(key):
             return h
         return float(self.ground(np.array([x]), np.array([y]), np.array([h]))[0])

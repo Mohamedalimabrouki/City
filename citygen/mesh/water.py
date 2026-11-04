@@ -40,14 +40,14 @@ def upsample(a: np.ndarray, k: int) -> np.ndarray:
     return along_axis(along_axis(a, 0), 1)
 
 
-def fine_ground(tc, X, Y, Hu, H, names, skip, s: float, mb: MeshBuilder) -> tuple:
+def fine_ground(tc, X, Y, Hu, H, past, names, skip, s: float, mb: MeshBuilder) -> tuple:
     """Draw the terrain cells a river's channel crosses on the fine grid, in one material colored per point (`shore_colors`).
-    X, Y, Hu (before the rivers) and H (after them) are the terrain grid with one cell of padding, `names` the
-    tile's cell materials, `skip` its cells drawn apart. Returns (those cells as a mask over `names`, the lowest
-    fine height)."""
+    X, Y, Hu (before the rivers), H (after them) and `past` (meters past a bank) are the terrain grid with one cell
+    of padding, `names` the tile's cell materials, `skip` its cells drawn apart. Returns (those cells as a mask over
+    `names`, the lowest fine height)."""
     carve = tc.ground.carve
     k = int(round(s / float(carve.rc["mesh_step"])))
-    padded = carve.past_bank(X[:-1, :-1] + s / 2, Y[:-1, :-1] + s / 2).reshape(X[1:, 1:].shape) < 0.75 * s
+    padded = np.minimum.reduce([past[:-1, :-1], past[1:, :-1], past[:-1, 1:], past[1:, 1:]]) < 0.25 * s   # the water's edge is in
     fine = padded[1:-1, 1:-1] & ~skip
     if k < 2 or not fine.any():
         return np.zeros(names.shape, dtype=bool), np.inf
@@ -84,19 +84,20 @@ def fine_ground(tc, X, Y, Hu, H, names, skip, s: float, mb: MeshBuilder) -> tupl
     return fine, float(pos[:, 2].min())
 
 
-def land_tint(tc, x, y) -> np.ndarray:
-    """(N, 3) COLOR_0 of the ground at points x, y: the tile's tint, greener along the rivers."""
+def land_tint(tc, x, y, sample=None) -> np.ndarray:
+    """(N, 3) COLOR_0 of the ground at points x, y: the tile's tint, greener along the rivers. `sample`: the rivers
+    there (`Carve.sample`), if at hand."""
     col = tc.tint(x, y)
     carve = tc.ground.carve
     cfg = tc.world.style.get("ground_tint", {})
     if carve is None or "riparian" not in cfg:
         return col
-    off, lip, plain, _dry = carve.banks(x, y)
-    far = np.isfinite(off)
-    if far.any():
-        t = np.clip((off[far] - lip[far] - plain[far]) / float(cfg["riparian_fade"]), 0.0, 1.0)
+    f = carve.sample(x, y) if sample is None else sample
+    near = np.isfinite(f.edge)
+    if near.any():
+        t = np.clip((f.past[near] - f.plain[near]) / float(cfg["riparian_fade"]), 0.0, 1.0)
         w = 1.0 - t * t * (3.0 - 2.0 * t)
-        col[far] *= 1.0 + w[:, None] * (np.asarray(cfg["riparian"], dtype=np.float64) - 1.0)
+        col[near] *= 1.0 + w[:, None] * (np.asarray(cfg["riparian"], dtype=np.float64) - 1.0)
     return col
 
 
@@ -111,16 +112,16 @@ def shore_colors(tc, x, y, z, names) -> np.ndarray:
     style = tc.world.style.get("water", {})
     bank, bed, dry_bed, rim = (_linear(style[k]) / base for k in ("bank", "bed", "oued", "salt_rim"))
     carve = tc.ground.carve
-    off, lip, _plain, dry = carve.banks(x, y)
-    t = np.clip((off - lip) / float(style["bank_fade"]), 0.0, 1.0)
+    f = carve.sample(x, y)
+    t = np.clip(f.past / float(style["bank_fade"]), 0.0, 1.0)
     w = (1.0 - t * t * (3.0 - 2.0 * t))[:, None]
-    wet = np.clip(-off / float(style["bed_fade"]), 0.0, 1.0)[:, None]
-    channel = np.where(dry[:, None], bank + (dry_bed - bank) * np.clip(1.0 - off / lip.clip(1e-3), 0.0, 1.0)[:, None],
-                       bank + (bed - bank) * wet)
+    wet = np.clip(-f.edge / float(style["bed_fade"]), 0.0, 1.0)[:, None]
+    floor = np.clip(1.0 - f.edge / f.lip.clip(1e-3), 0.0, 1.0)[:, None]
+    channel = np.where(f.dry[:, None], bank + (dry_bed - bank) * floor, bank + (bed - bank) * wet)
     col = land + (channel - land) * w
     shore, salt = carve.rims(x, y, z, float(style["rim_height"]), float(style["salt_rim_height"]))
     col += (np.where(salt[:, None], rim, bank) - col) * shore[:, None] * (1.0 - w)
-    return np.clip(col, 0.0, 1.0) * land_tint(tc, x, y)
+    return np.clip(col, 0.0, 1.0) * land_tint(tc, x, y, f)
 
 
 def rim_cells(tc, Xg, Yg, H) -> np.ndarray:

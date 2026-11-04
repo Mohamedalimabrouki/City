@@ -455,13 +455,13 @@ class Ground:
             h = self._uncarved(np.ravel(x), np.ravel(y)).reshape(x.shape)
         return h if self.carve is None else self.carve.fill(x, y, h).reshape(x.shape)
 
-    def cut(self, x, y, h) -> np.ndarray:
-        """`uncut` heights `h` with the rivers cut in: together, `height`."""
-        return h if self.carve is None else self.carve.cut(x, y, h).reshape(np.shape(h))
+    def cut(self, x, y, h, sample=None) -> np.ndarray:
+        """`uncut` heights `h` with the rivers cut in: together, `height`. `sample`: `Carve.sample(x, y)` if at hand."""
+        return h if self.carve is None else self.carve.cut(x, y, h, sample=sample).reshape(np.shape(h))
 
-    def far(self, x, y) -> np.ndarray:
-        """The ground for coarse meshes: as `height`, the valleys in but not the river channels."""
-        h = self.uncut(x, y)
+    def far(self, x, y, h=None) -> np.ndarray:
+        """The ground for coarse meshes: as `height`, the valleys in but not the river channels. `h`: its `uncut`."""
+        h = self.uncut(x, y) if h is None else h
         return h if self.carve is None else self.carve.cut(x, y, h, floor=True).reshape(h.shape)
 
     def side_height(self, x, y, side: str) -> np.ndarray:

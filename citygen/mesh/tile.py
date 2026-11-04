@@ -155,7 +155,9 @@ def terrain_mesh(mb: MeshBuilder, tc: TileContext, x0: float, y0: float, corners
     ys = y0 + np.arange(-1, n + 2) * s
     X, Y = np.meshgrid(xs, ys)
     Hu = tc.ground.uncut(X, Y)
-    He = tc.ground.cut(X, Y, Hu)
+    carve = tc.ground.carve
+    rivers = None if carve is None else carve.sample(X, Y)
+    He = tc.ground.cut(X, Y, Hu, rivers)
     for dresser in corners:
         dresser.seed_corners(int(round(xs[0] / s)), int(round(ys[0] / s)), He)
     H = He[1:-1, 1:-1]
@@ -167,11 +169,13 @@ def terrain_mesh(mb: MeshBuilder, tc: TileContext, x0: float, y0: float, corners
     pos = np.stack([Xg, Yg, H], axis=-1).reshape(-1, 3)
     nrm = nrm.reshape(-1, 3)
     uv = np.stack([pos[:, 0], -pos[:, 1]], axis=1)
-    col = land_tint(tc, pos[:, 0], pos[:, 1])
+    inner = np.arange(X.size).reshape(X.shape)[1:-1, 1:-1].ravel()
+    col = land_tint(tc, pos[:, 0], pos[:, 1], None if rivers is None else rivers.take(inner))
     names, split = cell_materials(tc, Xg, Yg, H, gx, gy, s)
-    fine, low = (fine_ground(tc, X, Y, Hu, He, names, split, s, mb) if tc.ground.carve is not None
-                 else (np.zeros(names.shape, dtype=bool), np.inf))
-    rim = (rim_cells(tc, Xg, Yg, H) if tc.ground.carve is not None else fine) & ~split & ~fine
+    fine, low = np.zeros(names.shape, dtype=bool), np.inf
+    if carve is not None:
+        fine, low = fine_ground(tc, X, Y, Hu, He, rivers.past.reshape(X.shape), names, split, s, mb)
+    rim = (rim_cells(tc, Xg, Yg, H) if carve is not None else fine) & ~split & ~fine
     cols = n + 1
     iy, ix = np.meshgrid(np.arange(n), np.arange(n), indexing="ij")
     v00 = iy * cols + ix
