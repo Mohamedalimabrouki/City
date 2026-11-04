@@ -5,8 +5,8 @@ priority flood (Barnes et al. 2014, with an epsilon gradient) runs inward from t
 the map border: each land cell drains to the cell the flood reached it from, so every cell
 drains, even on filled flats. Filled basins deep and wide enough are lakes; in steppe and
 desert they are always closed (salt) basins where rivers end, and a hollow left inside one
-counts as a basin in its turn. Flow is the catchment area weighted by moisture; rivers follow
-the cells where it passes `[rivers] min_flow`.
+counts as a basin in its turn; one that no river reaches stays bare ground. Flow is the
+catchment area weighted by moisture; rivers follow the cells where it passes `[rivers] min_flow`.
 """
 from __future__ import annotations
 
@@ -74,7 +74,22 @@ def drainage(terrain, cfg: dict) -> tuple:
     rc = cfg["rivers"]
     g = _routing(terrain, rc)
     river = (~g.sea) & (g.lake_id < 0) & (g.flow >= float(rc["min_flow"]))
-    return _rivers(_chains(g.recv, g.flow, river, g.lake_id, g.n), g, terrain, rc), g.lakes
+    rivers = _rivers(_chains(g.recv, g.flow, river, g.lake_id, g.n), g, terrain, rc)
+    return rivers, _drawn(rivers, g.lakes)
+
+
+def _drawn(rivers, lakes) -> list:
+    """The lakes of the world: every fresh one, and the salt ones a river ends in. A dry hollow no river reaches
+    stays closed but bare: a salt flat needs water to come to it. A lake's id stays its place in the list."""
+    fed = {r.into for r in rivers if r.mouth in ("lake", "basin")}
+    kept = [k for k in lakes if k.id in fed or not k.salt]
+    new_id = {k.id: i for i, k in enumerate(kept)}
+    for k in kept:
+        k.id = new_id[k.id]
+    for r in rivers:
+        if r.mouth in ("lake", "basin"):
+            r.into = new_id[r.into]
+    return kept
 
 
 def _routing(terrain, rc: dict) -> _Routing:

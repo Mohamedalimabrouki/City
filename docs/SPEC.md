@@ -177,7 +177,9 @@ block on `rng("impasse", block)`: lot line jitter, widths, covered share and len
   its river goes on from the outlet. A basin whose lowest cell is steppe or desert always stays closed
   (Ali, 4 November): a salt lake of `lake_area_per_flow` (0.04) km2 per km2 of rain-weighted inflow, never
   under `lake_min_area`, however little water reaches it; the rest of the basin is re-flooded from the lake
-  so every cell of it drains in, and rivers end there (prompt 65 turns them into chotts). Lakes are found in
+  so every cell of it drains in, and rivers end there (prompt 65 turns them into chotts). A closed basin no
+  river ends in stays closed but gets no lake (`hydro._drawn`): a salt flat needs water to come to it, and
+  those 49 of 87 (seed 42, mostly of the smallest size) only speckled the dry country. Lakes are found in
   rounds, each on the flow and heights the last one left, until a round adds no lake: water cannot climb an
   inner rim, so a hollow left in a closed basin that meets the same two thresholds is a basin of its own, salt
   or fresh by the biome at its own bottom (a fresh one fills to its spill and runs on into the lake below).

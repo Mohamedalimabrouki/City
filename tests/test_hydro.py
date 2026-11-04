@@ -256,30 +256,45 @@ def test_a_pocket_too_small_for_a_lake_drains_into_the_lake_of_its_basin():
     assert _lake_reached(g, i * g.n + j) == 0
 
 
-def test_two_pockets_over_the_thresholds_behind_an_inner_rim_are_two_closed_salt_lakes():
+def test_two_pockets_over_the_thresholds_behind_an_inner_rim_are_two_closed_basins():
     land, cfg = _Valley(0.02, ridge=30.0), _little_water()
     rc = cfg["rivers"]
     rivers, lakes = drainage(land, cfg)
     g = _routing(land, rc)
     assert _one_basin(land, g, rc)
-    assert len(lakes) == 2 and all(k.salt for k in lakes) and np.all(g.recv[g.lake_id >= 0] == -1)
+    assert len(g.lakes) == 2 and all(k.salt for k in g.lakes) and np.all(g.recv[g.lake_id >= 0] == -1)
     X, Y = (a.ravel() for a in np.meshgrid(g.c, g.c))
-    west, east = [lake.id for lake in sorted(lakes, key=lambda k: Polygon(k.polygon).centroid.x)]
+    west, east = [lake.id for lake in sorted(g.lakes, key=lambda k: Polygon(k.polygon).centroid.x)]
     hollow = np.flatnonzero((X - 15000.0) ** 2 + (Y - 10000.0) ** 2 < 900.0 ** 2)
     assert {_lake_reached(g, c) for c in hollow[X[hollow] < 14900.0]} == {west}    # nothing crosses the rim
     assert {_lake_reached(g, c) for c in hollow[X[hollow] > 15100.0]} == {east}
+    assert len(lakes) == 1 and Polygon(lakes[0].polygon).centroid.x < 15000.0    # no river reaches the east one
     into = [r for r in rivers if r.mouth == "basin"]
-    assert into and all(r.into == west and r.coords[:, 0].max() < 15000.0 for r in into)
+    assert into and all(r.into == 0 and r.coords[:, 0].max() < 15000.0 for r in into)
+
+
+def test_a_salt_lake_needs_a_river_that_ends_in_it(world):
+    assert {k.id for k in world.lakes if k.salt} == {r.into for r in world.rivers if r.mouth == "basin"}
+    assert [k.id for k in world.lakes] == list(range(len(world.lakes)))
+    for r in world.rivers:
+        assert r.mouth not in ("lake", "basin") or world.lakes[r.into].salt == (r.mouth == "basin")
+
+
+def test_a_dry_hollow_no_river_reaches_stays_closed_and_bare_and_a_wet_one_keeps_its_lake():
+    cfg = load_config(quick=True, overrides={"rivers": {"min_flow": 1e6}})
+    dry = _routing(_Valley(0.02), cfg["rivers"])
+    assert len(dry.lakes) == 1 and np.all(dry.recv[dry.lake_id == 0] == -1)   # closed: its water goes nowhere
+    assert drainage(_Valley(0.02), cfg) == ([], [])
+    assert len(drainage(_Valley(0.9), cfg)[1]) == 1
 
 
 def test_a_wet_pocket_of_a_dry_basin_fills_to_its_spill_and_runs_into_the_lake_below():
     land, cfg = _WetWest(0.02, ridge=30.0), _little_water()
     rc = cfg["rivers"]
-    rivers, lakes = drainage(land, cfg)
     g = _routing(land, rc)
     assert _one_basin(land, g, rc)
-    assert sorted(k.salt for k in lakes) == [False, True]              # each pocket by the biome at its own bottom
-    fresh, dry = sorted(lakes, key=lambda k: k.salt)
+    assert sorted(k.salt for k in g.lakes) == [False, True]            # each pocket by the biome at its own bottom
+    fresh, dry = sorted(g.lakes, key=lambda k: k.salt)
     cells = np.flatnonzero(g.lake_id == fresh.id)
     assert {_lake_reached(g, c) for c in cells} == {dry.id}            # its water runs on into the lake below
     rim = cells[0]

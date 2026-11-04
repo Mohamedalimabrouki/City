@@ -50,9 +50,12 @@ Bebgia go, every salt lake becomes a small patch of about the same size, salt ar
 `docs/wip/world-59-inflow.png`. I read a big lake as the floor of its whole basin, and kept it. Say if you want it anyway:
 the prototype is the scratchpad's `w59_patch_shrink.py`.
 
-**The dry country is more speckled, as you feared.** 87 salt lakes against 63 before the pockets: 66 are under 1 km2, 19 of
-1-5 km2, 2 over 5 km2 (seeds 7 and 3: 93 and 81 lakes, 73 and 59 under 1 km2). See `docs/wip/world-59-maps.png`. To my eye it
-reads like a land of small sebkhas with the great chotts still standing out, but it is busier. No threshold touched.
+**The dry country was speckled, and the lead fixed that last (his own commit on this branch):** the pockets took the salt lakes
+from 63 to 87, and 49 of the 87 had no river ending in them, 40 of those at the smallest size. A salt flat needs water to come to
+it, so `hydro._drawn` keeps every fresh lake and only the salt lakes a river ends in; the other hollows stay closed, on bare
+ground. Salt lakes 87 -> 38 (seed 7: 93 -> 35; seed 3: 81 -> 33), towns touching a lake 14 -> 10, roads crossing one 19 -> 13.
+It narrows Ali's (a) ("every dry basin ... stays a closed salt lake"): every such basin stays closed, as he chose, but only
+the fed ones show salt. No river changed: none ends in those hollows. The picture shows the result.
 
 ## 3. Every finding, fixed or why not
 
@@ -99,16 +102,16 @@ sentences to choose from), so his before/after examples of review-81's 5 and 9 s
 
 **Water, 64 km world, seed 42, step by step** (measured the way `lead_water.py` does):
 
-| | fix-59 | Ali's answers (77cfe16) | wet lakes (ad22101) | now, pockets too |
-|---|---|---|---|---|
-| Lakes, fresh + salt | 10 + 31 | 10 + 63 | 26 + 63 | 28 + 87 |
-| Rivers, km of river | 157, 525 | 150, 526 | 154, 495 | 148, 424 |
-| Over 10 m under the ground, km | | 35.6 | 24.0 | 0.0 |
-| Over 20 m, km | | 20.2 | 14.7 | 0.0 |
-| Worst cut, m | | 58.6 | 50.9 | 10.3 |
-| Bed under its lake's level, ground above, worst m | | 15.3 | 14.5 | 3.1 |
-| Towns touching a lake | 9 | 9 | 12 | 14 |
-| Roads crossing a lake | 12 | 13 | 18 | 19 |
+| | fix-59 | Ali's answers (77cfe16) | wet lakes (ad22101) | pockets too (7af6644) | now, fed salt lakes only |
+|---|---|---|---|---|---|
+| Lakes, fresh + salt | 10 + 31 | 10 + 63 | 26 + 63 | 28 + 87 | 28 + 38 |
+| Rivers, km of river | 157, 525 | 150, 526 | 154, 495 | 148, 424 | 148, 424 |
+| Over 10 m under the ground, km | | 35.6 | 24.0 | 0.0 | 0.0 |
+| Over 20 m, km | | 20.2 | 14.7 | 0.0 | 0.0 |
+| Worst cut, m | | 58.6 | 50.9 | 10.3 | 10.3 |
+| Bed under its lake's level, ground above, worst m | | 15.3 | 14.5 | 3.1 | 3.1 |
+| Towns touching a lake | 9 | 9 | 12 | 14 | 10 |
+| Roads crossing a lake | 12 | 13 | 18 | 19 | 13 |
 
 The filled bed of fix-59 flew up to 55 m over the ground; now it lies at most 0.01 m over it, off lakes.
 
@@ -116,12 +119,12 @@ The filled bed of fix-59 flew up to 55 m over the ground; now it lies at most 0.
 
 | World | Rivers, km | Lakes, fresh + salt | Over 10 m, km | Over 20 m, km | Worst, m | Under lake level: km, worst m | Towns | Roads |
 |---|---|---|---|---|---|---|---|---|
-| 64 km, seed 42 | 424 | 28 + 87 | 0.0 | 0.0 | 10.3 | 2.8, 3.1 | 14 of 131 | 19 of 141 |
-| 64 km, seed 7 | 419 | 33 + 93 | 0.7 | 0.0 | 18.4 | 1.5, 3.3 | 7 of 131 | 19 of 143 |
-| 64 km, seed 3 | 425 | 28 + 81 | 1.5 | 0.3 | 33.4 | 2.7, 4.5 | 19 of 131 | 22 of 144 |
-| Quick, seed 42 | 34 | 0 + 4 | 0.1 | 0.0 | 10.4 | 0.0, 2.6 | 0 of 14 | 0 of 14 |
-| Quick, seed 7 | 26 | 0 + 7 | 0.0 | 0.0 | 4.0 | 0.5, 0.5 | 0 of 14 | 2 of 14 |
-| Quick, seed 3 | 37 | 0 + 4 | 0.1 | 0.0 | 11.8 | 0.0, 0.0 | 1 of 14 | 1 of 14 |
+| 64 km, seed 42 | 424 | 28 + 38 | 0.0 | 0.0 | 10.3 | 2.8, 3.1 | 10 of 131 | 13 of 141 |
+| 64 km, seed 7 | 419 | 33 + 35 | 0.7 | 0.0 | 18.4 | 1.5, 3.3 | 5 of 131 | 11 of 143 |
+| 64 km, seed 3 | 425 | 28 + 33 | 1.5 | 0.3 | 33.4 | 2.7, 4.5 | 14 of 131 | 18 of 144 |
+| Quick, seed 42 | 34 | 0 + 2 | 0.1 | 0.0 | 10.4 | 0.0, 2.6 | 0 of 14 | 0 of 14 |
+| Quick, seed 7 | 26 | 0 + 4 | 0.0 | 0.0 | 4.0 | 0.5, 0.5 | 0 of 14 | 0 of 14 |
+| Quick, seed 3 | 37 | 0 + 1 | 0.1 | 0.0 | 11.8 | 0.0, 0.0 | 0 of 14 | 0 of 14 |
 
 **Every stretch over 10 m, by cause** (what lies at the low point upstream of it; 64 km unless said):
 - Seed 42: none. Its worst cut, 10.3 m, is one point; no stretch averages over 10 m.
@@ -143,7 +146,7 @@ border; 13 are oueds. Sources: median 301 m (10% 71 m, 90% 545 m). Rivers reach 
 Over 12 seeds at both sizes (24 worlds): 0 drainage-order faults, 0 rising beds, 0 mouths off a shore, every lake cell inside
 its ring, junction gap 0, bed over the ground 0.055 m at worst, off lakes.
 
-**Tests:** merge of 70 + 81: 178 passed. After their fixes: 182. Now: 206 passed, 16 slow deselected, 62 s. `-m slow`: 15 passed, 1 xfailed,
+**Tests:** merge of 70 + 81: 178 passed. After their fixes: 182. At 7af6644: 206 passed. Now, with the fed-lake rule: 209 passed (run by the lead; its three new tests fail without the rule). The helper's run at 7af6644: 16 slow deselected, 62 s. `-m slow`: 15 passed, 1 xfailed,
 182 s (the xfail is the old colonial one of prompt 47, `tests/test_citygen.py:4228`).
 All of `tests/test_hydro.py` takes about 3 s. Each rule of 59 was removed once to see a test fail: 11 of 11 caught. The tests
 you asked for each fail without their rule: two pockets (rounds off), small pocket (rule b off), wet hollow (old rule), the
@@ -210,30 +213,34 @@ warnings, failure kinds and failing buildings included (45 and 35 lines). Expect
   build.py, export/maps.py, export/lore.py, city/__init__.py, city/model.py, defaults.toml; styles/maghreb.toml;
   tests/test_hydro.py (new), tests/test_citygen.py; tools/street_survey.py (new); docs/SPEC.md.
   Notes: docs/wip/world-59.md
-- Checks: tests 206 passed, slow 15 passed + the old xfail; build --quick 7.1 s, --force identical; fingerprint 5 of 283 parts:
+- Checks: tests 209 passed, slow 15 passed + the old xfail; build --quick 7.1 s, --force identical; fingerprint 5 of 283 parts:
   streets.json added, gazetteer and districts (histories only), world (rivers and lakes only), country map. Tiles and
-  plans unchanged. Country step 1.3 s (budget 10 s). Interior survey unchanged.
-- Rivers (Ali's answers): every dry basin over 3 m and 0.5 km2 stays a closed salt lake; towns by salt lakes accepted;
+  plans unchanged. Country step 1.4 s (budget 10 s). Interior survey unchanged.
+- Rivers (Ali's answers): every dry basin over 3 m and 0.5 km2 stays closed; towns by salt lakes accepted;
   min_flow 3.0. The lead's decisions (Ali: "you are the boss"): every wet basin over the two thresholds is a lake up to
   its spill (the prompt says such a basin IS a lake, and water cannot drain out of a hollow), and a pocket of a closed
   basin over them is a basin of its own (water cannot climb an inner rim; a smaller pocket still drains in, so no river
-  ends where no shore is drawn). 64 km world: 28 fresh + 87 salt lakes, 148 rivers, 424 km.
+  ends where no shore is drawn); a salt lake needs a river that ends in it (49 of 87 had none and only speckled the dry
+  country; those hollows stay closed, on bare ground). 64 km world: 28 fresh + 38 salt lakes, 148 rivers, 424 km.
   Deviation from the prompt: the bed is the running minimum of the ground down the whole network, not the filled
   height, which flies up to 55 m over hollows and which prompt 60's min() cannot use. Rivers cut through the rims of pits
   too small for a lake: 10.3 m at worst on seed 42, 33 m over 0.4 km on seed 3 (a 38 m deep pit, 2 cells under the area).
 - Known: 23 salt lakes are over 20% bigger than their true inflow says: a first lake counts its whole basin's inflow
-  (counting only what reaches it loses the great chotts, picture docs/wip/world-59-inflow.png). The dry country is busier
-  (66 of 87 salt lakes under 1 km2). 14 towns touch a lake and 19 roads cross one, for prompt 60 to move.
+  (counting only what reaches it loses the great chotts, picture docs/wip/world-59-inflow.png). 10 towns touch a lake and
+  13 roads cross one, for prompt 60 to move.
 - Street graph: nodes on bare ground fixed (94 of 595); any street end on another's surface gets a stub: 125 of 131
   settlements one part. Left: real gaps in the plans (Ain Khatane 97.4%) and Gamar 97.5%: recheck at prompt 60 with
   tools/street_survey.py.
 - Histories: every choice on its own stream, so the capital's picks changed once, same templates (8 of 9 districts).
   Review-81 findings 5 and 9 wait for Ali's before/after examples.
 - Look: docs/wip/world-59-maps.png (before and now).
-- Doubts and questions for Ali: none; the lead decided the wet hollows and the pockets.
+- Doubts and questions for Ali: none; the lead decided the wet hollows, the pockets and the fed salt lakes.
 ```
 
 ### docs/LEAD.md, section 3
+- **Take a number down to its causes.** "36 km of river deep under the ground" was accepted as a price until a list of every
+  stretch with what lay at its low point showed one cause, pockets of salt basins, and a two-line idea removed it all.
+  Scripts for a world step: keep them in the scratchpad, `lead_water*.py`.
 - **The street graph of every settlement:** `tools/street_survey.py` (`--quick`, or the 64 km world in about 10 minutes):
   the settlements of more than one part and the bar of 99.5%. Run it after any step that moves villages.
 
@@ -247,6 +254,8 @@ warnings, failure kinds and failing buildings included (45 and 35 lines). Expect
 - **Water does not climb.** Two rules that sounded fine broke this: "a hollow too big for its water drains" and "a pocket
   drains into the lake of its basin". Ask of each hollow where its water goes; a small pit is the only one that may just
   be crossed.
+- **A lake needs water that reaches it.** 49 of 87 salt lakes had no river: a look fault (speckle) with a logic cause. Keep
+  a dry hollow closed, but show salt only where a river ends. Removing them moves no river, and fewer towns have to move.
 - **A lake's size is a look as much as a number.** Pockets keep most of a big basin's water, so a strict balance shrinks
   every chott to a small patch. The first lake keeps its whole basin's inflow on purpose: read it as the basin's floor.
 - **Connected cells, one ring.** A shore is drawn per 4-connected piece: water labelled with 8 connections can hold a
