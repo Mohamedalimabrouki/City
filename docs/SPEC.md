@@ -2001,7 +2001,7 @@ triangles, 210 KB; slab No. 1264 585, 247 KB. Prompt 48 (walls): see the Walls p
   window; flats: flat 0's salon toward its window; the placeholder of prompt 45: floor 0 toward the main
   door), and `overview` from the south-west, 45 degrees up, at 1.5 x the footprint's larger side + the
   building's height from its center.
-- `rooms.json`: `citygen-interior/1`, `Interior.to_json()`: seed, city, city_id, building, kind, layout,
+- `rooms.json`: `citygen-interior/1`, `Interior.to_json()`: seed, city, city_id (the settlement's `key`), building, kind, layout,
   district, household (as plan.json), high, floor_height, walls, storeys, rooms, openings, stairs, flats,
   features, warnings.
 - The bytes are the same in two processes with different PYTHONHASHSEED (tested, `slow`).
