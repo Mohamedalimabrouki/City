@@ -112,6 +112,14 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`, and how the le
 
 ## Decisions and lessons (do not relearn them)
 
+- A rule test sees what its rule says: a balcony "stood in front of its window" by distance for 40 prompts. Ask who uses the
+  thing. Count what stands behind each piece over a whole city (`tools/balcony_survey.py`).
+- Pieces placed last can still change what is placed first without a draw: rename the placement in place.
+- One-sided walls and wall pieces: what floats from behind is cured in the viewer's vertex shader, by the instance's front,
+  not by cutting the pieces, which the interiors see from the room.
+- A window is measured against the rooms: class dark rooms by the wall they touch before adding any. It showed gables
+  (slab) and party walls (colonial, none possible) at once.
+- `solid()` snaps to the grid; `polygonal()` leaves a polygon as it is: use it to guard an overlay without moving a plan.
 - **Names and identity follow the place** (names-60): `Settlement.id` is only the rank in the list. Every stream about a place reads
   `Settlement.key` (capital 0, else grid cell + 1). A town's or village's place, every place's size, name and lore come from
   its own streams, so a refused place moves only its neighbours. A pin keys on the generated name, which stays with the place.
