@@ -16,27 +16,18 @@ Entry format:
 ```
 
 ## 2026-10-29 - Resume here (paused after prompt 47)
-- PAUSED by Ali, 4 November, about 16:00 UTC (read this bullet first; the bullets below are the history). Main is clean, tests
-  green, pushed; nothing is running. Done this day and merged, each with the lead's own checks: prompts 59, 70, 81 (c4eb74b), 87 and
-  names that follow places (0211472), facades (e9e5ad8). Blender file refreshed at the facades merge.
-  **First job next time: review `wip/valleys` (c5e8aeb, prompts 60 and 61 as one step, notes in `docs/wip/valleys.md` ON THAT BRANCH, it
-  already holds main eb25c71). NOT merged, and not reviewed: the lead read the notes up to section 12 and looked at seven pictures (river through
-  the capital, river town, salt flat: very good), but has NOT read the code, and has NOT run tests, fingerprint or survey himself.** Its folder
-  /tmp/claude-501/valleys is gone after a reboot: `git worktree add --detach <folder> origin/wip/valleys`. Check in the review, as for the
-  other merges (his own tests, fingerprint and survey BEFORE main moves, the diff read, the rule that a helper's cause is a claim):
-  1. `citygen/carve.py`, `citygen/city/river.py`, `citygen/mesh/water.py` (new), hydro.py, world.py. 2. Every test in its section 9 that it loosened: was
-  the bar right before (`test_skifa_hides_the_courtyard` 90%, `test_old_town_stairs` 5%, `test_drawn_sidewalks...` 0.45, the slab tests). 3. Two rules
-  against the brief, the lead's call: rivers ending in a salt basin are dry too (63 of 148; the brief said seasonal rivers only); districts are cut after the deal
-  instead of "plan, then cut" (likely better). 4. Three street-graph tests count `plan.crossings` as links until prompt 62, each says so. 5. Dars
-  165/166 -> 149/159 on the quick capital, 95.2% -> 94.1% over six other worlds: rerun that. 6. Pictures and box builds date from 3351f25, a little before the end. 7.
-  `tools/blender_beauty.py`'s two river shaders never ran: after the merge run `make_blend` and look. Then tick 60, 61, paste its section 11.
-  Then, in order: prompt 62 (bridges, its section 10); interiors on those final buildings, judged on several plans (the capital, `--city villas`, a
-  world of another seed): the small slab wcs (the xfail on `test_furnish_required_share`), the room behind a balcony and the rest of
-  `docs/wip/facades.md` section 8, the ladder check, colonial bedrooms and the 95% bars; furniture (prompt 55, night-only lamps, butane mix, brass, shelves); the
-  review leftovers with the villages' street islands. Ali's before/after histories (review-81's 5 and 9) wait for the final world. Godot waits.
-  Ali can veto: "only salt lakes a river reaches show salt" (he chose every dry hollow; the hollows stay closed, 38 of 87 show salt): he was told, no answer yet.
-  Open with him: restart the gallery on his Mac for the new names and facades. Working scripts and briefs of the day: `docs/wip/scripts-2026-11-04.tar.gz`
-  (the helpers' notes name them by their scratchpad names). A long session costs more per message: start a fresh one. Usage at the pause: weekly 27%.
+- VALLEYS MERGED, 5 November (edc0c0a; read this bullet first, the bullets below are the history). Prompts 60 and 61 are ticked. Main is clean, tests
+  green, pushed; nothing is running. Done before this, each with the lead's own checks: prompts 59, 70, 81, 87, names that follow places, facades.
+  **Next, in order:** prompt 62 (bridges): `docs/wip/valleys.md` section 10 is its brief, and it must take the crossings out of the three street graph
+  tests and of `tools/street_survey.py`'s first number. Then interiors on those final buildings, judged on several plans (the capital, `--city villas`, a world of
+  another seed; only some seeds have a villa town, seed 5 does): the small slab wcs (the xfail on `test_furnish_required_share`), the room behind a balcony and the rest of
+  `docs/wip/facades.md` section 8, the ladder check, colonial bedrooms and the 95% bars, and the bars this merge turned into rates (its WORKLOG entry); furniture
+  (prompt 55, night-only lamps, butane mix, brass, shelves); the review leftovers with the villages' street islands. Ali's before/after histories (review-81's 5 and 9) wait
+  for the final world. Godot waits. Plans still move in 62, and for desert towns and ksar villages in 66 and 67, so tune no interior on one plan before those.
+  Open water items: the valleys entry below, "Left open".
+  Ali can veto two rules: every dry hollow shows salt, not only those a river reaches (38 of 87 show salt); rivers ending in a salt basin are dry oueds (63 of 148 rivers).
+  Open with him: restart the gallery on his Mac for the new names, facades and rivers; look along a river in the Blender file (the seam fix is not rendered). Working scripts
+  of 4 November: `docs/wip/scripts-2026-11-04.tar.gz`. Usage: this session took the week from 38% to 40%. A long session costs more per message: start a fresh one.
 - 3 November (Tuesday; the week resets at 21:00 UTC): Ali said "use as much as possible, only pause when you
   reach 90% of weekly usage" (64% at 10:15 UTC), for this day: after the reset ask him before going over 55%
   again. Plan: two helpers in parallel, flats (colonial blocks, slabs) in this folder and houses (maisons,
@@ -199,6 +190,23 @@ Entry format:
   instead (a billing test passed); how to use it: `docs/LEAD.md`, section 4. Used up since 31 October:
   the chain run (`.venv-sdk/credit_chain.sh`, 10:42-13:12) stopped with "Credit balance is too low"
   (its session recorded about $42), so that route needs new credit first (checked 3 November).
+
+## 2026-11-05 - valleys: prompts 60 and 61 merged, with the lead's review
+- Commit: edc0c0a (merge of wip/valleys c5e8aeb and the review's fixes 9abfb17) | Model: helper Opus high, lead Opus max, 3 reviewers Opus high
+- Changed: citygen/carve.py, citygen/city/river.py, citygen/mesh/water.py (new); hydro.py, world.py, city/__init__.py, ground.py, layout.py, streets.py, walks.py, station.py, model.py,
+  mesh/tile.py, mesh/lod.py, export/maps.py, export/lore.py, build.py, defaults.toml, styles/maghreb.toml, tools/blender_beauty.py, tools/viewer/index.html, tools/street_survey.py, SPEC, prompt 65's text.
+- Rivers cut their valleys (Ground.height: grade first, carve last), water in every tile and lod1 (`water_lake`, `water_river`), salt flats built (a level crust, prompt 65 keeps the dunes), oueds dry,
+  a river a barrier in the plan: quays on both banks, the old town on one bank, a riverside walk, crossings for prompt 62. Capital and cities never move; towns and villages stay off water and like rivers.
+- The lead's checks, on his own runs: the helper's numbers reproduce (149/159 dars to the house). Merged tree: fast tests 264 passed; `-m slow` 25 passed, 2 xfailed (both main's own). Quick against main: 301 parts, 34 changed, none outside
+  `world,gazetteer,plan/*,tiles/*,maps/*,files/*` (no `kit/*`); two hash seeds 0 changed. 64 km seed 42: country 2.4 s, 0 roads in a lake, longest river crossing 33 m, 0 centers on water, 0 buildings in a corridor, water never rises, no step at a mouth, 0 plan crashes in 131 settlements. Street survey: quick 2 under 99.5% as streets are, 0 with crossings; 64 km 11 and 3 (the 3 are not rivers, `docs/wip/valleys.md` 5.9).
+- Interiors (`tools/interior_survey.py`, main against merged). Quick capital: dar 165/166 to 149/159, compact 266/268 to 263/268, small 74/78 to 86/88, koubba 25/27 to 25/26, colonial 10/271 to 9/278, slab 274/340 to 263/347, shop 125/136 to 122/137.
+  Villa town Takobka: dar 44/44 to 35/37, compact 66/66 to 82/82, small 15/17 to 20/22, villa 136/150 to 123/146, maison 386/503 to 383/500, shop 40/49 to 41/46; seed 5's villa town 165/176 (main has none there).
+  Six other worlds (seeds 7, 3, 1, 5, 2, 8): dar 96.7% to 96.4%, compact 98.1% to 98.5%, small 93.9% to 94.1%, shop 90.2% to 88.0%, crashes 3 to 0. So the fall on the capital is a fresh deal, not a regression: 165/166 was one deal. Shops: about 1.5 standard errors, watch it at the interiors step.
+- Review: three independent reviewers (lenses: ground and water, plan, what was not updated), told not to read the author's notes, each finding proved by a probe. About 630,000 tokens, under 1% of the week. Fixed in 9abfb17, each with a test that fails on the old code unless said: **quays**: `major_streets` judged a bank and the city limit it runs on to as one piece by its midpoint, so banks lost their quay and arterials ran along the limit (seed 7's capital 1287 m, now 8; Takobka 0 crossings, now 2). **Levee edges**: a step of up to 4.47 m (seed 7, 64 km), now 0.03. **Crack**: 28 cm at the river mouth of seed 42's harbor, now 0 (a neighbor's split cells; proved by the reviewer's probe, no test). **Centers on the corridor** refused, not only on `wet`. **A district the banks take whole** goes (it crashed in `history`; no real plan reached it). **Blender**: `shade_dust` multiplies COLOR_0, or a dark stair would follow every river (predicted from the shader, the file builds, NOT rendered). Numbers moved to the settings: `rim_rise`, `rim_pad`, `levee_fade`, `wall_cut`.
+- The lead's judgments: rivers ending in a salt basin are dry (63 of 148): kept, true to chotts, Ali can veto. Districts cut after the deal instead of "plan, then cut": kept, better. Crossings counted as links in three tests: accepted until prompt 62, which must remove them. Tests the helper loosened, each read with its number on the merged code: `test_every_slab_has_windows` 1 of 115 shut (bar 2%), `test_skifa_hides_the_courtyard` 19 of 20, `test_old_town_stairs` 2 of 50 (667, 699), slab lit rule 23 of 30 (bar 60%), cots `<=`: all open plan faults a fresh deal shows, none from rivers: re-tighten at the interiors step. Three more bars on this merge's deal: a wet door's corners ignore points along a straight wall (the door was right, 0.225 m from the true corner); a plain window behind a rail must face the rail's way (the test read a wall back to back, 2.25 m across, No. 746); hedge overlap 10% to 12% of 49 villas (5 corners, the worst 0.14 m2).
+- Left open, for CP6 or prompt 65: (1) a lake's flat water can hang over its outlet's valley: worst 0.35 m on seed 42, 2.45 m over 64 m on seed 7 at 64 km, 4.27 m on quick seed 11. One attempt failed: dropping those cells moves the free edge inward (2.74 m): the outlet's profile or the valley near it must change. (2) A river pinned to a lake can run on a levee across a hollow: 3.8 m over 370 m (seed 3, 64 km), 9 m on quick seed 1; none on seed 42. (3) A river leaving the map stops up to 143 m before the edge.
+- Look: `docs/wip/valleys-*.jpg` (the helper's seven, a little older than the end); the capital's river on the merged code: `output/checks/61-capital-river.png` (from `output/full`, same camera as the helper's `valleys-capital-river.jpg`). Blender: `output/bodjantouna-42/goumosbane.blend`.
+- Doubts and questions for Ali: the two vetoes in the resume bullet; the seam along rivers in Blender.
 
 ## 2026-11-04 - Facades (step 2 of the order)
 - Commit: e9e5ad8 (merge of wip/facades, on the new capital). Notes: docs/wip/facades.md, section 0 first.

@@ -112,6 +112,25 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`, and how the le
 
 ## Decisions and lessons (do not relearn them)
 
+- **Carve off the nearest point, never along the line.** A min over all segments of `water + section(distance)` lets a river's own lower reach cut under its banks upstream wherever it falls
+  faster than its valley floor rises: banks 40 cm under the water on a 2% reach. Measure the section off the nearest point, numbers soft over about 6 m, so a junction and a meander's neck stay continuous.
+- **A rule for the end of a line must know where the end is.** "Comes down to the water at 4% at the steepest", as a line from the mouth, dug every mountain river to that line: trenches of 360 m. The
+  gate "ground minus water" showed it in one number. Fade only what still hangs at the mouth.
+- **A sample beside a river can land in a lake.** The lowest ground of center and banks took the lake's floor for a bank and held a river 11 m low for kilometers. Cap the drop, and pin an outlet before the running minimum.
+- **Never feed a blend a value that jumps.** The height over the nearest segment's water jumps where the nearest segment changes: a 32 cm step in the ground. A blend reads distances, which are continuous.
+- **Corner cutting on a long straight moves a road hundreds of meters.** A quarter of a 3 km segment: a road 214 m off a lake ended 460 m inside it. Segmentize first, only for the road that needs it, so no other road moves.
+- **Deal first, cut after.** The kinds and names of the neighborhoods are dealt as if no river ran there; a district keeps its id on its largest piece and pieces across the river come last.
+  The river then changes its banks, not the city's character.
+- **A height field cannot hold what is narrower than its cell.** A 3.5 m stream on an 8 m mesh: draw the cells it crosses on a 2 m grid, with points on their outer edge kept on the coarse edge (no
+  crack), each cell split along its flatter diagonal (or a bank saws), one material with colors per point (or every material edge is a stair of cells).
+- **Draw flat water cell by cell and let the ground hide it.** The shore is then where the land really meets the level, not the 150 m ring; a closed rim keeps the drawn edge under the ground.
+- **A test that saw one building proves nothing.** The slab lit rule passed for months on one slab; 16 of 60 break it on main.
+- **One city's rate is one deal, not a rate.** The quick capital's dars passed 165 of 166 on main and looked like a bar; over six other worlds main passes 96.7% and the merged code 96.4%. When a change re-deals a city (here a national road
+  500 m longer inside the capital moved the gates, then every lot), compare rates over several worlds before calling a fall a regression.
+- **Grep every test of a rule before saying how the tests deal with it.** Three tests held the street graph bar; one was changed, and the slow suite showed the other two.
+- **A line judged by its midpoint must first be split where its meaning changes.** A district's edge runs along a river's bank and on along the city limit: as one piece, its midpoint decided for both, so banks lost their quay and arterials ran along the limit (1287 m on one capital). Every number that the helper's gates read stayed fine; a far bank with no street shows in no count of streets.
+- **A shape that stops at a width makes a step.** A levee ended where it reached the ground at the bank, but the land beside it kept falling: 4.47 m in 4 cm. Fade the outer part of anything raised over the land.
+- **A mask that decides how a shared edge is drawn must be a pure function of position, on the padded grid.** A tile knew its own cells drawn apart but not its neighbor's: a 28 cm slit.
 - A rule test sees what its rule says: a balcony "stood in front of its window" by distance for 40 prompts. Ask who uses the
   thing. Count what stands behind each piece over a whole city (`tools/balcony_survey.py`).
 - Pieces placed last can still change what is placed first without a draw: rename the placement in place.

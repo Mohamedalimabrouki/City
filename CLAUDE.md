@@ -36,7 +36,7 @@ The code builds the world; agents only improve the code. Keep every session smal
 - Never write the em dash character anywhere; use "-".
 
 ## Check your work before committing
-- `python -m pytest -q` (about 29 s here) must pass; `python -m citygen build --quick` must
+- `python -m pytest -q` (about 70 s here) must pass; `python -m citygen build --quick` must
   finish (about 13 s here). For visual changes, look at `output/*/maps/*.png` or a snapshot.
 - Mark the task done in `docs/ROADMAP.md`, update docs the change touches, then commit only the
   files you changed (never `git add -A`) with a clear message, and push (GitHub is the backup).

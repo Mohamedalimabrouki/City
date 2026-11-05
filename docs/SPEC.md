@@ -274,7 +274,7 @@ block on `rng("impasse", block)`: lot line jitter, widths, covered share and len
   - `fill`: the ground is raised only where water would end in the air: a rim `sill` m over a lake's level on a closed
     ring just past its zone (`shore` m, 45, off the coarse shore; the rim blends out over `rim_rise` m, 24, inside, `sill_fade` m
     outside: on three 64 km worlds 6-10% of that ring is raised, 0.3 m on average, 2.75 m at most), and a low bank
-    (levee, slope `levee`) along a drawn reach whose water stands higher than `freeboard` under a bank (its water pinned
+    (levee, slope `levee`, its outer `levee_fade` share fading out, as the land beside it can fall away faster) along a drawn reach whose water stands higher than `freeboard` under a bank (its water pinned
     to a lake, or a hollow beside it: about 1% of the segments, up to 4.5 m high).
   - `cut`: height = smooth min(ground, water(s) + section(d)), s the nearest point of the line, d the distance to it,
     measured off the line and never along it (a steep river's lower reach must not undercut its own banks upstream);

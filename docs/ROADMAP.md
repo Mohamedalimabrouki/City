@@ -74,8 +74,8 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
 - [ ] 57 H4b Hero scenes in Blender
 - [ ] 58 CP5 Checkpoint: interiors
 - [x] 59 B1a Rivers (citygen/hydro.py; World.rivers, World.lakes; country map)
-- [ ] 60 B1b Valleys and lakes
-- [ ] 61 B1c Rivers in towns
+- [x] 60 B1b Valleys and lakes (citygen/carve.py, mesh/water.py; salt flats built, prompt 65 keeps the dunes)
+- [x] 61 B1c Rivers in towns (city/river.py; CityPlan.crossings)
 - [ ] 62 B1d Bridges
 - [ ] 63 B2a Fields and cactus hedges
 - [ ] 64 B2b Olive groves and orchards

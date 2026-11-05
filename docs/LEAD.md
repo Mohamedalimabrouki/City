@@ -119,13 +119,17 @@ and care as the last one: keep this file up to date when you learn something tha
   capital, `--city villas` and a world of another seed, and never fix one house for its own sake.
 - **Order work by what it moves.** Before tuning anything on a plan, list the open prompts whose fingerprint allows `plan/*`
   (a Python loop over docs/prompts and the ROADMAP's ticks does it) and do those first.
+- **Reviewers by lens, a probe for every finding** (valleys, 5 November). Three Opus reviewers at high effort on a clean copy (ground and water; the plan; what was not updated, and the rules), told to read the code, not the author's notes, given the known limits, and asked only for what they ran. Under 1% of the week, and they found what every gate had passed: the quay bug. Scale a finding at full size before deciding: a 4 m fault on quick seed 11 was 0.35 m on Ali's world and 2.45 m on seed 7.
+- **Waiting costs nothing.** Long gates in a background script use no tokens: seven worlds of surveys, the slow tests and the 64 km gates cost less than the reviewers. A survey of all groups takes 20 minutes because of colonials and slabs: `--groups dar,compact,small,shop` for the many worlds, all groups on the capital.
+- **A reviewer's probe may import its own copy.** A crack looked unfixed because the probe's `common.py` held `sys.path.insert(0, <old copy>)`: read its first lines before rerunning it on a fix.
+- **After any fix that moves a plan, run the slow tests again:** two fast and one slow test broke on the new deal, and all three were the tests' own reading (a point along a wall, a wall back to back), not the plan. Read the failing case before touching the bar or the code.
 - **A cause is proved by taking one thing out.** Facades read a test failure as door-windows in baths; on the merged code none of
   the failing rooms had one, and `gable_windows = 0` passed. Ask for that one run before repeating a cause to Ali.
 
 ## 4. Gotchas on Ali's Mac
 
 More in the auto-memory note on the Mac environment.
-- `.venv/bin/python`, never `python`. Tests about 30 s, `build --quick` about 13 s, the full capital
+- `.venv/bin/python`, never `python`. Tests about 70 s (`-m slow` about 5 minutes), `build --quick` about 13 s, the full capital
   about 60 s.
 - Snapshots, before/after pictures, the gallery and the phone-page preview start local web servers: run
   them with the sandbox off. `open` and `osascript` are blocked inside the sandbox: give Ali the
