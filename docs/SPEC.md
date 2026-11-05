@@ -272,7 +272,7 @@ block on `rng("impasse", block)`: lot line jitter, widths, covered share and len
   the noise: drainage, placement and the planner read it. `Ground.height` grades it, then carves, grade first, carve
   last, so bed and banks are the same inside and outside cities:
   - `fill`: the ground is raised only where water would end in the air: a rim `sill` m over a lake's level on a closed
-    ring just past its zone (`shore` m, 45, off the coarse shore; the rim blends out over 24 m inside, `sill_fade` m
+    ring just past its zone (`shore` m, 45, off the coarse shore; the rim blends out over `rim_rise` m, 24, inside, `sill_fade` m
     outside: on three 64 km worlds 6-10% of that ring is raised, 0.3 m on average, 2.75 m at most), and a low bank
     (levee, slope `levee`) along a drawn reach whose water stands higher than `freeboard` under a bank (its water pinned
     to a lake, or a hollow beside it: about 1% of the segments, up to 4.5 m high).
@@ -722,7 +722,7 @@ grid: every cell inside `Shore.zone` with a corner of the ground, before the riv
 in `water_lake` or `salt_crust`, never `water`, which Blender hides for its sea. The ground hides what lies over it, so
 the shore is where the land really meets the level, not the coarse ring, and the drawn edge lies under the ground
 (`Carve.fill` closes the zone). A river's water is a ribbon one height across on `River.surface`, `water_river`,
-1.5 m wider than the water, from its spring or the end of its lake's water to the end of the water it meets (where it
+`tuck` (1.5 m) wider than the water on each side, from its spring or the end of its lake's water to the end of the water it meets (where it
 reaches 0 the sea plane takes over; a tile with a bed under 0 has one). A dry oued has no ribbon. The cells a channel
 crosses (a corner within 2 m past a bank) are drawn on a finer grid, `[rivers] mesh_step` (2 m), each split along its
 flatter diagonal, so a bank never saws; the points on the edge of those cells stay on the coarse edge, so no crack. They

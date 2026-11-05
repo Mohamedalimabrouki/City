@@ -98,7 +98,8 @@ class Carve:
         self.round_near, self.round_grow, self.round = (float(v) for v in rc["bank_round"])
         self.sill, self.sill_fade = float(rc["sill"]), float(rc["sill_fade"])
         self.soft, self.mouth_fade = float(rc["soft"]), tuple(float(v) for v in rc["mouth_fade"])
-        self.levee_slope = float(rc["levee"])
+        self.levee_slope, self.levee_fade = float(rc["levee"]), float(rc["levee_fade"])
+        self.rim_rise, self.rim_pad = float(rc["rim_rise"]), float(rc["rim_pad"])
         self.n = int(math.ceil(self.size / CELL)) + 1
         self.shores = self._shores(lakes, float(rc["shore"]))
         self.rivers = rivers
@@ -151,7 +152,7 @@ class Carve:
         out = []
         for k in lakes:
             poly = Polygon(k.polygon).buffer(0)
-            reach = shore + 8.0 + self.sill_fade
+            reach = shore + self.rim_pad + self.sill_fade
             zone = poly.buffer(shore)
             out.append(Shore(k.level, k.salt, poly, zone, poly.exterior, reach, zone.bounds))
         return out
@@ -264,6 +265,12 @@ class Carve:
             out |= shapely.contains_xy(self.zones, x, y)
         return out
 
+    def on_corridor(self, x: float, y: float) -> bool:
+        """True on `corridor`, which is wider than `wet` where a river runs deep under the land round it."""
+        r = PROBES[-1]
+        near = self.corridor(x - r, y - r, x + r, y + r)
+        return near is not None and bool(shapely.contains_xy(near, x, y))
+
     def crosses_lake(self, line) -> bool:
         return self.shores != [] and line.intersects(self.lakes)
 
@@ -366,7 +373,8 @@ class Carve:
                 t = self.levees[ids]
                 d, u = self._along(x[sel], y[sel], t)
                 crest = t[:, 4] + u * (t[:, 5] - t[:, 4]) - np.maximum(d - t[:, 6], 0.0) * self.levee_slope
-                h[sel] = np.maximum(h[sel], np.where(d <= t[:, 6] + t[:, 7], crest, -np.inf).max(axis=1))
+                w = np.clip((t[:, 6] + t[:, 7] - d) / (self.levee_fade * t[:, 7]), 0.0, 1.0)   # land falling away
+                h[sel] += (w * w * (3.0 - 2.0 * w) * np.maximum(crest - h[sel][:, None], 0.0)).max(axis=1)   # past it
         return h
 
     def _rim(self, sh: Shore, x, y, h) -> np.ndarray:
@@ -378,8 +386,8 @@ class Carve:
         pts = shapely.points(x[short], y[short])
         d = shapely.distance(sh.ring, pts)
         out = sh.reach - self.sill_fade
-        rise = 24.0
-        w = np.clip((d - (out - 8.0 - rise)) / rise, 0.0, 1.0) * (1.0 - np.clip((d - out) / self.sill_fade, 0.0, 1.0))
+        w = (np.clip((d - (out - self.rim_pad - self.rim_rise)) / self.rim_rise, 0.0, 1.0)
+             * (1.0 - np.clip((d - out) / self.sill_fade, 0.0, 1.0)))
         w = w * w * (3.0 - 2.0 * w)
         on = w > 0.0
         if on.any():

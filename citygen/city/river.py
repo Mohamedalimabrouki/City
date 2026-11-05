@@ -12,8 +12,9 @@ what no plan may touch: the water, its banks and `[rivers] keep` m. The plan the
   walks      a paved riverside walk runs on the corridor's edge in cities and towns, with a row of trees
 
 A village has no quays: it stands on the bank its center lies on (its land leaves the corridor out). Nothing
-else in the plan knows about rivers: blocks, lots and buildings stand on what is left. A city no river reaches is
-planned exactly as before, draw for draw.
+else in the plan knows about rivers: blocks, lots and buildings stand on what is left. Where no river reaches a city
+this module adds nothing; what still changes there comes from outside it (rerouted roads, moved towns and villages,
+`station.clip_streets`, `walks.make_walks`).
 """
 from __future__ import annotations
 
@@ -91,6 +92,9 @@ def split_districts(ctx, districts: list) -> list:
         kind = "industrial" if d.kind == "port" else d.kind      # one harbor to a port: its largest piece
         for p in fit[1:]:
             districts.append(District(len(districts), kind, namer.district(kind), p, d.angle))
+    districts[:] = [d for d in districts if not d.polygon.is_empty]   # one the banks took whole: nothing holds an id yet
+    for k, d in enumerate(districts):
+        d.id = k
     if borders is None:
         return []
     edge = ctx.banks.boundary

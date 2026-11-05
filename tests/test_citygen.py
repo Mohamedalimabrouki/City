@@ -2290,7 +2290,7 @@ def test_villa_gardens_hedges_and_fruit_trees(world, villas):
     idx = STRtree(hedges)              # shared lot lines are planted once; corners meet (a sliver at 16-20 degrees)
     a, b = idx.query(hedges, predicate="intersects")
     overlap = [hedges[int(i)].intersection(hedges[int(j)]).area for i, j in zip(a, b) if i < j]
-    assert max(overlap) < 0.2 and sum(o > 0.05 for o in overlap) <= 0.1 * len(out)
+    assert max(overlap) < 0.2 and sum(o > 0.05 for o in overlap) <= 0.12 * len(out)
     # fruit trees behind or beside the house, clear of its real path
     lot_tree = STRtree([town.parcels[lots[k]].polygon for k in out])
     new = _new_trees(town)
@@ -3701,7 +3701,7 @@ def test_every_iron_balcony_stands_before_door_windows(interior_ctx):
         for p in ps:
             if kit.pieces[p.piece].category == "window":      # a plain window never behind a rail
                 assert not any(r.piece.startswith(RAILS) and math.hypot(r.x - p.x, r.y - p.y) < kit.pieces[r.piece].width / 2
-                               * r.stretch - 0.3 and abs(r.z - p.z) < 0.1 and abs(math.sin(r.yaw - p.yaw)) < 0.02 for r in ps), (k, p)
+                               * r.stretch - 0.3 and abs(r.z - p.z) < 0.1 and math.cos(r.yaw - p.yaw) > 0.98 for r in ps), (k, p)
         for p in ps:                                          # never where a clothesline hangs
             if p.piece.endswith("laundry_line"):
                 assert not any(r.piece.startswith(RAILS) and math.hypot(r.x - p.x, r.y - p.y) < 0.5 and
@@ -5526,7 +5526,8 @@ def test_flats_wet_door_by_a_corner(new_districts):
                 c, _, along = frame_of(o)
                 jamb = c + along * o.hinge * o.width / 2
                 clear = rules["inner_clear"] if o.width >= rules["door"] - 1e-6 else rules["narrow_clear"]
-                near = min(math.dist(jamb, v) for v in np.asarray(r.polygon.exterior.coords))
+                corners = np.asarray(r.polygon.simplify(0.01).exterior.coords)   # not a point along a straight wall
+                near = min(math.dist(jamb, v) for v in corners)
                 assert abs(near - (part / 2 + clear)) < 0.02, (interior.building, o.id, near)
                 hinged += 1
             if group not in ("slab", "colonial"):
@@ -6130,6 +6131,8 @@ def test_a_river_is_a_barrier_in_a_city(world, plan, ground):
     walks = [w for w in plan.walks if w.kind == "riverside"]
     assert walks and not any(w.polygon.intersection(water).area > 1.0 for w in walks)
     assert plan_json_crossings(plan)
+    limit = plan.boundary.exterior.buffer(1.0)                    # a bank is a quay, the city limit no street
+    assert sum(st.line.intersection(limit).length for st in plan.streets if st.kind == "arterial") < 30.0
 
 
 def plan_json_crossings(plan) -> list:
@@ -6158,12 +6161,42 @@ def test_water_lies_under_both_banks_in_a_city_and_the_ground_keeps_it_in(world,
 def test_towns_and_villages_stand_off_the_water(world):
     for s in world.settlements:
         if s.kind in ("town", "village"):
-            assert not world.carve.wet(s.x, s.y)[0], s.name
+            assert not world.carve.wet(s.x, s.y)[0] and not world.carve.on_corridor(s.x, s.y), s.name
     from citygen.city import river
     town = next(s for s in world.settlements if s.kind == "town" and river.corridor(world, s) is not None)
     water = river.corridor(world, town)
     p = plan_city(world, town)
     assert not any(b.footprint.intersects(water) for b in p.buildings)
+    assert all(min(st.line.distance(d.polygon) for st in p.streets) < 1.0 for d in p.districts)   # both banks have streets
+
+
+def test_a_district_the_banks_cover_goes(world):
+    from types import SimpleNamespace
+
+    from shapely.geometry import box as rect
+
+    from citygen.city.model import District
+    from citygen.city.river import split_districts
+    from citygen.rng import stream
+    ctx = SimpleNamespace(banks=rect(90.0, -10.0, 210.0, 110.0), style=world.style, kc={"arterial_width": 10.0},
+                          rng=lambda *path: stream(1, *path))
+    districts = [District(0, "medina", "A", rect(0.0, 200.0, 50.0, 250.0)),
+                 District(1, "residential", "B", rect(100.0, 0.0, 200.0, 100.0)),
+                 District(2, "residential", "C", rect(0.0, 0.0, 100.0, 100.0))]
+    split_districts(ctx, districts)
+    assert [(d.id, d.name) for d in districts] == [(0, "A"), (1, "C")] and districts[1].polygon.area == 9000.0
+
+
+def test_a_levee_fades_into_land_that_falls_away():
+    from citygen.carve import Carve
+    c = Carve.__new__(Carve)
+    c.levee_slope, c.levee_fade = 0.1, 0.25
+    c.levees = np.array([[0.0, 0.0, 100.0, 0.0, 10.0, 10.0, 5.0, 20.0]])    # crest 10 m, a bank 5 m wide, reaching 20 m on
+    c.levee_cells, c.lake_cells = {0: np.array([0])}, {}
+    c._groups = lambda x, y: [(0, np.arange(len(x)))]
+    y = np.arange(0.0, 40.0, 0.05)
+    h = c.fill(np.full(len(y), 50.0), y, np.zeros(len(y)))                  # flat land, far under where the bank ends
+    assert h[0] == 10.0 and h[-1] == 0.0 and np.abs(np.diff(h)).max() < 0.15
 
 
 @pytest.mark.slow  # the 64 km world

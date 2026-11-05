@@ -155,7 +155,10 @@ shore = 45.0              # meters off a lake's coarse shore its drawn water or 
                           # raised to the level there if it lies lower, so the water never ends in the air
 sill = 0.3                # meters over the level that raised rim stands
 sill_fade = 40.0          # meters over which it blends back into the ground
+rim_rise = 24.0           # meters over which the rim climbs to `sill` on the lake's side...
+rim_pad = 8.0             # ...ending this far past the zone: one terrain cell
 levee = 0.1               # slope of the bank raised where a river stands above the ground (its water pinned to a lake)
+levee_fade = 0.25         # the outer share of that bank fades out: the land beside it can fall away faster than it does
 keep = 8.0                # meters beyond the bank that buildings, blocks and towns keep off a river
 mesh_step = 2.0           # meters between terrain points in the band around a river (the tile's own step elsewhere)
 road_cost = 8.0           # roads pay this many times the cost to run along a river cell, so they cross it

@@ -29,6 +29,10 @@ def major_streets(ctx, districts, medina, axis: float, land) -> list:
             near = coast.buffer(1.0, quad_segs=2)       # and city limit are three streets
             near = near if lake is None else near.union(lake)
             borders = shapely.GeometryCollection(lines(borders.intersection(near)) + lines(borders.difference(near)))
+            if ctx.banks is not None:                   # a bank apart from the limit it runs on to, not with the coast:
+                quay = ctx.banks.boundary.buffer(1.0, quad_segs=2)   # the two would be one piece again
+                borders = shapely.GeometryCollection([q for p in lines(borders)
+                                                      for q in lines(p.intersection(quay)) + lines(p.difference(quay))])
         for piece in lines(borders):
             mid = piece.interpolate(0.5, normalized=True)
             if medina is not None and mid.distance(medina) < ring_offset(ctx) + 1.0:

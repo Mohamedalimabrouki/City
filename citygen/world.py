@@ -228,7 +228,7 @@ def _place_settlements(seed: int, cfg: dict, style: dict, terrain: Terrain, rive
             if _conflicts(x, y, radius, RANK[kind], taken, spacing[kind]):
                 continue
             h = float(terrain.height(x, y))
-            if h < 2.0 or (kind in ("town", "village") and bool(carve.wet(x, y)[0])):
+            if h < 2.0 or (kind in ("town", "village") and (bool(carve.wet(x, y)[0]) or carve.on_corridor(x, y))):
                 continue
             placed.append(Settlement(len(placed), "", kind, x, y, pop, radius, h,
                                      bool(coast_d.flat[flat] < radius + 900.0), "", cell=int(flat)))

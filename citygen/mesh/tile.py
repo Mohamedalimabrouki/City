@@ -174,7 +174,8 @@ def terrain_mesh(mb: MeshBuilder, tc: TileContext, x0: float, y0: float, corners
     names, split = cell_materials(tc, Xg, Yg, H, gx, gy, s)
     fine, low = np.zeros(names.shape, dtype=bool), np.inf
     if carve is not None:
-        fine, low = fine_ground(tc, X, Y, Hu, He, rivers.past.reshape(X.shape), names, split, s, mb)
+        apart = ground_masks(tc, X[:-1, :-1], Y[:-1, :-1], s)[1]
+        fine, low = fine_ground(tc, X, Y, Hu, He, rivers.past.reshape(X.shape), names, apart, s, mb)
     rim = (rim_cells(tc, Xg, Yg, H) if carve is not None else fine) & ~split & ~fine
     land = names
     if carve is not None:

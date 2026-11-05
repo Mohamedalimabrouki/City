@@ -42,16 +42,15 @@ def upsample(a: np.ndarray, k: int) -> np.ndarray:
 def fine_ground(tc, X, Y, Hu, H, past, names, skip, s: float, mb: MeshBuilder) -> tuple:
     """Draw the terrain cells a river's channel crosses on the fine grid, in one material colored per point (`shore_colors`).
     X, Y, Hu (before the rivers), H (after them) and `past` (meters past a bank) are the terrain grid with one cell
-    of padding, `names` the tile's cell materials, `skip` its cells drawn apart. Returns (those cells as a mask over
-    `names`, the lowest fine height)."""
+    of padding, `names` the tile's cell materials, `skip` the cells drawn apart, its padding's too: a neighbor draws
+    those coarse. Returns (those cells as a mask over `names`, the lowest fine height)."""
     carve = tc.ground.carve
     k = int(round(s / float(carve.rc["mesh_step"])))
-    padded = np.minimum.reduce([past[:-1, :-1], past[1:, :-1], past[:-1, 1:], past[1:, 1:]]) < 0.25 * s   # the water's edge is in
-    fine = padded[1:-1, 1:-1] & ~skip
+    near = np.minimum.reduce([past[:-1, :-1], past[1:, :-1], past[:-1, 1:], past[1:, 1:]]) < 0.25 * s   # the water's edge is in
+    padded = near & ~skip
+    fine = padded[1:-1, 1:-1]
     if k < 2 or not fine.any():
         return np.zeros(names.shape, dtype=bool), np.inf
-    padded = padded.copy()
-    padded[1:-1, 1:-1] = fine
     cells = np.repeat(np.repeat(padded, k, axis=0), k, axis=1)
     inner = np.zeros((cells.shape[0] + 1, cells.shape[1] + 1), dtype=bool)
     inner[1:-1, 1:-1] = cells[:-1, :-1] & cells[1:, :-1] & cells[:-1, 1:] & cells[1:, 1:]
@@ -59,7 +58,7 @@ def fine_ground(tc, X, Y, Hu, H, past, names, skip, s: float, mb: MeshBuilder) -
     fs = s / k
     xs, ys = X[0, 0] + np.arange(Z.shape[1]) * fs, Y[0, 0] + np.arange(Z.shape[0]) * fs
     jj, ii = np.nonzero(inner)
-    Z[jj, ii] = carve.cut(xs[ii], ys[jj], upsample(Hu, k)[jj, ii])
+    Z[jj, ii] = tc.ground.cut(xs[ii], ys[jj], upsample(Hu, k)[jj, ii])
     own = np.zeros(cells.shape, dtype=bool)                 # the tile's own fine cells, without the padding
     own[k:-k, k:-k] = cells[k:-k, k:-k]
     fy, fx = np.nonzero(own)
@@ -137,9 +136,10 @@ def rim_cells(tc, Xg, Yg, H) -> np.ndarray:
 def wall_cells(tc, Hu, H, slope) -> np.ndarray:
     """The terrain cells on a river valley's steep walls: cut into the land and steep enough to bare the rock. The
     8 m cells of a rock material would stand out in stairs, so these fade to it point by point (`shore_colors`)."""
-    lo = float(tc.world.style["water"]["rock_slope"][0])
+    style = tc.world.style["water"]
+    lo = float(style["rock_slope"][0])
     cut = Hu - H
-    return ((np.maximum.reduce([cut[:-1, :-1], cut[1:, :-1], cut[:-1, 1:], cut[1:, 1:]]) > 0.2)
+    return ((np.maximum.reduce([cut[:-1, :-1], cut[1:, :-1], cut[:-1, 1:], cut[1:, 1:]]) > float(style["wall_cut"]))
             & (np.maximum.reduce([slope[:-1, :-1], slope[1:, :-1], slope[:-1, 1:], slope[1:, 1:]]) > lo))
 
 
