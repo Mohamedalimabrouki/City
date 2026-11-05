@@ -3,7 +3,8 @@ connected part holds. The tests only see the quick world; this plans every settl
 
     python tools/street_survey.py [--quick] [--workers N]
 
-Prints the settlements of more than one part, then the totals. The 64 km world takes about 10 minutes with 4
+Prints the settlements of more than one part, then the totals, as the streets are and with `CityPlan.crossings` counted
+as links (a river's banks are apart until prompt 62's bridges). The 64 km world takes about 10 minutes with 4
 workers. A part stays apart only where the ribbons really do not meet: that is a gap in the plan, not in the graph.
 """
 from __future__ import annotations
@@ -18,6 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from citygen.city import plan_city  # noqa: E402
+from citygen.city.river import crossing_nodes  # noqa: E402
 from citygen.config import load_config  # noqa: E402
 from citygen.export.streets import street_graph  # noqa: E402
 from citygen.world import generate_world  # noqa: E402
@@ -25,8 +27,9 @@ from citygen.world import generate_world  # noqa: E402
 WORLD = {}
 
 
-def parts(nodes: list, edges: list) -> collections.Counter:
-    """{root node: street length} of each connected part of a street graph."""
+def parts(nodes: list, edges: list, crossings: list = ()) -> collections.Counter:
+    """{root node: street length} of each connected part of a street graph; `crossings` (CityPlan.crossings) count as
+    links: a river's two banks wait for prompt 62's bridges."""
     parent = list(range(len(nodes)))
 
     def root(a):
@@ -35,6 +38,8 @@ def parts(nodes: list, edges: list) -> collections.Counter:
             a = parent[a]
         return a
     for _k, _line, a, b in edges:
+        parent[root(a)] = root(b)
+    for a, b in crossing_nodes(edges, crossings):
         parent[root(a)] = root(b)
     out = collections.Counter()
     for _k, line, a, _b in edges:
@@ -49,9 +54,11 @@ def survey(job: tuple) -> tuple:
     world = WORLD[quick]
     s = world.settlements[i]
     plan = plan_city(world, s)
-    p = parts(*street_graph(plan.streets, float(world.cfg["street_graph"]["grid"])))
+    nodes, edges = street_graph(plan.streets, float(world.cfg["street_graph"]["grid"]))
+    p, linked = parts(nodes, edges), parts(nodes, edges, plan.crossings)
     total = sum(p.values())
-    return s.name, s.kind, len(plan.streets), len(p), max(p.values(), default=0.0) / total if total else 1.0
+    share = lambda c: max(c.values(), default=0.0) / total if total else 1.0   # noqa: E731
+    return s.name, s.kind, len(plan.streets), len(p), share(p), len(linked), share(linked)
 
 
 def main(argv=None) -> None:
@@ -63,12 +70,13 @@ def main(argv=None) -> None:
     with multiprocessing.get_context("fork").Pool(args.workers) as pool:
         rows = pool.map(survey, [(args.quick, i) for i in range(count)], chunksize=1)
     built = [r for r in rows if r[2]]
-    for name, kind, streets, n, share in sorted(built, key=lambda r: r[4]):
+    for name, kind, streets, n, share, n2, share2 in sorted(built, key=lambda r: r[4]):
         if n > 1:
-            print(f"{name} ({kind}): {streets} streets in {n} parts, the largest {100 * share:.2f}%")
-    low = sum(r[4] < 0.995 for r in built)
+            print(f"{name} ({kind}): {streets} streets in {n} parts, the largest {100 * share:.2f}%; "
+                  f"with its river crossings {n2} parts, {100 * share2:.2f}%")
+    low, low2 = sum(r[4] < 0.995 for r in built), sum(r[6] < 0.995 for r in built)
     print(f"{len(rows)} settlements, {len(built)} with streets: {sum(r[3] == 1 for r in built)} in one part, "
-          f"{low} under 99.5%")
+          f"{low} under 99.5%; with their river crossings as links (prompt 62's bridges) {low2} under 99.5%")
 
 
 if __name__ == "__main__":

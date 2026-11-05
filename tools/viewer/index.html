@@ -563,9 +563,9 @@ function prepareTile(gltf, kind) {
     o.material = shared(o.material, !interior && o.isInstancedMesh && (ON_WALL.test(o.name) || ON_WALL.test(o.parent.name)));
     o.castShadow = !o.material.userData.water;
     o.receiveShadow = true;
-    // water at sea level, not a lake; fountain water (`water_pool`, prompt 26) never starts the sea:
-    // an instanced piece's box is in its own space, where a basin's water lies near 0.5 m
-    if (o.material.userData.water && !sea && !o.isInstancedMesh && !/^water_pool/i.test(o.material.name)) {
+    // water at sea level; lakes, rivers (`water_lake`, `water_river`, prompt 60) and fountain water (`water_pool`,
+    // prompt 26) never start the sea: an instanced piece's box is in its own space, where a basin's water lies near 0.5 m
+    if (o.material.userData.water && !sea && !o.isInstancedMesh && !/^water_/i.test(o.material.name)) {
       o.geometry.computeBoundingBox();
       if (Math.abs(o.geometry.boundingBox.max.y) < 0.5) addSea(o.material);
     }

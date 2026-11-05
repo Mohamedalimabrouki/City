@@ -7,8 +7,9 @@ import shapely
 from scipy import ndimage
 from shapely.geometry import LineString, Point, Polygon
 
+from citygen.carve import Carve
 from citygen.config import load_config
-from citygen.hydro import _flood, _routing, drainage
+from citygen.hydro import _flood, _routing, along, drainage
 from citygen.terrain import Terrain
 from citygen.world import generate_world
 
@@ -73,19 +74,15 @@ def test_tributaries_end_on_their_main_river_s_bed(world):
         assert abs(np.interp(at, along, main.profile) - r.profile[-1]) < 1e-6, r.id
 
 
-def test_no_bed_lies_far_under_the_level_of_the_lake_it_reaches(world):
-    """A lake's flat water would stand as a wall at its shore over a trench cut below its level."""
-    worst = 0.0
+def test_no_water_lies_under_the_level_of_the_lake_it_reaches(world):
+    """A lake's flat water would stand as a wall at its shore over water lower than its level. The lowest ground met
+    on the way (`profile`) may lie about 5 m under it, in a hollow crossed near the mouth: the water stands at the level."""
     for r in world.rivers:
         end = r
         while end.mouth == "river":
             end = world.rivers[end.into]
         if end.mouth in ("lake", "basin"):
-            level = world.lakes[end.into].level
-            dry = (r.profile < level) & (world.terrain.height(r.coords[:, 0], r.coords[:, 1]) > level)
-            if dry.any():
-                worst = max(worst, float((level - r.profile[dry]).max()))
-    assert worst < 5.0
+            assert r.surface.min() >= world.lakes[end.into].level - 1e-9, r.id
 
 
 def test_every_river_reaches_the_sea_a_lake_a_basin_or_the_border(world):
@@ -122,7 +119,8 @@ def test_oueds_are_thin_and_seasonal(world):
 
 def test_world_json_lists_the_rivers_and_lakes():
     data = json.loads(json.dumps(generate_world(load_config(quick=True)).to_json()))
-    assert set(data["rivers"][0]) == {"id", "coords", "widths", "flow", "seasonal", "profile", "mouth", "into"}
+    assert set(data["rivers"][0]) == {"id", "coords", "widths", "flow", "seasonal", "profile", "mouth", "into", "source",
+                                      "surface"}
     assert set(data["lakes"][0]) == {"id", "polygon", "level", "salt"}
 
 
@@ -320,3 +318,127 @@ def test_world_json_two_processes(tmp_path):
                            env={**os.environ, "PYTHONHASHSEED": seed}, capture_output=True)
         assert r.returncode == 0, r.stderr.decode()[-2000:]
     assert (tmp_path / "a.json").read_bytes() == (tmp_path / "b.json").read_bytes()
+
+
+# --- the water of each river (prompts 60, 61) ------------------------------------------------------------------
+
+def _receiving(world, r):
+    """The height of what a river runs into, None at the map border."""
+    if r.mouth == "sea":
+        return 0.0
+    if r.mouth in ("lake", "basin"):
+        return world.lakes[r.into].level
+    if r.mouth == "river":
+        main = world.rivers[r.into]
+        return float(np.interp(LineString(main.coords).project(Point(r.coords[-1])), along(main.coords), main.surface))
+    return None
+
+
+def test_water_never_rises_and_meets_what_it_runs_into_with_no_step(world):
+    for r in world.rivers:
+        assert len(r.surface) == len(r.coords) and np.all(np.diff(r.surface) <= 1e-9), r.id
+        assert (-np.diff(r.surface) / np.hypot(*np.diff(r.coords, axis=0).T)).max() < 0.5, r.id   # a rapid, no waterfall
+        end = _receiving(world, r)
+        if end is not None:
+            assert abs(r.surface[-1] - end) < 1e-6 and r.surface.min() >= end - 1e-6, r.id
+        if r.source is not None:
+            assert abs(r.surface[0] - world.lakes[r.source].level) < 1e-6, r.id     # an outlet starts at its lake's level
+
+
+def test_water_lies_under_the_ground_it_runs_through_and_no_river_digs_a_trench(world):
+    """It may lie 18 m under a rim it cuts through (the last pit's floor), never much more: a limit on the slope of a
+    whole river once dug 360 m trenches, and the bank on a shore must not take the lake's floor for the low ground."""
+    total, deep = 0, 0
+    for r in world.rivers:
+        ground = world.terrain.height(r.coords[:, 0], r.coords[:, 1])
+        total += len(ground)
+        deep += int(np.count_nonzero(ground - r.surface > 5.0))
+        assert (ground - r.surface).max() < 22.0, r.id
+    assert deep < 0.03 * total
+
+
+def test_a_river_that_ends_in_a_salt_basin_is_a_dry_oued_and_so_are_its_tributaries(world):
+    for r in world.rivers:
+        assert r.seasonal or r.mouth != "basin", r.id
+        if r.mouth == "river" and world.rivers[r.into].seasonal:
+            assert r.seasonal, r.id
+
+
+def test_a_junction_holds_when_the_lines_wander(world):
+    joined = [r for r in world.rivers if r.mouth == "river"]
+    assert max(LineString(world.rivers[r.into].coords).distance(Point(r.coords[-1])) for r in joined) < 1e-6
+
+
+class _Carved:
+    """The world's rivers in the ground, on the natural terrain."""
+    def __init__(self, world):
+        self.w = world
+        self.carve = Carve(world.terrain, world.rivers, world.lakes, world.cfg)
+
+    def ground(self, x, y):
+        return self.carve.ground(x, y, world_height(self.w, x, y))
+
+
+def world_height(world, x, y):
+    return np.asarray(world.terrain.height(x, y), dtype=np.float64)
+
+
+@pytest.fixture(scope="module")
+def carved(world):
+    return _Carved(world)
+
+
+def _along_the_rivers(world, every=25):
+    pts = np.concatenate([r.coords[::every] for r in world.rivers])
+    r = np.random.default_rng(5)
+    return pts + r.uniform(-60.0, 60.0, pts.shape)
+
+
+def test_cut_only_lowers_fill_only_raises_and_one_point_is_the_same_as_many(world, carved):
+    x, y = _along_the_rivers(world).T
+    h = world_height(world, x, y)
+    c = carved.carve
+    assert np.all(c.fill(x, y, h) >= h) and np.all(c.cut(x, y, h) <= h)
+    many = c.ground(x, y, h)
+    assert np.array_equal(many[::40], [c.one(float(a), float(b), float(d)) for a, b, d in zip(x[::40], y[::40], h[::40])])
+
+
+def test_the_ground_has_no_step_at_the_edge_of_a_river_s_reach(world, carved):
+    """Its surface is continuous, and it hands over to the land before the index stops listing a segment."""
+    x, y = _along_the_rivers(world, 8).T
+    r = np.random.default_rng(6)
+    a = r.uniform(0.0, 2.0 * np.pi, len(x))
+    x1, y1 = x + 2.0 * np.cos(a), y + 2.0 * np.sin(a)
+    steep = np.abs(carved.ground(x, y) - carved.ground(x1, y1)) / 2.0
+    assert steep.max() < 1.3, steep.max()
+
+
+def test_a_dry_river_has_no_water_and_each_wet_one_a_ribbon(world, carved):
+    assert set(carved.carve.ribbons) == {r.id for r in world.rivers if not r.seasonal and len(r.coords) > 1}
+    for rib in carved.carve.ribbons.values():
+        assert 0.0 <= rib.start <= rib.end <= rib.along[-1] + 1e-6
+
+
+def test_a_lake_s_rim_closes_its_drawn_water(world, carved):
+    """Just past the zone the ground stands over the level, except where a river cuts through: water never ends in
+    the air, and the rim is raised little."""
+    c = carved.carve
+    raised = []
+    for sh in c.shores:
+        ring = np.asarray(sh.zone.exterior.segmentize(16.0).coords)
+        h0 = world_height(world, ring[:, 0], ring[:, 1])
+        h = c.fill(ring[:, 0], ring[:, 1], h0)
+        assert np.all(h >= sh.level), sh.level
+        raised.append(float((h - h0).max()))
+    assert max(raised) < 8.0
+
+
+def test_a_map_stops_a_river_at_the_shore(world, carved):
+    """A river's line runs on out to sea and to the middle of a lake: a city map draws it on land only."""
+    from types import SimpleNamespace
+
+    from citygen.export.maps import _on_land
+    w = SimpleNamespace(terrain=world.terrain, carve=carved.carve)
+    for r in world.rivers:
+        land = _on_land(w, r.coords)
+        assert land.any() and (r.mouth not in ("sea", "lake", "basin") or not land[-1]), r.id

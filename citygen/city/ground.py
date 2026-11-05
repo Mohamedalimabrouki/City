@@ -255,6 +255,8 @@ class Ground:
         self.step = float(world.cfg["tiles"]["terrain_step"])   # the terrain mesh's grid (mesh/tile.py)
         self.level_band = float(world.style.get("station", {}).get("level_band", 100.0))
         self.level_walk_step = float(world.style.get("station", {}).get("walk_step", 10.0))
+        self.river_walk_step = float(world.style.get("river", {}).get("walk_step", 5.0))
+        self.carve = getattr(world, "carve", None)               # rivers and lakes, carved last (prompt 60)
         self.cities = [_City(p, self) for p in plans]
         self.area = unary_union([p.boundary for p in plans]) if plans else None
         if self.area is not None:
@@ -289,6 +291,8 @@ class Ground:
     def walk_step(self, poly, step: float) -> float:
         """Meters between a walk's outline points: `step`, or the finer `[station] walk_step` where the
         ground bends round the station's level ground, so the drawn walk keeps its curb over the ribbon."""
+        if self.carve is not None and self.carve.touches(poly):   # a river's valley bends the ground most
+            return min(step, self.river_walk_step)
         for city in self.cities:
             if city.level_zone is not None and city.level_zone.intersects(poly):
                 return min(step, self.level_walk_step)
@@ -371,6 +375,16 @@ class Ground:
     def _height_one(self, x: float, y: float) -> float:
         """`height` at one point: most dressing calls ask for one, and plain floats skip numpy's
         per-call overhead (same operations, same order, so the same bits)."""
+        h = self._uncarved_one(x, y)
+        if self.carve is None:
+            return h
+        h = self.carve.one(x, y, h)
+        for port, (x0, y0, x1, y1) in self.harbors:
+            if x0 <= x <= x1 and y0 <= y <= y1 and float(shapely.distance(port.core, shapely.points(x, y))) < 1e-6:
+                return float(port.level)
+        return h
+
+    def _uncarved_one(self, x: float, y: float) -> float:
         h = None
         if shapely.contains_xy(self.area, x, y):
             for city in self.cities:
@@ -391,6 +405,8 @@ class Ground:
         y = np.asarray(y, dtype=np.float64)
         if self.area is None or x.size == 0:
             h = np.asarray(self.terrain.height(x, y), dtype=np.float64)
+            if self.carve is not None and x.size:
+                h = self.carve.ground(x, y, h).reshape(h.shape)
             return float(h) if h.ndim == 0 else h
         if x.size == 1 and y.size == 1:
             h = self._height_one(float(x.flat[0]), float(y.flat[0]))
@@ -403,6 +419,24 @@ class Ground:
     def _height(self, xf: np.ndarray, yf: np.ndarray, side: str | None = None) -> np.ndarray:
         """`height` for flat arrays; `side` ("raised" or "sea") evaluates a harbor's ground as seen from one
         side of its walls, where the ground steps (the mesher draws the two sides of a wall apart)."""
+        out = self._uncarved(xf, yf, side)
+        if self.carve is None:
+            return out
+        return self._quay_tops(xf, yf, self.carve.ground(xf, yf, out), side)
+
+    def _quay_tops(self, x: np.ndarray, y: np.ndarray, h: np.ndarray, side: str | None = None) -> np.ndarray:
+        """A river's valley never takes the top of a quay: the core stays level (the quays keep off a river's
+        corridor, so only the rounded edge of its valley can reach them)."""
+        if side == "sea":
+            return h
+        for port, (x0, y0, x1, y1) in self.harbors:
+            sel = np.nonzero((x >= x0) & (x <= x1) & (y >= y0) & (y <= y1))[0]
+            if len(sel):
+                h[sel[shapely.distance(port.core, shapely.points(x[sel], y[sel])) < 1e-6]] = port.level
+        return h
+
+    def _uncarved(self, xf: np.ndarray, yf: np.ndarray, side: str | None = None) -> np.ndarray:
+        """The land as the city graded it, before rivers and lakes: grade first, carve last."""
         out = np.empty(len(xf))
         rest = np.ones(len(xf), dtype=bool)
         for city, sel in self._select(xf, yf):
@@ -411,6 +445,30 @@ class Ground:
         if rest.any():
             out[rest] = self.terrain.height(xf[rest], yf[rest])
         return self._harbor(xf, yf, out, side) if self.harbors else out
+
+    def uncut(self, x, y) -> np.ndarray:
+        """The ground before the rivers' cut (lake rims and levees are in), in arrays out for arrays in."""
+        x = np.asarray(x, dtype=np.float64)
+        y = np.asarray(y, dtype=np.float64)
+        h = np.asarray(self.terrain.height(x, y), dtype=np.float64) if self.area is None else None
+        if h is None:
+            h = self._uncarved(np.ravel(x), np.ravel(y)).reshape(x.shape)
+        return h if self.carve is None else self.carve.fill(x, y, h).reshape(x.shape)
+
+    def cut(self, x, y, h, sample=None) -> np.ndarray:
+        """`uncut` heights `h` with the rivers cut in: together, `height`. `sample`: `Carve.sample(x, y)` if at hand."""
+        if self.carve is None:
+            return h
+        xf, yf = np.ravel(np.asarray(x, dtype=np.float64)), np.ravel(np.asarray(y, dtype=np.float64))
+        return self._quay_tops(xf, yf, self.carve.cut(xf, yf, h, sample=sample)).reshape(np.shape(h))
+
+    def far(self, x, y, h=None) -> np.ndarray:
+        """The ground for coarse meshes: as `height`, the valleys in but not the river channels. `h`: its `uncut`."""
+        h = self.uncut(x, y) if h is None else h
+        if self.carve is None:
+            return h
+        xf, yf = np.ravel(np.asarray(x, dtype=np.float64)), np.ravel(np.asarray(y, dtype=np.float64))
+        return self._quay_tops(xf, yf, self.carve.cut(xf, yf, h, floor=True)).reshape(h.shape)
 
     def side_height(self, x, y, side: str) -> np.ndarray:
         """Ground height on the "raised" side (quay, corniche) or the "sea" side of a harbor's walls."""

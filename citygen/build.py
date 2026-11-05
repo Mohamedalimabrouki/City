@@ -59,6 +59,16 @@ def select_area(world, area: str) -> tuple:
     return region, focus, needed
 
 
+def focus_xy(area: str, region, focus) -> tuple:
+    """Where the tile order and the viewer center: a box build's center (prompt 60), so the viewer loads the box's
+    tiles and not the nearest settlement's; otherwise the focus settlement's center. A box's `focus` keeps the
+    nearest settlement's name: `interior` and the camera views still read it."""
+    if area.strip().partition(":")[0] == "box":
+        c = region.centroid
+        return float(c.x), float(c.y)
+    return focus.x, focus.y
+
+
 def camera_views(plan, ground, reach: float = 600.0, style: dict | None = None) -> dict:
     """Eye-level camera spots near the city center (generator coords): the boulevard, a souk, and one on each
     boulevard landmark the city has, "cathedral" and "theatre" (prompt 32, the style's `[landmarks] camera`),
@@ -284,11 +294,12 @@ def build(cfg: dict, area: str | None = None, log=print, force: bool = False) ->
         f"{len(world.roads)} roads [{time.perf_counter() - t0:.1f}s]")
 
     region, focus, needed = select_area(world, area)
+    fx, fy = focus_xy(area, region, focus)
     size = int(cfg["tiles"]["size"])
     keys = []
     if region is not None:
         keys = tiles_for(region, size, world.size)
-        keys.sort(key=lambda k: math.hypot((k[0] + 0.5) * size - focus.x, (k[1] + 0.5) * size - focus.y))
+        keys.sort(key=lambda k: math.hypot((k[0] + 0.5) * size - fx, (k[1] + 0.5) * size - fy))
     key = build_key(cfg, [s.id for s in needed])
     cache = out / "cache"
     clean_cache(cache, key[:12], force)
@@ -347,8 +358,8 @@ def build(cfg: dict, area: str | None = None, log=print, force: bool = False) ->
                 "format": "citygen-tiles/1", "build_key": key, "seed": world.seed, "world_name": world.name,
                 "tile_size": size, "world_size": [world.size, world.size],
                 "parapets": True,   # the tiles carry their own roof parapets (tools/blender_beauty.py skips its own)
-                "focus": {"x": round(focus.x, 1), "y": round(focus.y, 1),
-                          "z": round(float(ground.surface(focus.x, focus.y)), 1), "name": focus.name},
+                "focus": {"x": round(fx, 1), "y": round(fy, 1),
+                          "z": round(float(ground.surface(fx, fy)), 1), "name": focus.name},
                 "views": next((camera_views(p, ground, style=world.style) for p in plans if p.settlement is focus), {}),
                 "cities": [{"name": p.settlement.name, "plan": f"cities/{slug(p.settlement.name)}/plan.json",
                             "bounds": [round(v, 1) for v in p.boundary.bounds]} for p in plans],

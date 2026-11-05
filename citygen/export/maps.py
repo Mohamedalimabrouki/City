@@ -5,6 +5,7 @@ import math
 from pathlib import Path
 
 import numpy as np
+import shapely
 from PIL import Image, ImageDraw, ImageFont
 from shapely.geometry import MultiPolygon, Polygon
 
@@ -36,6 +37,7 @@ QUAY_RGB, QUAY_EDGE_RGB, RUBBLE_RGB = (200, 194, 182), (96, 88, 78), (150, 142, 
 PROMENADE_RGB, SEA_WALL_RGB = (226, 214, 190), (120, 108, 92)   # the corniche promenade (prompt 36)
 LIGHT_RGB = ((246, 244, 238), (178, 54, 44))
 RIVER_RGB, OUED_RGB = (46, 100, 150), (96, 124, 150)        # rivers and seasonal oueds (prompt 59)
+OUED_BED_RGB = (214, 200, 170)                              # a dry oued's gravel on a city map (prompt 61)
 LAKE_RGB, SALT_RGB = ((82, 136, 172), (46, 92, 130)), ((216, 220, 214), (150, 150, 140))   # fill, shore
 ROAD_STYLE = {"national": ((196, 72, 52), 3.2), "regional": ((222, 150, 60), 2.2),
               "local": ((120, 110, 96), 1.2)}
@@ -125,6 +127,30 @@ def _draw_water(draw, world, px, width):
                 start = i
 
 
+def _city_water(draw, world, ring, mpp, bounds) -> None:
+    """The lakes and rivers on a city map, to scale, a dry oued in the paler color of its gravel."""
+    x0, y0, x1, y1 = bounds
+    for lake in world.lakes:
+        p = lake.polygon
+        if p[:, 0].max() > x0 and p[:, 0].min() < x1 and p[:, 1].max() > y0 and p[:, 1].min() < y1:
+            fill, line = SALT_RGB if lake.salt else LAKE_RGB
+            draw.polygon(ring(p), fill=fill, outline=line)
+    for r in world.rivers:
+        c = r.coords
+        keep = (c[:, 0] > x0) & (c[:, 0] < x1) & (c[:, 1] > y0) & (c[:, 1] < y1) & _on_land(world, c)
+        scale = float(world.cfg["rivers"]["oued_bed"]) if r.seasonal else 1.0
+        for run in np.split(np.flatnonzero(keep), np.flatnonzero(np.diff(np.flatnonzero(keep)) > 1) + 1):
+            if len(run) > 1:
+                draw.line(ring(c[run]), fill=OUED_BED_RGB if r.seasonal else RIVER_RGB,
+                          width=max(1, round(float(r.widths[run].mean()) * scale / mpp)), joint="curve")
+
+
+def _on_land(world, c) -> np.ndarray:
+    """Which points of a river are on land: its line runs on out to sea and to the middle of a lake."""
+    land = np.asarray(world.terrain.height(c[:, 0], c[:, 1])) > 0.0
+    return land if world.carve.lakes is None else land & ~shapely.contains_xy(world.carve.lakes, c[:, 0], c[:, 1])
+
+
 def _scale_bar(draw, k, w, h):
     meters = 10 ** math.floor(math.log10(0.2 * w / k))
     for m in (meters * 5, meters * 2, meters):
@@ -170,6 +196,7 @@ def city_map(world, plan, path, meters_per_px: float | None = None, max_px: int 
 
     for d in plan.districts:
         fill_poly(d.polygon, DISTRICT_RGB.get(d.kind, (230, 230, 230)))
+    _city_water(draw, world, ring, mpp, (minx, miny, maxx, maxy))
     if port is not None:                          # quay aprons, the breakwater's rubble and crest
         fill_poly(port.apron, QUAY_RGB)
         for bw in port.breakwaters:

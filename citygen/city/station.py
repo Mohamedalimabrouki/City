@@ -329,9 +329,9 @@ def clip_streets(cfg: dict, streets: list, station: Station | None, first: int) 
         return streets
     fr = Frame(station.facade)
     min_sin = math.sin(math.radians(float(cfg["cross_angle"])))
-    precinct = station.precinct.buffer(1.0, join_style="mitre")
     out = list(streets[:first])
     for st in streets[first:]:
+        precinct = station.precinct.buffer(st.width / 2 + 1.0, join_style="mitre")   # its surface, not only its line
         if st.kind != "street" or not (st.line.intersects(precinct) or st.line.intersects(station.corridor)):
             out.append(st)
             continue

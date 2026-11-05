@@ -7,6 +7,8 @@ drains, even on filled flats. Filled basins deep and wide enough are lakes; in s
 desert they are always closed (salt) basins where rivers end, and a hollow left inside one
 counts as a basin in its turn; one that no river reaches stays bare ground. Flow is the
 catchment area weighted by moisture; rivers follow the cells where it passes `[rivers] min_flow`.
+Each river's line then wanders (`_meander`) and gets the height of its water (`_surfaces`), which `carve.py` cuts
+into the ground and `mesh/water.py` draws (prompts 60, 61).
 """
 from __future__ import annotations
 
@@ -16,9 +18,11 @@ from dataclasses import dataclass
 
 import contourpy
 import numpy as np
+import shapely
 from scipy import ndimage
 from shapely.geometry import LineString, Point, Polygon
 
+from .noise import Fractal
 from .terrain import DESERT, STEPPE, classify
 
 EPS = 1e-4   # meters the flood raises each cell over the one it drains to on a filled flat
@@ -31,15 +35,18 @@ class River:
     widths: np.ndarray   # (N,) meters
     flow: float          # moisture-weighted catchment at the mouth, km2
     seasonal: bool       # an oued of dry country, dry most of the year
-    profile: np.ndarray  # (N,) bed height in meters, never rising downstream
+    profile: np.ndarray  # (N,) lowest ground met so far along the line, in meters, never rising downstream
     mouth: str           # sea | lake | basin | border | river
     into: int | None     # the river or lake it ends in (mouth river, lake or basin)
+    source: int | None = None         # the lake it flows out of, None for a spring
+    surface: np.ndarray | None = None # (N,) height of its water (a dry oued: of its floor), never rising downstream
 
     def to_json(self) -> dict:
         return {"id": self.id, "coords": np.round(self.coords, 1).tolist(),
                 "widths": np.round(self.widths, 1).tolist(), "flow": round(self.flow, 2),
                 "seasonal": self.seasonal, "profile": np.round(self.profile, 2).tolist(),
-                "mouth": self.mouth, "into": self.into}
+                "mouth": self.mouth, "into": self.into, "source": self.source,
+                "surface": np.round(self.surface, 2).tolist()}
 
 
 @dataclass
@@ -75,7 +82,9 @@ def drainage(terrain, cfg: dict) -> tuple:
     g = _routing(terrain, rc)
     river = (~g.sea) & (g.lake_id < 0) & (g.flow >= float(rc["min_flow"]))
     rivers = _rivers(_chains(g.recv, g.flow, river, g.lake_id, g.n), g, terrain, rc)
-    return rivers, _drawn(rivers, g.lakes)
+    lakes = _drawn(rivers, g.lakes)
+    _surfaces(rivers, lakes, terrain, rc)
+    return rivers, lakes
 
 
 def _drawn(rivers, lakes) -> list:
@@ -89,6 +98,8 @@ def _drawn(rivers, lakes) -> list:
     for r in rivers:
         if r.mouth in ("lake", "basin"):
             r.into = new_id[r.into]
+        if r.source is not None:
+            r.source = new_id[r.source]
     return kept
 
 
@@ -322,39 +333,52 @@ def _rivers(chains, g: _Routing, terrain, rc: dict) -> list:
     keep.sort(key=lambda k: (-flow[own(*chains[k])[-1]], chains[k][0][0]))   # biggest rivers first
     new_id = {k: rid for rid, k in enumerate(keep)}
     k_width, w_min, w_max = float(rc["width_k"]), float(rc["width_min"]), float(rc["width_max"])
+    ends = {}
+    for k in keep:
+        path, kind = chains[k]
+        end = int(path[-1])
+        if kind == "border":
+            ends[new_id[k]] = ("border", None)
+        elif kind == "river":
+            ends[new_id[k]] = ("river", new_id.get(cell_of.get(end)))
+        elif sea[end]:
+            ends[new_id[k]] = ("sea", None)
+        else:
+            ends[new_id[k]] = ("basin" if salt[end] else "lake", int(lake_id[end]))
+    dry = float(rc["dry_weight"])       # flow / catchment is the catchment's mean rain weight
+    seasonal = {}
+    for k in sorted(keep, key=lambda k: new_id[k]):   # main rivers before their tributaries
+        last = own(*chains[k])[-1]
+        mouth, into = ends[new_id[k]]
+        seasonal[new_id[k]] = bool(flow[last] / catch[last] < dry + (1.0 - dry) * float(rc["seasonal_moisture"])
+                                   or mouth == "basin" or (mouth == "river" and seasonal.get(into, False)))
     out = []
     for k in keep:
         path, kind = chains[k]
         cells = np.asarray(path)
-        last = own(path, kind)[-1]
-        dry = float(rc["dry_weight"])   # flow / catchment is the catchment's mean rain weight
-        seasonal = flow[last] / catch[last] < dry + (1.0 - dry) * float(rc["seasonal_moisture"])
         xy = np.column_stack([c[cells % n], c[cells // n]])
         f = flow[cells].copy()
         if kind != "border":
             f[-1] = f[-2] if len(f) > 1 else f[-1]   # the mouth cell's own flow is the water's
         if lake_id[cells[0]] >= 0:
             f[0] = f[1]
-        w = np.clip(k_width * np.sqrt(f), w_min, w_max) * (float(rc["oued_scale"]) if seasonal else 1.0)
-        end = int(cells[-1])
-        if kind == "border":
-            mouth, into = "border", None
-        elif kind == "river":
-            mouth, into = "river", new_id.get(cell_of.get(end))
-        elif sea[end]:
-            mouth, into = "sea", None
-        else:
-            mouth, into = ("basin" if salt[end] else "lake"), int(lake_id[end])
-        out.append((new_id[k], xy, w, float(f[-1]), bool(seasonal), mouth, into))
-    lines = {r[0]: _smooth(r[1], r[2]) for r in out}
+        w = np.clip(k_width * np.sqrt(f), w_min, w_max) * (float(rc["oued_scale"]) if seasonal[new_id[k]] else 1.0)
+        source = int(lake_id[cells[0]]) if lake_id[cells[0]] >= 0 else None
+        out.append((new_id[k], xy, w, float(f[-1]), seasonal[new_id[k]], *ends[new_id[k]], source))
+    seed = getattr(terrain, "seed", 0)
+    field = [(float(size), axis, Fractal(seed, f"meander-{k}-{axis}", float(wave), 1))
+             for k, (wave, size) in enumerate(rc["meander"]) for axis in (0, 1)]
+    wander = (float(rc["width_wander"][1]), Fractal(seed, "width", float(rc["width_wander"][0]), 2))
+    lines = {r[0]: _meander(*_smooth(r[1], r[2], int(rc["line_rounds"])), field, wander, r[7] is not None,
+                            r[5] in ("sea", "lake", "basin"), float(rc["meander_fade"])) for r in out}
     beds = _beds(out, lines, g, terrain)
     rivers = []
-    for rid, _, _, fl, seas, mouth, into in out:
+    for rid, _, _, fl, seas, mouth, into, source in out:
         xy, w = lines[rid]
         z = beds[rid]
         if mouth == "river" and into is not None:
             xy, z = _snap(xy, z, lines[into][0], beds[into])
-        rivers.append(River(rid, xy, w, fl, seas, z, mouth, into))
+        rivers.append(River(rid, xy, w, fl, seas, z, mouth, into, source))
     return rivers
 
 
@@ -374,6 +398,24 @@ def _smooth(xy, w, rounds: int = 2) -> tuple:
     return a[:, :2], a[:, 2]
 
 
+def _meander(xy, w, field: list, wander: tuple, fix_start: bool, fix_end: bool, fade: float) -> tuple:
+    """The line bent by a field of offsets, a pure function of position, so a river wanders like a river and every
+    junction holds: two lines through one point are moved alike. `[rivers] meander`: [wavelength, meters] per layer.
+    Where it leaves a lake or meets the sea or a lake the offsets fade out, so it stays on that shore. Its width
+    breathes along the way (`width_wander`: [wavelength, share]), never over what it had."""
+    s = along(xy)
+    t = np.ones(len(s))
+    if fix_start:
+        t *= np.clip(s / fade, 0.0, 1.0)
+    if fix_end:
+        t *= np.clip((s[-1] - s) / fade, 0.0, 1.0)
+    out = xy.copy()
+    for size, axis, noise in field:
+        out[:, axis] += size * t * noise(xy[:, 0], xy[:, 1])
+    share, noise = wander
+    return out, w * (1.0 - share * (0.5 + 0.5 * np.clip(noise(xy[:, 0], xy[:, 1]), -1.0, 1.0)))
+
+
 def _beds(out, lines, g: _Routing, terrain) -> dict:
     """{river id: bed height along its smoothed line}, tributaries first (ids run from the biggest river down).
 
@@ -383,7 +425,7 @@ def _beds(out, lines, g: _Routing, terrain) -> dict:
     Over a lake the bed is `flat`: the lake's level (a fresh lake's outlet starts there), a salt lake's floor."""
     step = g.c[1] - g.c[0]
     joins, beds = {}, {}
-    for rid, _, _, _, _, mouth, into in reversed(out):
+    for rid, _, _, _, _, mouth, into, _ in reversed(out):
         xy = lines[rid][0]
         i, j = np.clip(np.floor(xy / step).astype(np.int64), 0, g.n - 1).T
         cells = j * g.n + i
@@ -393,13 +435,109 @@ def _beds(out, lines, g: _Routing, terrain) -> dict:
         beds[rid] = np.minimum.accumulate(z)
         if mouth == "river" and into is not None:
             main = lines[into][0]
-            at = np.searchsorted(_along(main), LineString(main).project(Point(xy[-1])))
+            at = np.searchsorted(along(main), LineString(main).project(Point(xy[-1])))
             joins.setdefault(into, []).append((max(int(at) - 1, 0), float(beds[rid][-1])))
     return beds
 
 
-def _along(xy) -> np.ndarray:
+def along(xy) -> np.ndarray:
+    """Meters along a line at each of its points."""
     return np.concatenate([[0.0], np.cumsum(np.hypot(*np.diff(xy, axis=0).T))])
+
+
+def channel(r: River, rc: dict) -> dict:
+    """The river's cross-section along its line, as arrays of meters (all thin to nothing at a spring, so a river
+    starts as a fold of the ground): `half` the half width of its water or of a dry oued's floor, `depth` of its
+    bed under that, `lip` the bank's width and `rise` its height above the water, `plain` the flat of the valley
+    floor beyond the bank."""
+    t = np.ones(len(r.coords))
+    if r.source is None:
+        x = np.clip(along(r.coords) / float(rc["taper"]), 0.0, 1.0)
+        t = x * x * (3.0 - 2.0 * x)
+    if r.seasonal:
+        half = 0.5 * float(rc["oued_bed"]) * r.widths
+        depth, rise = np.full(len(t), float(rc["oued_depth"])), np.full(len(t), float(rc["oued_rise"]))
+    else:
+        half = 0.5 * r.widths
+        depth = np.clip(float(rc["depth_k"]) * r.widths, *(float(v) for v in rc["depth_range"]))
+        rise = np.full(len(t), float(rc["bank_rise"]))
+    return {"half": half * t, "depth": depth * t, "rise": rise * t, "lip": np.full(len(t), float(rc["bank_width"])),
+            "plain": float(rc["valley_k"]) * r.widths}
+
+
+def low_ground(r: River, terrain, half, drop: float) -> np.ndarray:
+    """The lowest ground of the center line and its two banks at each point of the river's line, no lower than
+    `drop` m under the center line: on the shore of a lake or a sea the other bank is the lake's floor."""
+    d = np.gradient(r.coords, axis=0)
+    n = np.stack([-d[:, 1], d[:, 0]], axis=1) / np.maximum(np.hypot(*d.T), 1e-9)[:, None]
+    center = terrain.height(r.coords[:, 0], r.coords[:, 1])
+    low = center
+    for side in (-1.0, 1.0):
+        p = r.coords + n * (side * half)[:, None]
+        low = np.minimum(low, terrain.height(p[:, 0], p[:, 1]))
+    return np.maximum(low, center - drop)
+
+
+def _surfaces(rivers: list, lakes: list, terrain, rc: dict) -> None:
+    """The height of each river's water: `freeboard` under the lowest ground met so far along its line and its two
+    banks (so it lies under both banks), worked out tributaries first like the beds (`_beds`), then raised, main
+    rivers first, to what it runs into: the sea at 0, a lake's level, its main river's water, so it meets them with
+    no step. Never rising: a running minimum raised to a constant stays non-increasing. A lake's outlet stands at
+    the lake's level until it has left the lake's drawn water."""
+    free, shore = float(rc["freeboard"]), float(rc["shore"])
+    joins, low = {}, {}
+    for r in reversed(rivers):           # ids run from the biggest river down
+        c = channel(r, rc)
+        z = low_ground(r, terrain, c["half"] + c["lip"], float(rc["bank_drop"]))
+        z = z - free * (c["rise"] / max(float(c["rise"].max()), 1e-9))
+        if r.source is not None:         # the lake's own level until it has left the lake's water
+            z[_in_zone(r, lakes[r.source], shore)] = lakes[r.source].level
+        low[r.id] = _taking_in(np.minimum.accumulate(z), along(r.coords), joins.get(r.id, []), float(rc["mouth_slope"]))
+        if r.mouth == "river" and r.into is not None:
+            main = rivers[r.into].coords
+            at = np.searchsorted(along(main), LineString(main).project(Point(r.coords[-1])))
+            joins.setdefault(r.into, []).append((max(int(at) - 1, 0), float(low[r.id][-1])))
+    for r in rivers:                     # main rivers first
+        z = low[r.id]
+        s = along(r.coords)
+        end, stop = None, s[-1]
+        if r.mouth == "sea":
+            end = 0.0
+        elif r.mouth in ("lake", "basin"):
+            end = lakes[r.into].level
+        elif r.mouth == "river" and r.into is not None:
+            main = rivers[r.into]
+            at = LineString(main.coords).project(Point(r.coords[-1]))
+            end = float(np.interp(at, along(main.coords), main.surface))
+            stop -= float(np.interp(at, along(main.coords), channel(main, rc)["half"])) + 2.0   # flat across its bank
+        if end is not None:              # what still stands over the water it meets fades in, at `mouth_slope`
+            drop = max(float(np.interp(stop, s, z)) - end, 0.0)
+            reach = np.clip(1.0 - (stop - s) * float(rc["mouth_slope"]) / max(drop, 1e-9), 0.0, 1.0)
+            z = np.maximum(z - drop * reach, end)
+        if r.source is not None:
+            z = np.minimum(z, lakes[r.source].level)
+            z[_in_zone(r, lakes[r.source], shore)] = lakes[r.source].level
+            z = np.minimum.accumulate(z)
+        r.surface = z
+
+
+def _taking_in(z, s, joins: list, slope: float) -> np.ndarray:
+    """The heights `z`, never rising, brought down to each tributary that arrives lower: from the junction on, and fading
+    in upstream at `slope`, so the main river has no waterfall where it meets it."""
+    z = z.copy()
+    for at, end in sorted(joins):
+        drop = float(z[at]) - end
+        if drop > 0.0:
+            z[at:] = np.minimum(z[at:], end)
+            z[:at] -= drop * np.clip(1.0 - (s[at] - s[:at]) * slope / drop, 0.0, 1.0)
+    return np.minimum.accumulate(z)
+
+
+def _in_zone(r: River, lake: Lake, shore: float) -> np.ndarray:
+    """Which of a river's points lie on the way out of a lake's drawn water, `shore` m past its coarse shore."""
+    inside = shapely.contains_xy(Polygon(lake.polygon).buffer(shore), r.coords[:, 0], r.coords[:, 1])
+    out = np.flatnonzero(~inside)
+    return np.arange(len(inside)) < (out[0] if len(out) else len(inside))
 
 
 def _snap(xy, z, main_xy, main_z) -> tuple:
@@ -411,5 +549,5 @@ def _snap(xy, z, main_xy, main_z) -> tuple:
     xy = xy.copy()
     xy[-1] = (p.x, p.y)
     z = z.copy()
-    z[-1] = float(np.interp(s, _along(main_xy), main_z))
+    z[-1] = float(np.interp(s, along(main_xy), main_z))
     return xy, z

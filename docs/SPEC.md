@@ -51,9 +51,12 @@ This is the contract every change must respect. Read the sections your task touc
 
 ```
 config.load_config()          defaults.toml + worlds/*.toml + CLI overrides
-  world.generate_world()      terrain.Terrain, settlements, roads (whole country, seconds)
+  world.generate_world()      terrain.Terrain, hydro.drainage (rivers, lakes), carve.Carve (what they do to the
+                              ground), settlements, roads (whole country, seconds)
     city.plan_city()          one settlement -> CityPlan (seconds to a minute)
       layout                  land polygon, city limit, old town outline, neighborhoods, kinds
+      river                   a river's corridor: the old town on one bank, neighborhoods cut along it after the
+                              deal, quays, crossings, the riverside walk (prompt 61)
       medina                  great mosque, gates, souks, alleys (spanning tree), ramparts
       kasbah                  the citadel on the old town's high edge (capital and cities);
                               placed before the alleys, its buildings appended last
@@ -86,6 +89,7 @@ config.load_config()          defaults.toml + worlds/*.toml + CLI overrides
                               blended into natural terrain at the city limit; `height` is the
                               ground, `surface` the top of the ground, street ribbon or walk
   mesh.tile.export_tile()     one 512 m square -> .glb (terrain, water, roads, city)
+    mesh.water                lakes, salt flats, river ribbons, the fine ground round a channel
     city.covered              which souk stretches are roofed (one rule for mesher and dresser)
     mesh.vaults               the souk vaults, impost bands, arches and light openings
     city.dressing             doors, windows, shops, goods, lamps, plants, spans, sabats, trees,
@@ -100,9 +104,10 @@ build.build()                 orchestrates the above into output/<country>-<seed
 | `citygen/noise.py` | Perlin and fractal noise, smoothstep |
 | `citygen/terrain.py` | height, moisture, slope, biome classes |
 | `citygen/names.py` | invented names from the style's sounds |
-| `citygen/hydro.py` | `River`, `Lake`: drainage from the terrain (priority flood, lakes round by round, flow, river lines and beds; prompt 59) |
+| `citygen/hydro.py` | `River`, `Lake`: drainage from the terrain (priority flood, lakes round by round, flow, river lines and beds; prompt 59), the water's height (`surface`) and the channel's numbers (`channel`; prompt 60) |
+| `citygen/carve.py` | `Carve`: what rivers and lakes do to the ground, a pure function of position, built once per world (prompt 60) |
 | `citygen/world.py` | `World`, `Settlement`, `Road`; placement and road routing (Dijkstra on a cost grid) |
-| `citygen/city/*.py` | the city planner (see pipeline) |
+| `citygen/city/*.py` | the city planner (see pipeline); `city/river.py` keeps it off a river's corridor (prompt 61) |
 | `citygen/mesh/builder.py` | mesh primitives: extrude, walls, caps, domes, hip roofs, ribbons, trees |
 | `citygen/mesh/gltf.py` | dependency-free .glb writer and reader |
 | `citygen/mesh/tile.py` | what goes into one tile |
@@ -199,6 +204,19 @@ block on `rng("impasse", block)`: lot line jitter, widths, covered share and len
   - Agreement (Ali): after a core whose Arabic ends in ة (`feminine_endings`, Latin "a") a describing word is
     feminine, from `descriptors_f` and `descriptors_f_ar` at the same index, on the same draw: el Kebira, الكبيرة.
 - `Road(id, kind, width, coords, ends)`; kinds `national`, `regional`, `local`.
+- A river through a city (prompt 61, `citygen/city/river.py`, `[river]`, settlement key `riverside`): `CityPlan.crossings`
+  ([`Crossing(line, kind, width)`]: where a street stops at a river, face to face on both banks: a bridge's place for
+  prompt 62). The kinds and names of the neighborhoods are dealt as if no river ran there, then `split_districts` cuts
+  each along `banks` (the corridor, the walk and half a quay): a district keeps its id, kind and name on its largest
+  piece, a piece across the river is a new district at the end of the list (a port's is `industrial`: one harbor to a
+  port), so no other district changes. The cut edge is an arterial, a quay; a border that crossed the river ends on
+  both quays. The old town stands on one bank, its largest piece leaving room for the ring road. Streets still crossing
+  (country-road links) are cut (`cut_streets`). A station keeps its tracks on dry land. `Walk("riverside")`: a paved walk
+  of `[river] walk` m on the corridor's edge in pieces of `walk_piece` m, with a tree row (`tree`, `tree_spacing`) added
+  before the greenery. A village stands on the bank of its center, its land without the corridor. A lake: `lake_water`
+  traces where the ground meets the level near a city; its land keeps half a quay and 2 m back; the shore's edge is
+  an arterial, not a city limit. The port, the corniche and `coastal` read the sea's land only. A city no water reaches is
+  planned as before, draw for draw.
 - `World.rivers` and `World.lakes` (prompt 59, `citygen/hydro.py`, `[rivers]`, a pure function of the
   terrain, computed right after it in `generate_world`, no randomness). On a grid of `cell` m (150) a
   priority flood (Barnes et al. 2014, epsilon gradient 1e-4 m) runs inward from the sea and the map
@@ -237,6 +255,50 @@ block on `rng("impasse", block)`: lot line jitter, widths, covered share and len
   worst). Over a lake the bed is the lake's level (a fresh lake's outlet starts there), or a salt lake's
   floor. `mouth` `sea` | `lake` | `basin` | `border` | `river`, `into` the lake or
   river id. `Lake(id, polygon, level, salt)`: the shore ring where the ground meets `level`.
+  Prompts 60-61 add: `line_rounds` (4) corner cuts, so a point every 10 m, and `meander`, the line bent by a field of
+  offsets, a pure function of position ([wavelength, meters] per layer on `Fractal(seed, "meander-k-axis")`), so every
+  junction holds (two lines through one point move alike), fading out `meander_fade` m from a lake or the sea, so
+  the mouth stays on the shore; the width breathes along the way (`width_wander`: [90 m, it may lose 35%]). `seasonal` is also true for a network that ends in a salt basin and for a tributary
+  of a dry river: the desert never shows blue water, and water does not stop at a junction. `source`: the lake a river
+  flows out of. `surface` (N): the water's height, or a dry oued's floor (`hydro._surfaces`): `freeboard` (0.3 m) under
+  the lowest ground met so far along the line and its two banks (each bank counts down to `bank_drop` m under the
+  center line: on a shore the other bank is the lake's floor), tributaries first as for the beds (a tributary that
+  arrives lower brings its main river down, fading in upstream at `mouth_slope`: no waterfall), then, main rivers
+  first, raised to what it runs into: the sea at 0, a lake's level, the main river's water, and what still hangs
+  over that fades in at `mouth_slope`. So it never rises, is one height across and meets the sea, a lake or a main river
+  with no step. An outlet stands at its lake's level until it leaves the lake's drawn water. `channel(r, rc)` gives the
+  cross-section's numbers along the line.
+- `World.carve` (prompt 60, `citygen/carve.py`, `Carve`): what rivers and lakes do to the ground. `Terrain.height` stays
+  the noise: drainage, placement and the planner read it. `Ground.height` grades it, then carves, grade first, carve
+  last, so bed and banks are the same inside and outside cities:
+  - `fill`: the ground is raised only where water would end in the air: a rim `sill` m over a lake's level on a closed
+    ring just past its zone (`shore` m, 45, off the coarse shore; the rim blends out over `rim_rise` m, 24, inside, `sill_fade` m
+    outside: on three 64 km worlds 6-10% of that ring is raised, 0.3 m on average, 2.75 m at most), and a low bank
+    (levee, slope `levee`) along a drawn reach whose water stands higher than `freeboard` under a bank (its water pinned
+    to a lake, or a hollow beside it: about 1% of the segments, up to 4.5 m high).
+  - `cut`: height = smooth min(ground, water(s) + section(d)), s the nearest point of the line, d the distance to it,
+    measured off the line and never along it (a steep river's lower reach must not undercut its own banks upstream);
+    numbers soft-averaged over the segments within about `soft` (6 m) of the nearest, so the surface is continuous at a
+    junction and between two reaches of a meander. Section: a U of `depth` (`depth_k` x width, 0.4-1.4 m) under the
+    water, a bank up `bank_rise` over `bank_width` m, a valley floor `valley_k` x width wide at slope `valley_flat`,
+    then walls rising `valley_curve` x the square of the distance: a deep cut (10.7 m at worst on seed 42, 19.9 on seed
+    7, 36 on seed 3) is a valley with rocky upper walls, not a slot. A dry oued (`oued_bed` x width of gravel floor,
+    `oued_depth`, `oued_rise`). Springs taper over `taper` m; a channel stops at a lake's real shore or the coast, its
+    bed coming up over the last 40 m and staying under the water. The smooth min (`bank_round`: 0.8 m at the bank, growing 0.06 per
+    meter past it, 4 m at most) rounds a valley's edge and never reaches the water.
+  - Exact distances, not a distance raster: a stream 3 m wide has no place on a 20 m raster, and distances interpolated
+    across a center line or a junction are wrong. The raster is the index: squares of `CELL` (64 m) listing the
+    segments whose valley reaches them, each segment's reach measured once on the land (`_reaches`, probes both
+    sides every `CHUNK` points). A point on no listed square costs one array look-up (`Carve.near`).
+  - `corridor(box)`: what no plan touches: water, banks, `keep` m, wider where the river runs deep. `wet(x, y)`: on a
+    lake's zone or within `keep` m of a bank: a town or a village center never is.
+- Places and water (decisions of 4 November): the capital and the cities never move for water: their scores, `ok` grid and
+  `h < 2` test read `Terrain.height` as before. A town or a village keeps its center off lakes, beds and banks (`wet`,
+  on the grid and after the population draw) and scores `river_bonus` x exp(-distance to a river / `river_reach`)
+  more; its disc may meet water. Roads: lake cells and cells within `[roads] lake_margin` of a shore are water for the
+  router, edges touching a river cell cost `[rivers] road_cost` x more, and a smoothed line that crosses a lake is
+  smoothed again from points `routing_cell` m apart (corner cutting takes a quarter of a long straight, 460 m into a
+  lake once).
 - `District.history` (prompt 81, `citygen/city/history.py`, `[history]` in the style): two to four sentences for
   stories, built last in `plan_city` from the finished plan, so nothing else moves: an origin, up to `facts` (2)
   facts the map holds (gates, kasbah, boulevard landmarks, station, a neighborhood mosque, souks, a cemetery's
@@ -261,11 +323,11 @@ block on `rng("impasse", block)`: lot line jitter, widths, covered share and len
   sea wall's top edge, point for point opposite, along the street's direction; `span` (start, end) meters along
   the street; `stairs` [(x, y, ux, uy)] flights to the beach at the sea edge, (ux, uy) out to sea; `beach` meters
   with at least `beach_min` m of sand beyond the wall).
-- `Walk(kind, polygon, width, street, side, district, block, edge)`: a raised sidewalk (`sidewalk`),
-  the boulevard's central promenade (`promenade`) or a piece of the corniche's seafront promenade
-  (`seafront`, prompt 36, `edge` its stretch's curb line). `width` is the actual width after a tight
-  street narrows it; `street` and `side` (`+1` left, `-1` right) let later street features find
-  the carriageway edge.
+- `Walk(kind, polygon, width, street, side, district, block, edge)`: a raised sidewalk (`sidewalk`, never across
+  another street's carriageway), the boulevard's central promenade (`promenade`), a piece of the corniche's seafront
+  promenade (`seafront`, prompt 36, `edge` its stretch's curb line) or of a riverside walk (`riverside`, prompt 61). `width`
+  is the actual width after a tight street narrows it; `street` and `side` (`+1` left, `-1` right) let later
+  street features find the carriageway edge.
 - `Tree(x, y, kind, height)`: kinds `broadleaf`, `palm`, `cypress`, `olive`, `citrus` (prompt 24).
   The dresser picks each tree's kit variant and turn from `rng("tree", k)` by its index k, so new
   trees are only ever appended: `stats["greenery"]` counts the ones `city/greenery.py` added at the end.
@@ -611,16 +673,16 @@ the sea, the railing along the sea edge, no paint or parked car on it; everythin
 
 | File | Content |
 |---|---|
-| `world.json` | `citygen-world/1`: seed, name, size, settlements, roads (coords in meters), `rivers` (`id`, `coords`, `widths`, `flow`, `seasonal`, `profile`, `mouth`, `into`) and `lakes` (`id`, `polygon`, `level`, `salt`) (prompt 59) |
+| `world.json` | `citygen-world/1`: seed, name, size, settlements, roads (coords in meters), `rivers` (`id`, `coords`, `widths`, `flow`, `seasonal`, `profile`, `mouth`, `into`, `source`, `surface`) and `lakes` (`id`, `polygon`, `level`, `salt`) (prompts 59, 60) |
 | `cities/<name>/plan.json` | `citygen-city/1`: districts (`history` since prompt 81), streets, buildings, trees, landmarks, households, souks, and `rail` (track center lines, corridor) when the city has a station, `port` (quay edges and aprons,
 breakwater lines, basins, lighthouses) when it has a harbor, `props` (`kind`, `x`, `y`, `yaw`, `scale`, `on`: boats, cranes, rails, cargo; empty without a harbor); GeoJSON-style geometry in world meters |
 | `cities/<name>/streets.json` | `citygen-streets/1`: the street graph for games (prompt 70, see "Street graph" below) |
 | `gazetteer.md` | readable guide for stories; each planned city lists its district histories (prompt 81) |
-| `maps/country.png`, `maps/<city>.png` | 2D maps, north up; the country map draws lakes (salt ones pale), rivers wider by flow and oueds in a greyer blue (prompt 59) |
+| `maps/country.png`, `maps/<city>.png` | 2D maps, north up; the country map draws lakes (salt ones pale), rivers wider by flow and oueds in a greyer blue (prompt 59); a city map draws them to scale, a dry oued in its gravel's color (prompt 61) |
 | `tiles/tile_<i>_<j>.glb` | 3D tile covering x `i*512..(i+1)*512`, y `j*512..(j+1)*512` |
 | `tiles/tile_<i>_<j>_lod1.glb` | the same tile for distant views (prompt 40): merged blocks, low-poly landmarks, 32 m terrain, flat colors |
 | `tiles/textures/*.png` | base-color images shared by the tiles (`[tiles] textures = "shared"`, the default) |
-| `tiles/index.json` | `citygen-tiles/1`: tile list (bytes, unique and drawn triangles, dressing pieces, `lod1`: file, bytes, triangles; `files`: shared textures and the lod1 file), `"parapets": true` when the tiles carry their own roof parapets, `focus` point, camera `views` (street, souk, and cathedral, theatre, station, port and corniche when the city has them), `cities` (name, plan file, bounds) |
+| `tiles/index.json` | `citygen-tiles/1`: tile list (bytes, unique and drawn triangles, dressing pieces, `lod1`: file, bytes, triangles; `files`: shared textures and the lod1 file), `"parapets": true` when the tiles carry their own roof parapets, `focus` point (a `box:` build's center with its ground height, under the nearest settlement's name; else the focus settlement's center), camera `views` (street, souk, and cathedral, theatre, station, port and corniche when the city has them), `cities` (name, plan file, bounds) |
 | `summary.json` | counts and timings (read this instead of big files); `settings`: the merged settings of the build (prompt 45), from which `interior` rebuilds world and plans |
 | `interiors/<city>-<k>/` | made on demand by `python -m citygen interior` (SPEC 6c "Output"), never by a build: `tiles/interior.glb`, `tiles/index.json`, `rooms.json`; `tools/fingerprint.py` skips the folder |
 
@@ -654,6 +716,26 @@ side by side with no end on the other): the graph never invents a street the map
 local to it. One primitive per material; material names are palette names from the style pack
 (colors are written linear, palettes are sRGB hex). A building or tree belongs to the tile that
 contains its center, so tiles never duplicate objects. Terrain edges match between neighbors.
+
+Inland water (prompts 60-61, `mesh/water.py`): a lake or a salt flat (`Lake.salt`) is drawn cell by cell of the terrain
+grid: every cell inside `Shore.zone` with a corner of the ground, before the rivers' cut, under the level, at the level,
+in `water_lake` or `salt_crust`, never `water`, which Blender hides for its sea. The ground hides what lies over it, so
+the shore is where the land really meets the level, not the coarse ring, and the drawn edge lies under the ground
+(`Carve.fill` closes the zone). A river's water is a ribbon one height across on `River.surface`, `water_river`,
+`tuck` (1.5 m) wider than the water on each side, from its spring or the end of its lake's water to the end of the water it meets (where it
+reaches 0 the sea plane takes over; a tile with a bed under 0 has one). A dry oued has no ribbon. The cells a channel
+crosses (a corner within 2 m past a bank) are drawn on a finer grid, `[rivers] mesh_step` (2 m), each split along its
+flatter diagonal, so a bank never saws; the points on the edge of those cells stay on the coarse edge, so no crack. They
+are one material, `river_bed`, whose points carry the colors of `[water]`, so a bank fades into the land with no stair of
+cells: the land's own color (its material's, from afar, over `river_bed`'s), bare earth on a bank, dark pebbles under the
+water, pale gravel on an oued's floor. Two more kinds of cell are drawn the same way, on the tile's own 8 m grid: a lake's
+rim (`rim_height` over its level, `salt_rim_height` round a salt flat, which pales to `salt_rim`), and a valley's steep
+cut walls (`wall_cells`), the land's material from before the cut, fading to rock between the slopes of `rock_slope`,
+where rock cells would stand in stairs. Water is written as one quad per run of cells, a salt crust cell by cell for its
+tint. The land along a river is tinted by
+`[ground_tint] riparian` (`land_tint`), fading `riparian_fade` m past the valley floor. The viewer's `/^water/` rule gives
+all of them the water look; only `water` starts its sea. `Ground.drawn` follows the 8 m cells: nothing is laid on the
+fine ones (the corridor keeps buildings off them).
 Street dressing and trees are drawn with `EXT_mesh_gpu_instancing`: one child node per piece
 (named like the piece, e.g. `tounes/door_sbs_blue`) with TRANSLATION, ROTATION and SCALE arrays,
 local to the tile root. Kit pieces may carry `COLOR_0` (linear, 8-bit RGBA) on white materials,
@@ -708,7 +790,9 @@ its image (so the far look matches the full tile's mipmapped textures). Content:
   them), so a full and a lod1 tile, or two lod1 tiles, share every edge vertex. A skirt hangs `skirt` m
   (4 m) below each edge (8 m points on top, 32 m nodes below, terrain normals and tint) against cracks
   between two quantization frames. Cells a quay wall crosses are cut by `split_cells` at 32 m (sharp quay
-  edge). The water plane when the full tile has one.
+  edge), the river channels left out (`Ground.far`: the valleys stay, a 32 m point must not drop into a channel only now
+  and then). The water plane when the full tile has one, lakes and salt flats by the same rule as the full tile on the
+  32 m cells, river water as ribbons draped on the lod terrain (`water_river`).
 - *Streets and roads*: flat ribbons (no UVs) draped on the drawn lod terrain `street_lift` m up, lines
   simplified by 1 m and sampled every 16 m; impasses left out (`skip_streets`).
 - *Blocks*: each building belongs to the block (`plan.blocks`) holding its `point_on_surface`; a block is
@@ -2723,7 +2807,7 @@ full about 5 s. Pieces per interior at lived-in: dar 91, compact 48, small 24, k
 ## 7. Style pack (`styles/<name>.toml`)
 
 `[names]` sounds and templates (with their `*_ar` twins and the feminine `descriptors_f`), `[lore]` eras and products, `[palette]` materials (color and
-optional `texture` + `texture_size`), `[textures]` generated-surface noise strengths, `[ground_tint]` the terrain `COLOR_0` tint,
+optional `texture` + `texture_size`), `[textures]` generated-surface noise strengths, `[ground_tint]` the terrain `COLOR_0` tint and the green along rivers, `[water]` the colors of the ground by a river or a lake, `[river]` a river in a city (walk, tree row),
 `[plinth]` the base material and height per district kind, `[impasse]` lane rules and, per
 district kind, width range, surface, `max_length`, `min_lot` and the covered share, `[streets]` curb height, minimum
 carriageway, promenade width, the paint numbers and the outline

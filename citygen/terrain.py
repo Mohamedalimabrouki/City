@@ -23,6 +23,7 @@ BIOME_MATERIAL = ["water", "beach", "grass", "steppe", "desert", "forest", "rock
 class Terrain:
     def __init__(self, seed: int, cfg: dict):
         t = cfg["terrain"]
+        self.seed = seed
         self.size = float(cfg["world"]["size_km"]) * 1000.0
         rng = stream(seed, "terrain")
         if str(t["sea_direction"]) == "random":

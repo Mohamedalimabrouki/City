@@ -114,7 +114,7 @@ class Prop:
 @dataclass
 class Walk:
     """A raised sidewalk or the boulevard's central promenade, in world meters."""
-    kind: str          # sidewalk | promenade | seafront (the corniche's, prompt 36)
+    kind: str          # sidewalk | promenade | seafront (the corniche's, prompt 36) | riverside (prompt 61)
     polygon: object    # shapely Polygon of the raised top
     width: float       # actual width in meters (after narrowing at tight streets) along `street`
     street: int = -1   # nearest street; the boulevard for a promenade. A sidewalk wraps its whole
@@ -170,3 +170,4 @@ class CityPlan:
     port: object = None       # city/port.py: quays, breakwater, lighthouse and the ground zones they change (prompt 34)
     props: list = field(default_factory=list)   # city/moorings.py: boats, cranes and cargo of the harbor (prompt 35)
     fronts: list = field(default_factory=list)  # city/corniche.py: the corniche's seafront promenade (prompt 36)
+    crossings: list = field(default_factory=list)  # city/river.py: where streets stop at a river, face to face (prompt 61)

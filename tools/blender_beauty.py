@@ -189,6 +189,11 @@ class Graph:
         """Blotches (meters), mid grain (decimeters) and fine grain; the first two use world space, no tile seams."""
         return self.noise(self.pos, 0.3, 3, 0.55), self.noise(self.pos, 3.0, 4, 0.6), self.noise(self.obj(), 45.0, 2, 0.5)
 
+    def tint(self) -> Val:
+        """The mesh's COLOR_0, white on a mesh that has none: a missing attribute reads black."""
+        color = self.add("ShaderNodeVertexColor").outputs["Color"]
+        return self.mixc(self.smooth(self.xyz(color)[0], 0.0, 0.01), (1.0, 1.0, 1.0, 1.0), color)
+
     def rand(self, a, b, c) -> Val:
         node = self.add("ShaderNodeTexWhiteNoise", noise_dimensions="3D")
         self.feed(node.inputs[0], self.vec(a, b, c))
@@ -439,11 +444,13 @@ def shade_paving(mat: bpy.types.Material, base: tuple) -> None:
 
 
 def shade_dust(mat: bpy.types.Material, base: tuple, tone: float = 1.0) -> None:
-    """Dusty ground: urban_ground, grass, steppe, villa gardens."""
+    """Dusty ground: urban_ground, grass, steppe, villa gardens. COLOR_0 carries the tile's tint and the green along a
+    river, so this land meets `river_bed`, which keeps the importer's graph (texture x COLOR_0), with no seam."""
     g = Graph(mat)
     big, mid, fine = g.noises()
     var = tone * (0.86 + 0.3 * (big - 0.5) + 0.25 * (mid - 0.5) + 0.2 * (fine - 0.5))
     color = g.mixc(g.smooth(mid, 0.55, 0.75) * 0.4, g.mixc(1.0, base, var, "MULTIPLY"), (0.78, 0.7, 0.55, 1.0), "MULTIPLY")
+    color = g.mixc(1.0, color, g.tint(), "MULTIPLY")
     Surface(g, color, rough=0.96, spec=0.15, height=fine * 0.01).finish(0.5)
 
 
@@ -523,6 +530,15 @@ def shade_pool(mat: bpy.types.Material, base: tuple) -> None:
     g.nt.links.new(gloss.outputs[0], mix.inputs[2])
     out = g.add("ShaderNodeOutputMaterial")
     g.nt.links.new(mix.outputs[0], out.inputs[0])
+
+
+def shade_salt(mat: bpy.types.Material, base: tuple) -> None:
+    """A chott's crust: pale, a little shiny where it is smooth, with slow patches of damp grey and fine cracks."""
+    g = Graph(mat)
+    patch = g.noise(g.vmul(g.pos, (0.012, 0.012, 0.012)), 1.0, 4, 0.55)
+    crack = g.noise(g.vmul(g.pos, (0.9, 0.9, 0.9)), 1.0, 2, 0.5)
+    color = g.mixc(g.smooth(patch, 0.35, 0.65), base, hexcolor("#C9C4B6"))
+    Surface(g, color, rough=0.45, spec=0.5, height=crack).finish(strength=0.12)
 
 
 def shade_hidden(mat: bpy.types.Material) -> None:
@@ -653,6 +669,10 @@ def build_materials(mats: dict[str, bpy.types.Material], factors: dict[str, tupl
             shade_hidden(mat)                              # the big sea plane replaces the tile water
         elif name == "water_pool":
             shade_pool(mat, b)                             # fountain water (prompt 26): kept, never hidden
+        elif name in ("water_lake", "water_river"):
+            shade_pool(mat, b)                             # lakes and rivers (prompt 60): the same still water
+        elif name == "salt_crust":
+            shade_salt(mat, b)                             # a chott's level crust (prompt 60)
         elif name == "rampart":
             shade_rampart(mat, b)
         elif name == "minaret_stone":
