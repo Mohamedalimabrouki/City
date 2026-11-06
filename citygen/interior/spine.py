@@ -300,6 +300,8 @@ def give(job, donor, taker, box, cells: list, floor: int, hall: bool, hard: int,
     got = parts(snap(shapely.union(taker.poly, piece, grid_size=1e-6)))
     if len(rest) != 1 or len(got) != 1 or R.clash_polys(rest[0], got[0], job.zs([floor]), job.half * 2):
         return n
+    if taker.type in WET and not dry(job, got[0]):
+        return n
     door = need(job)
     keep = [c for c in cells if c is not donor and c is not taker and shared(donor.poly, c.poly) >= door - 1e-6]
     if any(shared(rest[0], c.poly) < door - 1e-6 for c in keep):
@@ -374,6 +376,21 @@ def lights(job, floor: int, kinds=("window", "balcony")) -> list:
 def lit(poly, points: list) -> bool:
     """True when a window's inside point lies in the cell (as `rooms.assign` will put the window there)."""
     return any(poly.distance(p) < 0.05 for p in points)
+
+
+def doors_out(job) -> list:
+    """Points just inside every balcony door of the home, on any floor. The floors of a stack share their cells
+    (`typical`), so a cell with a balcony door on any floor of it is closed to a bath on all of them."""
+    got = job.__dict__.get("doors_out")
+    if got is None:
+        from .dar import inside
+        got = job.doors_out = [inside(o, job.ext) for o in job.interior.openings if o.kind == "balcony" and o.piece]
+    return got
+
+
+def dry(job, poly) -> bool:
+    """True when a bath or wc may stand on `poly`: no balcony door of any floor opens into it."""
+    return not lit(poly, doors_out(job))
 
 
 def couloir_frame(job, region, floor: int) -> Frame:
@@ -955,7 +972,7 @@ def candidates(job, t: str, cells: list, free_cells: list, light: dict, most: di
 
     fits = [c for c in free_cells if job.fits(c.poly, t)]
     if t in WET:
-        return [c for c in fits if c.poly.area <= job.largest.get(t, 99.0) * 1.6]
+        return [c for c in fits if c.poly.area <= job.largest.get(t, 99.0) * 1.6 and dry(job, c.poly)]
     if t not in LIVING:
         return fits
     windowed = keep([c for c in fits if light[id(c)]])
@@ -1087,15 +1104,17 @@ def carve_wet(job, spine: dict, cells: list, t: str, floor: int) -> bool:
                 continue
             for piece_way in contact(host.poly, way):
                 got = slide_wet(job, F, host, way, piece_way, t, w, deep, top, door, zones, ways)
-                if got is not None:
-                    wet, host.poly = unwrap(job, *got)
+                wet, rest = (None, None) if got is None else unwrap(job, *got)
+                if wet is not None and dry(job, wet):     # the host's hair-thin arms may reach a balcony door
+                    host.poly = rest
                     cells.append(Cell(wet, t, host.band, host.part))
                     return True
     hall = next((c for c in cells if c.type == "hall"), None)
     if hall is not None:                                # off the hall, in a corner away from the door
         got = hall_corner(job, F, hall, w, max(least_a / w, least_w) + 0.3, door, zones, spine.get("entry"), t)
-        if got is not None:
-            wet, hall.poly = unwrap(job, *got)
+        wet, rest = (None, None) if got is None else unwrap(job, *got)
+        if wet is not None and dry(job, wet):
+            hall.poly = rest
             cells.append(Cell(wet, t, "spine", "wc"))
             return True
     return False
@@ -1128,7 +1147,8 @@ def hall_corner(job, F: Frame, hall, w: float, d: float, door: float, zones: lis
             a, b = (cu, cu + du) if cu == u0 else (cu - du, cu)
             p, q = (cv, cv + dv) if cv == v0 else (cv - dv, cv)
             piece = parts(clip(hall.poly, F.rect(a, p, b, q)))
-            if len(piece) != 1 or not job.fits(piece[0], t) or piece[0].area > job.largest.get(t, 4.0):
+            if (len(piece) != 1 or not job.fits(piece[0], t) or piece[0].area > job.largest.get(t, 4.0)
+                    or not dry(job, piece[0])):
                 continue
             rest = parts(solid(shapely.difference(hall.poly, piece[0], grid_size=1e-6)))
             if len(rest) != 1 or not job.fits(rest[0], "hall") or shared(piece[0], rest[0]) < door:
@@ -1155,7 +1175,7 @@ def slide_wet(job, F: Frame, host, way, piece_way, t: str, w: float, deep: float
         lo_v, hi_v = min(vc, vc + up * deep), max(vc, vc + up * deep)
         rect = F.rect(x0, lo_v, x0 + w, hi_v) if ax == 0 else F.rect(lo_v, x0, hi_v, x0 + w)
         piece = parts(clip(host.poly, rect))
-        if len(piece) != 1 or not job.fits(piece[0], t) or piece[0].area > top:
+        if len(piece) != 1 or not job.fits(piece[0], t) or piece[0].area > top or not dry(job, piece[0]):
             continue
         rest = parts(solid(shapely.difference(host.poly, piece[0], grid_size=1e-6)))
         if (len(rest) != 1 or not job.fits(rest[0], host.type) or shared(piece[0], way) < door
@@ -1220,6 +1240,8 @@ def leftovers(job, cells: list, most: dict, light: dict | None = None, program=(
                 grown = o.poly.area + c.poly.area
                 if s < 1e-3 or grown > job.largest.get(o.type, 1e9) or (capped and grown > float(most.get(o.type, 1e9))):
                     continue
+                if o.type in WET and not dry(job, c.poly):
+                    continue                            # a piece behind a balcony door never grows a bath
                 if (o.type in SPINE) != ways or (ways and grown > float(most.get(o.type, 1e9))):
                     continue                            # a couloir or hall never grows past its most
                 merged = union(o.poly, c.poly)

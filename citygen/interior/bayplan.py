@@ -253,7 +253,7 @@ def types(job, cells: list, prog: list, floor: int) -> bool:
         if not nbs or not join(cells, c, min(nbs, key=lambda n: (n.poly.area, n.part))):
             return False
     for t in [t for t in prog if t in P.WET]:
-        pool = sorted(free(), key=lambda c: (P.lit(c.poly, sun), c.poly.area, c.part))
+        pool = sorted((c for c in free() if P.dry(job, c.poly)), key=lambda c: (P.lit(c.poly, sun), c.poly.area, c.part))
         got = [c for c in pool if job.fits(c.poly, t) and c.poly.area <= job.largest.get(t, float(most.get(t, 1e9)))]
         if not got:
             big = [c for c in pool if job.fits(c.poly, t)]
@@ -311,7 +311,7 @@ def wet_end(job, cells: list, c, t: str, floor: int) -> bool:
     if at is None:
         return False
     lo, hi = cut(c.poly, F, 0, at)
-    if len(lo) != 1 or len(hi) != 1:
+    if len(lo) != 1 or len(hi) != 1 or not P.dry(job, lo[0]):
         return False
     cells.remove(c)
     cells += [Cell(lo[0], t, c.band, c.part + "w"), Cell(hi[0], "", c.band, c.part + "r")]
@@ -324,8 +324,7 @@ def carve(job, cells: list, t: str, floor: int) -> bool:
     the couloir, depth) for `t`, at either end of the room's longest piece on a way; kept where the room
     keeps its minimum, a door's length on the way and no partition meets a wall near an opening."""
     from .cuts import Frame, contact
-    nb = job.cfg.get("flats", {}).get("bay_plan", {}).get("bath", {})
-    bw, bd = (float(v) for v in nb.get(t, (1.7, 2.0) if t == "sdb" else (1.0, 1.3)))
+    bw, bd = (float(v) for v in job.cfg["flats"]["bay_plan"]["bath"][t])
     zones = job.zs([floor])
     rooms = sorted((c for c in cells if c.type in ("chambre", "salon", "salle_a_manger", "cuisine")),
                    key=lambda c: (c.type == "cuisine", -(c.poly.area - job.minimums[c.type][0]), c.part))
@@ -338,7 +337,7 @@ def carve(job, cells: list, t: str, floor: int) -> bool:
                     F = Frame(p[0], p[1], math.atan2(q[1] - p[1], q[0] - p[0]))
                     inward = 1.0 if c.poly.contains(shapely.Point(*F.world(bw / 2, 0.1))) else -1.0
                     bath = c.poly.intersection(F.rect(0.0, min(0.0, inward * bd), bw, max(0.0, inward * bd)))
-                    if bath.geom_type != "Polygon" or not job.fits(bath, t):
+                    if bath.geom_type != "Polygon" or not job.fits(bath, t) or not P.dry(job, bath):
                         continue
                     rest = c.poly.difference(bath)
                     if rest.geom_type != "Polygon" or not job.fits(rest, c.type) or shared(rest, w.poly) < P.need(job):

@@ -358,8 +358,8 @@ def _connect(interior, door: float, clear: float, merging: bool, last: bool = Fa
             return
         changed = False
         for r in todo:
-            near = sorted(neighbours(interior, r), key=lambda t: (-t[0], t[1].id))
-            done = False
+            near = sorted(neighbours(interior, r), key=lambda t: (t[1].type in ("sdb", "wc"), -t[0], t[1].id))
+            done = False                              # a bath room is the last way in: its one door is its own
             for _, n in near:
                 if n.id in seen and n.type not in VOIDS and joinable(r, n):
                     kind = "court_door" if is_court(n) else "inner"

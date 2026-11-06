@@ -350,13 +350,15 @@ class Prepared:
             c = np.array([o.x, o.y])
             face = face_of(it, o, n)
             wet = room.type in cfg.get("wet", ())
-            if o.kind in DOORS and not (wet and o.kind == "balcony"):
+            if o.kind in DOORS:
                 wide = o.width if wet else o.width + 0.2
+                if o.kind == "balcony":
+                    wide = o.width + max(0.2, float(cfg.get("curtain_over", 0.3)))
                 keeps.append((_box(c, along, n, wide, -0.4, face + door_keep), 0.0, 99.0, "door"))
                 if o.kind in ("inner", "court_door") and _swings_into(it, o, room, self.by_id):
                     keeps.append((_swept(it, o, c, along, n, face, self.style.get("interiors", {}).get("openings", {})), 0.0, 99.0, "door"))
                 inner.append(tuple(c + n * (face + 0.4)))
-            elif o.kind in WINDOWS or o.kind == "balcony":     # nobody steps out of a bath: its door-window is a window
+            elif o.kind in WINDOWS:
                 keeps.append((_box(c, along, n, o.width + 0.2, -0.4, face + window_keep),
                               o.z0 - room.z - 0.03, o.z1 - room.z, "window"))
         for s in it.stairs:
@@ -493,9 +495,29 @@ class Furnisher:
                 self.furnish_room(r, level)
             if level == 0:
                 self.sleepers()
+        if self.level >= 1 and self.modern:
+            self.curtains()
         room_z = {r.id: r.z for r in self.it.rooms}
         return Furniture(self.density, self.cfg.get("period", "today"), self.profiles, self.functions, self.placed,
                          self.warnings, room_z)
+
+    def curtains(self) -> None:
+        """A sheer curtain to the floor on every balcony door of a furnished room, its hole + `curtain_over` wide
+        (SPEC 6d `window`; the windows' curtains wait for prompt 55). It hangs in the door's keep-out, placed
+        after everything else; no draws."""
+        spec = self.kit.specs["home/curtain"]
+        rooms = {r.id: r for r in self.it.rooms}
+        over, gap = float(self.cfg.get("curtain_over", 0.3)), float(self.cfg.get("wall_gap", 0.01))
+        for o in sorted((o for o in self.it.openings if o.kind == "balcony" and o.piece), key=lambda o: o.id):
+            room = rooms.get(o.rooms[0])
+            if room is None or self.functions.get(room.id) is None or room.unit not in self.profiles:
+                continue
+            n = side_of(o, room)
+            x, y = np.array([o.x, o.y]) + n * (face_of(self.it, o, n) + gap)
+            yaw, L = yaw_facing(n), min(max(o.width + over, spec.stretch[0]), spec.stretch[1])
+            self.commit(Placed("home/curtain", x, y, 0.0, yaw, L, room.id, room.unit, "curtain", -1,
+                               frame_poly(spec.foot, x, y, yaw, L), *spec.z, "textile", "wall", part=True,
+                               density=DENSITIES[1]), room, "home/curtain", {})
 
     def budget(self, room, level: int) -> int:
         b = list(self.cfg.get("room_triangles", [1500, 4000, 8000]))[level]
@@ -1227,7 +1249,8 @@ def reaches(sp, pieces, path: float) -> bool:
     """F less every standing foot (under 1.0 m, not rugs or pieces on a host), shrunk by path / 2, keeps the
     room's ways in and every use strip's middle joined as the empty room joins them (a room whose own floor
     has a neck narrower than `path` is not asked to join what its walls part)."""
-    feet = [q.foot for q in pieces if q.z0 < 1.0 and q.cat != "rug" and not (q.host >= 0 and q.anchor == "on")]
+    feet = [q.foot for q in pieces if q.z0 < 1.0 and q.cat != "rug" and q.role != "curtain"   # one walks through a curtain
+            and not (q.host >= 0 and q.anchor == "on")]
     if not feet:
         return True
     pts = [Point(p) for p in sp.inner] or [Point(sp.door)]

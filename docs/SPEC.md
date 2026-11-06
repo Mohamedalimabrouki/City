@@ -2490,6 +2490,9 @@ green) in 55. New `[interiors.palette]` entries: 52 `wood_walnut` #5A3A24, `wood
 `wood_painted_green` #3F6B4F, `wood_painted_red` #8E3B2F, `brass` #B08D3C (metallic 0.9, roughness
 0.35), `copper_ware` #B5653A (metallic), `aluminium` #B9BDC2, `iron_black` #2B2A28, `clay_red` #B5653F,
 `glaze_green` #3D6B3A, `clay_pale` #E3D9C6, `charcoal` #2A2522, `velvet_red` #7E1F24, `velvet_green`
+
+Balconies in homes (interiors step 1): no bath or wc behind a balcony door, on any floor of a stack (`spine.dry`, `plancheck.balcony_baths`, a plan fault in `rooms.check`); a bath is the last neighbour `rooms._connect` tries as a way in; `[interiors.flats] bay_plan.bath` holds the carved sizes. `home/curtain`: a sheer curtain to the floor on balcony doors (`Furnisher.curtains`, `curtain_over`, level lived-in up, modern homes, 2.30 m high, material `voile`); windows wait for prompt 55; `reaches` does not count a curtain. `DOORS` holds `balcony` with no wet exception. `tools/balcony_survey.py --rooms [--every N] [--groups g,g] [--city NAME]` lists the room behind every balcony door.
+
 #1F4E3A, `velvet_blue` #23406E, `velvet_gold` #B38B3A, `cotton_white` #EFEDE6, `wool_cream` #E6DCC4,
 `fleece` #E9E1CF, `jute` #A88A5C, `leather_brown` #7A4B2A, `ceramic_white` #F4F4F2 (roughness 0.15),
 `enamel_white` #ECEDEA, `chrome` (metallic 1, roughness 0.15), `mirror` #C8CDD0 (metallic 1, roughness

@@ -36,7 +36,7 @@ def faults(interior) -> list:
     for f in range(interior.floors):
         out += _walls(interior, f, cfg)
     out += _steps(interior, cfg)
-    return out + way_in(interior) + way_home(interior) + windows(interior)
+    return out + way_in(interior) + way_home(interior) + windows(interior) + balcony_baths(interior)
 
 
 def rect(c, front, along, t0: float, t1: float, d0: float, d1: float) -> Polygon:
@@ -583,6 +583,13 @@ def windows(interior) -> list:
             name = "the home" if r.unit == "home" else r.unit
             out.append(f"{name}: the {r.type} {r.id} on floor {r.floor} {BLIND}")
     return out
+
+
+def balcony_baths(interior) -> list:
+    """A balcony door opens into a day room or a chambre, a kitchen for a service balcony: never a bath or a wc."""
+    types = {r.id: r.type for r in interior.rooms}
+    return [f"the {types[o.rooms[0]]} {o.rooms[0]} on floor {o.floor} is behind a balcony door" for o in interior.openings
+            if o.kind == "balcony" and types.get(o.rooms[0]) in WET]
 
 
 def astray(interior) -> int:

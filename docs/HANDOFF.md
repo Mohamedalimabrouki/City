@@ -112,6 +112,9 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`, and how the le
 
 ## Decisions and lessons (do not relearn them)
 
+- **A cell with a balcony door on any floor is closed to a bath on all floors** (`spine.dry`): floors of a stack share cells. A bath reached a door by four ways (the choice of cell, `leftovers`, `give`, `unwrap`): any new code that grows a wet room asks `dry`. The stack's doors must not steer the salon or kitchen: that took windows from chambres.
+- **A rule shows the fault it was hiding.** Colonial flats with no sdb rose 18 to 30 once a bath could not stand behind a door: those flats had no other place. The answer is in the planner, not in the rule.
+- **A brief's number can be stale:** `pytest --runxfail` read 69 of 1,952, not 49 of 2,142: read the test on the code of today before aiming at a bar.
 - **A value read once for a whole deck is wrong on a long one.** A deck can cross two arms of a river with land between them at another height: keep a level per wet stretch.
 - **A shear in stations gives a true skew bridge.** Map (s, d) to (s + k d, d): faces stay in the plane of the parapet, only stations move, and heights must be read at the moved stations. Each end of a run shifts by its own edge: a ramp wall shifted at the wrong end left holes on 36 of 45 bridges, and no picture from one bank showed it. Test a symmetric rule on both edges, both ends and both signs.
 - **What a tile holds depends on which tiles a build has, so reuse must know it.** A bridge whose tile a box leaves out goes to the nearest built one; the tile entry records such guests, or a second box in the same folder draws it twice. A full build keeps every key.

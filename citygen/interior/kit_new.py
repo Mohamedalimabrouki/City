@@ -81,6 +81,7 @@ TABLE = {
     "tv_bracket": ("decor", "wall", (1.10, 0.30, 0.70), 50, {"z0": 2.00}),
     "chicha": ("small", "floor", (0.25, 0.25, 0.75), 100, {}),
     "crate_stack": ("storage", "wall", (0.60, 0.40, 0.90), 40, {"top": 0.90}),
+    "curtain": ("textile", "wall", (1.0, 0.08, 2.30), 60, {"stretch": (0.8, 3.5)}),
 }
 TRADES = ("spices", "perfume", "pots", "copper", "chechia", "fruit", "cloth")   # mesh/props.SHOP_GOODS
 VARIANTS = {
@@ -880,6 +881,24 @@ def mirror_bath(s, v, rng):
     return mb
 
 
+def curtain(s, v, rng):
+    """A balcony door's sheer curtain to the floor: two panels of loose folds parted at the middle, on a thin
+    rail at the top (1.0 m long; `stretch` fits it to the hole)."""
+    w, d, h = s
+    mb = MeshBuilder()
+    rail = h - 0.009
+    tris = []
+    for side in (-1.0, 1.0):
+        xs = np.linspace(0.06, w / 2, 6) * side
+        ys = np.abs(d * (np.arange(6) % 2) - rng.uniform(0.0, 0.008, 6))
+        for k in range(5):
+            q = [(xs[k], ys[k], 0.01), (xs[k + 1], ys[k + 1], 0.01), (xs[k + 1], ys[k + 1], rail), (xs[k], ys[k], rail)]
+            tris += [[q[0], q[1], q[2]], [q[0], q[2], q[3]]] if side > 0 else [[q[1], q[0], q[3]], [q[1], q[3], q[2]]]
+    add_sheet(mb, tris, "voile", 0.002)
+    _tube(mb, (-w / 2, d / 2, rail), (w / 2, d / 2, rail), (0.009, 0.009), "chrome")
+    return mb
+
+
 def shower(s, v, rng):
     """The shower in a corner: a white tray with its drain, an L of chrome rail with the blue curtain half
     drawn, the riser and head on the back wall."""
@@ -1200,7 +1219,7 @@ MAKERS = {"sofa_3": _sofa(3), "sofa_2": _sofa(2), "armchair": _sofa(1), "sedari"
           "washing_machine": washing_machine, "drying_rack": drying_rack, "shoe_cabinet": shoe_cabinet,
           "coat_hooks": coat_hooks, "doormat": doormat, "rug_floral": rug_floral, "shop_counter": shop_counter,
           "shop_shelves": shop_shelves, "scale": scale, "drinks_fridge": drinks_fridge, "espresso": espresso,
-          "tv_bracket": tv_bracket, "chicha": chicha, "crate_stack": crate_stack}
+          "tv_bracket": tv_bracket, "chicha": chicha, "crate_stack": crate_stack, "curtain": curtain}
 
 
 def names() -> list:

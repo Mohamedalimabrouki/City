@@ -16,6 +16,8 @@ Entry format:
 ```
 
 ## 2026-10-29 - Resume here (paused after prompt 47)
+- INTERIORS STEP 1 DONE, 6 November (COMMIT; read this bullet first). No bath or wc behind a balcony door on any plan. Main is clean, tests green, pushed; nothing is running.
+  **Next, in order:** colonial blocks: wcs of 1.2-1.4 m2 whose door takes the seat's depth (the 2% furniture bar stands at 2.49%, 35 of its 49 rooms are colonial, the xfail stays), halls of 10-15 m2 behind a balcony door (cut across, the front a room), dark rooms on party walls (courts or light wells), flats that lost a bath to the new rule; then the ladder check, the bars the valleys merge turned into rates, furniture (prompt 55), the review leftovers. Ali's budget: the lead stopped at 47% of the week and asked before going on.
 - BRIDGES DONE, 6 November (19fb3f0; read this bullet first, the bullets below are the history). Prompt 62 and task B1 are ticked. Main is clean, tests green, pushed; nothing is running.
   **Next, in order:** the valleys bullet just below lists it, after prompt 62: interiors on the final buildings, judged on several plans; furniture (prompt 55); the review leftovers. Plans still move for desert towns and ksar villages in 66 and 67.
   Open with Ali: look along a river and at a bridge in the Blender file (his quick build holds one concrete bridge; for stone, use the full capital or a box); he can veto the two water rules of the bullet below and the radier as a dry oued's crossing.
@@ -194,6 +196,17 @@ Entry format:
   instead (a billing test passed); how to use it: `docs/LEAD.md`, section 4. Used up since 31 October:
   the chain run (`.venv-sdk/credit_chain.sh`, 10:42-13:12) stopped with "Credit balance is too low"
   (its session recorded about $42), so that route needs new credit first (checked 3 November).
+
+## 2026-11-06 - Interiors on the final buildings, step 1: the room behind a balcony
+- Commit: COMMIT | Model: helper Opus xhigh, lead Opus max
+- Changed: citygen/interior/spine.py, bayplan.py, plancheck.py, rooms.py, furnish.py, kit_new.py, styles/maghreb.toml, tools/balcony_survey.py (`--rooms`), tests, SPEC. Brief and notes: docs/wip/rooms-brief.md, rooms-1.md.
+- No bath or wc behind a balcony door on any of five plans (capital 316 before, seed 5 115, seed 7 728; `spine.dry`: a cell with a balcony door on any floor of a stack is closed to a bath on all of them), and `rooms.check` now faults one. A bath got a door by four ways: the choice of cell, `leftovers`, `give`, `unwrap`: the fourth showed only on seed 7. Sheer curtains on balcony doors from lived-in up, nothing stands in a door (2,218 doors at full density), the wet-room exception of `_keeps` is gone. Carved wc 1.1 x 1.6 m in the style: slab wcs warned 14 to 0.
+- Numbers, `rooms.check` pass counts, before and after: capital colonial 9 to 8 of 278, slab 263 to 259 of 347, all others the same; villa town the same; seed 5 maison 3,529 to 3,528 of 4,422, the rest the same; seed 7 colonial 33 to 32 of 1,555, slab 166 to 170 of 300. Read case by case: two slabs passed only with a bath behind a door, which is now a fault. Plans moved: capital 291 of 1,303, villa town 4 of 835, seed 5 170 of 5,879, seed 7 864 of 3,907.
+- The price: capital colonial flats with no sdb 18 to 30, no wc 15 to 20 (seed 5 21 to 24, 23 to 25; seed 7 146 to 158, 121 to 125). A flat with no bath already fails `rooms.check`: the rule shows the fault that the door hid; the colonial planner must answer it.
+- Not reached: the 2% furniture bar: 69 of 1,952 rooms (3.53%, the brief's 49 of 2,142 was stale) to 49 of 1,971 (2.49%): 35 of them colonial; the xfail stays with a new reason. Colonial halls, couloirs and droj behind a door 14.0% to 15.6% (a bath that leaves a door's cell often leaves it to the hall): two attempts failed; it needs a planner change. Dark rooms: 140 on party walls in 1 plan in 4 of the capital: they need courts or light wells.
+- Checks, the lead's own on the last code: `pytest -q` 309 passed; `-m slow` 27 passed, 2 xfailed; fingerprint against c936562: 302 parts, 0 changed. The lead read the diff; no independent reviewer on this step yet, for the week's budget: the first thing to do if this work goes on. The helper's: seed 7 colonial No. 3790 crashes on a GEOS topology error, at c936562 too (open).
+- Look: `docs/wip/rooms-1-colonial-chambre.jpg`, `rooms-1-slab-salon.jpg`: the curtains.
+- Doubts and questions for Ali: the next colonial work is the hard part of 47.1: courts or light wells change the plans; his call on budget.
 
 ## 2026-11-06 - Prompt 62, rounds 4 and 5: everything left open (Ali: "make everything perfect")
 - Commit: 8dd96d6 | Model: two helpers Opus xhigh, lead Opus max, 1 reviewer Opus high

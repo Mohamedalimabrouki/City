@@ -136,6 +136,8 @@ and care as the last one: keep this file up to date when you learn something tha
 - **A reviewer after every round that adds code.** Rounds 4 and 5: 810 new lines passed 301 tests; a third reviewer still proved a fault on every skew bridge. A fix round is cheap, about 0.5% of the week on a fresh helper.
 - **Name the slow tests in the brief.** A helper told "the lead runs the slow tests" left one failing that its own change broke on purpose: give it the slow tests that read what it touches.
 
+- **One record per building, dumped once.** One JSON line per house, in shards, from a frozen copy: every later question (who moved, what fell, rates per plan) is a 20-line script with no new planning. A rule proved on three plans held only on the fourth: seed 7 found `unwrap`.
+
 ## 4. Gotchas on Ali's Mac
 
 More in the auto-memory note on the Mac environment.

@@ -5236,8 +5236,8 @@ def test_furnish_required(furnish_homes, interior_ctx):
 
 
 @pytest.mark.slow
-@pytest.mark.xfail(strict=False, reason="prompt 54, open: 2.3% against the 2% bar since the gable windows: small slab wcs of 1.3 m2 "
-                   "lose their wc (docs/wip/facades.md section 0); the interiors step fixes it and takes this mark off")
+@pytest.mark.xfail(strict=False, reason="prompt 54, open: 2.5% against the 2% bar (49 of 1,971, was 3.5%). The small slab wcs are cured "
+                   "(slabs 2 warned); 35 of the rest are colonial wcs, sdbs and kitchens (docs/wip/rooms-1.md, item 3)")
 def test_furnish_required_share(interior_ctx):
     """At most 2% of the rooms miss a `need` piece (warned) over a quick-capital sample, the 8 homes of each
     layout nearest the centre, at sparse (prompt 54); no placement fault."""
@@ -5266,6 +5266,55 @@ def test_furnish_required_share(interior_ctx):
             rooms += len(fu.functions)
             warned += len({w.split()[2] for w in fu.warnings if " has no " in w})
     assert rooms and warned <= 0.02 * rooms, (warned, rooms)
+
+
+def test_balcony_baths_rule():
+    """A bath or wc behind a balcony door is a plan fault; a chambre or a closed window is not."""
+    from types import SimpleNamespace as NS
+    from citygen.interior.plancheck import balcony_baths
+    rooms = [NS(id=0, type="wc"), NS(id=1, type="chambre"), NS(id=2, type="sdb")]
+    ops = [NS(kind="balcony", rooms=(0, -1), floor=1), NS(kind="balcony", rooms=(1, -1), floor=1),
+           NS(kind="window", rooms=(2, -1), floor=1), NS(kind="balcony", rooms=(2, -1), floor=2)]
+    got = balcony_baths(NS(rooms=rooms, openings=ops))
+    assert len(got) == 2 and "wc 0" in got[0] and "sdb 2" in got[1]
+
+
+def _balcony_doors(interior) -> list:
+    return [o for o in interior.openings if o.kind == "balcony" and o.piece]
+
+
+@pytest.mark.slow
+def test_balcony_doors_lead_to_rooms(interior_ctx):
+    """Over 1 block in 12 of the quick capital's colonial blocks and slabs: no bath or wc behind a balcony door on
+    any floor, nothing but its curtain stands in one, and a furnished room has one curtain per door, to the floor."""
+    from citygen.interior import furnish as FU
+    from citygen.interior.context import city_plan, layout_of
+    from citygen.interior.layout import plan_interior
+    from citygen.interior.outside import Outside
+    plan, style = city_plan(interior_ctx), interior_ctx.world.style
+    blocks = [k for k, b in enumerate(plan.buildings) if b.kind == "apartments"
+              and layout_of(plan, b, style) in ("colonial", "slab")]
+    doors = 0
+    for k in blocks[::12]:
+        outside = Outside(interior_ctx, plan, k)
+        interior = plan_interior(outside, style)
+        by_id = {r.id: r for r in interior.rooms}
+        fu = FU.furnish(interior, outside, style, "lived-in")
+        for o in _balcony_doors(interior):
+            room = by_id[o.rooms[0]]
+            assert room.type not in ("sdb", "wc"), (k, o.floor)
+            doors += 1
+            if fu.functions.get(room.id) is None:
+                continue
+            prep = FU.Prepared(interior, outside, style)
+            box = prep._keeps(room, [o], prep.space(room).F)[0][0][0]
+            for p in fu.pieces:
+                if p.room == room.id and p.piece != "home/curtain" and p.cat != "rug":
+                    assert p.foot.intersection(box).area < 1e-3, (k, o.floor, p.piece)
+            hung = [p for p in fu.pieces if p.piece == "home/curtain" and p.room == room.id
+                    and abs(p.x - o.x) + abs(p.y - o.y) < 1.0]
+            assert len(hung) == 1 and hung[0].z == 0.0, (k, o.floor)
+    assert doors > 100
 
 
 def test_furnish_household(furnish_homes, interior_ctx):
