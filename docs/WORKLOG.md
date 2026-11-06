@@ -16,7 +16,7 @@ Entry format:
 ```
 
 ## 2026-10-29 - Resume here (paused after prompt 47)
-- INTERIORS STEP 1 DONE, 6 November (COMMIT; read this bullet first). No bath or wc behind a balcony door on any plan. Main is clean, tests green, pushed; nothing is running.
+- INTERIORS STEP 1 DONE, 6 November (2ac2f35; read this bullet first). No bath or wc behind a balcony door on any plan. Main is clean, tests green, pushed; nothing is running.
   **Next, in order:** colonial blocks: wcs of 1.2-1.4 m2 whose door takes the seat's depth (the 2% furniture bar stands at 2.49%, 35 of its 49 rooms are colonial, the xfail stays), halls of 10-15 m2 behind a balcony door (cut across, the front a room), dark rooms on party walls (courts or light wells), flats that lost a bath to the new rule; then the ladder check, the bars the valleys merge turned into rates, furniture (prompt 55), the review leftovers. Ali's budget: the lead stopped at 47% of the week and asked before going on.
 - BRIDGES DONE, 6 November (19fb3f0; read this bullet first, the bullets below are the history). Prompt 62 and task B1 are ticked. Main is clean, tests green, pushed; nothing is running.
   **Next, in order:** the valleys bullet just below lists it, after prompt 62: interiors on the final buildings, judged on several plans; furniture (prompt 55); the review leftovers. Plans still move for desert towns and ksar villages in 66 and 67.
@@ -198,7 +198,7 @@ Entry format:
   (its session recorded about $42), so that route needs new credit first (checked 3 November).
 
 ## 2026-11-06 - Interiors on the final buildings, step 1: the room behind a balcony
-- Commit: COMMIT | Model: helper Opus xhigh, lead Opus max
+- Commit: 2ac2f35 | Model: helper Opus xhigh, lead Opus max
 - Changed: citygen/interior/spine.py, bayplan.py, plancheck.py, rooms.py, furnish.py, kit_new.py, styles/maghreb.toml, tools/balcony_survey.py (`--rooms`), tests, SPEC. Brief and notes: docs/wip/rooms-brief.md, rooms-1.md.
 - No bath or wc behind a balcony door on any of five plans (capital 316 before, seed 5 115, seed 7 728; `spine.dry`: a cell with a balcony door on any floor of a stack is closed to a bath on all of them), and `rooms.check` now faults one. A bath got a door by four ways: the choice of cell, `leftovers`, `give`, `unwrap`: the fourth showed only on seed 7. Sheer curtains on balcony doors from lived-in up, nothing stands in a door (2,218 doors at full density), the wet-room exception of `_keeps` is gone. Carved wc 1.1 x 1.6 m in the style: slab wcs warned 14 to 0.
 - Numbers, `rooms.check` pass counts, before and after: capital colonial 9 to 8 of 278, slab 263 to 259 of 347, all others the same; villa town the same; seed 5 maison 3,529 to 3,528 of 4,422, the rest the same; seed 7 colonial 33 to 32 of 1,555, slab 166 to 170 of 300. Read case by case: two slabs passed only with a bath behind a door, which is now a fault. Plans moved: capital 291 of 1,303, villa town 4 of 835, seed 5 170 of 5,879, seed 7 864 of 3,907.
