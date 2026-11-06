@@ -33,13 +33,14 @@ from pathlib import Path
 import numpy as np
 import shapely
 from PIL import Image
-from shapely.geometry import Polygon, box
+from shapely.geometry import Point, Polygon, box
 from shapely.geometry.polygon import orient
 from shapely.ops import substring
 from shapely.strtree import STRtree
 
 from ..city.geo import frame, lines, polygons
 from ..city.massing import masses
+from .bridges import bridge_boxes
 from .builder import (MeshBuilder, add_dome, add_hip_roof, add_skirt, extrude, rectangle, regular_polygon,
                       ribbon_edges, triangulate)
 from .gltf import hex_to_rgb, write_glb
@@ -47,8 +48,8 @@ from .landmarks import landmark_mesh
 from .port import breakwater_meshes, lighthouse_mesh, lighthouse_spots, split_cells, wall_meshes
 from .station import station_mesh
 from .textures import encoded, spec_for
-from .tile import (LANDMARK_KINDS, PAVED_KINDS, ROAD_LIFT, STATION_KINDS, TileContext, cell_materials,
-                   tile_bounds, water_mesh)
+from .tile import (LANDMARK_KINDS, PAVED_KINDS, ROAD_LIFT, STATION_KINDS, TileContext, cell_materials, deck_coords,
+                   deck_surface, road_parts, tile_bounds, water_mesh)
 from .water import land_tint, level_cells, ribbons_in
 
 CLUSTERED = LANDMARK_KINDS | STATION_KINDS            # drawn by their own long mesh functions: clustered
@@ -286,6 +287,28 @@ class Terrain:
         return out
 
 
+class LodGround:
+    """The drawn lod1 terrain across tiles, for what stands on it: a bridge's box may run into the next tile."""
+
+    def __init__(self, tc: TileContext, lod: Lod, tiles: dict):
+        self.tc, self.lod, self.tiles = tc, lod, tiles
+
+    def height(self, x, y) -> np.ndarray:
+        x, y = np.ravel(x).astype(np.float64), np.ravel(y).astype(np.float64)
+        keys = np.stack([np.floor(x / self.tc.size), np.floor(y / self.tc.size)], axis=1).astype(np.int64)
+        out = np.zeros(len(x))
+        for i, j in np.unique(keys, axis=0).tolist():
+            if (i, j) not in self.tiles:
+                x0, y0 = tile_bounds(self.tc, i, j)[:2]
+                self.tiles[i, j] = Terrain(self.tc, self.lod, x0, y0)
+                self.tiles[i, j].draw(MeshBuilder(origin=(x0, y0)), self.lod)        # its `surface` is what it draws
+            on = (keys[:, 0] == i) & (keys[:, 1] == j)
+            out[on] = self.tiles[i, j].surface(x[on], y[on])
+        return out
+
+    drawn = height
+
+
 # --- streets -----------------------------------------------------------------------------------------------
 
 def street_ribbons(tc: TileContext, lod: Lod, plan, street_tree, tile) -> list:
@@ -293,8 +316,9 @@ def street_ribbons(tc: TileContext, lod: Lod, plan, street_tree, tile) -> list:
     out = []
     for k in street_tree.query(tile, predicate="intersects") if street_tree is not None else ():
         st = plan.streets[int(k)]
+        deck = [b for b in getattr(plan, "bridges", ()) if b.street == int(k)]
         if st.kind not in lod.skip_streets:
-            out += [(seg, st.width, st.surface or "asphalt", lod.street_lift)
+            out += [(seg, st.width, st.surface or "asphalt", lod.street_lift, *deck)
                     for seg in lines(st.line.intersection(tile)) if seg.length > 0.5]
     return out
 
@@ -310,30 +334,41 @@ def river_ribbons(tc: TileContext, lod: Lod, tile) -> list:
 
 
 def road_ribbons(tc: TileContext, lod: Lod, tile) -> list:
-    """The same for the country roads outside the cities."""
+    """The same for the country roads outside the cities; a piece on a bridge carries its `Bridge` as a fifth item."""
     out = []
     for k in tc.road_tree.query(tile, predicate="intersects") if tc.road_tree is not None else ():
-        piece = tc.road_lines[int(k)].intersection(tile)
+        line = tc.road_lines[int(k)]
+        piece = line.intersection(tile)
         if tc.city_area is not None:
             piece = piece.difference(tc.city_area)
-        out += [(seg, tc.world.roads[int(k)].width, "asphalt", max(ROAD_LIFT, lod.street_lift))
-                for seg in lines(piece) if seg.length > 0.5]
+        road, lift, decks = tc.world.roads[int(k)], max(ROAD_LIFT, lod.street_lift), tc.decks(int(k))
+        for seg in lines(piece):
+            if seg.length > 0.5:
+                for part, deck in road_parts(seg, line, line.project(Point(seg.coords[0])), decks):
+                    out.append((part, road.width, "asphalt", lift) if deck is None
+                               else (part, road.width, deck_surface(deck), lift, deck))
     return out
 
 
 def ribbons(mb: MeshBuilder, lod: Lod, items: list, surface) -> None:
     """Flat strips draped on the lod terrain, with one height query for all of them."""
     strips = []
-    for line, width, mat, lift in items:
-        edges = ribbon_edges(shapely.segmentize(line.simplify(lod.street_simplify), lod.street_step).coords, width)
+    for line, width, mat, lift, *deck in items:
+        coords = deck_coords(deck[0], line) if deck else shapely.segmentize(line.simplify(lod.street_simplify),
+                                                                            lod.street_step).coords
+        edges = ribbon_edges(coords, width)
         if edges is not None:
-            strips.append((edges[2], edges[3], mat, lift))
+            strips.append((edges[2], edges[3], mat, lift, *deck))
     if not strips:
         return
-    xy = np.concatenate([np.concatenate([left, right]) for left, right, _, _ in strips])
-    z = np.split(surface(xy[:, 0], xy[:, 1]), np.cumsum([2 * len(left) for left, _, _, _ in strips])[:-1])
-    for (left, right, mat, lift), zz in zip(strips, z):
+    xy = np.concatenate([np.concatenate([s[0], s[1]]) for s in strips])
+    z = np.split(surface(xy[:, 0], xy[:, 1]), np.cumsum([2 * len(s[0]) for s in strips])[:-1])
+    for (left, right, mat, lift, *deck), zz in zip(strips, z):
         n = len(left)
+        if deck:                 # the ramps lie on this coarse terrain at the ends, the rest is the deck's height,
+            x, y = np.concatenate([left[:, 0], right[:, 0]]), np.concatenate([left[:, 1], right[:, 1]])
+            w = deck[0].fade(deck[0].locate(x, y))
+            zz = np.maximum(zz, w * zz + (1.0 - w) * (deck[0].at(x, y) - lift))     # never under this terrain
         pos = np.empty((n, 2, 3))
         pos[:, 0, :2], pos[:, 0, 2] = left, zz[:n] + lift
         pos[:, 1, :2], pos[:, 1, 2] = right, zz[n:] + lift
@@ -617,6 +652,7 @@ def build_lod(tc: TileContext, i: int, j: int, water: bool) -> MeshBuilder:
         strips += street_ribbons(tc, lod, plan, street_tree, tile)
         lod.cities[ci].draw(mb, tc, lod, centers, x0, y0, x1, y1)
     ribbons(mb, lod, strips, ground.surface)
+    bridge_boxes(mb, tc, tile, LodGround(tc, lod, {(i, j): ground}))
     return mb
 
 

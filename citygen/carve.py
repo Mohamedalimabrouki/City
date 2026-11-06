@@ -62,6 +62,9 @@ class Sample:
     lip: np.ndarray      # the bank's width
     plain: np.ndarray    # the valley floor's width
     dry: np.ndarray      # on a dry oued
+    water: np.ndarray    # the level of the nearest water, or of a dry oued's floor
+    half: np.ndarray     # half the width of that water
+    river: np.ndarray    # index in `rivers`
 
     def take(self, at) -> "Sample":
         return Sample(*(getattr(self, f)[at] for f in self.__dataclass_fields__))
@@ -340,7 +343,9 @@ class Carve:
         out.surface[sel] = water + _section(off, half, depth, lip, rise, plain, self.flat, self.curve)
         out.round[sel] = np.clip(np.minimum(self.round_near, rise) + self.round_grow * past, 1e-3, self.round)
         out.past[sel], out.edge[sel], out.lip[sel], out.plain[sel] = past, near - half, lip, plain
-        out.dry[sel] = self.dry[ids[np.argmin(d, axis=1)]]
+        first = ids[np.argmin(d, axis=1)]
+        out.dry[sel], out.river[sel] = self.dry[first], self.table[first, 12]
+        out.water[sel], out.half[sel] = water, half
 
     def sample(self, x, y, floor: bool = False) -> Sample:
         """The rivers at points x, y. With `floor`, no point counts as nearer the line than the bank's top: the valley
@@ -348,7 +353,7 @@ class Carve:
         x, y = np.ravel(x), np.ravel(y)
         n = len(x)
         out = Sample(np.full(n, np.inf), np.full(n, 1.0), np.full(n, np.inf), np.full(n, np.inf), np.zeros(n), np.zeros(n),
-                     np.zeros(n, dtype=bool))
+                     np.zeros(n, dtype=bool), np.full(n, np.inf), np.zeros(n), np.full(n, -1.0))
         for key, sel in self._groups(x, y):
             ids = self.cells.get(key)
             if ids is not None:

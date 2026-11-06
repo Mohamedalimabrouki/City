@@ -126,6 +126,12 @@ and care as the last one: keep this file up to date when you learn something tha
 - **A cause is proved by taking one thing out.** Facades read a test failure as door-windows in baths; on the merged code none of
   the failing rooms had one, and `gable_windows = 0` passed. Ask for that one run before repeating a cause to Ali.
 
+- **Measure before you brief** (prompt 62). A 30-line probe over the crossings found what shaped the design: quays 0-0.7 m over the water, oblique lines of 150 m on a stream 3 m wide, one crossing in 1.7 km of the capital's river. The brief states the numbers and the decisions, so the helper builds instead of discovering.
+- **A fresh helper per round** (prompt 62). Plan and heights, structure, fixes: three Opus helpers in turn, about 1% of the week each, all reading one brief file in `docs/wip/`. A fresh helper with a narrow section costs far less than one long context, and its record-only interface is reviewed in between.
+- **Reviewers from a frozen copy, before the commit.** `cp -R citygen styles tools tests` to the scratchpad, two reviewers by lens, the gates running beside them in one background script (no tokens). Under 1% of the week for both, and they found what 283 tests and every gate had passed, the worst visible in one picture. Ask for each finding's probe, and rerun the gates after the fixes.
+- **A check over every triangle.** Flips, NaN, feet, overlaps over all bridges of a 64 km world take minutes of machine time and no tokens, and a reviewer's check of that kind found what eight pictures had not.
+- **Scans of many seeds cost little.** `TileContext(world, [])` lists a seed's road decks in about a minute: 13 seeds showed what three worlds could not. Boxes rebuild a place in 10-100 s, a country box in 8 s, so eye-height work on one bridge is cheap; take a camera from the record, never a guess.
+
 ## 4. Gotchas on Ali's Mac
 
 More in the auto-memory note on the Mac environment.

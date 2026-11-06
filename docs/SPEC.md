@@ -132,6 +132,8 @@ build.build()                 orchestrates the above into output/<country>-<seed
 | `citygen/city/ground.py` | `Ground`: graded city ground (blurred, terraced, blended into the terrain), and `surface` for the top of ground, street ribbons and raised walks |
 | `citygen/city/dressing.py` | `Dresser`: which piece goes where, tile by tile |
 | `citygen/city/walks.py` | raised sidewalks along blocks, narrowed to keep a carriageway, and the boulevard promenade |
+| `citygen/city/bridges.py` | bridges and fords (prompt 62): where they go, the deck's height (`deck_profile`), the `Bridge` record; a country road's on demand (`road_bridges`) |
+| `citygen/mesh/bridges.py` | what stands under a deck, from the `Bridge` record alone: stone arches, concrete beams, piers, ramps, parapets, sidewalks, a ford's slab and posts, lod1's box |
 | `citygen/city/paint.py` | street surfaces per kind, painted edge and lane lines, zebra crossings |
 | `citygen/city/parking.py` | which sides of a street park (`parked_sides`, shared by paint and dresser), sidewalk widths measured per side, `Parking`: parked cars and the taxi rank |
 | `citygen/city/impasses.py` | impasses: lanes cut along lot lines to landlocked lots, one round per lane for every block at once |
@@ -205,8 +207,7 @@ block on `rng("impasse", block)`: lot line jitter, widths, covered share and len
     feminine, from `descriptors_f` and `descriptors_f_ar` at the same index, on the same draw: el Kebira, الكبيرة.
 - `Road(id, kind, width, coords, ends)`; kinds `national`, `regional`, `local`.
 - A river through a city (prompt 61, `citygen/city/river.py`, `[river]`, settlement key `riverside`): `CityPlan.crossings`
-  ([`Crossing(line, kind, width)`]: where a street stops at a river, face to face on both banks: a bridge's place for
-  prompt 62). The kinds and names of the neighborhoods are dealt as if no river ran there, then `split_districts` cuts
+  ([`Crossing(line, kind, width)`]: where a street crosses a river, each with its bridge, see below). The kinds and names of the neighborhoods are dealt as if no river ran there, then `split_districts` cuts
   each along `banks` (the corridor, the walk and half a quay): a district keeps its id, kind and name on its largest
   piece, a piece across the river is a new district at the end of the list (a port's is `industrial`: one harbor to a
   port), so no other district changes. The cut edge is an arterial, a quay; a border that crossed the river ends on
@@ -217,6 +218,59 @@ block on `rng("impasse", block)`: lot line jitter, widths, covered share and len
   traces where the ground meets the level near a city; its land keeps half a quay and 2 m back; the shore's edge is
   an arterial, not a city limit. The port, the corniche and `coastal` read the sea's land only. A city no water reaches is
   planned as before, draw for draw.
+- Bridges (prompt 62, `citygen/city/bridges.py`, `[bridges]`): every crossing has a bridge and no road dips into the
+  water. A city bridge is one `Street(kind="bridge")` after the lanes, appended at the very end of `plan_city` so that no
+  planning step sees it and every earlier street keeps its index, and one `Bridge` in `CityPlan.bridges`, never in
+  `plan.buildings`. Its line runs from one street's center line to the other's, so `export/streets.center_lines` makes
+  the junction on the quay. A crossing keeps its chord within `skew` degrees of the river's normal, and a connector or a
+  `street` link always does; else it turns square to the river through the same point, sliding by `slide` m along it if
+  a deck there would touch a block, a building or a street. Of two crossings within `gap` m along a river the higher kind
+  stays (connector, arterial, street), unless it alone joins two parts of the street graph. A crossing whose chord
+  crosses no river is left out. New bridges (`Crossing(line, "street", width)`) keep any stretch of river with streets on
+  both banks to `every` m between bridges or from one to its end: where a junction or a street's end faces the river,
+  the best with one on the far bank too, failing that any place between the quays. Riverside walks are cut after the bridges (they are
+  cut by the streets, so a walk and its tree row stop at a deck) and no tree stands on a deck. `plan.stats["streets"]`
+  leaves bridges out; `bridges`, `dropped`, `left` count them, where a city has any.
+  `deck_profile` is the one rule of the heights: the least concave majorant of what the deck must clear, between its
+  ends, its crown rounded over `crown` m. What it must clear is the ground, or over the water `River.surface` + air +
+  `depth`. `clearance` is `[least, per meter of water width, most]` of air. A city bridge's ends are fixed on its streets:
+  its air gives way to `grade`, down to the least, then the grade gives way. A country bridge's ends move out along the
+  road until its ramps meet the ground at `grade` (`ramp_ends`). A dry oued in a city has a low `beam` bridge; on a
+  country road a `ford`: a concrete slab on the gravel, over the land under its two edges, raised at `ford_grade` from
+  the top of its low banks, never dug, leaning with a bank it meets aslant up to `ford_lean` (`Bridge.lean`). The
+  carve and `Ground.height` do not change; `Ground.surface` is the deck on a deck (`Bridge.at`), and `Ground.lift` is not
+  to be read there (`STREET_LIFT["bridge"]` lies under every other street's). On its streets a bridge's ribbon lies
+  `tuck` m under theirs. `Bridge`: `kind` (`arch` stone: local and regional roads, `street` crossings, any end within
+  `old_reach` m of the old town, an open part up to `arch_max` m; `beam` concrete: national roads, arterials,
+  connectors, dry oueds in a city; `ford`), `axis`, `width`, `street`, `ends`, `river` (under most of the deck), `rivers` (all under it; `water` is the highest level), `span` (abutment to abutment,
+  out to where `open_air` m lie under the soffit, read a meter apart; outside it solid fill), `s`, `z`, `floor` (stations with a vertex at each kink, end,
+  abutment, channel edge and pier), `depth`, `air`, `water`, `water_width`, `channel`, `piers` (an odd number of arches
+  of `arch_span` m at most, none flatter than `arch_flat` nor shorter than `arch_least`, or spans of `beam_span` m at most,
+  none in the water of a stream under `pier_water` m wide), `dry`, `tilt` (a ramp leans with the land at its ends and is
+  level across by `span`), `road`, `along`, `old` (an end by the old town), `lean`, `own`, `under`. Country bridges are not
+  in `world`: `TileContext.road_own(k)` works them out for road k on the first tile that asks, a pure function of the road,
+  the rivers and the ground, those inside `city_area` left to the city. Roads share corridors, and a crossing has one
+  structure: where two roads' decks overlap by `share` m2 or more the wider road (the first on a tie) holds it, and
+  `TileContext.decks(k)` gives the other its record through `follow`, from those raw lists alone, so no tile's order
+  matters. The follower draws no ribbon where the host's covers it, lies `tuck` m under it where it covers a part, and
+  keeps of its structure the longest run clear of the host's deck, `own`, at least `own_least` m (`Bridge.standing`):
+  none when it rides to the end, the rest when it forks off, only solid ramp if no open part is left (`ramp_only`). A road
+  beside the host, its center line never on that deck, keeps all of its own: on seeds 42, 3 and 7 there is none. The country
+  map marks a crossing once, the widest road's. No lamp, parked car, walker or road paint on a
+  deck yet.
+  The structure is `citygen/mesh/bridges.py`, drawn from the record alone by the tile holding the middle of `ends`
+  (`owned`), `bridge_box` on lod1. Both parapets stand inside the ribbon, their outer face on its edge, from `ends[0]` to
+  `ends[1]`, with a stouter post at each end, on `Bridge.at`. From `ends` to `span` a retaining wall runs from the ribbon's
+  edge into the ground (`foot_line`: under the lowest ground, as it is and as drawn, between neighboring stations); an
+  abutment closes the hollow. `arch` (stone: `rampart` by the old town, else `quay_wall` in a city and `plinth_stone` on a
+  road, `stone_kasbah` or `curb` for dressed stone): a segment of a circle over each opening, under the soffit at every
+  point, springing `spring_over` over the water or on the ground; a barrel in `quay_wet`, smooth; spandrels; a ring of
+  separate stones, long and short by turns, with real joints; a string course; a coped parapet; piers with pointed
+  cutwaters on both faces, a wet band, a capstone and low stone caps. `beam` (concrete): fascia girders and a shadow line
+  under the kerb, a slab and girders in `concrete_dark`, abutments with their seat; a cap beam on round columns, on a wall
+  with round ends over `pier_tall` m; a kerb with a rail, white in a city, iron on a road. `ford`: the slab's two faces
+  into the gravel, white posts with red bands along the channel, tall gauges at its two ends. A city deck from
+  `sidewalk_from` m wide has a raised sidewalk along each parapet with its curb. Numbers in `[bridges]`.
 - `World.rivers` and `World.lakes` (prompt 59, `citygen/hydro.py`, `[rivers]`, a pure function of the
   terrain, computed right after it in `generate_world`, no randomness). On a grid of `cell` m (150) a
   priority flood (Barnes et al. 2014, epsilon gradient 1e-4 m) runs inward from the sea and the map
@@ -674,11 +728,11 @@ the sea, the railing along the sea edge, no paint or parked car on it; everythin
 | File | Content |
 |---|---|
 | `world.json` | `citygen-world/1`: seed, name, size, settlements, roads (coords in meters), `rivers` (`id`, `coords`, `widths`, `flow`, `seasonal`, `profile`, `mouth`, `into`, `source`, `surface`) and `lakes` (`id`, `polygon`, `level`, `salt`) (prompts 59, 60) |
-| `cities/<name>/plan.json` | `citygen-city/1`: districts (`history` since prompt 81), streets, buildings, trees, landmarks, households, souks, and `rail` (track center lines, corridor) when the city has a station, `port` (quay edges and aprons,
+| `cities/<name>/plan.json` | `citygen-city/1`: districts (`history` since prompt 81), streets, buildings, trees, landmarks, households, souks, and `rail` (track center lines, corridor) when the city has a station, `port` (quay edges and aprons; `crossings` and `bridges` (kind, street, width, river, dry, coords, ends, span, channel, water, depth, piers, stations and z at each) since prompt 62 |
 breakwater lines, basins, lighthouses) when it has a harbor, `props` (`kind`, `x`, `y`, `yaw`, `scale`, `on`: boats, cranes, rails, cargo; empty without a harbor); GeoJSON-style geometry in world meters |
-| `cities/<name>/streets.json` | `citygen-streets/1`: the street graph for games (prompt 70, see "Street graph" below) |
+| `cities/<name>/streets.json` | `citygen-streets/1`: the street graph for games (prompt 70, see "Street graph" below); a bridge is an edge of kind `bridge`, z of its nodes the drawn top there (prompt 62) |
 | `gazetteer.md` | readable guide for stories; each planned city lists its district histories (prompt 81) |
-| `maps/country.png`, `maps/<city>.png` | 2D maps, north up; the country map draws lakes (salt ones pale), rivers wider by flow and oueds in a greyer blue (prompt 59); a city map draws them to scale, a dry oued in its gravel's color (prompt 61) |
+| `maps/country.png`, `maps/<city>.png` | 2D maps, north up; the country map draws lakes (salt ones pale), rivers wider by flow and oueds in a greyer blue (prompt 59); a city map draws them to scale, a dry oued in its gravel's color (prompt 61), each bridge's deck over the river between two dark edges, and the country map marks each bridge and ford of the roads by kind (brown stone, grey concrete, white a ford) (prompt 62) |
 | `tiles/tile_<i>_<j>.glb` | 3D tile covering x `i*512..(i+1)*512`, y `j*512..(j+1)*512` |
 | `tiles/tile_<i>_<j>_lod1.glb` | the same tile for distant views (prompt 40): merged blocks, low-poly landmarks, 32 m terrain, flat colors |
 | `tiles/textures/*.png` | base-color images shared by the tiles (`[tiles] textures = "shared"`, the default) |

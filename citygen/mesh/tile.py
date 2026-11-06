@@ -16,9 +16,10 @@ import numpy as np
 import shapely
 from shapely.geometry import LineString, Point, Polygon, box
 from shapely.geometry.polygon import orient
-from shapely.ops import unary_union
+from shapely.ops import substring, unary_union
 from shapely.strtree import STRtree
 
+from ..city.bridges import follow, road_bridges
 from ..city.covered import Covers
 from ..city.crowd import tile_bytes
 from ..city.dressing import Dresser, Placement, building_highs, ground_heights
@@ -31,6 +32,7 @@ from ..city.roofs import RoofLayout, roof_layouts, roof_stream
 from ..kit import make_kit
 from ..noise import Fractal
 from ..terrain import BIOME_MATERIAL, SEA, classify
+from .bridges import bridge_meshes
 from .builder import (MeshBuilder, add_arch, add_battlement, add_cap, add_dome, add_draped_cap, add_draped_caps,
                       add_hip_roof, add_loft,
                       add_ribbon, add_sheet, add_skirt, add_walls, closed, extrude, rectangle, regular_polygon)
@@ -63,6 +65,8 @@ class TileContext:
         self.station = world.style.get("station", {})
         self.road_lines = [LineString(r.coords) for r in world.roads]
         self.road_tree = STRtree(self.road_lines) if self.road_lines else None
+        self.road_alone = {}                     # road index: its bridges and fords, on the first tile that asks
+        self.road_decks = {}                     # the same, each sharing a crossing with a higher road on it
         self.ribbons = list(world.carve.ribbons.values()) if world.carve is not None else []
         self.ribbon_tree = STRtree([r.line for r in self.ribbons]) if self.ribbons else None
         self.plans = plans
@@ -112,6 +116,36 @@ class TileContext:
 
     def height(self, x, y):
         return self.ground.height(x, y)
+
+    def road_own(self, k: int) -> list:
+        """The bridges and fords of road k by itself, those inside a city left to the city."""
+        if k not in self.road_alone:
+            area = self.city_area
+            found = road_bridges(self.world, k, self.road_lines[k], self.ground, ROAD_LIFT, area)
+            self.road_alone[k] = [b for b in found
+                                  if area is None or not area.contains(b.axis.interpolate(0.5, normalized=True))]
+        return self.road_alone[k]
+
+    def rank(self, k: int) -> tuple:
+        """Which road holds a crossing two share: the lowest of these, the widest, then the first."""
+        return -self.world.roads[k].width, k
+
+    def decks(self, k: int) -> list:
+        """The bridges and fords of road k, each following (`follow`) the higher road on a crossing they share. Only ever
+        reads `road_own` and higher roads, so it does not matter which tile asks first."""
+        if k not in self.road_decks:
+            self.road_decks[k] = [self.followed(k, b) for b in self.road_own(k)]
+        return self.road_decks[k]
+
+    def followed(self, k: int, b):
+        least = float(self.world.style["bridges"]["share"])
+        reach = b.deck.buffer(0.5 * max(road.width for road in self.world.roads))       # a parallel road's deck, not its line
+        near = sorted(int(j) for j in self.road_tree.query(reach, predicate="intersects") if int(j) != k)
+        for j in sorted((j for j in near if self.rank(j) < self.rank(k)), key=self.rank, reverse=True):
+            for host in self.decks(j):
+                if host.deck.intersection(b.deck).area >= least:
+                    b = follow(b, host, self.world.style["bridges"])
+        return b
 
 
 class GroundTint:
@@ -241,19 +275,63 @@ def road_meshes(mb: MeshBuilder, tc: TileContext, tile) -> None:
         piece = line.intersection(tile)
         if tc.city_area is not None:
             piece = piece.difference(tc.city_area)
+        decks = tc.decks(int(k))
         for seg in lines(piece):
-            add_ribbon(mb, shapely.segmentize(seg, 8.0).coords, road.width, tc.height, ROAD_LIFT, "asphalt",
-                       line.project(Point(seg.coords[0])))
+            start = line.project(Point(seg.coords[0]))
+            for part, deck in road_parts(seg, line, start, decks):
+                begin = line.project(Point(part.coords[0]))
+                if deck is None:
+                    add_ribbon(mb, shapely.segmentize(part, 8.0).coords, road.width, tc.height, ROAD_LIFT, "asphalt", begin)
+                else:
+                    add_ribbon(mb, deck_coords(deck, part), road.width, deck.at, 0.0, deck_surface(deck), begin)
+
+
+def road_parts(seg, line, start: float, decks: list) -> list:
+    """[(piece of `seg`, its Bridge or None)], `seg` being the part of road `line` from `start` on."""
+    end = start + seg.length
+    inside = [b for b in decks if b.along < end and b.along + b.axis.length > start]
+    if not inside:
+        return [(seg, None)]
+    out, here = [], start
+    for b in inside:
+        lo, hi = max(b.along, start), min(b.along + b.axis.length, end)
+        if lo > here + 0.01:
+            out.append((substring(line, here, lo), None))
+        for a, c in b.shown():
+            a, c = max(b.along + a, lo), min(b.along + c, hi)
+            if c > a + 0.01:
+                out.append((substring(line, a, c), b))
+        here = hi
+    if end > here + 0.01:
+        out.append((substring(line, here, end), None))
+    return out
+
+
+def deck_coords(b, part) -> list:
+    """The points of a ribbon on bridge `b` along `part` of its axis: its own, and one at each of the bridge's stations."""
+    lo, hi = sorted(b.axis.project(Point(part.coords[i])) for i in (0, -1))
+    s = b.s[(b.s > lo + 0.01) & (b.s < hi - 0.01)]
+    vertices = np.array([b.axis.project(Point(c)) for c in shapely.segmentize(part, 8.0).coords])
+    at = np.unique(np.concatenate([vertices, s]))
+    return shapely.get_coordinates(shapely.line_interpolate_point(b.axis, at)).tolist()
+
+
+def deck_surface(b) -> str:
+    return "concrete" if b.kind == "ford" else "asphalt"
 
 
 def street_meshes(mb: MeshBuilder, tc: TileContext, plan, street_tree, tile) -> None:
     if street_tree is None:
         return
+    decks = {b.street: b for b in getattr(plan, "bridges", ())}
     for k in street_tree.query(tile, predicate="intersects"):
         st = plan.streets[int(k)]
         mat = st.surface or "asphalt"
         for seg in lines(st.line.intersection(tile)):
-            if seg.length > 0.05:
+            if seg.length > 0.05 and int(k) in decks:
+                add_ribbon(mb, deck_coords(decks[int(k)], seg), st.width, decks[int(k)].at, 0.0, mat,
+                           st.line.project(Point(seg.coords[0])))
+            elif seg.length > 0.05:
                 add_ribbon(mb, shapely.segmentize(seg, 6.0).coords, st.width, tc.height,
                            STREET_LIFT.get(st.kind, 0.24), mat, st.line.project(Point(seg.coords[0])))
 
@@ -746,6 +824,7 @@ def build_tile(tc: TileContext, i: int, j: int) -> tuple:
         water_mesh(mb, x0, y0, x1, y1)
     river_meshes(mb, tc, tile)
     road_meshes(mb, tc, tile)
+    bridge_meshes(mb, tc, tile)
     placements: list = []
     spans: list = []
     for ci, (plan, centers, trees, street_tree, dresser) in enumerate(tc.cities):

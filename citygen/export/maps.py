@@ -7,8 +7,10 @@ from pathlib import Path
 import numpy as np
 import shapely
 from PIL import Image, ImageDraw, ImageFont
-from shapely.geometry import MultiPolygon, Polygon
+from shapely.geometry import LineString, MultiPolygon, Polygon
+from shapely.ops import substring
 
+from ..city.bridges import KINDS, wet_runs
 from ..city.openings import villa_lots
 from ..terrain import classify
 
@@ -37,6 +39,8 @@ QUAY_RGB, QUAY_EDGE_RGB, RUBBLE_RGB = (200, 194, 182), (96, 88, 78), (150, 142, 
 PROMENADE_RGB, SEA_WALL_RGB = (226, 214, 190), (120, 108, 92)   # the corniche promenade (prompt 36)
 LIGHT_RGB = ((246, 244, 238), (178, 54, 44))
 RIVER_RGB, OUED_RGB = (46, 100, 150), (96, 124, 150)        # rivers and seasonal oueds (prompt 59)
+BRIDGE_EDGE_RGB = (52, 44, 40)                              # a bridge's two edges on a city map
+BRIDGE_MARK = {"arch": ((120, 92, 66), 4.0), "beam": ((60, 62, 70), 4.0), "ford": ((236, 232, 222), 3.0)}   # country map
 OUED_BED_RGB = (214, 200, 170)                              # a dry oued's gravel on a city map (prompt 61)
 LAKE_RGB, SALT_RGB = ((82, 136, 172), (46, 92, 130)), ((216, 220, 214), (150, 150, 140))   # fill, shore
 ROAD_STYLE = {"national": ((196, 72, 52), 3.2), "regional": ((222, 150, 60), 2.2),
@@ -88,6 +92,7 @@ def country_map(world, path, width: int = 1800) -> Path:
         for r in world.roads:
             if r.kind == kind:
                 draw.line([px(x, y) for x, y in r.coords], fill=color, width=max(1, round(w * width / 1800)))
+    _road_crossings(draw, world, px, width)
     small, big = _font(max(10, width // 130)), _font(max(12, width // 85))
     for s in sorted(world.settlements, key=lambda s: -s.population):
         cx, cy = px(s.x, s.y)
@@ -107,6 +112,27 @@ def country_map(world, path, width: int = 1800) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     img.save(path, optimize=True)
     return path
+
+
+def _road_crossings(draw, world, px, width) -> None:
+    """A mark on each bridge and ford of the country roads: stone, concrete or a ford, with a dark ring."""
+    if world.carve is None:
+        return
+    gap = float(world.style["bridges"]["gap"])
+    done = []
+    for road in sorted(world.roads, key=lambda road: -road.width):          # stable: the widest road, then the first
+        line = LineString(road.coords)
+        for a, b in wet_runs(world.carve, line):
+            p = line.interpolate(0.5 * (a + b))
+            river = world.carve.sample(np.array([p.x]), np.array([p.y]))
+            if any(k == river.river[0] and p.distance(q) < gap for k, q in done):     # two roads, one crossing
+                continue
+            done.append((river.river[0], p))
+            kind = "ford" if river.dry[0] else KINDS[road.kind]
+            color, r = BRIDGE_MARK[kind]
+            r *= width / 1800
+            cx, cy = px(p.x, p.y)
+            draw.ellipse([cx - r, cy - r, cx + r, cy + r], fill=color, outline=BRIDGE_EDGE_RGB)
 
 
 def _draw_water(draw, world, px, width):
@@ -209,6 +235,11 @@ def city_map(world, plan, path, meters_per_px: float | None = None, max_px: int 
     for st in sorted(plan.streets, key=lambda s: s.width):
         color = (250, 250, 248) if st.kind not in ("alley", "souk", "impasse") else (252, 246, 232)
         draw.line(ring(st.line.coords), fill=color, width=max(1, round(st.width / mpp)))
+    for b in getattr(plan, "bridges", ()):        # the deck over the river, between two dark edges
+        deck = list(substring(b.axis, *b.ends).coords)
+        width = max(1, round(b.width / mpp))
+        draw.line(ring(deck), fill=BRIDGE_EDGE_RGB, width=width + 4)
+        draw.line(ring(deck), fill=(250, 250, 248), width=width)
     if station is not None:
         for t in station.tracks:
             draw.line(ring(t.coords), fill=RAIL_RGB, width=max(1, round(1.4 / mpp)))

@@ -112,6 +112,16 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`, and how the le
 
 ## Decisions and lessons (do not relearn them)
 
+- **A bridge is a street nobody plans around.** Decks are appended after every planning step, so no step sees them and buildings, households, souks and props stay byte-identical; what must know (walks, trees, paint) is told in one line each. A street added any earlier would reach every step that reads the street list.
+- **One rule for a viaduct and a low bridge: the least concave majorant of what the deck must clear.** Banks higher than the river needs give a straight line, low banks a ramp and a level top, with no case for either.
+- **A negative station wraps round.** `line_interpolate_point` reads a negative distance from the far end: a stone cap at s = -0.05 became a 50 m bar 2 m over the deck of all 31 road arches, and 283 tests passed. Clip every station; look at what a mesh really holds, not at what it should.
+- **Roads share corridors.** Two roads on one line each built a bridge, stone parapets inside a concrete deck. Print the pairs before deciding a rule: riders, forks and twins asked for three answers. One structure per crossing, on the widest road, derived from the raw per-road lists, so the order tiles are built in cannot matter. Search by deck plus half a width: a parallel road's deck overlaps though its line does not touch.
+- **A flat ribbon has only edges.** Compare what is drawn, mesh on mesh, not the height function: a ford's end met its road at the center and stood 0.31 m proud at an edge.
+- **Thinned stations answer "where does the slope end", not "where does a clearance end".** On a straight ramp no station falls where the air runs out: read clearances a meter apart, then thin. A station rounded to 1 mm can land on the wrong side of the value it came from.
+- **Read the cross-section before blaming a slope.** A ford stood 1.2 m over its bed because a level slab sat on the high edge of an aslant bank, not because of its ramps: it leans with the land now.
+- **An arch needs a rise.** 20 m on a rise of 1.5 m is a flat lid: split by `arch_flat`, never under `arch_least`.
+- **A crossing is where a plan was cut, not where a city needs a bridge.** The capital had one for 1.7 km of river: count bridges per kilometer of river, not per crossing.
+- **Old cameras and town names go stale when a world changes.** Check that a camera still holds what it says. Heights are absolute: a town at 47 m needs its camera over 47.
 - **Carve off the nearest point, never along the line.** A min over all segments of `water + section(distance)` lets a river's own lower reach cut under its banks upstream wherever it falls
   faster than its valley floor rises: banks 40 cm under the water on a 2% reach. Measure the section off the nearest point, numbers soft over about 6 m, so a junction and a meander's neck stay continuous.
 - **A rule for the end of a line must know where the end is.** "Comes down to the water at 4% at the steepest", as a line from the mouth, dug every mountain river to that line: trenches of 360 m. The

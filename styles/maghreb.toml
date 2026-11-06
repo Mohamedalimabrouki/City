@@ -496,6 +496,64 @@ min_part = 60.0             # meters of street: a smaller piece of a bank gets n
 min_piece = [6000.0, 12.0]  # a piece of a neighborhood across the river, square meters and meters of inset it must
                             # survive: a smaller one is left to the bank
 
+[bridges]                   # bridges and fords (prompt 62, city/bridges.py); `Bridge` records for the mesher
+skew = 30.0                 # degrees: a crossing keeps its own line this near the river's normal, else it turns square
+slide = 15.0                # meters along the river between the places tried when a square line finds no room
+gap = 60.0                  # meters along a river: of two crossings nearer than this the higher kind stays
+every = 500.0               # meters: most river between bridges, or from one to the end of the streets on its banks
+reach = 150.0               # meters from a river's middle to the first street on a bank
+snap = 15.0                 # meters: a new bridge turns to a junction this near on the far bank
+stretch_step = 25.0         # meters along a river between looks at its banks
+clearance = [0.9, 0.12, 5.0]  # air from water to soffit, meters: the least, per meter of water width, the most
+depth = 0.6                 # meters, from a deck's top to its soffit
+grade = 0.09                # steepest ramp; the air gives way first, down to `clearance`'s least
+ford_grade = 0.16           # steepest ramp of a ford: a slab on the gravel, down its low banks, not a causeway
+ford_lean = 0.25            # most a ford leans across, meters per meter, with a bank it meets aslant
+crown = 8.0                 # meters over which the top of a ramp is rounded
+tuck = 0.02                 # meters a bridge's ribbon lies under the street it meets, or the wider road's it shares
+share = 1.0                 # m2: two roads' decks that overlap this much are one crossing, with the wider road's structure
+own_least = 2.0             # meters: the least a road keeps of its own structure beyond the wider road's deck
+ramp_reach = 250.0          # meters along a road to look for the ground at the foot of a ramp
+old_reach = 60.0            # meters: a bridge with an end this near the old town is stone
+arch_max = 90.0             # meters: an arch bridge's longest open part, beyond it concrete
+arch_span = 14.0            # meters: one arch
+arch_flat = 0.12            # the least rise of an arch to its length: flatter, and more arches do it
+arch_least = 4.5            # meters: the shortest arch
+beam_span = 22.0            # meters: one span of beams
+pier_water = 12.0           # meters: no pier in the water of a stream narrower than this
+open_air = 0.8              # meters under the soffit where a ramp's solid fill gives way to the open part
+# what stands under the deck (mesh/bridges.py). Pairs and lists are in the order their comment gives.
+bury = 0.4                  # meters a wall's or a pier's foot goes under the lowest ground round it
+step = 6.0                  # meters: longest step between a structure's stations
+sidewalk_from = 11.0        # meters: a city deck this wide has a raised sidewalk along each parapet
+sidewalk = [1.8, 0.18]      # its width, its curb's width
+parapet = [1.0, 0.36]       # a stone parapet: height over the deck, thickness
+coping = [0.12, 0.03]       # its coping: height, overhang on each side
+end_post = [0.64, 1.28, 0.14, 0.05]   # the stouter post at a parapet's end: side, height, its cap's height and overhang
+string_course = [0.17, 0.07]   # the band of stone at the deck: height, how far proud of the wall
+ring = [0.42, 0.06, 0.75, 0.025, 0.8]   # the dressed stones round an arch: depth, proud, length, joint, a short stone's depth
+pier = [0.22, 1.4, 2.6, 0.12] # an arch's pier: thickness to the arch's length, least, most, how far proud of the wall
+nose = [0.7, 0.55]          # its cutwaters: length to the thickness, slope of their stone caps
+pier_cap = [0.26, 0.08]     # the capstone under the springing: height, how far proud
+spring_over = [0.25, 0.3]   # from the water to where an arch springs: least meters, part of the height to the soffit
+arch_gap = 0.35             # least meters from where an arch springs to the soffit over it
+wet_band = 0.18             # meters of dark wet stone over the water on a pier
+arc_sides = 12              # sides of a round column
+girder = [0.5, 0.24, 3.6]   # a concrete deck's girders: width, depth under the slab, meters apart
+shadow = [0.09, 0.09]       # the shadow line under the kerb: height, depth
+seat = [0.45, 0.3]          # an abutment's seat under the girders: how far out, height
+kerb = [0.34, 0.34]         # a concrete parapet's kerb: height, width
+rail = [1.08, 0.72, 0.06, 0.05]  # its rails: top height, second rail's height, width, depth
+rail_post = [2.8, 0.07]     # its posts: meters apart, side
+concrete_end = [0.5, 1.22]  # the block at the end of a concrete parapet: side, height
+cap_beam = [0.65, 1.2, 0.5] # the cap beam over a pier: height, thickness, how far short of the deck's edge
+column = [0.42, 4.6, 1.3]   # round columns: radius, meters apart at most, how far in from the deck's edge
+pier_tall = 5.0             # meters under the soffit: taller than this a pier is a wall
+wall_pier = [1.1, 1.4]      # a wall pier: thickness, how far short of the deck's edge
+ford_post = [6.0, 0.11, 0.95, 0.22]   # a ford's marker posts: meters apart, side, height, in from the edge
+ford_bands = [0.35, 0.22, 0.2]   # their red bands: height of the first, band's height, gap
+ford_gauge = [0.16, 2.4, 0.5]    # the flood gauges at the channel's two ends: side, height, each band's height
+
 # --- streets ---------------------------------------------------------------------
 # Raised sidewalks (prompt 13) and their crisp curb. Widths per district are below.
 [streets]
@@ -527,6 +585,7 @@ ring = "asphalt"
 corniche = "asphalt"
 connector = "asphalt"
 street = "asphalt"
+bridge = "asphalt"
 souk = "paving"
 alley = "paving"
 

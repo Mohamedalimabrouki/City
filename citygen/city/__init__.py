@@ -20,6 +20,8 @@ Pipeline (each step is its own module):
   corniche   the seafront promenade on the corniche's sea side (last: appends its walks and moves only the
              beach-side palms onto it, each keeping its index)
   river      keeps the plan off a river's corridor (prompt 61): read by layout, streets, station and walks
+  bridges    where streets cross the river (prompt 62): the riverside walks stop at them; their streets are
+             appended last and their heights read from the finished plan's ground
 """
 from __future__ import annotations
 
@@ -31,6 +33,7 @@ from shapely.ops import unary_union
 
 from ..names import NameMaker, fixed_name
 from ..rng import stream
+from .bridges import off_decks, plan_bridges, raise_decks
 from .buildings import cemetery_and_parks, make_buildings, neighborhood_mosques
 from .greenery import greenery
 from .layout import assign_kinds, city_boundary, lake_water, land_near, main_axis, medina_outline, neighborhoods
@@ -103,15 +106,15 @@ def plan_city(world, settlement) -> CityPlan:
             hit = LineString(r.coords).intersection(medina.exterior)
             crossings += [p for p in getattr(hit, "geoms", [hit]) if p.geom_type == "Point"]
         streets, buildings, cut, landmarks, _gates, kasbah = old_town(ctx, medina, 0, axis, crossings)
-    bridges = []
+    links = []
     if ctx.water is not None:     # the kinds and names were dealt as if no river ran here: only its banks change
-        bridges = river.split_districts(ctx, districts)
+        links = river.split_districts(ctx, districts)
     streets += major_streets(ctx, districts, medina, axis, sea_land)
     streets += road_links(ctx, roads, streets)
     streets += local_streets(ctx, districts)
-    if ctx.water is not None:     # nothing crosses it until prompt 62's bridges
+    if ctx.water is not None:     # nothing crosses it but the bridges
         streets, cuts = river.cut_streets(streets, ctx.water)
-        bridges += cuts
+        links += cuts
     station = railway.place(ctx, districts, streets, medina, cut, land if ctx.water is None else land.difference(ctx.water))
     if station is not None:   # local streets cut back from the precinct and from along the tracks
         streets = railway.clip_streets(ctx.style["station"], streets, station, 0)
@@ -119,14 +122,18 @@ def plan_city(world, settlement) -> CityPlan:
     street_surfaces(districts, streets, world.style)
     blocks = make_blocks(ctx, districts, streets, cut)
     walks = railway.clip_walks(make_walks(ctx, districts, streets, blocks), station)
-    shore_walks = [] if ctx.water is None else river.riverside_walks(ctx, streets, medina)
-    walks += shore_walks          # appended last: every other walk keeps its index
     parcels = make_parcels(ctx, blocks, districts)
     mosques, mosque_marks, used = neighborhood_mosques(ctx, districts, parcels)
     parcels, used, lanes = cut_impasses(ctx, blocks, districts, parcels, streets, used)
+    through = streets[:]
     streets += lanes   # appended last: every earlier street keeps its index (walks, souks, paint)
+    decks, bridges = [], []
     if ctx.water is not None:
-        bridges = river.link_banks(ctx, streets, bridges)
+        links = river.link_banks(ctx, streets, links)
+        solid = [p for p, _d in blocks] + [b.footprint for b in buildings] + ([cut] if cut is not None else [])
+        links, decks, bridges = plan_bridges(ctx, streets, links, solid)
+    shore_walks = [] if ctx.water is None else river.riverside_walks(ctx, through + decks, medina)
+    walks += shore_walks          # appended last: every other walk keeps its index
     sites = boulevard.sites(ctx, parcels, districts, streets, used)
     parcels, used = boulevard.merge(parcels, used, sites)   # merged lots at the end, nothing built on them
     houses, trees = make_buildings(ctx, parcels, districts, used | {s.parcel for s in sites})
@@ -143,24 +150,26 @@ def plan_city(world, settlement) -> CityPlan:
     buildings += rail_buildings
     marks += rail_marks
     tree_clear = float(ctx.style.get("landmarks", {}).get("tree_clear", 0.0))
-    trees += green_trees + railway.clear(boulevard.clear_fronts(street_trees(ctx, streets), sites, tree_clear),
-                                         station) + river.riverside_trees(ctx, shore_walks)
+    trees += green_trees + off_decks(railway.clear(boulevard.clear_fronts(street_trees(ctx, streets), sites, tree_clear),
+                                                   station), bridges) + river.riverside_trees(ctx, shore_walks)
     plan = CityPlan(s, boundary, land, medina, districts, streets, blocks, parcels, buildings,
                     trees, marks, walks)
     plan.station = station
     plan.households = households(ctx, buildings, districts)
     plan.souks = souks(ctx, streets)
     apply_massing(ctx, plan)
-    plan.paint = make_paint(world.style, streets, walks, districts)
-    green = railway.clear(greenery(ctx, plan), station)
+    plan.paint = make_paint(world.style, streets + decks, walks, districts)
+    green = off_decks(railway.clear(greenery(ctx, plan), station), bridges)
     trees += green   # appended last: every older tree keeps its index, so its kit variant and turn
-    plan.crossings = bridges
+    plan.crossings = links
     plan.port, lights, plan.land = plan_port(ctx, districts, sea_land)   # reads districts and land only
     marks += lights   # appended last: every earlier landmark keeps its index
     plan.props = plan_props(ctx, plan)   # boats, cranes and cargo (prompt 35): planned last, moves nothing
     plan.fronts = plan_fronts(ctx, plan)  # the seafront promenade (prompt 36): appends walks, moves sea palms
     histories(ctx, plan)   # district histories (prompt 81): text only, read from the finished plan
-    plan.stats = {"districts": len(districts), "streets": len(streets), "impasses": len(lanes),
+    streets += decks       # last: no step above sees a bridge, and every earlier street keeps its index
+    plan.bridges = raise_decks(ctx, plan, links, bridges)
+    plan.stats = {"districts": len(districts), "streets": len(streets) - len(decks), "impasses": len(lanes),
                   "blocks": len(blocks),
                   "parcels": len(parcels), "buildings": len(buildings), "trees": len(trees),
                   "greenery": len(green),
@@ -168,5 +177,6 @@ def plan_city(world, settlement) -> CityPlan:
                   **({"quay_m": port_lengths(plan.port)["quays"], "breakwater_m": port_lengths(plan.port)["breakwaters"]}
                      if plan.port is not None else {}),
                   **(front_lengths(plan.fronts) if plan.fronts else {}),
+                  **({"bridges": len(bridges), **ctx.bridge_notes} if bridges else {}),
                   "seconds": round(time.perf_counter() - t0, 1)}
     return plan

@@ -76,7 +76,7 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
 - [x] 59 B1a Rivers (citygen/hydro.py; World.rivers, World.lakes; country map)
 - [x] 60 B1b Valleys and lakes (citygen/carve.py, mesh/water.py; salt flats built, prompt 65 keeps the dunes)
 - [x] 61 B1c Rivers in towns (city/river.py; CityPlan.crossings)
-- [ ] 62 B1d Bridges
+- [x] 62 B1d Bridges (city/bridges.py, mesh/bridges.py; CityPlan.bridges, fords computed per road)
 - [ ] 63 B2a Fields and cactus hedges
 - [ ] 64 B2b Olive groves and orchards
 - [ ] 65 B3 Salt lakes and dunes
@@ -266,7 +266,7 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
 
 ## B. Countryside
 
-- [ ] **B1 Rivers and lakes** (L, Sonnet high or Opus low) - Flow accumulation on a coarse
+- [x] **B1 Rivers and lakes** (L, Sonnet high or Opus low) - Flow accumulation on a coarse
   height grid, rivers (oueds) as polylines with width by flow, carve the terrain, lakes in
   closed basins, bridges where roads cross, settlements prefer river sites. Files:
   new `citygen/hydro.py`, `world.py`, `mesh/tile.py`, `export/maps.py`.

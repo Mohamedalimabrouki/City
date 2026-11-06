@@ -14,7 +14,7 @@ from shapely.strtree import STRtree
 
 from citygen.__main__ import main
 from citygen.city import plan_city
-from citygen.config import load_config
+from citygen.config import load_config, load_style
 from citygen.mesh.builder import MeshBuilder, add_hip_roof, extrude, rectangle
 from citygen.mesh.gltf import accessor_array, read_glb, read_parts, triangle_count, write_glb
 from citygen.mesh.textures import (NAMES, PIXELS, encoded, images_for, spec_for, texture,
@@ -5582,12 +5582,6 @@ def _graph_parts(nodes: list, edges: list) -> dict:
     return parts
 
 
-def _crossing_links(plan, edges: list) -> list:
-    """(node, node, 0) for each of a plan's crossings, in `edges` (street, line, a, b)."""
-    from citygen.city.river import crossing_nodes
-    return [(a, b, 0.0) for a, b in crossing_nodes(edges, plan.crossings)]
-
-
 def test_street_graph_is_connected_and_its_edges_match_their_lines(world, plan):
     from shapely.geometry import Point
     from citygen.export.streets import road_links, street_graph
@@ -5604,11 +5598,7 @@ def test_street_graph_is_connected_and_its_edges_match_their_lines(world, plan):
             assert ahead[0] <= ahead[1]
     parts = _graph_parts(nodes, [(a, b, line.length) for _k, line, a, b in edges])
     total = sum(parts.values())
-    # the largest connected part holds the streets, a river's banks joined at `plan.crossings`: until prompt 62 draws
-    # the bridges a city is apart at its river, and prompt 62 must take the crossings out of this line
-    joined = _graph_parts(nodes, [(a, b, line.length) for _k, line, a, b in edges] + _crossing_links(plan, edges))
-    assert len(parts) == 1 or plan.crossings
-    assert max(joined.values()) >= 0.995 * total
+    assert max(parts.values()) >= 0.995 * total              # the largest connected part holds the streets
     drawn = shapely.unary_union([st.line for st in plan.streets]).length   # a street under a boulevard counts once
     assert drawn - 1.0 < total < drawn * 1.01     # impasse mouths add their stubs to the street centers
     streets = shapely.union_all([line for _k, line, _a, _b in edges])
@@ -5691,10 +5681,10 @@ def test_streets_json_lists_nodes_on_the_drawn_street_and_measured_edges(world, 
         assert e["kind"] == plan.streets[e["street"]].kind and min(e["sidewalks"]) >= 0.0
         assert sum(e["sidewalks"]) < e["width"]
     assert any(max(e["sidewalks"]) > 0.0 for e in edges)
-    # a river's banks joined at `plan.crossings` until prompt 62 draws the bridges: it must take them out of this line
-    links = _crossing_links(plan, [(0, shapely.LineString(e["line"]), e["from"], e["to"]) for e in edges])
-    parts = _graph_parts(nodes, [(e["from"], e["to"], e["length"]) for e in edges] + links)
+    parts = _graph_parts(nodes, [(e["from"], e["to"], e["length"]) for e in edges])
     assert max(parts.values()) >= 0.995 * sum(parts.values())
+    decks = [e for e in edges if e["kind"] == "bridge"]
+    assert len(decks) >= len(plan.bridges) and all(e["sidewalks"] == [0.0, 0.0] for e in decks)
 
 
 @pytest.mark.slow  # plans every settlement of the quick world, about 10 s
@@ -5706,8 +5696,7 @@ def test_street_graph_of_every_settlement_holds_together(world):
         nodes, edges = street_graph(plan.streets, grid)
         if not nodes:                              # a hamlet can have no street at all
             continue
-        # a river's banks joined at `plan.crossings` until prompt 62 draws the bridges: it must take them out of this line
-        parts = _graph_parts(nodes, [(a, b, line.length) for _k, line, a, b in edges] + _crossing_links(plan, edges))
+        parts = _graph_parts(nodes, [(a, b, line.length) for _k, line, a, b in edges])
         assert max(parts.values()) >= 0.995 * sum(parts.values()), s.name
 
 
@@ -6125,7 +6114,8 @@ def test_a_river_is_a_barrier_in_a_city(world, plan, ground):
     water = river.corridor(world, plan.settlement)
     assert water is not None and water.intersects(plan.boundary)
     assert not any(b.footprint.intersects(water) for b in plan.buildings)
-    assert sum(st.line.buffer(st.width / 2, cap_style="flat").intersection(water).area for st in plan.streets) < 1.0
+    assert sum(st.line.buffer(st.width / 2, cap_style="flat").intersection(water).area for st in plan.streets
+               if st.kind != "bridge") < 1.0
     assert not any(poly.intersects(water) for poly, _ in plan.blocks)
     assert plan.crossings and all(c.line.intersects(water) and c.width > 0.0 for c in plan.crossings)
     walks = [w for w in plan.walks if w.kind == "riverside"]
@@ -6133,6 +6123,493 @@ def test_a_river_is_a_barrier_in_a_city(world, plan, ground):
     assert plan_json_crossings(plan)
     limit = plan.boundary.exterior.buffer(1.0)                    # a bank is a quay, the city limit no street
     assert sum(st.line.intersection(limit).length for st in plan.streets if st.kind == "arterial") < 30.0
+
+
+def test_every_crossing_has_a_bridge_and_a_bridge_is_a_street(plan):
+    from citygen.export.lore import plan_json
+    assert plan.bridges and len(plan.bridges) == len(plan.crossings)
+    first = len(plan.streets) - len(plan.bridges)
+    for k, (b, c) in enumerate(zip(plan.bridges, plan.crossings)):
+        st = plan.streets[b.street]
+        assert b.street == first + k and st.kind == "bridge" and st.line.equals(b.axis) and st.width == b.width == c.width
+        assert b.kind in ("arch", "beam") and b.ends[0] <= b.span[0] <= b.channel[0] <= b.channel[1] <= b.span[1] <= b.ends[1]
+        assert np.all(np.diff(b.s) > 0.0) and {*b.ends, *b.span, *b.channel, *b.piers.tolist()} <= set(b.s.tolist())
+        assert all(b.span[0] < p < b.span[1] for p in b.piers)
+    assert not {"bridge", "arch", "beam"} & {b.kind for b in plan.buildings}
+    assert [r["street"] for r in plan_json(plan)["bridges"]] == [b.street for b in plan.bridges]
+
+
+def test_a_deck_stands_on_no_block_building_street_walk_or_tree(plan):
+    others = [st.line.buffer(st.width / 2, cap_style="flat") for st in plan.streets if st.kind != "bridge"]
+    for b in plan.bridges:
+        deck = b.deck
+        solid = [p for p, _d in plan.blocks] + [h.footprint for h in plan.buildings] + others
+        assert sum(deck.intersection(p).area for p in solid) < 1.0
+        assert sum(deck.intersection(w.polygon).area for w in plan.walks) < 1.0
+        assert not shapely.contains_xy(deck, [t.x for t in plan.trees], [t.y for t in plan.trees]).any()
+
+
+def _ribbon_clears(world, b, ground) -> None:
+    """Dense along a bridge: the air over all water, and the ribbon's middle over the ground."""
+    s = np.arange(b.ends[0], b.ends[1], 0.5)
+    pts = shapely.get_coordinates(shapely.line_interpolate_point(b.axis, s))
+    x, y = pts[:, 0], pts[:, 1]
+    river = world.carve.sample(x, y)
+    wet = river.edge < 0.0
+    least = float(world.style["bridges"]["clearance"][0])
+    assert wet.any()
+    z = b.at(x, y)
+    assert np.all((z - b.depth - river.water)[wet] >= (0.0 if b.kind == "ford" else least) - 0.005)
+    assert np.all(z >= np.asarray(ground.height(x, y)) + 0.1)
+
+
+def test_the_ribbon_clears_the_water_and_meets_its_streets_without_a_step(world, plan, ground):
+    for b in plan.bridges:
+        _ribbon_clears(world, b, ground)
+        for d, end in ((b.ends[0] - 0.05, 0.0), (b.ends[1] + 0.05, b.axis.length)):
+            if 0.0 < d < b.axis.length:                     # just on the street it leaves
+                p, q = b.axis.interpolate(d), b.axis.interpolate(end)
+                top = float(ground.height(p.x, p.y)) + float(ground.lift(q.x, q.y))
+                assert 0.0 <= top - b.at(p.x, p.y)[0] <= 0.03
+
+
+def test_a_bridge_leaves_the_ground_alone_and_is_the_surface_on_its_deck(world, plan, ground):
+    from citygen.city.ground import Ground
+    bare = Ground(world, [dataclasses.replace(plan, bridges=[])])
+    for b in plan.bridges:
+        x0, y0, x1, y1 = b.deck.bounds
+        xs, ys = (a.ravel() for a in np.meshgrid(np.linspace(x0, x1, 40), np.linspace(y0, y1, 40)))
+        on = shapely.contains_xy(b.deck, xs, ys)
+        assert on.any() and np.array_equal(ground.height(xs, ys), bare.height(xs, ys))
+        assert np.allclose(ground.surface(xs[on], ys[on]), b.at(xs[on], ys[on]))
+        assert np.array_equal(ground.surface(xs[~on], ys[~on]), bare.surface(xs[~on], ys[~on]))
+
+
+def test_nothing_parks_lights_or_walks_on_a_deck_by_accident(world, plan, built_mesh):
+    from citygen.city.parking import walk_widths
+    tc = built_mesh[0]
+    dresser = tc.cities[0][4]
+    widths = walk_widths(world.style, plan.districts, plan.streets, plan.walks)[0]
+    for b in plan.bridges:
+        assert not dresser.street_props(b.street, plan.boundary) and not dresser.spans(b.street, plan.boundary)
+        assert not [k for k in widths if k[0] == b.street]
+        assert not dresser.crowd().shared[b.street]
+
+
+def test_a_deck_is_one_height_across_a_tile_edge(world, plan, built_mesh):
+    from shapely.geometry import box as rect
+
+    from citygen.mesh.builder import MeshBuilder
+    from citygen.mesh.tile import road_meshes, street_meshes
+    tc = built_mesh[0]
+    street_tree = tc.cities[0][3]
+    road = next((k, b) for k in range(len(world.roads)) for b in tc.decks(k))[1]
+    for b in (plan.bridges[0], road):
+        mid = b.axis.interpolate(b.axis.length / 2)
+        x0, y0, x1, y1 = b.axis.bounds
+        tops = []
+        for tile in (rect(x0 - 20, y0 - 20, mid.x, y1 + 20), rect(mid.x, y0 - 20, x1 + 20, y1 + 20)):
+            mb = MeshBuilder(origin=(0.0, 0.0))
+            street_meshes(mb, tc, plan, street_tree, tile) if b.road < 0 else road_meshes(mb, tc, tile)
+            pos = np.concatenate([p for _m, p, _t, _f in mb.arrays()])
+            pos = pos[shapely.distance(b.axis, shapely.points(pos[:, :2])) < b.width]
+            tops.append(pos[np.abs(b.locate(pos[:, 0], pos[:, 1]) - b.axis.length / 2) < 0.02])
+        assert len(tops[0]) == len(tops[1]) == 2 and np.allclose(np.sort(tops[0][:, 2]), np.sort(tops[1][:, 2]), atol=1e-3)
+
+
+def test_a_country_bridge_clears_its_river_and_comes_down_to_the_road(world, built_mesh):
+    from shapely.ops import substring
+
+    from citygen.mesh.tile import ROAD_LIFT
+    tc = built_mesh[0]
+    decks = [b for k in range(len(world.roads)) for b in tc.decks(k)]
+    assert decks
+    grade = float(world.style["bridges"]["grade"])
+    for b in decks:
+        _ribbon_clears(world, b, tc.ground)
+        assert np.all(np.abs(np.diff(b.z) / np.diff(b.s)) < 1.05 * grade)
+        a, c = b.axis.coords[0], b.axis.coords[-1]
+        for (x, y), end in ((a, 0), (c, -1)):
+            assert abs(float(tc.ground.height(x, y)) + ROAD_LIFT - b.z[end]) < 0.03
+        road = shapely.LineString(world.roads[b.road].coords)
+        assert b.axis.hausdorff_distance(substring(road, b.along, b.along + b.axis.length)) < 0.01
+        assert b.kind == {"national": "beam"}.get(world.roads[b.road].kind, b.kind)
+
+
+def test_a_country_ramp_stops_at_a_city_limit(world, built_mesh):
+    from citygen.city.bridges import road_bridges
+    from citygen.mesh.tile import ROAD_LIFT
+    tc = built_mesh[0]
+    k, b = next((k, b) for k in range(len(world.roads)) for b in tc.decks(k))
+    p = b.axis.interpolate(b.ends[0] + 0.3 * (b.span[0] - b.ends[0]))
+    limit = p.buffer(0.3 * (b.span[0] - b.ends[0]) + 0.5, quad_segs=2).union(shapely.Point(b.axis.coords[0]).buffer(9.0))
+    near = next(c for c in road_bridges(world, k, tc.road_lines[k], tc.ground, ROAD_LIFT, limit)
+                if abs(c.along - b.along) < b.axis.length)
+    assert near.along > b.along and near.axis.length < b.axis.length
+    x, y = near.axis.coords[0]
+    assert abs(float(tc.ground.height(x, y)) + ROAD_LIFT - near.z[0]) < 0.03
+    over = (near.s >= near.channel[0]) & (near.s <= near.channel[1])
+    assert np.all(near.z[over] - near.depth >= near.water)
+
+
+def test_a_deck_profile_is_one_rule_for_a_viaduct_and_a_low_bridge():
+    from citygen.city.bridges import deck_profile
+    s = np.arange(0.0, 61.0)
+    water = np.where((s > 25) & (s < 35), 0.5, np.inf)
+    cfg = dict(air=(0.9, 2.0), depth=0.7, grade=0.09, crown=8.0)
+    high = 1.0 + 0.02 * np.abs(s - 30)                                 # a river cut deep between two high banks
+    high[[0, -1]] = 8.0, 11.0
+    z = deck_profile(s, high, water, **cfg)[0]
+    assert np.allclose(np.diff(z, 2), 0.0) and z[0] == 8.0 and z[-1] == 11.0       # a straight line between its ends
+    low = np.full(61, 1.0)
+    z, air = deck_profile(s, low, water, **cfg)
+    assert air > 1.9 and np.abs(np.diff(z)).max() <= 0.09 + 1e-9 and z[0] == z[-1] == 1.0
+    assert np.all(z[(s > 25) & (s < 35)] >= 0.5 + air + 0.7 - 2e-3)
+    assert np.all(np.diff(z, 2) <= 1e-9)                                           # never a sag, the crown rounded
+    assert np.abs(np.diff(z, 2)).max() < 0.03
+    z, air = deck_profile(s[10:51], low[10:51], water[10:51], **cfg)
+    assert 0.9 <= air < 2.0 and np.abs(np.diff(z)).max() <= 0.09 + 1e-9              # the air gives way first
+    z, air = deck_profile(s[22:39], low[22:39], water[22:39], **cfg)
+    assert air == 0.9 and np.abs(np.diff(z)).max() > 0.09                            # then the grade
+
+
+def test_a_ford_is_the_ground_raised_at_a_grade_never_dug():
+    from types import SimpleNamespace
+
+    from citygen.city.bridges import _ford
+    s = np.arange(0.0, 81.0)
+    ground = 5.0 + 2.0 * np.minimum(np.abs(s - 40) / 12.0, 1.0)          # banks 2 m high round a bed
+    wet = np.abs(s - 40) < 4
+    i0, i1, z = _ford(s, ground, ground, SimpleNamespace(past=np.abs(s - 40) - 12.0), wet, 0.09)
+    assert np.all(z >= ground[i0:i1 + 1] - 1e-9) and np.abs(np.diff(z)).max() <= 0.09 + 1e-9
+    assert 25 <= s[i0] and s[i1] <= 55 and z[0] == ground[i0]
+
+
+@pytest.mark.slow  # a whole tile of the capital, and the two bridges' tiles of a town, about 20 s
+def test_nothing_is_placed_on_a_deck(world, plan):
+    from citygen.mesh.tile import build_tile
+    tc = TileContext(world, [plan])
+    for b in plan.bridges:
+        mid = b.axis.interpolate(b.axis.length / 2)
+        _mb, placements = build_tile(tc, int(mid.x // tc.size), int(mid.y // tc.size))
+        assert placements and not shapely.contains_xy(b.deck, [p.x for p in placements], [p.y for p in placements]).any()
+
+
+@pytest.fixture(scope="module")
+def road_decks(world, built_mesh):
+    """The tile context and the quick world's country bridges, an arch first."""
+    tc = built_mesh[0]
+    decks = [b for k in range(len(world.roads)) for b in tc.decks(k)]
+    return tc, sorted(decks, key=lambda b: (b.kind != "arch", -len(b.piers)))
+
+
+def _drawn(draw, *args) -> dict:
+    """{material: vertices} of what `draw` adds to a fresh builder."""
+    from citygen.mesh.builder import MeshBuilder
+    mb = MeshBuilder()
+    draw(mb, *args)
+    return {mat: pos for mat, pos, _tris, _fine in mb.arrays()}
+
+
+def test_every_street_kind_a_river_can_cut_has_a_rank_and_a_bridge_kind():
+    from citygen.city.bridges import KINDS, RANK
+    for kind in ("boulevard", "arterial", "ring", "corniche", "connector", "street", "souk", "alley", "impasse"):
+        assert kind in RANK and kind in KINDS
+    assert {KINDS[k] for k in ("boulevard", "ring", "corniche")} == {"beam"} and RANK["boulevard"] == RANK["arterial"]
+
+
+def test_a_flat_arch_is_split_in_more_arches():
+    from citygen.city.bridges import stations
+    cfg = {"arch_span": 14.0, "arch_flat": 0.12, "arch_least": 4.5, "beam_span": 22.0, "pier_water": 12.0}
+    assert len(stations("arch", (0.0, 20.0), (9.0, 11.0), cfg, 1.5)) == 2       # 3 arches, not one 13 times its rise
+    assert len(stations("arch", (0.0, 10.0), (4.0, 6.0), cfg, 3.0)) == 0
+    assert len(stations("arch", (0.0, 7.0), (2.0, 4.0), cfg, 0.5)) == 0         # no pile of arches 2 m long
+
+
+def test_a_bridge_is_drawn_by_exactly_one_tile(plan, road_decks):
+    from shapely.geometry import box
+
+    from citygen.mesh.bridges import owned
+    from citygen.mesh.tile import tile_bounds
+    tc, decks = road_decks
+    for b in (plan.bridges + decks)[:6]:
+        p = b.axis.interpolate(0.5 * sum(b.ends))
+        i, j = int(p.x // tc.size), int(p.y // tc.size)
+        tiles = [(i + a, j + c) for a in (-1, 0, 1) for c in (-1, 0, 1)]
+        got = [t for t in tiles if any(o is b for o in owned(tc, box(*tile_bounds(tc, *t))))]
+        assert got == [(i, j)]
+
+
+def test_a_stone_bridge_stands_in_the_ground_and_clear_of_the_water(road_decks):
+    from citygen.mesh.bridges import Frame, _pier, _ramps, arches, pier_thick, stones, structure
+    tc, decks = road_decks
+    b = decks[0]
+    assert b.kind == "arch" and len(b.piers)
+    cfg, style = tc.world.style["bridges"], tc.world.style
+    fr = Frame(b, float(cfg["step"]))
+    for pos in _drawn(_ramps, tc.ground, fr, stones(b)[0], cfg).values():      # a wall's foot under the ground at every point
+        low = pos[pos[:, 2] < b.at(pos[:, 0], pos[:, 1]) - 0.01]
+        assert len(low) and np.all(low[:, 2] <= tc.ground.height(low[:, 0], low[:, 1]) + 1e-6)
+    arcs = arches(fr, cfg)
+    pier = _drawn(_pier, tc.ground, fr, float(b.piers[0]), arcs[0].zc, *stones(b), cfg)
+    wall = np.concatenate(list(pier.values()))
+    low = wall[wall[:, 2] <= wall[:, 2].min() + 1e-6]
+    assert np.all(low[:, 2] <= tc.ground.height(low[:, 0], low[:, 1]) - 0.1)
+    assert all(a.height(0.5 * (a.a + a.c)) <= fr.soffit(0.5 * (a.a + a.c)) + 1e-6 for a in arcs)
+    half = 0.5 * pier_thick(b, cfg) + 0.3
+    for pos in _drawn(structure, tc.ground, b, style).values():                # nothing under the water but piers
+        s = b.locate(pos[:, 0], pos[:, 1])
+        inside = (s > b.channel[0] + 0.5) & (s < b.channel[1] - 0.5) & (np.abs(s[:, None] - b.piers).min(axis=1) > half)
+        assert np.all(pos[inside, 2] >= b.water)
+
+
+def test_a_parapet_stands_on_the_record_up_to_both_its_ends(road_decks):
+    from citygen.mesh.bridges import Frame, _stone_parapets, stones
+    tc, decks = road_decks
+    b = decks[0]
+    cfg = tc.world.style["bridges"]
+    fr = Frame(b, float(cfg["step"]))
+    h, thick = (float(v) for v in cfg["parapet"])
+    pos = np.concatenate(list(_drawn(_stone_parapets, fr, *stones(b), cfg).values()))
+    side = float(cfg["end_post"][0])
+    for s in (b.ends[0] + side + 0.02, b.ends[1] - side - 0.02):
+        for d in (0.5 * b.width - 0.5 * thick, 0.5 * thick - 0.5 * b.width):
+            top = float(fr.top([s], d)[0]) + h
+            xy = fr.off([s], d)[0]
+            near = pos[np.hypot(*(pos[:, :2] - xy).T) < 3.0 + b.width / 2]
+            assert near[:, 2].max() >= top - 0.2
+
+
+def test_a_ford_is_a_slab_down_in_the_gravel_with_its_posts(world):
+    from types import SimpleNamespace
+
+    from shapely.geometry import LineString
+
+    from citygen.city.model import Bridge
+    from citygen.mesh.bridges import Frame, ford
+
+    def height(x, y):
+        return 5.0 + 0.3 * np.sin(np.asarray(x) / 3.0)
+
+    s = np.arange(0.0, 31.0)
+    b = Bridge("ford", LineString([(0.0, 0.0), (30.0, 0.0)]), 6.0, -1, (0.0, 30.0), span=(10.0, 20.0), channel=(10.0, 20.0),
+               s=s, z=height(s, 0.0) + 0.34, floor=height(s, 0.0), road=0, lean=np.zeros(31))
+    got = _drawn(ford, SimpleNamespace(height=height, drawn=height), Frame(b, 6.0), world.style["bridges"])
+    slab = got["concrete"]
+    feet = slab[slab[:, 2] < height(slab[:, 0], 0.0) + 0.3]
+    assert len(feet) and np.all(feet[:, 2] <= height(feet[:, 0], 0.0) + 1e-9)
+    assert {"railing_white", "lighthouse_red"} <= set(got)
+    assert max(p[:, 2].max() for p in got.values()) >= height(10.0, 0.0) + 2.0
+
+
+def test_a_tall_concrete_bridge_stands_on_wall_piers_and_a_wide_city_deck_has_sidewalks(world, plan, ground):
+    from types import SimpleNamespace
+
+    from shapely.geometry import LineString
+
+    from citygen.city.model import Bridge
+    from citygen.mesh.bridges import structure
+
+    def height(x, y):
+        return np.full(np.shape(x), 5.0)
+
+    s = np.array([0.0, 10.0, 15.0, 30.0, 45.0, 50.0, 60.0])
+    b = Bridge("beam", LineString([(0.0, 0.0), (60.0, 0.0)]), 11.0, -1, (0.0, 60.0), span=(10.0, 50.0), channel=(20.0, 40.0),
+               s=s, z=np.full(7, 20.0), floor=np.full(7, 5.0), depth=0.6, water=6.0, piers=np.array([30.0]), road=0)
+    got = _drawn(structure, SimpleNamespace(height=height, drawn=height), b, world.style)
+    pos = got["concrete_dark"]                                                 # its wet foot
+    foot = pos[(np.abs(pos[:, 0] - 30.0) < 1.0) & (pos[:, 2] < 5.0)]
+    assert len(np.unique(np.round(foot[:, :2], 2), axis=0)) > 10                # round ends, not a box
+    assert "sidewalk" not in got and "iron" in got
+    wide = next(c for c in plan.bridges if c.width >= float(world.style["bridges"]["sidewalk_from"]))
+    assert {"sidewalk", "curb"} <= set(_drawn(structure, ground, wide, world.style))
+
+
+def test_a_ford_leans_with_a_bank_it_meets_aslant():
+    from types import SimpleNamespace
+
+    from citygen.city.bridges import _slab
+    cfg = {"ford_lean": 0.25}
+    x, y = np.arange(0.0, 20.0, 1.0), np.zeros(20)
+    ground = SimpleNamespace(height=lambda a, b: 10.0 + 0.1 * np.asarray(b))     # rises 0.1 m per m to the left
+    need, lean = _slab(ground, x, y, 6.0, ground.height(x, y), 0.34, cfg)
+    assert np.allclose(lean, 0.1) and np.allclose(need, 10.34)
+
+
+def test_lod1_has_a_box_under_a_bridge(road_decks):
+    from citygen.mesh.bridges import bridge_box, stones
+    tc, decks = road_decks
+    b = decks[0]
+    got = _drawn(bridge_box, tc.ground, b, tc.world.style["bridges"])
+    pos = got[stones(b)[0]]
+    assert pos[:, 2].max() >= b.z.max() + 0.5 and pos[:, 2].min() < b.z.min()
+
+
+def _bridge(coords, width=8.0, kind="arch", **kw):
+    """A record by hand: a deck 10 m up on `coords`, from end to end, its ground 5 m under it."""
+    from citygen.city.model import Bridge
+    axis = shapely.LineString(coords)
+    length = axis.length
+    fields = {"span": (0.0, length), "channel": (0.4 * length, 0.6 * length), "depth": 0.6, "water": 4.0, "air": 1.0,
+              "s": np.array([0.0, length]), "z": np.array([10.0, 10.0]), "floor": np.array([5.0, 5.0])}
+    return Bridge(kind, axis, width, -1, (0.0, length), **{**fields, **kw})
+
+
+def test_a_station_past_an_end_is_that_end_and_a_post_is_a_post():
+    from citygen.mesh.bridges import Frame, _stone_parapets
+    b = _bridge([(0.0, 0.0), (50.0, 0.0)])
+    cfg = load_style("maghreb")["bridges"]
+    fr = Frame(b, 6.0)
+    assert np.allclose(fr.points([-0.05, 50.5]), [[0.0, 0.0], [50.0, 0.0]])
+    cap = _drawn(_stone_parapets, fr, "wall", "trim", cfg)["trim"]
+    high = cap[cap[:, 2] > 10.0 + float(cfg["parapet"][0]) + 0.05]              # the caps of the end posts
+    assert high[:, 0].min() < 1.0 and high[:, 0].max() > 49.0
+    assert np.ptp(high[high[:, 0] < 25.0, 0]) < 1.0                             # not a bar along the deck
+
+
+def test_an_offset_line_runs_on_the_ribbons_edge_past_a_kink():
+    from citygen.mesh.bridges import Frame
+    from citygen.mesh.builder import ribbon_edges
+    coords = [(0.0, 0.0), (20.0, 0.0), (24.0, 3.0), (40.0, 3.0)]
+    b = _bridge(coords, width=11.0)
+    fr = Frame(b, 6.0)
+    _p, _seg, left, right = ribbon_edges(coords, 11.0)
+    s = fr.stations(0.0, b.axis.length)
+    for d, edge in ((5.5, left), (-5.5, right)):
+        assert shapely.distance(shapely.LineString(edge), shapely.points(fr.off(s, d))).max() < 1e-6
+    x = fr.off(s, 5.5)
+    assert (np.einsum("ij,ij->i", np.diff(x, axis=0), np.diff(fr.points(s), axis=0)) > 0.0).all()     # it never folds
+
+
+def test_lod1_keeps_a_ribbon_over_its_terrain_and_stands_a_box_on_that_terrain():
+    from types import SimpleNamespace
+
+    from citygen.mesh.bridges import bridge_box
+    from citygen.mesh.lod import ribbons
+    b = _bridge([(0.0, 0.0), (40.0, 0.0)], kind="ford", depth=0.0, span=(10.0, 30.0), channel=(10.0, 30.0))
+    mb = MeshBuilder()
+    lod = SimpleNamespace(street_simplify=1.0, street_step=8.0)
+    ribbons(mb, lod, [(b.axis, b.width, "concrete", 0.5, b)], lambda x, y: np.full(len(x), 11.0))     # land over the deck
+    pos = mb.arrays()[0][1]
+    assert pos[:, 2].min() >= 11.5 - 1e-6
+    coarse = SimpleNamespace(height=lambda x, y: np.full(len(np.ravel(x)), 3.0))
+    coarse.drawn = coarse.height
+    cfg = load_style("maghreb")["bridges"]
+    walls = _drawn(bridge_box, coarse, b, cfg)["concrete"]
+    assert walls[:, 2].min() <= 3.0 - float(cfg["bury"]) + 1e-6
+
+
+def test_a_ramp_opens_where_its_air_does_and_the_record_holds_every_river():
+    from types import SimpleNamespace
+
+    from citygen.city.bridges import _finish, thin
+    cfg = load_style("maghreb")["bridges"]
+    grid = np.arange(0.0, 101.0)
+    z = 7.0 + 0.06 * (50.0 - np.abs(grid - 50.0))                       # two straight ramps: thin keeps three stations
+    floor = np.where(np.abs(grid - 50.0) < 5.0, 3.0, 6.5)
+    b = _bridge([(0.0, 0.0), (100.0, 0.0)], kind="", span=(0.0, 0.0))
+    b.s, b.z = thin(grid, z)
+    b.floor = np.interp(b.s, grid, floor)
+    wet = np.abs(grid - 50.0) < 5.0
+    under = np.stack([np.where(wet, 4, -1), np.where(wet, 9, -1), np.full(101, -1)])
+    sample = SimpleNamespace(water=np.full(101, 4.0), dry=np.zeros(101, dtype=bool), river=np.full(101, 4))
+    assert len(b.s) == 3
+    _finish(b, grid, floor, wet, sample, under, 8.0, "beam", cfg)
+    room = z - b.depth - floor
+    first = grid[(room >= float(cfg["open_air"])) & (grid <= 50.0)]
+    assert b.span[0] == pytest.approx(first[0]) and b.span[1] == pytest.approx(100.0 - first[0])
+    assert b.span[0] > 0.0 and b.rivers == (4, 9) and b.river == 4
+
+
+def test_a_ramp_keeps_its_lean_at_the_end_of_a_deck_that_opens_at_once():
+    b = _bridge([(0.0, 0.0), (30.0, 0.0)], tilt=(0.1, -0.1))
+    assert np.allclose(b.fade(np.array([0.0, 15.0, 30.0])), [1.0, 0.0, 1.0])
+    assert b.at([0.0], [4.0])[0] == pytest.approx(10.4, abs=0.02)
+
+
+def test_a_fords_two_ends_lie_on_the_land_under_its_edges():
+    from types import SimpleNamespace
+
+    from citygen.city.bridges import _ford_ends
+    x, y = np.arange(0.0, 21.0), np.zeros(21)
+    crowned = SimpleNamespace(height=lambda a, b: 10.0 - 0.05 * np.asarray(b) ** 2 + 0.1 * np.asarray(b))
+    z, lean = _ford_ends(crowned, x, x, y, 8.0, 0.34, np.full(21, 10.5), np.zeros(21), 0.16)
+    for i in (0, -1):
+        for d in (4.0, -4.0):
+            assert z[i] + lean[i] * d == pytest.approx(float(crowned.height(0.0, d)) + 0.34, abs=0.03)
+    assert np.abs(np.diff(z)).max() <= 0.16 + 1e-9
+
+
+def test_a_new_bridge_counts_from_the_last_one_across_a_hole_in_the_streets():
+    from citygen.city.bridges import Site, Spot
+
+    class Fake(Site):
+        def __init__(self):
+            self.cfg, self.left = {"every": 500.0, "gap": 60.0}, 0
+
+        def stretches(self, k):
+            return [(975.0, 1600.0)]
+
+        def candidates(self, k, lo, hi, graph):
+            return [Spot(k, float(d), None, "street", 8.0) for d in np.arange(lo, hi, 25.0)]
+
+        def clear(self, line, width):
+            return True
+
+    got = Fake().fill(2, [Spot(2, 800.0, None, "street", 8.0)], ())
+    assert got and got[0].along - 800.0 <= 500.0
+
+
+def test_a_sidewalk_stops_at_its_curb_and_a_pier_has_no_empty_faces():
+    from types import SimpleNamespace
+
+    from citygen.mesh.bridges import Frame, _pier, _sidewalks
+    cfg = load_style("maghreb")["bridges"]
+    b = _bridge([(0.0, 0.0), (40.0, 0.0)], width=12.0, kind="beam")
+    got = _drawn(_sidewalks, Frame(b, 6.0), cfg, 0.15)
+    assert np.abs(got["sidewalk"][:, 1]).min() >= np.abs(got["curb"][:, 1]).max() - 1e-6
+    assert got["curb"][:, 2].max() == pytest.approx(got["sidewalk"][:, 2].max())
+    flat = SimpleNamespace(height=lambda x, y: np.full(np.shape(x), 1.0), drawn=lambda x, y: np.full(np.shape(x), 1.0))
+    b = _bridge([(0.0, 0.0), (40.0, 0.0)], water=9.9, piers=np.array([20.0]), floor=np.array([1.0, 1.0]))
+    mb = MeshBuilder()
+    _pier(mb, flat, Frame(b, 6.0), 20.0, 9.0, "wall", "trim", cfg)            # the water over the capstone's foot
+    for _mat, pos, tris, _fine in mb.arrays():
+        a, c, d = (pos[tris[:, i]] for i in range(3))
+        assert (np.linalg.norm(np.cross(c - a, d - a), axis=1) > 1e-9).all()
+
+
+def test_two_roads_on_one_crossing_have_one_structure():
+    from citygen.city.bridges import follow
+    from citygen.mesh.tile import road_parts
+    cfg = {"tuck": 0.02, "own_least": 2.0}
+    host = _bridge([(0.0, 0.0), (60.0, 0.0)], width=11.0, s=np.array([0.0, 30.0, 60.0]), z=np.array([9.0, 12.0, 9.0]),
+                   floor=np.full(3, 5.0))
+    rider = follow(_bridge([(2.0, 0.0), (58.0, 0.0)], road=1), host, cfg)
+    assert rider.standing() is None and rider.shown() == []
+    assert road_parts(rider.axis, rider.axis, 0.0, [rider]) == []
+    fork = follow(_bridge([(0.0, 0.0), (20.0, 0.0), (60.0, 25.0)], road=2, along=0.0), host, cfg)
+    part = fork.standing()
+    assert 0.0 < part.ends[0] < part.ends[1] == pytest.approx(fork.axis.length)
+    assert part.ends[0] >= part.span[0] - 1e-9 >= 0.0 and part.deck.intersection(host.deck).area < 0.1
+    shared = np.flatnonzero(fork.s < fork.under[1])
+    x, y = shapely.get_coordinates(shapely.line_interpolate_point(fork.axis, fork.s[shared])).T
+    assert np.abs(fork.at(x, y) - host.at(x, y) + 0.02).max() < 0.03
+    assert fork.z[-1] == pytest.approx(10.0)                               # and back to its own height at its far end
+
+
+def test_a_country_map_marks_a_shared_crossing_once(monkeypatch):
+    from types import SimpleNamespace
+
+    from citygen.export import maps
+    monkeypatch.setattr(maps, "wet_runs", lambda carve, line: [(40.0, 50.0)])
+    near = SimpleNamespace(river=np.array([3]), dry=np.array([False]))
+    world = SimpleNamespace(carve=SimpleNamespace(sample=lambda x, y: near), style={"bridges": {"gap": 60.0}},
+                            roads=[SimpleNamespace(coords=[(0.0, 5.0 * k), (90.0, 5.0 * k)], width=8.0 + 3.0 * k, kind="local")
+                                   for k in range(2)] + [SimpleNamespace(coords=[(0.0, 900.0), (90.0, 900.0)], width=8.0,
+                                                                         kind="local")])
+    marks = []
+    maps._road_crossings(SimpleNamespace(ellipse=lambda box, fill, outline: marks.append(fill)), world, lambda x, y: (x, y), 1800)
+    assert len(marks) == 2
 
 
 def plan_json_crossings(plan) -> list:

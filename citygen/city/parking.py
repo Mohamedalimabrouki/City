@@ -124,7 +124,7 @@ def walk_widths(style: dict, districts, streets, walks, kinds=None) -> tuple:
     cfg = style.get("dressing", {}).get("parking", {})
     parks = parking_districts(cfg, districts)
     for k, st in enumerate(streets):
-        if kinds is not None and st.kind not in kinds:
+        if st.kind == "bridge" or (kinds is not None and st.kind not in kinds):
             continue
         w, p = street_widths(st, k, walks, walk_tree, surface_tree, design, min_carriage,
                              lying_on(k, st.line, surfaces[k], line_tree, lines, cfg), parks)

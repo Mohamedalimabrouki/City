@@ -1,7 +1,11 @@
 """Data model of a planned city. Coordinates are world meters (x east, y north)."""
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
+
+import numpy as np
+import shapely
+from shapely.ops import substring
 
 
 @dataclass
@@ -23,7 +27,7 @@ class District:
 
 @dataclass
 class Street:
-    kind: str      # boulevard | arterial | ring | corniche | connector | street | souk | alley | impasse
+    kind: str      # boulevard | arterial | ring | corniche | connector | street | souk | alley | impasse | bridge
     width: float
     line: object   # shapely LineString (center line); an impasse runs from its mouth to its dead end
     surface: str = ""  # palette material of the ribbon; style [streets.surface], village = earth
@@ -149,6 +153,91 @@ class Paint:
 
 
 @dataclass
+class Bridge:
+    """A bridge or a ford, all a mesher needs (city/bridges.py). Stations s are meters along `axis`."""
+    kind: str             # arch (stone) | beam (concrete) | ford (a concrete slab over a dry oued)
+    axis: object          # LineString: a street's center line, or the piece of a road between `ends`
+    width: float          # of the ribbon
+    street: int           # index in plan.streets, -1 on a country road
+    ends: tuple           # (s0, s1) where the ribbon leaves its street or road; beyond them it is that street
+    river: int = -1       # index in world.rivers: the one under most of the deck
+    span: tuple = (0.0, 0.0)       # (s0, s1) the open part, abutment to abutment; outside it the ramp is solid fill
+    s: object = None               # stations, with one at each kink, at `ends`, at `span`, at `channel` and at each pier
+    z: object = None               # top of the ribbon at each station (the deck is level across)
+    floor: object = None           # the ground under the center line at each station
+    depth: float = 0.0             # deck, from its top to its soffit
+    air: float = 0.0               # meters from the water to the soffit it was given
+    water: float = 0.0             # the water's level, or a dry oued's floor
+    water_width: float = 0.0       # meters, square to the river
+    channel: tuple = (0.0, 0.0)    # (s0, s1) over the water or the floor
+    piers: object = field(default_factory=lambda: np.zeros(0))   # stations inside `span`: the piers between arches or beams
+    dry: bool = False     # over a dry oued
+    tilt: tuple = (0.0, 0.0)       # rise to the left of the axis, m per m, at the two ends: a ramp starts leaning with the
+                                   # land under its street or road, and is level across by the open part
+    road: int = -1        # index in world.roads, -1 in a city
+    along: float = 0.0    # meters along the road at s = 0
+    old: bool = False     # an end by the old town: its warm stone
+    lean: object = None   # a ford only, at each station: rise to the left, m per m, as the land under the slab leans
+    rivers: tuple = ()    # all the rivers under the deck, in `world.rivers`; `water` is the highest of their levels
+    own: object = None    # a road that shares a crossing with a wider one: (s0, s1) of the structure it keeps, clear of
+                          # that road's deck; (0, 0) none. None: this record is the crossing's structure (city/bridges.follow)
+    under: tuple = (0.0, 0.0)      # (s0, s1) where the wider road's ribbon covers this one's, which is not drawn there
+
+    @property
+    def deck(self):
+        """The ribbon's outline between `ends`, a street's surface being the street's beyond them."""
+        return substring(self.axis, *self.ends).buffer(self.width / 2, cap_style="flat")
+
+    def standing(self):
+        """The record of what stands here, or None: a road that follows a wider one draws only `own`."""
+        if self.own is None:
+            return self
+        a, c = self.own
+        if c <= a:
+            return None
+        span = tuple(float(np.clip(s, a, c)) for s in self.span)
+        channel = tuple(float(np.clip(s, a, c)) for s in self.channel)
+        return replace(self, ends=(a, c), span=span, channel=channel, own=None, piers=self.piers[(self.piers > a) & (self.piers < c)])
+
+    def shown(self) -> list:
+        """[(s0, s1)]: the stretches of the axis that have a ribbon."""
+        pieces = ((0.0, self.under[0]), (self.under[1], self.axis.length)) if self.under[1] > self.under[0] else \
+                 ((0.0, self.axis.length),)
+        return [(a, c) for a, c in pieces if c > a]
+
+    def locate(self, x, y) -> np.ndarray:
+        """Stations of the points x, y."""
+        return np.minimum(shapely.line_locate_point(self.axis, shapely.points(np.ravel(x), np.ravel(y))), self.axis.length)
+
+    def at(self, x, y) -> np.ndarray:
+        """Top of the ribbon at the points x, y."""
+        x, y = np.ravel(x).astype(np.float64), np.ravel(y).astype(np.float64)
+        s = self.locate(x, y)
+        z = np.interp(s, self.s, self.z)
+        lean = self.leaning(s)
+        on = np.flatnonzero(lean != 0.0)
+        if len(on):
+            a = shapely.get_coordinates(shapely.line_interpolate_point(self.axis, np.maximum(s[on] - 0.5, 0.0)))
+            b = shapely.get_coordinates(shapely.line_interpolate_point(self.axis, np.minimum(s[on] + 0.5, self.axis.length)))
+            t = (b - a) / np.maximum(np.hypot(*(b - a).T), 1e-9)[:, None]
+            mid = 0.5 * (a + b)                     # the point of the axis, to the half meter
+            z[on] += lean[on] * (t[:, 0] * (y[on] - mid[:, 1]) - t[:, 1] * (x[on] - mid[:, 0]))
+        return z
+
+    def leaning(self, s) -> np.ndarray:
+        """Rise of the ribbon to the left of the axis at stations s, in meters per meter."""
+        if self.lean is not None:
+            return np.interp(s, self.s, self.lean)
+        return self.fade(s) * np.where(s < 0.5 * self.axis.length, self.tilt[0], self.tilt[1])
+
+    def fade(self, s) -> np.ndarray:
+        """1 at `ends`, 0 on the open part: how much of the land's lean a ramp keeps, over a meter at the least."""
+        e0, e1 = self.ends
+        a, c = max(self.span[0], e0 + 1.0), min(self.span[1], e1 - 1.0)
+        return np.maximum(np.clip((a - s) / (a - e0), 0.0, 1.0), np.clip((s - c) / (e1 - c), 0.0, 1.0))
+
+
+@dataclass
 class CityPlan:
     settlement: object
     boundary: object
@@ -170,4 +259,5 @@ class CityPlan:
     port: object = None       # city/port.py: quays, breakwater, lighthouse and the ground zones they change (prompt 34)
     props: list = field(default_factory=list)   # city/moorings.py: boats, cranes and cargo of the harbor (prompt 35)
     fronts: list = field(default_factory=list)  # city/corniche.py: the corniche's seafront promenade (prompt 36)
-    crossings: list = field(default_factory=list)  # city/river.py: where streets stop at a river, face to face (prompt 61)
+    crossings: list = field(default_factory=list)  # city/river.py: where streets stop at a river, each with a bridge
+    bridges: list = field(default_factory=list)    # city/bridges.py: Bridge records, each with its Street (prompt 62)

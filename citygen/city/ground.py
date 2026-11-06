@@ -34,7 +34,8 @@ NO_TERRACE = ("park", "cemetery", "industrial", "port")
 
 # how far a street ribbon is drawn above the ground (mesh/tile.py uses the same numbers)
 STREET_LIFT = {"boulevard": 0.32, "arterial": 0.3, "ring": 0.3, "corniche": 0.3, "connector": 0.28,
-               "street": 0.24, "souk": 0.2, "alley": 0.18, "impasse": 0.18}
+               "street": 0.24, "souk": 0.2, "alley": 0.18, "impasse": 0.18,
+               "bridge": 0.17}   # under them all: a bridge's ribbon meets its street from below; on a deck, `Bridge.at` rules
 
 
 class _Blur:
@@ -284,6 +285,9 @@ class Ground:
         self._apron_tris = None                                  # their drawn triangles (lazy, _apron_drawn)
         cfg_port = world.style.get("port", {})                   # quays and harbor basins (prompt 34)
         self.harbors = [(p.port, p.port.zone.bounds) for p in plans if getattr(p, "port", None) is not None]
+        self.decks = [b for p in plans for b in getattr(p, "bridges", ())]   # city bridges (prompt 62)
+        self.deck_tree = STRtree([b.deck for b in self.decks]) if self.decks else None
+        self.deck_box = shapely.total_bounds(self.deck_tree.geometries) if self.decks else None
         self.port_band = float(cfg_port.get("level_band", 60.0))
         self.dredge_band = float(cfg_port.get("dredge_band", 60.0))
         self.depth = float(cfg_port.get("depth", 6.0))
@@ -529,7 +533,7 @@ class Ground:
         return out
 
     def surface(self, x, y):
-        """Top of what is drawn at each point: ground, street ribbon, or a raised walk.
+        """Top of what is drawn at each point: ground, street ribbon, a raised walk or a bridge's deck.
 
         Overlapping streets take the highest ribbon; a sidewalk or promenade adds the curb
         height above that ribbon (see `walk_top`). Like `height`, this is a pure function of
@@ -554,9 +558,22 @@ class Ground:
             if len(inp):
                 on = np.unique(inp)
                 out[on] = self._apron_drawn(xf[on], yf[on])
+        if self.deck_tree is not None:
+            self._deck_tops(xf, yf, pts, out)
         if h.ndim == 0:
             return float(out[0])
         return out.reshape(h.shape)
+
+    def _deck_tops(self, x: np.ndarray, y: np.ndarray, pts: np.ndarray, out: np.ndarray) -> None:
+        """A bridge's deck over whatever lies under it."""
+        x0, y0, x1, y1 = self.deck_box
+        sel = np.nonzero((x >= x0) & (x <= x1) & (y >= y0) & (y <= y1))[0]
+        if not len(sel):
+            return
+        inp, hit = self.deck_tree.query(pts[sel], predicate="intersects")
+        for k in np.unique(hit).tolist():
+            on = sel[inp[hit == k]]
+            out[on] = self.decks[k].at(x[on], y[on])
 
     def drawn(self, x, y, corners=None):
         """Height of the terrain mesh as the tiles draw it, in arrays out for arrays in.

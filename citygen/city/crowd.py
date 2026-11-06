@@ -220,6 +220,8 @@ class Crowd:
         self._box = (x0, y0, x1, y1)
         for k in streets:
             st = plan.streets[k]
+            if st.kind == "bridge":             # no walker on a deck yet: its sidewalks come with its parapets
+                continue
             if st.kind == "souk":
                 out += self._souk(k)
             elif self.shared[k]:
