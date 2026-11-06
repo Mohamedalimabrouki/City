@@ -112,6 +112,12 @@ advice in `docs/WORKFLOW.md`, ready prompts in `docs/PROMPTS.md`, and how the le
 
 ## Decisions and lessons (do not relearn them)
 
+- **A value read once for a whole deck is wrong on a long one.** A deck can cross two arms of a river with land between them at another height: keep a level per wet stretch.
+- **A shear in stations gives a true skew bridge.** Map (s, d) to (s + k d, d): faces stay in the plane of the parapet, only stations move, and heights must be read at the moved stations. Each end of a run shifts by its own edge: a ramp wall shifted at the wrong end left holes on 36 of 45 bridges, and no picture from one bank showed it. Test a symmetric rule on both edges, both ends and both signs.
+- **What a tile holds depends on which tiles a build has, so reuse must know it.** A bridge whose tile a box leaves out goes to the nearest built one; the tile entry records such guests, or a second box in the same folder draws it twice. A full build keeps every key.
+- **Stations nearly equal give a zero gradient.** 37.0 and 37.000000000001336 left a vertex not offset: a 5 m concrete spike. Drop near-equal stations before any `np.gradient`.
+- **A ray through every ribbon finds what looking does not.** 116 holes under a fork went to 0 by that test; a soffit cut along one diagonal cannot follow an edge that enters and leaves.
+- **Compare tiles against a whole `git archive HEAD`, not `citygen` alone:** without `kits/` every kit piece changes name. "Same, gone, new" by mesh and position proves that streams held. `shapely.segmentize` can return a MultiPolygon for a sliver.
 - **A bridge is a street nobody plans around.** Decks are appended after every planning step, so no step sees them and buildings, households, souks and props stay byte-identical; what must know (walks, trees, paint) is told in one line each. A street added any earlier would reach every step that reads the street list.
 - **One rule for a viaduct and a low bridge: the least concave majorant of what the deck must clear.** Banks higher than the river needs give a straight line, low banks a ramp and a level top, with no case for either.
 - **A negative station wraps round.** `line_interpolate_point` reads a negative distance from the far end: a stone cap at s = -0.05 became a 50 m bar 2 m over the deck of all 31 road arches, and 283 tests passed. Clip every station; look at what a mesh really holds, not at what it should.

@@ -247,20 +247,32 @@ block on `rng("impasse", block)`: lot line jitter, widths, covered share and len
   abutment, channel edge and pier), `depth`, `air`, `water`, `water_width`, `channel`, `piers` (an odd number of arches
   of `arch_span` m at most, none flatter than `arch_flat` nor shorter than `arch_least`, or spans of `beam_span` m at most,
   none in the water of a stream under `pier_water` m wide), `dry`, `tilt` (a ramp leans with the land at its ends and is
-  level across by `span`), `road`, `along`, `old` (an end by the old town), `lean`, `own`, `under`. Country bridges are not
+  level across by `span`), `road`, `along`, `old` (an end by the old town), `lean`, `own`, `under`, `parts` (each wet stretch with its
+  own level: a long deck can cross two arms of a river with land between), `carries` (the street's kind), `walkway`, `skew`, `walls`, `clear`, `rails`, `twin`, `seam`, `verge`. Country bridges are not
   in `world`: `TileContext.road_own(k)` works them out for road k on the first tile that asks, a pure function of the road,
   the rivers and the ground, those inside `city_area` left to the city. Roads share corridors, and a crossing has one
   structure: where two roads' decks overlap by `share` m2 or more the wider road (the first on a tie) holds it, and
   `TileContext.decks(k)` gives the other its record through `follow`, from those raw lists alone, so no tile's order
   matters. The follower draws no ribbon where the host's covers it, lies `tuck` m under it where it covers a part, and
   keeps of its structure the longest run clear of the host's deck, `own`, at least `own_least` m (`Bridge.standing`):
-  none when it rides to the end, the rest when it forks off, only solid ramp if no open part is left (`ramp_only`). A road
-  beside the host, its center line never on that deck, keeps all of its own: on seeds 42, 3 and 7 there is none. The country
-  map marks a crossing once, the widest road's. No lamp, parked car, walker or road paint on a
-  deck yet.
-  The structure is `citygen/mesh/bridges.py`, drawn from the record alone by the tile holding the middle of `ends`
-  (`owned`), `bridge_box` on lod1. Both parapets stand inside the ribbon, their outer face on its edge, from `ends[0]` to
-  `ends[1]`, with a stouter post at each end, on `Bridge.at`. From `ends` to `span` a retaining wall runs from the ribbon's
+  none when it rides to the end, the rest when it forks off, only solid ramp if no open part is left (`ramp_only`). A fork is a
+  real Y (`forked`): each of its edges has a wall from where it leaves the host's deck (`walls`), and where that wedge lies over the
+  open part it is a slab with piers of its own. `TileContext.structures(k)` is what stands: any parapet stops, on end posts, where
+  another road's drawn ribbon crosses it (`stopped`, `rails`). A road beside the host all along (`side_by_side`: `twin_share` of it,
+  the gap between center lines moving by `twin_slip` m at most) has no structure: `widened` gives the host's one the width of both, its axis
+  moved toward the twin, its walls and parapets on the two outer edges, and asphalt under the gaps the ribbons may leave: `seam` between them,
+  `verge` along the parapet on the twin's side, as wide as the gap moves plus `verge_lap`. The country map marks a crossing once, the widest road's.
+  A city deck carries the city: lines (`plan.deck_paint`, `deck_paint`: a main street's, by `carries`, drawn on `Bridge.at`, a meter apart), the city's lamps on the
+  parapet line (`Dresser._deck_lamps`, stream `bridge_lamp`, spacing from `[dressing] street_lamps`), strollers on its sidewalks
+  (`Crowd._deck`, stream `people/deck`). `Bridge.walkway` feeds `Ground.surface` (`Bridge.top`) and the crowd's floors. A deck by the old town
+  is paved (`[streets.surface] bridge_old`) and has no lines. No parked car on a deck.
+  The structure is `citygen/mesh/bridges.py`, drawn from the record alone by the tile holding the middle of `ends`, or in a build that
+  leaves that tile out the nearest built tile the deck reaches (`home`, `owned`), `bridge_box` on lod1. So a tile can hold another tile's bridge: its
+  index entry lists the bridges of other tiles that reach it (`guests`: own tile, tiles reached, drawn here), and `finished_tiles` reuses it only if it
+  would draw the same with this build's tiles; a tile with no such change, and every tile of a full build, reuses as ever. A skew bridge (`Bridge.skew`, `skew_of`) keeps
+  deck, ribbon and parapets where they are; what stands under them runs with the flow, at (s + k d, d), k the tangent of the angle between the deck's
+  normal and the river (square under `skew_least` degrees, at most `skew_most`, no more than the ramps leave room for). Both parapets stand inside the ribbon, their outer face on its edge, from `ends[0]` to
+  `ends[1]` or as `rails` stops them, with a stouter post at each end, on `Bridge.at`. From `ends` to `span` a retaining wall runs from the ribbon's
   edge into the ground (`foot_line`: under the lowest ground, as it is and as drawn, between neighboring stations); an
   abutment closes the hollow. `arch` (stone: `rampart` by the old town, else `quay_wall` in a city and `plinth_stone` on a
   road, `stone_kasbah` or `curb` for dressed stone): a segment of a circle over each opening, under the soffit at every
@@ -268,7 +280,7 @@ block on `rng("impasse", block)`: lot line jitter, widths, covered share and len
   separate stones, long and short by turns, with real joints; a string course; a coped parapet; piers with pointed
   cutwaters on both faces, a wet band, a capstone and low stone caps. `beam` (concrete): fascia girders and a shadow line
   under the kerb, a slab and girders in `concrete_dark`, abutments with their seat; a cap beam on round columns, on a wall
-  with round ends over `pier_tall` m; a kerb with a rail, white in a city, iron on a road. `ford`: the slab's two faces
+  with round ends over `pier_tall` m, and under `pier_low` m a low wall with no cap beam; a kerb with a rail, white in a city, iron on a road. `ford`: the slab's two faces
   into the gravel, white posts with red bands along the channel, tall gauges at its two ends. A city deck from
   `sidewalk_from` m wide has a raised sidewalk along each parapet with its curb. Numbers in `[bridges]`.
 - `World.rivers` and `World.lakes` (prompt 59, `citygen/hydro.py`, `[rivers]`, a pure function of the

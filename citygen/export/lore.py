@@ -72,7 +72,7 @@ def _bridge_json(b) -> dict:
     return {"kind": b.kind, "street": b.street, "width": b.width, "river": b.river, "rivers": list(b.rivers), "dry": b.dry,
             "coords": np.round(np.asarray(b.axis.coords), 2).tolist(), "ends": np.round(b.ends, 2).tolist(),
             "span": np.round(b.span, 2).tolist(), "channel": np.round(b.channel, 2).tolist(),
-            "water": round(b.water, 2), "depth": b.depth, "piers": np.round(b.piers, 2).tolist(),
+            "water": round(b.water, 2), "depth": b.depth, "piers": np.round(b.piers, 2).tolist(), "skew": b.skew,
             "stations": np.round(b.s, 2).tolist(), "z": np.round(b.z, 2).tolist()}
 
 

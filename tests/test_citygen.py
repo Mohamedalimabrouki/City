@@ -1809,6 +1809,23 @@ def test_finished_tiles_need_every_file(tmp_path):
     assert finished_tiles(tmp_path, tmp_path / "none", "other", keys) == {}   # another key: nothing counts
 
 
+def test_a_tile_that_would_draw_other_bridges_is_built_again(tmp_path):
+    from citygen.build import finished_tiles
+    guest = lambda drawn: [[[1, 0], [[0, 0], [1, 0]], drawn]]        # a bridge of tile (1, 0) reaches (0, 0) too
+    entry = lambda drawn: {"i": 0, "j": 0, "file": "tile_0_0.glb", "bytes": 3, "guests": guest(drawn)}
+    (tmp_path / "tile_0_0.glb").write_bytes(b"abc")
+    journal = tmp_path / "journal"
+    journal.mkdir()
+    note = journal / "tile_0_0.json"
+    note.write_text(json.dumps(entry(True)))                          # built with (1, 0) left out, so it drew the bridge
+    assert (0, 0) in finished_tiles(tmp_path, journal, "k", [(0, 0)])
+    assert (0, 0) in finished_tiles(tmp_path, journal, "k", [(0, 0), (5, 5)])
+    assert finished_tiles(tmp_path, journal, "k", [(0, 0), (1, 0)]) == {}    # now (1, 0) draws it
+    note.write_text(json.dumps(entry(False)))                         # built with (1, 0): the other way round
+    assert (0, 0) in finished_tiles(tmp_path, journal, "k", [(0, 0), (1, 0)])
+    assert finished_tiles(tmp_path, journal, "k", [(0, 0)]) == {}
+
+
 def test_finished_tiles_need_their_textures(tmp_path):
     from citygen.build import finished_tiles
     (tmp_path / "tile_0_0.glb").write_bytes(b"abc")
@@ -6181,7 +6198,7 @@ def test_a_bridge_leaves_the_ground_alone_and_is_the_surface_on_its_deck(world, 
         xs, ys = (a.ravel() for a in np.meshgrid(np.linspace(x0, x1, 40), np.linspace(y0, y1, 40)))
         on = shapely.contains_xy(b.deck, xs, ys)
         assert on.any() and np.array_equal(ground.height(xs, ys), bare.height(xs, ys))
-        assert np.allclose(ground.surface(xs[on], ys[on]), b.at(xs[on], ys[on]))
+        assert np.allclose(ground.surface(xs[on], ys[on]), b.top(xs[on], ys[on]))
         assert np.array_equal(ground.surface(xs[~on], ys[~on]), bare.surface(xs[~on], ys[~on]))
 
 
@@ -6191,7 +6208,10 @@ def test_nothing_parks_lights_or_walks_on_a_deck_by_accident(world, plan, built_
     dresser = tc.cities[0][4]
     widths = walk_widths(world.style, plan.districts, plan.streets, plan.walks)[0]
     for b in plan.bridges:
-        assert not dresser.street_props(b.street, plan.boundary) and not dresser.spans(b.street, plan.boundary)
+        put = dresser.street_props(b.street, plan.boundary)
+        assert not dresser.spans(b.street, plan.boundary)
+        assert {dresser.kit.pieces[p.piece].category for p in put} <= {dresser.kit.pieces[q.piece].category for q in put[:1]}
+        assert all("lamp" in p.piece for p in put)                             # lamps by design, nothing else
         assert not [k for k in widths if k[0] == b.street]
         assert not dresser.crowd().shared[b.street]
 
@@ -6286,13 +6306,21 @@ def test_a_ford_is_the_ground_raised_at_a_grade_never_dug():
 
 
 @pytest.mark.slow  # a whole tile of the capital, and the two bridges' tiles of a town, about 20 s
-def test_nothing_is_placed_on_a_deck(world, plan):
+def test_on_a_deck_stand_only_lamps_on_the_parapet_line_and_strollers_on_a_sidewalk(world, plan):
     from citygen.mesh.tile import build_tile
     tc = TileContext(world, [plan])
+    assert plan.bridges
     for b in plan.bridges:
         mid = b.axis.interpolate(b.axis.length / 2)
         _mb, placements = build_tile(tc, int(mid.x // tc.size), int(mid.y // tc.size))
-        assert placements and not shapely.contains_xy(b.deck, [p.x for p in placements], [p.y for p in placements]).any()
+        on = [p for p in placements if shapely.contains_xy(b.deck, p.x, p.y)]
+        walks = shapely.union_all(b.walkway_polygons()).buffer(0.1)
+        for p in on:
+            if p.piece == "street_lamp":
+                assert shapely.distance(b.axis, shapely.Point(p.x, p.y)) > 0.5 * b.width - 0.4, p
+            else:                                                    # no car, tree, bench or stall; no walker on the road
+                assert p.piece.startswith("person_") and shapely.contains_xy(walks, p.x, p.y), p
+        assert placements
 
 
 @pytest.fixture(scope="module")
@@ -6356,7 +6384,7 @@ def test_a_stone_bridge_stands_in_the_ground_and_clear_of_the_water(road_decks):
     low = wall[wall[:, 2] <= wall[:, 2].min() + 1e-6]
     assert np.all(low[:, 2] <= tc.ground.height(low[:, 0], low[:, 1]) - 0.1)
     assert all(a.height(0.5 * (a.a + a.c)) <= fr.soffit(0.5 * (a.a + a.c)) + 1e-6 for a in arcs)
-    half = 0.5 * pier_thick(b, cfg) + 0.3
+    half = 0.5 * pier_thick(b, cfg) + 0.3 + abs(b.skew) * (0.5 * b.width + 2.5)        # a skew pier leans across the stations
     for pos in _drawn(structure, tc.ground, b, style).values():                # nothing under the water but piers
         s = b.locate(pos[:, 0], pos[:, 1])
         inside = (s > b.channel[0] + 0.5) & (s < b.channel[1] - 0.5) & (np.abs(s[:, None] - b.piers).min(axis=1) > half)
@@ -6445,6 +6473,13 @@ def test_lod1_has_a_box_under_a_bridge(road_decks):
     assert pos[:, 2].max() >= b.z.max() + 0.5 and pos[:, 2].min() < b.z.min()
 
 
+BRIDGE_CFG = {**load_style("maghreb")["bridges"], "tuck": 0.02, "own_least": 2.0}
+
+
+def _mesh_positions(mb) -> dict:
+    return {mat: pos for mat, pos, _tris, _fine in mb.arrays()}
+
+
 def _bridge(coords, width=8.0, kind="arch", **kw):
     """A record by hand: a deck 10 m up on `coords`, from end to end, its ground 5 m under it."""
     from citygen.city.model import Bridge
@@ -6452,7 +6487,9 @@ def _bridge(coords, width=8.0, kind="arch", **kw):
     length = axis.length
     fields = {"span": (0.0, length), "channel": (0.4 * length, 0.6 * length), "depth": 0.6, "water": 4.0, "air": 1.0,
               "s": np.array([0.0, length]), "z": np.array([10.0, 10.0]), "floor": np.array([5.0, 5.0])}
-    return Bridge(kind, axis, width, -1, (0.0, length), **{**fields, **kw})
+    ends = kw.pop("ends", (0.0, length))
+    street = kw.pop("street", -1)
+    return Bridge(kind, axis, width, street, ends, **{**fields, **kw})
 
 
 def test_a_station_past_an_end_is_that_end_and_a_post_is_a_post():
@@ -6514,7 +6551,7 @@ def test_a_ramp_opens_where_its_air_does_and_the_record_holds_every_river():
     under = np.stack([np.where(wet, 4, -1), np.where(wet, 9, -1), np.full(101, -1)])
     sample = SimpleNamespace(water=np.full(101, 4.0), dry=np.zeros(101, dtype=bool), river=np.full(101, 4))
     assert len(b.s) == 3
-    _finish(b, grid, floor, wet, sample, under, 8.0, "beam", cfg)
+    _finish(b, grid, floor, wet, sample, under, 8.0, "beam", cfg, SimpleNamespace(rivers=[]))
     room = z - b.depth - floor
     first = grid[(room >= float(cfg["open_air"])) & (grid <= 50.0)]
     assert b.span[0] == pytest.approx(first[0]) and b.span[1] == pytest.approx(100.0 - first[0])
@@ -6581,7 +6618,7 @@ def test_a_sidewalk_stops_at_its_curb_and_a_pier_has_no_empty_faces():
 def test_two_roads_on_one_crossing_have_one_structure():
     from citygen.city.bridges import follow
     from citygen.mesh.tile import road_parts
-    cfg = {"tuck": 0.02, "own_least": 2.0}
+    cfg = BRIDGE_CFG
     host = _bridge([(0.0, 0.0), (60.0, 0.0)], width=11.0, s=np.array([0.0, 30.0, 60.0]), z=np.array([9.0, 12.0, 9.0]),
                    floor=np.full(3, 5.0))
     rider = follow(_bridge([(2.0, 0.0), (58.0, 0.0)], road=1), host, cfg)
@@ -6590,11 +6627,267 @@ def test_two_roads_on_one_crossing_have_one_structure():
     fork = follow(_bridge([(0.0, 0.0), (20.0, 0.0), (60.0, 25.0)], road=2, along=0.0), host, cfg)
     part = fork.standing()
     assert 0.0 < part.ends[0] < part.ends[1] == pytest.approx(fork.axis.length)
-    assert part.ends[0] >= part.span[0] - 1e-9 >= 0.0 and part.deck.intersection(host.deck).area < 0.1
+    assert part.ends[0] >= part.span[0] - 1e-9 >= 0.0
     shared = np.flatnonzero(fork.s < fork.under[1])
     x, y = shapely.get_coordinates(shapely.line_interpolate_point(fork.axis, fork.s[shared])).T
     assert np.abs(fork.at(x, y) - host.at(x, y) + 0.02).max() < 0.03
     assert fork.z[-1] == pytest.approx(10.0)                               # and back to its own height at its far end
+
+
+def test_a_fork_stands_right_up_to_the_deck_it_leaves_and_that_decks_rail_stops():
+    from citygen.city.bridges import follow, stopped
+    from citygen.mesh.bridges import Frame, _concrete_parapets, _ramps, _slab
+    host = _bridge([(0.0, 0.0), (60.0, 0.0)], width=11.0, road=1)
+    b = _bridge([(0.0, -1.0), (60.0, 19.0)], road=2, span=(0.0, 63.2), channel=(10.0, 40.0))
+    fork = follow(b, host, BRIDGE_CFG)
+    part = fork.standing()
+    left, right = part.walls
+    assert part.clear.intersection(host.deck).area == pytest.approx(0.0, abs=1e-6) and part.clear.area > 100.0
+    assert left[-1][0] < right[-1][0] and part.ends[0] == pytest.approx(left[-1][0])   # each edge from where it leaves the deck
+    assert part.kind == "beam"                                                 # over the open part: a slab, no arch fits a wedge
+    fr = Frame(part, 6.0)
+    assert [run[0] for run in fr.opening()] == pytest.approx([left[-1][0], right[-1][0]], abs=0.1)
+    top = _drawn(_slab, fr, BRIDGE_CFG)["concrete"]
+    assert not shapely.contains_xy(host.deck.buffer(-1.0), top[:, 0], top[:, 1]).any()   # nothing of it under the host's deck
+    ribbon = shapely.LineString(b.axis.coords).buffer(4.0, cap_style="flat")
+    out = stopped(host, [ribbon], BRIDGE_CFG)
+    assert len(out.rails[0]) == 2 and out.rails[1] == [host.ends]              # the rail on the fork's side stops at it
+    a, c = out.rails[0][0][1], out.rails[0][1][0]
+    assert not ribbon.buffer(-0.5).contains(shapely.Point(a - 0.5, 5.3)) and ribbon.contains(shapely.Point(0.5 * (a + c), 5.3))
+    posts = _drawn(_concrete_parapets, Frame(out, 6.0), BRIDGE_CFG)["concrete"]
+    assert ((posts[:, 2] > 10.9) & (posts[:, 0] > a - 1.0) & (posts[:, 0] < a + 1.0) & (posts[:, 1] > 0.0)).any()   # its end post
+    assert stopped(host, [], BRIDGE_CFG) is host
+
+
+def test_two_roads_side_by_side_stand_on_one_structure():
+    from citygen.city.bridges import follow, stopped, widened
+    from citygen.mesh.bridges import Frame, _concrete_parapets
+    host = _bridge([(0.0, 0.0), (60.0, 0.0)], width=11.0, kind="beam", road=1, along=100.0)
+    b = _bridge([(60.0, -8.0), (0.0, -8.2)], road=2)
+    twin = follow(b, host, BRIDGE_CFG)
+    assert twin.standing() is None and twin.twin == (1, 100.0) and twin.shown()
+    wide = widened(host.standing(), twin, BRIDGE_CFG)
+    assert wide.width == pytest.approx(5.5 + 8.2 + 4.0, abs=0.02) and wide.kind == "beam"
+    assert wide.axis.coords[0][1] == pytest.approx(-0.5 * (wide.width - 11.0), abs=0.01)    # the axis moves toward the twin
+    rail = _drawn(_concrete_parapets, Frame(stopped(wide, [], BRIDGE_CFG), 6.0), BRIDGE_CFG)["concrete"]
+    assert rail[:, 1].max() == pytest.approx(5.5, abs=0.2) and rail[:, 1].min() == pytest.approx(-12.2, abs=0.2)
+    assert not ((rail[:, 1] > -11.0) & (rail[:, 1] < 4.0)).any()               # no parapet between them
+    leaves = follow(_bridge([(0.0, -8.0), (60.0, -40.0)], road=3), host, BRIDGE_CFG)
+    assert leaves.twin is None and leaves.standing() is not None               # one that only touches keeps its own
+
+
+def test_a_twin_leaves_no_slit_by_its_parapet_and_only_its_deck_beside_the_host_counts():
+    from citygen.city.bridges import widened
+    from citygen.mesh.bridges import structure
+    host = _bridge([(0.0, 0.0), (60.0, 0.0)], width=11.0, kind="beam", road=1, along=100.0)
+    twin = _bridge([(66.0, -14.0), (60.0, -8.2), (0.0, -7.4)], road=2)         # it swings away past the host's end
+    wide = widened(host, twin, BRIDGE_CFG)
+    assert wide.width == pytest.approx(5.5 + 8.2 + 4.0, abs=0.02)
+    outer = -0.5 * wide.width
+    assert wide.verge[1] == pytest.approx(outer)
+    assert wide.verge[0] > outer + 0.8 + 0.5 * BRIDGE_CFG["verge_lap"]         # as far in as the gap ever opens, and under the ribbon
+    flat = dataclasses.replace(wide, z=np.full(len(wide.s), 10.0), lean=None, tilt=(0.0, 0.0))
+    strip = _drawn(structure, _flat_ground(5.0), flat, load_style("maghreb"))["asphalt"]
+    assert strip[:, 1].min() == pytest.approx(wide.axis.coords[0][1] + outer, abs=0.05)    # right to the outer edge
+
+
+def test_two_equal_stations_do_not_throw_a_twins_axis_off():
+    from citygen.city.bridges import apart, widened
+    assert apart([0.0, 37.0, 37.000000000001336]).tolist() == [0.0, 37.000000000001336]
+    host = _bridge([(0.0, 0.0), (37.0, 0.0)], width=11.0, kind="beam", road=1, ends=(0.0, 37.000000000001336),
+                   s=np.array([0.0, 37.0, 37.000000000001336]), z=np.full(3, 10.0), floor=np.full(3, 5.0))
+    wide = widened(host, _bridge([(37.0, -8.0), (0.0, -8.0)], road=2), BRIDGE_CFG)
+    assert wide.axis.length == pytest.approx(37.0, abs=0.01)
+
+
+def test_a_dry_bed_one_station_wide_is_no_ford(monkeypatch):
+    from types import SimpleNamespace
+
+    from citygen.city import bridges
+    line = shapely.LineString([(0.0, 0.0), (8.0, 0.0)])
+    wet = np.arange(9) == 4
+    sample = SimpleNamespace(dry=np.ones(9, bool), half=np.full(9, 2.0), past=np.full(9, 5.0), edge=np.full(9, 5.0))
+    monkeypatch.setattr(bridges, "_channel", lambda carve, x, y, width: (wet.copy(), sample, None))
+    monkeypatch.setattr(bridges, "wet_runs", lambda carve, line: [(4.0, 4.5)])
+    world = SimpleNamespace(carve=object(), style={"bridges": BRIDGE_CFG}, roads=[SimpleNamespace(width=6.0, kind="local")])
+    assert bridges.road_bridges(world, 0, line, _flat_ground(5.0), 0.1) == []
+
+
+def test_a_skew_bridge_runs_with_the_flow_and_a_square_one_is_unchanged():
+    from types import SimpleNamespace
+
+    from citygen.city.bridges import skew_of
+    from citygen.mesh.bridges import Frame, _abutment, _barrel, _concrete_pier, arches, structure
+    cfg = load_style("maghreb")["bridges"]
+    river = SimpleNamespace(rivers=[SimpleNamespace(coords=[(0.0, -50.0), (50.0, 50.0)])])      # 26.6 degrees off the deck's normal
+    b = _bridge([(0.0, 0.0), (50.0, 0.0)], span=(15.0, 35.0), channel=(20.0, 30.0), parts=((20.0, 30.0, 4.0),), river=0, ends=(0.0, 50.0))
+    k = skew_of(river, b, cfg)
+    assert abs(k) == pytest.approx(0.5, abs=0.01)
+    assert abs(skew_of(river, dataclasses.replace(b, span=(1.0, 49.0)), cfg)) == pytest.approx(0.25, abs=0.01)    # no more than the ramps leave
+    ground = _flat_ground(5.0)
+    style = load_style("maghreb")
+    skew = dataclasses.replace(b, skew=0.5, kind="beam", piers=np.array([25.0]), width=8.0)
+    fr = Frame(skew, 6.0)
+    pier = np.concatenate(list(_drawn(_concrete_pier, ground, fr, 25.0, cfg).values()))
+    low, high = pier[pier[:, 1] < -1.0], pier[pier[:, 1] > 1.0]
+    assert high[:, 0].mean() - low[:, 0].mean() == pytest.approx(0.5 * (high[:, 1].mean() - low[:, 1].mean()), abs=0.3)
+    wall = np.concatenate(list(_drawn(_abutment, ground, fr, "concrete", 15.0, 1.0, 9.0, cfg).values()))
+    assert wall[wall[:, 1] > 0.0, 0].mean() == pytest.approx(17.0) and wall[wall[:, 1] < 0.0, 0].mean() == pytest.approx(13.0)
+    arch = dataclasses.replace(b, skew=0.5, piers=np.array([25.0]))
+    fa = Frame(arch, 6.0)
+    arc = arches(fa, cfg)[0]
+    bar = _drawn(_barrel, fa, arc, np.linspace(*arc.angles(), 9), 4.0, "stone")["stone"]
+    assert bar[bar[:, 1] > 0.0, 0].min() - bar[bar[:, 1] < 0.0, 0].min() == pytest.approx(4.0, abs=0.01)
+    square = _drawn(structure, ground, dataclasses.replace(b, piers=np.array([25.0]), skew=0.0), style)
+    assert all(len(pos) for pos in square.values()) and Frame(b, 6.0).k == 0.0
+
+
+def test_a_main_street_deck_carries_its_lines_on_its_own_heights():
+    from types import SimpleNamespace
+
+    from shapely.geometry import box
+
+    from citygen.city.model import Paint, Street
+    from citygen.city.paint import deck_paint
+    from citygen.mesh.tile import deck_paint_meshes
+    style = load_style("maghreb")
+    b = _bridge([(0.0, 0.0), (40.0, 0.0)], width=14.0, kind="beam", street=0, carries="arterial", walkway=(3.0, 4.8, 0.15),
+                s=np.array([0.0, 20.0, 40.0]), z=np.array([9.0, 11.0, 9.0]))
+    streets = [Street("bridge", 14.0, b.axis, "asphalt")]
+    marks = deck_paint(style, streets, [b])
+    assert len(marks) > 3 and all(isinstance(m, Paint) and m.street == 0 for m in marks)
+    wide = [m for m in marks if m.polygon.bounds[2] - m.polygon.bounds[0] > 30.0]
+    assert sorted(round(m.polygon.centroid.y, 1) for m in wide) == [-2.6, 2.6]   # edge lines inside the curbs
+    assert not deck_paint(style, streets, [dataclasses.replace(b, old=True)])    # paved, by the old town
+    assert not deck_paint(style, streets, [dataclasses.replace(b, carries="street")])
+    mb = MeshBuilder()
+    plan = SimpleNamespace(deck_paint=marks, bridges=[b])
+    deck_paint_meshes(mb, SimpleNamespace(world=SimpleNamespace(style=style)), plan, box(-1.0, -9.0, 41.0, 9.0))
+    pos = np.concatenate(list(_mesh_positions(mb).values()))
+    assert np.abs(pos[:, 2] - b.at(pos[:, 0], pos[:, 1]) - float(style["streets"]["paint_lift"])).max() < 1e-6
+
+
+def test_a_deck_has_lamps_on_its_parapet_and_walkers_on_its_sidewalks(world, plan, ground, built_mesh):
+    tc = built_mesh[0]
+    dresser = tc.cities[0][4]
+    cfg = world.style["bridges"]
+    wide = [b for b in plan.bridges if b.walkway[1] > 0.0]
+    assert wide and all(b.walkway == (0.5 * b.width - float(cfg["kerb"][1] if b.kind == "beam" else cfg["parapet"][1]) - float(cfg["sidewalk"][0]),
+                                      0.5 * b.width - float(cfg["kerb"][1] if b.kind == "beam" else cfg["parapet"][1]), 0.15) for b in wide)
+    for b in plan.bridges:
+        lamps = dresser.street_props(b.street, plan.boundary)
+        assert lamps
+        off = shapely.distance(b.axis, shapely.points([(p.x, p.y) for p in lamps]))
+        thick = float(cfg["kerb"][1] if b.kind == "beam" else cfg["parapet"][1])
+        assert np.allclose(off, 0.5 * b.width - 0.5 * thick, atol=0.01)        # on the parapet's line, never on a sidewalk
+    b = wide[0]
+    mid = b.axis.interpolate(0.5 * sum(b.ends))
+    t = shapely.get_coordinates(b.axis)[[0, -1]]
+    t = (t[1] - t[0]) / np.hypot(*(t[1] - t[0]))
+    q = np.array([mid.x, mid.y]) + np.array([-t[1], t[0]]) * 0.5 * (b.walkway[0] + b.walkway[1])
+    assert float(ground.surface(q[0], q[1])) == pytest.approx(float(b.at(q[0], q[1])[0]) + 0.15)
+    crowd = dresser.crowd()
+    x0, y0, x1, y1 = b.deck.bounds
+    crowd._box = (x0 - 1.0, y0 - 1.0, x1 + 1.0, y1 + 1.0)
+    got = crowd._deck(b.street)
+    assert got and all(max(p.contains(shapely.Point(c.x, c.y)) for p in b.walkway_polygons()) for c in got)
+    assert (crowd.floors(np.array([q])) == 1).all()
+    assert str(world.style["streets"]["surface"]["bridge_old"]) == "paving"
+    assert all((plan.streets[c.street].surface == "paving") == c.old for c in plan.bridges)
+
+
+def test_a_pier_between_two_arms_of_a_river_stands_on_dry_land():
+    from citygen.mesh.bridges import Frame, _concrete_pier, _wet, spring_at
+    style = load_style("maghreb")
+    cfg = style["bridges"]
+    parts = ((10.0, 20.0, 8.0), (40.0, 50.0, 6.0))
+    b = _bridge([(0.0, 0.0), (60.0, 0.0)], kind="beam", channel=(10.0, 50.0), water=8.0, parts=parts, piers=np.array([15.0, 30.0, 45.0]))
+    assert b.level_at(30.0) is None and b.level_at(45.0) == 6.0 and b.level_at(21.0, 1.5) == 8.0
+    assert _wet(b, 30.0) is None and _wet(b, 15.0) == 8.0
+    fr = Frame(b, 6.0)
+    assert spring_at(fr, 30.0, cfg) == pytest.approx(5.0)                      # from the land, not from the other arm's level
+    ground = _flat_ground(5.0)
+    assert "concrete_dark" not in {k for k, v in _drawn(_wall_only, ground, fr, 30.0, cfg).items() if len(v)}
+    low = _bridge([(0.0, 0.0), (60.0, 0.0)], kind="beam", channel=(10.0, 50.0), parts=parts, piers=np.array([30.0]),
+                  z=np.full(2, 6.6), floor=np.full(2, 5.0), depth=0.6)
+    got = _drawn(_concrete_pier, ground, Frame(low, 6.0), 30.0, cfg)
+    assert set(got) == {"concrete"}                                            # 1 m under the soffit: a low wall, no cap beam
+
+
+def _flat_ground(z: float):
+    from types import SimpleNamespace
+    return SimpleNamespace(height=lambda x, y: np.full(np.shape(x), z), drawn=lambda x, y: np.full(np.shape(x), z))
+
+
+def _wall_only(mb, ground, fr, s, cfg):
+    from citygen.mesh.bridges import _wall_pier, _wet
+    level = _wet(fr.b, s)
+    _wall_pier(mb, ground, fr, s, 8.0, None if level is None else level + 0.18, cfg)
+
+
+def test_an_offset_line_that_folds_back_at_a_sharp_kink_draws_no_quad_there():
+    from citygen.mesh.bridges import band, forward
+    a = np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.9, 0.0, 0.0], [2.0, 0.0, 0.0]])
+    assert forward(a, a).tolist() == [True, False, True]
+    mb = MeshBuilder()
+    band(mb, "stone", a + [0.0, 0.0, 1.0], a, np.array([0.0, -1.0, 0.0]))
+    assert len(_mesh_positions(mb)["stone"]) == 8
+
+
+def test_a_bridge_whose_tile_is_left_out_goes_to_the_nearest_built_tile():
+    from types import SimpleNamespace
+
+    from citygen.mesh.bridges import home
+    b = _bridge([(380.0, 100.0), (420.0, 100.0)])         # its middle is on the edge: tile 1 of a 400 m grid
+    tc = SimpleNamespace(size=400, world=SimpleNamespace(built_tiles={(0, 0), (5, 5)}))
+    assert home(tc, b) == (0, 0)
+    tc.world.built_tiles = {(1, 0), (0, 0)}
+    assert home(tc, b) == (1, 0)
+    far = _bridge([(1380.0, 100.0), (1420.0, 100.0)])
+    tc.world.built_tiles = {(0, 0)}
+    assert home(tc, far) == (3, 0)                         # it reaches no built tile: left out
+
+
+def test_a_tile_notes_the_bridges_of_other_tiles_that_reach_it():
+    from types import SimpleNamespace
+
+    from citygen.mesh.bridges import guests
+    b = _bridge([(380.0, 100.0), (420.0, 100.0)])                     # tile 1 of a 400 m grid, its deck reaches tile 0
+    tc = SimpleNamespace(size=400, plans=[SimpleNamespace(bridges=[b])], road_tree=None,
+                         world=SimpleNamespace(built_tiles={(0, 0)}))
+    assert guests(tc, 0, 0) == [[[1, 0], [[0, 0], [1, 0]], True]]
+    tc.world.built_tiles = {(0, 0), (1, 0)}
+    assert guests(tc, 0, 0) == [[[1, 0], [[0, 0], [1, 0]], False]]
+    assert guests(tc, 1, 0) == [] and guests(tc, 3, 0) == []          # its own tile, and one it does not reach
+
+
+def test_a_skew_ramp_stops_where_the_open_part_starts_on_each_edge():
+    from citygen.mesh.bridges import Frame, _ramps
+    for k in (0.5, -0.5):
+        b = _bridge([(0.0, 0.0), (60.0, 0.0)], kind="beam", span=(15.0, 45.0), skew=k)
+        walls = _drawn(_ramps, _flat_ground(5.0), Frame(b, 6.0), "concrete", BRIDGE_CFG)["concrete"]
+        for d in (4.0, -4.0):
+            x = walls[np.abs(walls[:, 1] - d) < 0.01, 0]
+            first, last = x[x < 30.0], x[x > 30.0]
+            assert (first.min(), first.max()) == pytest.approx((0.0, 15.0 + k * d))
+            assert (last.min(), last.max()) == pytest.approx((45.0 + k * d, 60.0))
+
+
+def test_a_forks_soffit_is_its_deck_less_the_deck_it_leaves():
+    from shapely.geometry import Polygon, box
+
+    from citygen.mesh.bridges import Frame, _slab
+    b = _bridge([(0.0, 0.0), (40.0, 0.0)], kind="beam", span=(10.0, 30.0), walls=([(0.0, 40.0)], [(0.0, 14.0), (34.0, 40.0)]))
+    corner = Polygon([(14.0, -4.5), (31.0, -0.5), (34.0, -4.5)])       # the host's edge enters the fork and leaves again
+    fork = dataclasses.replace(b, clear=b.deck.difference(corner))
+    mb = MeshBuilder()
+    _slab(mb, Frame(fork, 1.0), BRIDGE_CFG)
+    pos, tris = next((pos, tris) for mat, pos, tris, _fine in mb.arrays() if mat == "concrete_dark")
+    tri = pos[tris]
+    under = float(BRIDGE_CFG["girder"][1])
+    flat = np.abs(tri[:, :, 2] - (9.4 + under)).max(axis=1) < 1e-6
+    covered = shapely.union_all([Polygon(t[:, :2]) for t in tri[flat]])
+    assert covered.area == pytest.approx(fork.clear.intersection(box(10.0, -4.0, 30.0, 4.0)).area, abs=0.01)
 
 
 def test_a_country_map_marks_a_shared_crossing_once(monkeypatch):

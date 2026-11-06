@@ -45,7 +45,7 @@ from . import landmarks as boulevard
 from .medina import old_town
 from .model import CityPlan, District
 from .parcels import make_blocks, make_parcels
-from .paint import make_paint, street_surfaces
+from .paint import deck_paint, make_paint, street_surfaces
 from . import river
 from .streets import local_streets, major_streets, road_links, street_trees
 from .walks import make_walks
@@ -169,6 +169,7 @@ def plan_city(world, settlement) -> CityPlan:
     histories(ctx, plan)   # district histories (prompt 81): text only, read from the finished plan
     streets += decks       # last: no step above sees a bridge, and every earlier street keeps its index
     plan.bridges = raise_decks(ctx, plan, links, bridges)
+    plan.deck_paint = deck_paint(world.style, plan.streets, plan.bridges)
     plan.stats = {"districts": len(districts), "streets": len(streets) - len(decks), "impasses": len(lanes),
                   "blocks": len(blocks),
                   "parcels": len(parcels), "buildings": len(buildings), "trees": len(trees),

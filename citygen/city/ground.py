@@ -573,7 +573,7 @@ class Ground:
         inp, hit = self.deck_tree.query(pts[sel], predicate="intersects")
         for k in np.unique(hit).tolist():
             on = sel[inp[hit == k]]
-            out[on] = self.decks[k].at(x[on], y[on])
+            out[on] = self.decks[k].top(x[on], y[on])
 
     def drawn(self, x, y, corners=None):
         """Height of the terrain mesh as the tiles draw it, in arrays out for arrays in.

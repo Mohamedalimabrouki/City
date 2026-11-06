@@ -1905,6 +1905,8 @@ class Dresser:
         spacing = self.cfg.get("street_lamps", {}).get(st.kind)
         if spacing and self.has("street_lamp"):
             self._lamps(k, float(spacing), tile, out)
+        if st.kind == "bridge" and self.has("street_lamp"):
+            self._deck_lamps(k, tile, out)
         for j, s in enumerate(self.covers().of(k)):          # lanterns hung from the souk roof's arches
             for i, (x, hook) in enumerate(s.lanterns):
                 q, _, t, _ = s.frame(x)
@@ -1933,6 +1935,26 @@ class Dresser:
             spot = self.lamp_spot(k, i, spacing)
             if spot is not None and tile.covers(shapely.Point(spot[0])):
                 self.put(out, "street_lamp", self.rng("lamp", k, i), spot[0], 0.0, yaw_of(-spot[1]))
+
+    def _deck_lamps(self, k: int, tile, out: list) -> None:
+        """The city's lamps on a bridge's parapets, staggered, leaning over the deck, each on a stream of its own: as far
+        apart as on the street the bridge carries on, and never on a sidewalk."""
+        b = next(c for c in self.plan.bridges if c.street == k)
+        table = self.cfg.get("street_lamps", {})
+        spacing = float(table.get(b.carries, table.get("street", 30.0)))
+        cfg = self.world.style["bridges"]
+        thick = float(cfg["kerb"][1] if b.kind == "beam" else cfg["parapet"][1])
+        length = b.ends[1] - b.ends[0]
+        n = max(int(length // spacing), 1)
+        for i in range(n):
+            s = b.ends[0] + (i + 0.5) * length / n
+            p, q = b.axis.interpolate(s - 0.5), b.axis.interpolate(s + 0.5)
+            t = np.array([q.x - p.x, q.y - p.y])
+            nrm = np.array([-t[1], t[0]]) / max(float(np.hypot(*t)), 1e-9) * (1.0 if i % 2 else -1.0)
+            c = b.axis.interpolate(s)
+            spot = np.array([c.x, c.y]) + nrm * (0.5 * b.width - 0.5 * thick)
+            if tile.covers(shapely.Point(spot)):
+                self.put(out, "street_lamp", self.rng("bridge_lamp", k, i), spot, 0.0, yaw_of(-nrm))
 
     def lamp_spot(self, k: int, i: int, spacing: float) -> tuple | None:
         """(point, normal toward its edge) of street k's lamp i, or None where it is left out. Along a

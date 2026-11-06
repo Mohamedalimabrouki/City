@@ -182,6 +182,18 @@ class Bridge:
     own: object = None    # a road that shares a crossing with a wider one: (s0, s1) of the structure it keeps, clear of
                           # that road's deck; (0, 0) none. None: this record is the crossing's structure (city/bridges.follow)
     under: tuple = (0.0, 0.0)      # (s0, s1) where the wider road's ribbon covers this one's, which is not drawn there
+    parts: tuple = ()     # ((s0, s1, level), ...): each stretch of `channel` truly over water or an oued's floor, with its level
+    carries: str = ""     # the kind of street a city bridge carries on: its lines and the spacing of its lamps
+    walkway: tuple = (0.0, 0.0, 0.0)   # a city deck's raised sidewalks: (from, to) meters off the axis, height over the ribbon
+    skew: float = 0.0     # how far a line along the flow moves along the deck per meter across it: piers, arches and abutments run
+                          # with the river at (s + skew * d, d), d meters left of the axis; deck, parapets and ribbon stay
+    walls: object = None  # a road forking off a wider one: ([(s0, s1), ...] of the left edge, of the right) where a wall stands
+                          # under each edge, each from where it leaves that road's deck; None: all along both
+    clear: object = None  # the same road: its deck less that road's (a shapely polygon), for the soffit of the open part
+    rails: object = None  # the same for the parapets: they stop where another road's ribbon crosses them
+    twin: object = None   # a road beside a wider one's deck: (that road, its `along`); both stand on that road's one structure
+    seam: tuple = ()      # that one structure: (d0, d1) meters left of its axis, where the two ribbons may leave a slit
+    verge: tuple = ()     # the same along its outer edge on the twin's side, where the twin's ribbon leaves one by the parapet
 
     @property
     def deck(self):
@@ -197,13 +209,39 @@ class Bridge:
             return None
         span = tuple(float(np.clip(s, a, c)) for s in self.span)
         channel = tuple(float(np.clip(s, a, c)) for s in self.channel)
-        return replace(self, ends=(a, c), span=span, channel=channel, own=None, piers=self.piers[(self.piers > a) & (self.piers < c)])
+        runs = [run for side in self.walls for run in side] if self.walls else [(a, c)]
+        ends = (min(run[0] for run in runs), max(run[1] for run in runs))
+        return replace(self, ends=ends, span=span, channel=channel, own=None, piers=self.piers[(self.piers > a) & (self.piers < c)])
+
+    def level_at(self, s: float, margin: float = 0.0) -> float | None:
+        """The level of the water at station s, within `margin` m of it; None over dry land between two arms of a river."""
+        for a, c, level in self.parts or ((*self.channel, self.water),):
+            if a - margin <= s <= c + margin:
+                return level
+        return None
 
     def shown(self) -> list:
         """[(s0, s1)]: the stretches of the axis that have a ribbon."""
         pieces = ((0.0, self.under[0]), (self.under[1], self.axis.length)) if self.under[1] > self.under[0] else \
                  ((0.0, self.axis.length),)
         return [(a, c) for a, c in pieces if c > a]
+
+    def top(self, x, y) -> np.ndarray:
+        """What is drawn at the points x, y on the deck: the ribbon, or a raised sidewalk on it."""
+        z = self.at(x, y)
+        a, c, high = self.walkway
+        if high:
+            off = shapely.distance(self.axis, shapely.points(np.ravel(x), np.ravel(y)))
+            z[(off >= a) & (off <= c)] += high
+        return z
+
+    def walkway_polygons(self) -> list:
+        """The outlines of the two raised sidewalks, or none."""
+        a, c, _high = self.walkway
+        if c <= a:
+            return []
+        line = substring(self.axis, *self.ends)
+        return [shapely.offset_curve(line, sign * 0.5 * (a + c)).buffer(0.5 * (c - a), cap_style="flat") for sign in (1.0, -1.0)]
 
     def locate(self, x, y) -> np.ndarray:
         """Stations of the points x, y."""
@@ -260,4 +298,5 @@ class CityPlan:
     props: list = field(default_factory=list)   # city/moorings.py: boats, cranes and cargo of the harbor (prompt 35)
     fronts: list = field(default_factory=list)  # city/corniche.py: the corniche's seafront promenade (prompt 36)
     crossings: list = field(default_factory=list)  # city/river.py: where streets stop at a river, each with a bridge
+    deck_paint: list = field(default_factory=list) # city/paint.py: the lines on bridges' decks
     bridges: list = field(default_factory=list)    # city/bridges.py: Bridge records, each with its Street (prompt 62)

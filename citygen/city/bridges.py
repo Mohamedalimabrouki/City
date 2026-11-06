@@ -432,7 +432,8 @@ def plan_bridges(ctx, streets: list, links: list, solid: list) -> tuple:
     for i, sp in enumerate(spots):
         crossings.append(Crossing(sp.line, sp.kind, sp.width))
         decks.append(Street("bridge", sp.width, sp.line, surface))
-        bridges.append(Bridge(sp.kind, sp.line, sp.width, len(streets) + i, site.ends(sp.line, sp.width), river=sp.river))
+        bridges.append(Bridge(sp.kind, sp.line, sp.width, len(streets) + i, site.ends(sp.line, sp.width), river=sp.river,
+                              carries=sp.kind))
     ctx.bridge_notes = {"dropped": site.dropped, "left": site.left}
     return crossings, decks, bridges
 
@@ -483,12 +484,40 @@ def _channel(carve, x, y, width: float) -> tuple:
     return np.minimum.reduce([mid.edge, a.edge, b.edge]) < 0.0, mid, under
 
 
-def _finish(b: Bridge, grid, floor, wet, sample, under, width: float, kind: str, cfg: dict) -> None:
+def wet_parts(grid, wet, water) -> tuple:
+    """((s0, s1, level), ...): the stretches of stations `wet`, each with its highest `water`: a long deck can cross two arms
+    of a river, with dry land and another level between them."""
+    edges = np.flatnonzero(np.diff(np.r_[False, wet, False].astype(np.int8))).reshape(-1, 2)
+    return tuple((float(grid[i]), float(grid[j - 1]), float(water[i:j].max())) for i, j in edges.tolist())
+
+
+def skew_of(carve, b: Bridge, cfg: dict) -> float:
+    """k of the map (s, d) to (s + k d, d) that lines a bridge's piers up with the flow: the tangent of the angle between
+    the deck's normal and the river where the deck crosses most water, the river read `skew_reach` m each way, past its
+    wiggles. Square under `skew_least` degrees; at most `skew_most`, and no more than the ramps leave room for."""
+    a, c, _level = max(b.parts, key=lambda part: part[1] - part[0])
+    m = 0.5 * (a + c)
+    p, q = (b.axis.interpolate(np.clip(m + t, 0.0, b.axis.length)) for t in (-5.0, 5.0))
+    t = _unit((p.x, p.y), (q.x, q.y))
+    river = LineString(carve.rivers[b.river].coords)
+    along, reach = river.project(b.axis.interpolate(m)), float(cfg["skew_reach"])
+    p, q = (river.interpolate(np.clip(along + d, 0.0, river.length)) for d in (-reach, reach))
+    flow = _unit((p.x, p.y), (q.x, q.y))
+    across = float(flow @ np.array([-t[1], t[0]]))
+    k = float(flow @ t) / max(abs(across), 1e-6) * (1.0 if across >= 0.0 else -1.0)
+    room = 2.0 * min(b.span[0] - b.ends[0], b.ends[1] - b.span[1]) / b.width
+    most = min(room, float(np.tan(np.radians(float(cfg["skew_most"])))))
+    k = float(np.clip(k, -most, most))
+    return 0.0 if abs(k) < np.tan(np.radians(float(cfg["skew_least"]))) else round(k, 3)
+
+
+def _finish(b: Bridge, grid, floor, wet, sample, under, width: float, kind: str, cfg: dict, carve) -> None:
     """All of the record that follows from its heights; `floor`, `wet`, `sample` and `under` are on stations `grid`."""
     hit = np.flatnonzero(wet)
     channel = (float(grid[hit[0]]), float(grid[hit[-1]]))
     b.channel, b.water_width = channel, width
     b.water = float(sample.water[hit].max())
+    b.parts = wet_parts(grid, wet, sample.water)
     b.dry = bool(sample.dry[hit].all())
     b.river = int(np.bincount(sample.river[hit].astype(np.int64)).argmax())
     b.rivers = tuple(int(r) for r in np.unique(np.r_[under[:, hit].ravel(), b.river]) if r >= 0)
@@ -498,12 +527,15 @@ def _finish(b: Bridge, grid, floor, wet, sample, under, width: float, kind: str,
     b.kind = "beam" if kind == "arch" and b.span[1] - b.span[0] > float(cfg["arch_max"]) else kind
     if b.kind != "ford":
         on = (near >= b.span[0]) & (near <= b.span[1])
-        b.piers = stations(b.kind, b.span, channel, cfg, float((top - b.depth - np.maximum(low, b.water))[on].max()))
+        level = np.array([b.level_at(float(t)) or -np.inf for t in near])
+        b.piers = stations(b.kind, b.span, channel, cfg, float((top - b.depth - np.maximum(low, level))[on].max()))
     s = np.unique(np.concatenate([b.s, b.span, channel, b.piers]))
     if b.lean is not None:
         b.lean = np.interp(s, b.s, b.lean)
     held = (s >= near[0]) & (s <= near[-1])
     b.z, b.floor, b.s = np.interp(s, b.s, b.z), np.where(held, np.interp(s, near, low), np.interp(s, b.s, b.floor)), s
+    if b.kind != "ford" and b.span[1] > b.span[0] and b.river < len(carve.rivers):
+        b.skew = skew_of(carve, b, cfg)
 
 
 def _city_kind(ctx, plan, c, b: Bridge, dry: bool) -> str:
@@ -551,7 +583,21 @@ def _raise_city(ctx, plan, ground, c, b: Bridge) -> None:
     b.floor = _heights_along(ground, b.axis, b.s)[2]
     on_head, on_tail = len(head), len(tail)
     b.z = np.concatenate([b.floor[:on_head] + lifts[0] - tuck, z, b.floor[len(b.s) - on_tail:] + lifts[1] - tuck])
-    _finish(b, grid, floor, wet, sample, under, width, _city_kind(ctx, plan, c, b, dry), cfg)
+    _finish(b, grid, floor, wet, sample, under, width, _city_kind(ctx, plan, c, b, dry), cfg, ctx.world.carve)
+    b.walkway = walkway(b, ctx.style)
+    if b.old:
+        plan.streets[b.street].surface = str(ctx.style["streets"]["surface"]["bridge_old"])
+
+
+def walkway(b: Bridge, style: dict) -> tuple:
+    """The raised sidewalks of a city deck wide enough for them: (from, to) meters off the axis, along each parapet, and
+    their height: what the mesher builds and `Ground.surface` reads."""
+    cfg = style["bridges"]
+    if b.width < float(cfg["sidewalk_from"]):
+        return (0.0, 0.0, 0.0)
+    thick = float(cfg["kerb"][1] if b.kind == "beam" else cfg["parapet"][1])
+    out = 0.5 * b.width - thick
+    return (out - float(cfg["sidewalk"][0]), out, float(style["streets"]["curb_height"]))
 
 
 def raise_decks(ctx, plan, crossings: list, bridges: list) -> list:
@@ -618,9 +664,10 @@ def _ford_ends(ground, s, x, y, width: float, lift: float, z, lean, grade: float
     return z, lean
 
 
-def _road_bridge(world, road, k: int, line, ground, lift: float, a: float, b: float, area=None) -> Bridge:
+def _road_bridge(world, road, k: int, line, ground, lift: float, a: float, b: float, area=None) -> Bridge | None:
     """The bridge or ford of road k over the channel from `a` to `b`: its ends move out along the road, but no farther
-    than the limit of `area`, where the road stops being drawn: there the air, then the grade give way, as in a city."""
+    than the limit of `area`, where the road stops being drawn: there the air, then the grade give way, as in a city.
+    None for a ford too short to be one."""
     cfg = world.style["bridges"]
     reach = float(cfg["ramp_reach"])
     grade = float(cfg["grade"])
@@ -636,6 +683,8 @@ def _road_bridge(world, road, k: int, line, ground, lift: float, a: float, b: fl
     if dry:
         need, lean = _slab(ground, x, y, road.width, floor, lift, cfg)
         i0, i1, z = _ford(grid, need, top, sample, wet, float(cfg["ford_grade"]))
+        if i1 == i0:                                    # one station of a dry bed: no ford, the road as it is
+            return None
         z, lean = _ford_ends(ground, grid[i0:i1 + 1], x[i0:i1 + 1], y[i0:i1 + 1], road.width, lift, z, lean[i0:i1 + 1],
                              float(cfg["ford_grade"]))
     else:
@@ -656,7 +705,7 @@ def _road_bridge(world, road, k: int, line, ground, lift: float, a: float, b: fl
     out.tilt = _lean(ground, x[i0:i1 + 1], y[i0:i1 + 1], road.width)
     out.lean = lean
     out.floor = np.interp(out.s, grid0, floor)
-    _finish(out, grid0, floor, wet, sample, under, width, "ford" if dry else KINDS[road.kind], cfg)
+    _finish(out, grid0, floor, wet, sample, under, width, "ford" if dry else KINDS[road.kind], cfg, world.carve)
     return out
 
 
@@ -675,12 +724,37 @@ def eased(s, on, extra) -> np.ndarray:
     return np.interp(s, s[keep], np.where(on, extra, 0.0)[keep])
 
 
+def runs_of(s, free, least: float) -> list:
+    """[(s0, s1)]: the runs of stations `s` that are `free`, of `least` m at the least."""
+    edges = np.flatnonzero(np.diff(np.r_[False, free, False].astype(np.int8))).reshape(-1, 2)
+    return [(float(s[i]), float(s[j - 1])) for i, j in edges.tolist() if s[j - 1] - s[i] >= least]
+
+
+def forked(b: Bridge, s, sides: list, own: tuple, cfg: dict) -> dict:
+    """The fields of a road that forks off a wider one's deck: a wall and a parapet under each edge, each from where that
+    edge leaves the deck, so the structure runs right up to the other road. Where that wedge lies over the open part the
+    fork is a slab on the piers it needs: the wedge has no room for an arch."""
+    least = float(cfg["own_least"])
+    walls = tuple(runs_of(s, free, least) for free in sides)
+    near = [next((run for run in side if run[0] <= own[1] and run[1] >= own[0]), None) for side in walls]
+    if None in near:
+        return {"own": own}
+    start, stop = (near[0][0], near[1][0]), (near[0][1], near[1][1])
+    a, c = min(start), max(stop)
+    wedge = (a, max(start)) if a < own[0] else (min(stop), c)
+    fields = {"own": (a, c), "walls": walls, "skew": 0.0}
+    if b.kind == "arch" and wedge[0] < b.span[1] and wedge[1] > b.span[0]:
+        open_part = (max(b.span[0], a), min(b.span[1], c))
+        fields.update(kind="beam", piers=stations("beam", open_part, b.channel, cfg))
+    return fields
+
+
 def follow(b: Bridge, host: Bridge, cfg: dict) -> Bridge:
     """Bridge `b` of a road that shares its crossing with a wider road's `host`: a crossing has one structure. Its ribbon
     lies `tuck` m under the host's where they overlap, leaning with it, and comes back to its own heights by its far end.
     Of its structure it keeps what stands clear of the host's deck: nothing for a road that rides on it, the rest for one
-    that forks off, and all of it beside the host, its center line never on that deck. Where the host's ribbon covers
-    its own it draws none; a road left without a structure draws none where its center line is on the host."""
+    that forks off (`forked`), and all of it beside the host, its center line never on that deck. Where the host's ribbon
+    covers its own it draws none; a road left without a structure draws none where its center line is on the host."""
     s = np.unique(np.r_[b.s, np.arange(b.ends[0], b.ends[1], 1.0)])
     x, y = shapely.get_coordinates(shapely.line_interpolate_point(b.axis, s)).T
     left, right = _offsets(x, y, b.width)
@@ -693,10 +767,91 @@ def follow(b: Bridge, host: Bridge, cfg: dict) -> Bridge:
     lean = lean + eased(s, on, (high - low) / b.width - lean)
     first = b.ends if b.own is None else b.own              # a second host: of what the first one left
     inside = (s >= first[0] - 1e-6) & (s <= first[1] + 1e-6)
-    own = clear_run(s, on | ~inside, float(cfg["own_least"])) if hit[1].any() else first
+    twin = not hit[1].any() and side_by_side(x, y, b.width, host, cfg)
+    own = clear_run(s, on | ~inside, float(cfg["own_least"])) if hit[1].any() else (0.0, 0.0) if twin else first
     gone = hit[1] if own[1] <= own[0] else np.logical_and.reduce(hit)
     under = max(clear_run(s, ~gone, 0.0), b.under, key=lambda run: run[1] - run[0])
-    return replace(b, s=s, z=z, lean=lean, floor=np.interp(s, b.s, b.floor), own=own, under=under)
+    fields = {"own": own, "twin": (host.road, host.along) if twin else b.twin}
+    if b.kind != "ford" and hit[1].any() and own[1] > own[0]:
+        fields.update(forked(b, s, [~q & inside for q in (hit[0], hit[2])], own, cfg))
+        if "walls" in fields:
+            fields["clear"] = (b.deck if b.clear is None else b.clear).difference(host.deck)
+    return replace(b, s=s, z=z, lean=lean, floor=np.interp(s, b.s, b.floor), under=under, **fields)
+
+
+def _along_host(host: Bridge, x, y) -> tuple:
+    """(meters from the host's axis at the points x, y, True where they lie beside its deck, not past its ends)."""
+    pts = shapely.points(x, y)
+    return shapely.distance(host.axis, pts), (host.locate(x, y) > host.ends[0]) & (host.locate(x, y) < host.ends[1])
+
+
+def side_by_side(x, y, width: float, host: Bridge, cfg: dict) -> bool:
+    """True for a road that runs beside `host` all along it, its center line off that deck, the two ribbons touching: they
+    want one structure. One that only touches at an end and leaves keeps its own (`stopped` stops the parapets there)."""
+    off, beside = _along_host(host, x, y)
+    if beside.mean() < float(cfg["twin_share"]):
+        return False
+    slip = float(cfg["twin_slip"])
+    return float(np.ptp(off[beside])) <= slip and float(off[beside].max()) <= 0.5 * (width + host.width) + slip
+
+
+def apart(s) -> np.ndarray:
+    """The stations `s` in order, the last one kept, none on top of the next: two nearly equal ones turn no way at all
+    (`_offsets`), and the line offset from them runs off to wherever the last one lands."""
+    s = np.unique(s)
+    return np.r_[s[:-1][np.diff(s) > 1e-6], s[-1]]
+
+
+def widened(b: Bridge, twin: Bridge, cfg: dict) -> Bridge:
+    """`b`, the structure of two roads side by side: its stations, piers and kind, its axis moved toward the twin's and as
+    wide as both, so its two walls and parapets stand on the outer edges and none between them. Top and lean are the two
+    ribbons' at those edges. The twin's ribbon comes and goes by what the gap between the roads changes, so a strip runs
+    along the outer edge under it (`Bridge.verge`) as `seam` does between the ribbons."""
+    s = apart(np.r_[b.ends, b.s[(b.s > b.ends[0]) & (b.s < b.ends[1])], np.arange(b.ends[0], b.ends[1], 2.0)])
+    x, y = shapely.get_coordinates(shapely.line_interpolate_point(b.axis, s)).T
+    points = shapely.get_coordinates(shapely.line_interpolate_point(twin.axis, np.linspace(*twin.ends, 40)))
+    off, beside = _along_host(b, *points.T)
+    off = off[beside]                                       # past the host's ends a distance says nothing of the deck
+    width = 0.5 * b.width + float(off.max()) + 0.5 * twin.width
+    left, right = _offsets(x, y, width - b.width)
+    near = shapely.distance(twin.axis, shapely.points(left[0][0], left[1][0]))
+    sign = 1.0 if near < float(shapely.distance(twin.axis, shapely.points(right[0][0], right[1][0]))) else -1.0
+    mid = left if sign > 0.0 else right                     # the new axis, half the widening toward the twin
+    axis = LineString(np.column_stack(mid))
+    high_side, low_side = _offsets(*mid, width)
+    high, low = (twin.at(*high_side), b.at(*low_side)) if sign > 0.0 else (b.at(*high_side), twin.at(*low_side))
+    inner = 0.5 * b.width - 0.5 * (width - b.width)         # the host's inner edge, left of the new axis on the twin's side
+    seam = (sign * inner, sign * (0.5 * width - twin.width))
+    verge = (sign * (0.5 * width - float(np.ptp(off)) - float(cfg["verge_lap"])), sign * 0.5 * width)
+    return replace(b, axis=axis, width=width, s=s, z=0.5 * (high + low), lean=(high - low) / width,
+                   floor=np.interp(s, b.s, b.floor), walls=None, rails=None, seam=seam, verge=verge)
+
+
+def ribbon_near(line, width: float, decks: list, area):
+    """The ribbon of a road inside `area`: all of it but where a wider road's covers it, or None."""
+    near = line.intersection(area)
+    hidden = [substring(line, b.along + a, b.along + c) for b in decks for a, c in [b.under] if c > a]
+    if hidden:
+        near = near.difference(shapely.union_all(hidden).buffer(0.01))
+    return None if near.is_empty else near.buffer(0.5 * width, cap_style="flat")
+
+
+def stopped(b: Bridge, ribbons: list, cfg: dict) -> Bridge:
+    """`b`, its parapets stopped where another road's ribbon crosses them: no rail runs across a road. A parapet's line is
+    read inside the ribbon's edge, by half a parapet's thickness; what is left of it stands on its own two end posts."""
+    if not ribbons:
+        return b
+    s = np.unique(np.r_[np.arange(b.ends[0], b.ends[1], 0.25), b.ends[1]])
+    x, y = shapely.get_coordinates(shapely.line_interpolate_point(b.axis, s)).T
+    area = shapely.union_all(ribbons)
+    lines_ = _offsets(x, y, b.width - float(cfg["parapet"][1]))
+    crossed = [shapely.contains_xy(area, *q) for q in lines_]
+    if not any(q.any() for q in crossed):
+        return b
+    walled = b.walls or ([b.ends], [b.ends])
+    keep = [np.logical_or.reduce([(s >= a - 1e-6) & (s <= c + 1e-6) for a, c in side]) if side else np.zeros(len(s), bool)
+            for side in walled]
+    return replace(b, rails=tuple(runs_of(s, ~q & on, float(cfg["rail_least"])) for q, on in zip(crossed, keep)))
 
 
 def road_bridges(world, k: int, line, ground, lift: float, area=None) -> list:
@@ -711,12 +866,13 @@ def road_bridges(world, k: int, line, ground, lift: float, area=None) -> list:
     while i < len(runs):
         j = i + 1
         b = _road_bridge(world, road, k, line, ground, lift, runs[i][0], runs[i][1], area)
-        while j < len(runs):
+        while b is not None and j < len(runs):
             next_one = _road_bridge(world, road, k, line, ground, lift, runs[j][0], runs[j][1], area)
-            if next_one.along > b.along + b.axis.length:
+            if next_one is None or next_one.along > b.along + b.axis.length:
                 break
             b = _road_bridge(world, road, k, line, ground, lift, runs[i][0], runs[j][1], area)
             j += 1
-        out.append(b)
+        if b is not None:
+            out.append(b)
         i = j
     return out

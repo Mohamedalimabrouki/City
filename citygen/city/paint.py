@@ -157,6 +157,27 @@ def _crossings(bands, band_tree, k: int, st, area, length: float, stripe: float,
     return out
 
 
+def deck_paint(style, streets, bridges) -> list:
+    """The lines a main street carries on over its bridge: a dashed middle and an edge line along each curb or parapet. A
+    deck by the old town is paved and has none."""
+    cfg = style.get("streets", {})
+    width, inset = float(cfg.get("paint_width", 0.12)), float(cfg.get("paint_edge_inset", 0.4))
+    least = float(cfg.get("marking_min_width", 8.0))
+    out: list = []
+    for b in bridges:
+        if b.old or b.carries not in MARKED or b.width <= least:
+            continue
+        line = substring(b.axis, *b.ends)
+        thick = float(style["bridges"]["kerb"][1] if b.kind == "beam" else style["bridges"]["parapet"][1])
+        edge = (b.walkway[0] if b.walkway[1] else 0.5 * b.width - thick) - inset
+        for seg in _dashes(line, cfg.get("paint_dash", [3.0, 4.5])):
+            out += _strips(seg, width, b.deck, b.street)
+        for off in (edge, -edge):
+            for part in _offset(line, off):
+                out += _strips(part, width, b.deck, b.street)
+    return out
+
+
 def make_paint(style, streets, walks, districts=()) -> list:
     """All road markings of a city: edge and lane lines first, then zebra crossings."""
     cfg = style.get("streets", {})

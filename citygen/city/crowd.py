@@ -38,6 +38,7 @@ import numpy as np
 import shapely
 from shapely.geometry import LineString, Point
 from shapely.geometry.polygon import orient
+from shapely.ops import substring
 from shapely.strtree import STRtree
 
 from ..mesh.builder import triangulate
@@ -126,6 +127,8 @@ class Crowd:
         self.walks = list(plan.walks)
         self.walk_tree = STRtree([w.polygon for w in self.walks]) if self.walks else None
         floors = [w.polygon for w in self.walks] + [b.apron for b in plan.buildings if b.apron is not None]
+        self.decks = {b.street: b for b in getattr(plan, "bridges", ())}
+        floors += [poly for b in self.decks.values() for poly in b.walkway_polygons()]
         self.floor_tree = STRtree(floors) if floors else None
         medina = plan.medina
         self.shared = np.array([st.kind in FOOT or st.surface == "earth" or (
@@ -220,7 +223,8 @@ class Crowd:
         self._box = (x0, y0, x1, y1)
         for k in streets:
             st = plan.streets[k]
-            if st.kind == "bridge":             # no walker on a deck yet: its sidewalks come with its parapets
+            if st.kind == "bridge":
+                out += self._deck(k)
                 continue
             if st.kind == "souk":
                 out += self._souk(k)
@@ -400,6 +404,31 @@ class Crowd:
                 c = p[m] + n[m] * side * off + t[m] * rng.uniform(-0.35, 0.35) * step
                 head = 1.0 if rng.random() < 0.5 else -1.0
                 out += self._group(rng, "sidewalk", (k, si, int(i[m])), c, t[m] * head, self._mix(kind), "walk",
+                                   float(cfg["carry"]), cfg, (WALK,))
+        return out
+
+    def _deck(self, k: int) -> list:
+        """Strollers on the two sidewalks of a bridge that has them, each on a stream of its own."""
+        b = self.decks[k]
+        a, c, _high = b.walkway
+        if c <= a:
+            return []
+        cfg = self.cfg["sidewalk"]
+        step = float(cfg["step"])
+        i, p, n, t = self._stations(substring(b.axis, *b.ends), step)
+        out = []
+        for si, side in enumerate((1, -1)):
+            for m in range(len(i)):
+                if not self._in(p[m]):
+                    continue
+                rng = self.d.rng("people", "deck", k, si, int(i[m]))
+                if rng.random() >= self.chance(float(self.cfg["deck_chance"])):
+                    continue
+                off = 0.5 * (a + c) + rng.uniform(-1.0, 1.0) * max(0.0, 0.5 * (c - a) - float(cfg["edge"]))
+                q = p[m] + n[m] * side * off + t[m] * rng.uniform(-0.35, 0.35) * step
+                kind = self._kind_at(q)
+                head = 1.0 if rng.random() < 0.5 else -1.0
+                out += self._group(rng, "sidewalk", (k, si, int(i[m])), q, t[m] * head, self._mix(kind), "walk",
                                    float(cfg["carry"]), cfg, (WALK,))
         return out
 

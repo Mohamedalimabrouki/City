@@ -132,6 +132,10 @@ and care as the last one: keep this file up to date when you learn something tha
 - **A check over every triangle.** Flips, NaN, feet, overlaps over all bridges of a 64 km world take minutes of machine time and no tokens, and a reviewer's check of that kind found what eight pictures had not.
 - **Scans of many seeds cost little.** `TileContext(world, [])` lists a seed's road decks in about a minute: 13 seeds showed what three worlds could not. Boxes rebuild a place in 10-100 s, a country box in 8 s, so eye-height work on one bridge is cheap; take a camera from the record, never a guess.
 
+- **Look at the longest and the oddest first** (prompt 62, round 4). The worst fault of that round, a dark band 1 m over the grass under long decks, was in no bar and no test.
+- **A reviewer after every round that adds code.** Rounds 4 and 5: 810 new lines passed 301 tests; a third reviewer still proved a fault on every skew bridge. A fix round is cheap, about 0.5% of the week on a fresh helper.
+- **Name the slow tests in the brief.** A helper told "the lead runs the slow tests" left one failing that its own change broke on purpose: give it the slow tests that read what it touches.
+
 ## 4. Gotchas on Ali's Mac
 
 More in the auto-memory note on the Mac environment.

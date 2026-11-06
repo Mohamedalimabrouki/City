@@ -24,6 +24,7 @@ from .city.streets import view_spot
 from .export.lore import gazetteer, plan_json, slug, write_json
 from .export.maps import city_map, country_map
 from .export.streets import streets_json
+from .mesh.bridges import homed
 from .mesh.tile import TileContext, export_tile
 from .mesh.textures import style_images, take_images, write_shared_textures
 from .world import generate_world
@@ -219,7 +220,8 @@ def tile_files(entry: dict) -> list:
 
 def finished_tiles(folder: Path, journal: Path, key: str, keys: list) -> dict:
     """Entries of tiles already built with this key: from the last finished build's index.json
-    and from the journal (a note per tile) of an interrupted one. A tile counts only if all its files exist."""
+    and from the journal (a note per tile) of an interrupted one. A tile counts only if all its files exist, and if it
+    would draw the same bridges with `keys` built: one whose own tile is left out goes to a neighbor (`mesh/bridges.guests`)."""
     found = {}
     index = folder / "index.json"
     if index.is_file():
@@ -236,8 +238,16 @@ def finished_tiles(folder: Path, journal: Path, key: str, keys: list) -> dict:
         sized = [entry, *([entry["lod1"]] if "lod1" in entry else [])]
         return all((folder / e["file"]).stat().st_size == e["bytes"] for e in sized)
 
+    built = set(keys)
+
+    def same_bridges(entry: dict) -> bool:
+        here = (entry["i"], entry["j"])
+        return all((homed(tuple(own), [tuple(t) for t in reach], built) == here) == drawn
+                   for own, reach, drawn in entry.get("guests", ()))
+
     return {k: found[k] for k in keys
-            if k in found and all((folder / f).is_file() for f in tile_files(found[k])) and whole(found[k])}
+            if k in found and all((folder / f).is_file() for f in tile_files(found[k])) and whole(found[k])
+            and same_bridges(found[k])}
 
 
 def load_or_plan(world, s, cache: Path, key12: str, force: bool, log):
@@ -299,6 +309,7 @@ def build(cfg: dict, area: str | None = None, log=print, force: bool = False) ->
     keys = []
     if region is not None:
         keys = tiles_for(region, size, world.size)
+        world.built_tiles = set(keys)            # a bridge whose own tile is left out goes to the nearest built one
         keys.sort(key=lambda k: math.hypot((k[0] + 0.5) * size - fx, (k[1] + 0.5) * size - fy))
     key = build_key(cfg, [s.id for s in needed])
     cache = out / "cache"

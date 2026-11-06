@@ -13,9 +13,9 @@ from dataclasses import dataclass
 
 import numpy as np
 import shapely
-from shapely.geometry import LineString, Polygon
+from shapely.geometry import LineString, Polygon, box
 
-from .builder import MeshBuilder, add_boxes, add_cap, add_quads, add_skirt, add_triangles, ribbon_edges
+from .builder import MeshBuilder, add_boxes, add_cap, add_quads, add_skirt, add_triangles, ribbon_edges, triangulate
 from .vaults import _grid
 
 UP = np.array([0.0, 0.0, 1.0])
@@ -29,6 +29,7 @@ class Frame:
 
     def __init__(self, b, step: float):
         self.b, self.step = b, step
+        self.k = float(b.skew)                       # what stands under the deck runs with the flow: (s + k d, d)
         self.deck = self.stations(*b.ends)
         p, seg, left, _right = ribbon_edges(b.axis.coords, 2.0)
         self.nodes, self.mitres = np.r_[0.0, np.cumsum(seg)], left - p      # the ribbon's corners, by station
@@ -85,11 +86,74 @@ class Frame:
     def soffit(self, s) -> np.ndarray:
         return np.interp(s, self.b.s, self.b.z) - self.b.depth
 
+    def over_flow(self, s) -> tuple:
+        """(the lowest, the highest) soffit along the line of the flow through station s."""
+        e = 0.5 * self.b.width
+        a, c = self.soffit(np.asarray(s) - self.k * e), self.soffit(np.asarray(s) + self.k * e)
+        return np.minimum(a, c), np.maximum(a, c)
+
+    def floor(self, s) -> float:
+        """The highest ground under the center line along the line of the flow through station s."""
+        e, b = 0.5 * self.b.width, self.b
+        return float(max(np.interp(s - self.k * e, b.s, b.floor), np.interp(s + self.k * e, b.s, b.floor)))
+
+    def side(self, d: float) -> list:
+        """[(s0, s1)]: what stands of the edge on the side of `d`: a fork's edges each start at the deck it leaves."""
+        return [self.b.ends] if self.b.walls is None else self.b.walls[0 if d > 0 else 1]
+
+    def walled(self, d: float, lo: float, hi: float) -> list:
+        """The stretches of `side` between stations `lo` and `hi`."""
+        got = [(max(a, lo), min(c, hi)) for a, c in self.side(d)]
+        return [(a, c) for a, c in got if c - a > 0.05]
+
+    def rail(self, d: float) -> list:
+        """[(s0, s1)]: the parapets on the side of `d`, each with an end post at both ends."""
+        return self.side(d) if self.b.rails is None else self.b.rails[0 if d > 0 else 1]
+
+    def opening(self) -> tuple:
+        """The open part along the left edge and along the right: a fork's start and stop lean with the deck it leaves."""
+        b, e = self.b, 0.5 * self.b.width
+        if b.walls is None:
+            return b.span, b.span
+        pieces = [self.walled(d, *b.span) for d in (e, -e)]
+        return tuple(max(p, key=lambda run: run[1] - run[0]) if p else (b.span[1], b.span[1]) for p in pieces)
+
+    def run(self, d: float) -> np.ndarray:
+        """The stations of the open part `d` m left of the axis."""
+        if self.b.walls is None:
+            return self.stations(self.b.span[0] + self.k * d, self.b.span[1] + self.k * d)
+        (a0, c0), (a1, c1) = self.opening()
+        t = 0.5 + d / self.b.width
+        return self.stations(a1 + (a0 - a1) * t, c1 + (c0 - c1) * t)
+
+    def across(self, s) -> tuple:
+        """(left, right): how far the open part reaches each way at stations s, in meters left of the axis."""
+        e = 0.5 * self.b.width
+        if self.b.walls is None:
+            return e, -e
+        (a0, c0), (a1, c1) = self.opening()
+        s = np.asarray(s, dtype=np.float64)
+        lo, hi = np.zeros(len(s)), np.ones(len(s))
+        if a0 != a1:                       # the start: its line runs from (a1, right edge) to (a0, left edge)
+            t = (s - a1) / (a0 - a1)
+            lo, hi = (np.maximum(lo, t), hi) if a0 < a1 else (lo, np.minimum(hi, t))
+        if c0 != c1:
+            t = (s - c1) / (c0 - c1)
+            lo, hi = (np.maximum(lo, t), hi) if c0 > c1 else (lo, np.minimum(hi, t))
+        hi = np.maximum(hi, lo)
+        return e * (2.0 * hi - 1.0), e * (2.0 * lo - 1.0)
+
+
+def forward(a: np.ndarray, b: np.ndarray) -> np.ndarray:
+    """True for each step of the lines `a` and `b` that goes their way: at a road's sharp kink an offset line folds back."""
+    return np.logical_and.reduce([(np.diff(q[:, :2], axis=0) @ (q[-1, :2] - q[0, :2])) >= 0.0 for q in (a, b)])
+
 
 def band(mb: MeshBuilder, mat: str, a: np.ndarray, b: np.ndarray, toward) -> None:
     """Flat quads between the polylines `a` and `b`, facing `toward`: a wall, its courses level."""
     quads = np.stack([a[:-1], a[1:], b[1:], b[:-1]], axis=1)
     keep = np.linalg.norm(np.cross(quads[:, 2] - quads[:, 0], quads[:, 3] - quads[:, 1]), axis=1) > 1e-6
+    keep &= forward(a, b)
     add_quads(mb, mat, quads[keep], np.broadcast_to(toward, (len(quads), 3))[keep])
 
 
@@ -98,7 +162,7 @@ def strip(mb: MeshBuilder, mat: str, a: np.ndarray, b: np.ndarray, s: np.ndarray
     quads = np.stack([a[:-1], a[1:], b[1:], b[:-1]], axis=1)
     n = np.cross(quads[:, 2] - quads[:, 0], quads[:, 3] - quads[:, 1])
     size = np.linalg.norm(n, axis=1)
-    keep = size > 1e-6
+    keep = (size > 1e-6) & forward(a, b)
     toward = np.broadcast_to(toward, (len(quads), 3))
     n = n / np.maximum(size, 1e-12)[:, None]
     back = (n * toward).sum(axis=1) < 0
@@ -114,13 +178,15 @@ def strip(mb: MeshBuilder, mat: str, a: np.ndarray, b: np.ndarray, s: np.ndarray
 
 
 def sweep(mb: MeshBuilder, fr: Frame, mat: str, s, d0: float, d1: float, lo, hi, faces: str = "oitbe",
-          deck: bool = True) -> None:
+          deck: bool = True, skew: float = 0.0, rise: float = 0.0) -> None:
     """A bar along stations `s`, its outer face `d0` m left of the axis and its inner `d1`, from `lo` to `hi`: meters
-    over the ribbon, or with `deck` False level heights. `faces` of it: o outer, i inner, t top, b bottom, e the ends."""
+    over the ribbon, or with `deck` False level heights. `faces` of it: o outer, i inner, t top, b bottom, e the ends.
+    With `skew` its inner face runs on from the outer's stations by that much per meter across, `rise` m higher."""
     s = np.asarray(s, dtype=np.float64)
-    base0, base1 = (fr.top(s, d) if deck else 0.0 for d in (d0, d1))
+    inner = s + skew * (d1 - d0)
+    base0, base1 = (fr.top(q, d) if deck else r for q, d, r in ((s, d0, 0.0), (inner, d1, rise)))
     a0, a1 = fr.at(s, d0, base0 + lo), fr.at(s, d0, base0 + hi)
-    b0, b1 = fr.at(s, d1, base1 + lo), fr.at(s, d1, base1 + hi)
+    b0, b1 = fr.at(inner, d1, base1 + lo), fr.at(inner, d1, base1 + hi)
     sign = 1.0 if d0 > d1 else -1.0
     if "o" in faces:
         strip(mb, mat, a1, a0, s, fr.faces(s, sign))
@@ -143,6 +209,12 @@ def _posts(mb: MeshBuilder, fr: Frame, mat: str, s: np.ndarray, d: float, side: 
     add_boxes(mb, a, t, 0.0, side, side, z0, z1, mat)
 
 
+def _wet(b, s: float) -> float | None:
+    """The level of the water a pier at station s stands in, None on dry land: a long deck has land between two arms."""
+    level = b.level_at(s, 0.01)
+    return None if b.dry or level is None or float(np.interp(s, b.s, b.floor)) >= level else level
+
+
 def _foot(ground, xy: np.ndarray, bury: float) -> float:
     """Under the lowest ground, as it is and as it is drawn, at the points `xy`."""
     x, y = xy.T
@@ -163,22 +235,27 @@ def _ramps(mb: MeshBuilder, ground, fr: Frame, mat: str, cfg: dict) -> None:
     """The retaining walls of the solid ramps, from the ribbon's edges down into the ground."""
     b, e = fr.b, 0.5 * fr.b.width
     bury = float(cfg["bury"])
-    for lo, hi in ((b.ends[0], b.span[0]), (b.span[1], b.ends[1])):
-        if hi - lo > 0.05:
-            s = fr.stations(lo, hi)
-            for d in (e, -e):
+    for lo, hi, at in ((b.ends[0], b.span[0], 1), (b.span[1], b.ends[1], 0)):
+        for d in (e, -e):
+            shift = (0.0, fr.k * d) if at else (fr.k * d, 0.0)      # a ramp stops where the open part starts on this edge
+            for a, c in fr.walled(d, lo + shift[0], hi + shift[1]):
+                s = fr.stations(a, c)
                 band(mb, mat, fr.at(s, d, fr.top(s, d)), fr.at(s, d, foot_line(ground, fr, s, d, bury)),
                      fr.faces(s, np.sign(d)))
 
 
-def _abutment(mb: MeshBuilder, ground, fr: Frame, mat: str, s: float, way: float, top: float, cfg: dict) -> None:
-    """The face at the end of the open part, closing the hollow of a ramp, from `top` into the ground; `way` toward the
-    opening."""
-    e = 0.5 * fr.b.width
-    across = np.linspace(-e, e, 9)
-    bottom = _foot(ground, fr.off(np.full(9, s), across), float(cfg["bury"]))
-    if top > bottom:
-        high, low = fr.at([s, s], [e, -e], top), fr.at([s, s], [e, -e], bottom)
+def _abutment(mb: MeshBuilder, ground, fr: Frame, mat: str, s: float, way: float, top, cfg: dict) -> None:
+    """The face at the end of the open part, closing the hollow of a ramp, from `top` into the ground, or from the
+    soffit with `top` None; `way` toward the opening. On a skew bridge it runs with the flow."""
+    left, right = (float(np.ravel(d)[0]) for d in fr.across([s]))
+    if left - right < 0.05:                       # all of it on the deck a fork leaves: that deck's wall closes it
+        return
+    across = np.linspace(right, left, 9)
+    bottom = _foot(ground, fr.off(s + fr.k * across, across), float(cfg["bury"]))
+    at = np.array([s + fr.k * left, s + fr.k * right])
+    top = fr.soffit(at) if top is None else np.full(2, top)
+    if top.max() > bottom:
+        high, low = fr.at(at, [left, right], top), fr.at(at, [left, right], bottom)
         add_quads(mb, mat, np.stack([high[0], high[1], low[1], low[0]])[None], fr.along(s, way)[None])
 
 
@@ -216,11 +293,12 @@ def _circle(a: float, za: float, c: float, zc: float, crown: float) -> Arc:
 def spring_at(fr: Frame, s: float, cfg: dict) -> float:
     """Where an arch springs at station s: over the water or on the ground, under the soffit."""
     b = fr.b
-    level = float(np.interp(s, b.s, b.floor))
-    top = float(fr.soffit(s))
-    if b.channel[0] - 1.0 <= s <= b.channel[1] + 1.0:
+    level = fr.floor(s)
+    top = float(fr.over_flow(s)[0])
+    water = b.level_at(s, 1.0)
+    if water is not None:
         least, part = (float(v) for v in cfg["spring_over"])
-        level = max(level, b.water + max(least, part * (top - b.water)))
+        level = max(level, water + max(least, part * (top - water)))
     return min(level, top - float(cfg["arch_gap"]))
 
 
@@ -240,11 +318,11 @@ def arches(fr: Frame, cfg: dict) -> list:
         a = float(edges[i]) + (half if i else 0.0)
         c = float(edges[i + 1]) - (half if i < len(edges) - 2 else 0.0)
         least = max(spring[i], spring[i + 1]) + 0.1
-        crown = max(float(fr.soffit(0.5 * (a + c))), least)
+        crown = max(float(fr.over_flow(0.5 * (a + c))[0]), least)
         t = np.linspace(a, c, 33)
         for _ in range(12):
             arc = _circle(a, spring[i], c, spring[i + 1], crown)
-            over = float((arc.height(t) - fr.soffit(t)).max())
+            over = float((arc.height(t) - fr.over_flow(t)[0]).max())
             if over <= 0.0 or crown <= least:
                 break
             crown = max(crown - over - 1e-3, least)
@@ -274,8 +352,11 @@ def _barrel(mb: MeshBuilder, fr: Frame, arc: Arc, t: np.ndarray, e: float, mat: 
     """The arch's underside, seen from below: smooth along it, UVs in meters along the arc and across."""
     s, z = _on_arc(arc, t, arc.r)
     tan = fr.tangent(s)
-    pos = np.stack([fr.at(s, -e, z), fr.at(s, e, z)], axis=1)
+    pos = np.stack([fr.at(s - fr.k * e, -e, z), fr.at(s + fr.k * e, e, z)], axis=1)
+    if fr.k:
+        tan = tan - fr.k * fr.left(s)                      # the normal of a barrel sheared with the flow
     nrm = np.column_stack([-tan * np.sin(t)[:, None], -np.cos(t)])
+    nrm /= np.linalg.norm(nrm, axis=1)[:, None] if fr.k else 1.0
     uv = np.stack([np.broadcast_to((arc.r * (t - t[0]))[:, None], (len(t), 2)),
                    np.broadcast_to(np.array([-e, e]), (len(t), 2))], axis=-1)
     _grid(mb, mat, pos, np.stack([nrm, nrm], axis=1), uv)
@@ -292,8 +373,8 @@ def _ring(mb: MeshBuilder, fr: Frame, arc: Arc, t: np.ndarray, e: float, cfg: di
     r = arc.r + depth * np.where(np.arange(n) % 2 == (n // 2) % 2, 1.0, short)
     for way in (1.0, -1.0):
         rows = [_on_arc(arc, t0, arc.r), _on_arc(arc, t1, arc.r), _on_arc(arc, t1, r), _on_arc(arc, t0, r)]
-        front = [fr.at(q[0], way * (e + proud), q[1]) for q in rows]
-        back = [fr.at(q[0], way * e, q[1]) for q in rows]
+        front = [fr.at(q[0] + fr.k * way * (e + proud), way * (e + proud), q[1]) for q in rows]
+        back = [fr.at(q[0] + fr.k * way * e, way * e, q[1]) for q in rows]
         flat = fr.left(rows[0][0]) * way
         out = np.column_stack([flat, np.zeros(n)])
         add_quads(mb, mat, np.stack(front, axis=1), out)
@@ -315,10 +396,11 @@ def _spandrels(mb: MeshBuilder, fr: Frame, arcs: list, mat: str, cfg: dict) -> N
         edge_s.append(s)
         edge_z.append(z)
     edge_s, edge_z = np.concatenate(edge_s), np.concatenate(edge_z)
-    s = np.unique(np.r_[edge_s, b.s[(b.s > b.span[0]) & (b.s < b.span[1])]])
-    s = s[np.r_[True, np.diff(s) > 0.01]]
-    under = np.interp(s, edge_s, edge_z)
     for d in (e, -e):
+        shift = fr.k * d
+        s = np.unique(np.r_[edge_s + shift, b.s[(b.s > b.span[0] + shift) & (b.s < b.span[1] + shift)]])
+        s = s[np.r_[True, np.diff(s) > 0.01]]
+        under = np.interp(s - shift, edge_s, edge_z)
         band(mb, mat, fr.at(s, d, fr.top(s, d)), fr.at(s, d, under), fr.faces(s, np.sign(d)))
 
 
@@ -340,13 +422,13 @@ def _pier(mb: MeshBuilder, ground, fr: Frame, s: float, z: float, wall: str, tri
     t, n = fr.tangent([s])[0], fr.left([s])[0]
 
     def world(plan: np.ndarray) -> np.ndarray:
-        return c + np.outer(plan[:, 0], t) + np.outer(plan[:, 1], n)
+        return c + np.outer(plan[:, 0] + fr.k * plan[:, 1], t) + np.outer(plan[:, 1], n)
 
     ring = world(_outline(half, e + proud, nose))
     low = _foot(ground, np.vstack([ring, 0.5 * (ring + np.roll(ring, -1, axis=0)), c[None]]), float(cfg["bury"]))
     top = z - cap_h
-    wet = b.water + float(cfg["wet_band"]) if not b.dry and float(np.interp(s, b.s, b.floor)) < b.water else low
-    wet = min(wet, top)
+    level = _wet(b, s)
+    wet = min(low if level is None else level + float(cfg["wet_band"]), top)
     full = np.ones(6)
     if wet > low:
         add_skirt(mb, ring, full * wet, full * low, WET)
@@ -370,21 +452,23 @@ def _pier(mb: MeshBuilder, ground, fr: Frame, s: float, z: float, wall: str, tri
 
 def _stone_parapets(mb: MeshBuilder, fr: Frame, wall: str, trim: str, cfg: dict) -> None:
     """Both parapets: wall, its coping, the band of stone at the deck, a stouter post at each end."""
-    b, e, s = fr.b, 0.5 * fr.b.width, fr.deck
+    e = 0.5 * fr.b.width
     h, thick = (float(v) for v in cfg["parapet"])
     cop_h, over = (float(v) for v in cfg["coping"])
     band_h, proud = (float(v) for v in cfg["string_course"])
     side, tall, top_h, top_out = (float(v) for v in cfg["end_post"])
     for d in (e, -e):
         sign = np.sign(d)
-        sweep(mb, fr, wall, s, d, d - sign * thick, -0.06, h - cop_h, "oi")
-        sweep(mb, fr, trim, s, d + sign * over, d - sign * (thick + over), h - cop_h, h, "oitbe")
-        sweep(mb, fr, trim, s, d + sign * proud, d - sign * 0.02, -band_h, 0.0, "otbe")
-        for mid in (b.ends[0] + 0.5 * side, b.ends[1] - 0.5 * side):
-            at = np.array([mid])
-            base = fr.top(at, d - sign * 0.5 * side)
-            _posts(mb, fr, wall, at, d - sign * 0.5 * side, side, base - 0.2, base + tall)
-            _posts(mb, fr, trim, at, d - sign * 0.5 * side, side + 2.0 * top_out, base + tall, base + tall + top_h)
+        for a, c in fr.rail(d):
+            s = fr.stations(a, c)
+            sweep(mb, fr, wall, s, d, d - sign * thick, -0.06, h - cop_h, "oi")
+            sweep(mb, fr, trim, s, d + sign * over, d - sign * (thick + over), h - cop_h, h, "oitbe")
+            sweep(mb, fr, trim, s, d + sign * proud, d - sign * 0.02, -band_h, 0.0, "otbe")
+            for mid in (a + 0.5 * side, c - 0.5 * side):
+                at = np.array([mid])
+                base = fr.top(at, d - sign * 0.5 * side)
+                _posts(mb, fr, wall, at, d - sign * 0.5 * side, side, base - 0.2, base + tall)
+                _posts(mb, fr, trim, at, d - sign * 0.5 * side, side + 2.0 * top_out, base + tall, base + tall + top_h)
 
 
 def stone_bridge(mb: MeshBuilder, ground, fr: Frame, cfg: dict) -> None:
@@ -411,30 +495,50 @@ def _slab(mb: MeshBuilder, fr: Frame, cfg: dict) -> None:
     """The deck over the open part: fascia girders at its edges, a shadow line between them and the kerb, the slab's
     soffit in the dark and girders under it."""
     b, e = fr.b, 0.5 * fr.b.width
-    s = fr.stations(*b.span)
     wide, under, apart = (float(v) for v in cfg["girder"])
     high, deep = (float(v) for v in cfg["shadow"])
     for d in (e, -e):
         sign = np.sign(d)
-        sweep(mb, fr, "concrete", s, d, d - sign * wide, -b.depth, -high, "oitb")
-        sweep(mb, fr, "concrete_dark", s, d - sign * deep, d - sign * wide, -high, 0.0, "o")
+        s = fr.run(d)
+        if s[-1] - s[0] > 0.05:
+            sweep(mb, fr, "concrete", s, d, d - sign * wide, -b.depth, -high, "oitb", skew=fr.k)
+            sweep(mb, fr, "concrete_dark", s, d - sign * deep, d - sign * wide, -high, 0.0, "o", skew=fr.k)
     inner = e - 0.5 * wide
     n = max(int(round(2.0 * inner / apart)) - 1, 0)
     for d in np.linspace(-inner, inner, n + 2)[1:-1]:
-        sweep(mb, fr, "concrete_dark", s, d + 0.5 * wide, d - 0.5 * wide, -b.depth, -b.depth + under, "oib")
-    soffit = fr.soffit(s) + under
-    band(mb, "concrete_dark", fr.at(s, e, soffit), fr.at(s, -e, soffit), DOWN)
+        s = fr.run(d)
+        if s[-1] - s[0] > 0.05:
+            sweep(mb, fr, "concrete_dark", s, d + 0.5 * wide, d - 0.5 * wide, -b.depth, -b.depth + under, "oib", skew=fr.k)
+    s = fr.stations(*b.span)
+    if b.walls is not None:
+        _fork_soffit(mb, fr, s, under)
+        return
+    a, c = s + fr.k * e, s - fr.k * e
+    band(mb, "concrete_dark", fr.at(a, e, fr.soffit(a) + under), fr.at(c, -e, fr.soffit(c) + under), DOWN)
+
+
+def _fork_soffit(mb: MeshBuilder, fr: Frame, s: np.ndarray, under: float) -> None:
+    """The slab's underside on a fork: its deck less the deck it leaves (`Bridge.clear`), whose edge can enter the fork and
+    leave again, cut at the stations `s` so it follows the ramp."""
+    b, e = fr.b, 0.5 * fr.b.width
+    cells = [Polygon(np.vstack([fr.off([a, c], e), fr.off([c, a], -e)])).intersection(b.clear) for a, c in zip(s[:-1], s[1:])]
+    tris = [triangulate(part) for part in shapely.get_parts(cells) if part.geom_type == "Polygon"]
+    xy = np.concatenate([np.zeros((0, 3, 2)), *tris]).reshape(-1, 2)
+    pos = np.column_stack([xy, fr.soffit(b.locate(*xy.T)) + under])
+    mb.add("concrete_dark", pos, np.broadcast_to(DOWN, pos.shape), xy * (1.0, -1.0), np.arange(len(pos)).reshape(-1, 3)[:, ::-1])
 
 
 def _concrete_abutments(mb: MeshBuilder, ground, fr: Frame, cfg: dict) -> None:
     """A wall at each end of the open part with its seat under the girders."""
-    b, e = fr.b, 0.5 * fr.b.width
+    b = fr.b
     out, high = (float(v) for v in cfg["seat"])
     for s, way in ((b.span[0], 1.0), (b.span[1], -1.0)):
-        z = float(fr.soffit(s))
-        _abutment(mb, ground, fr, "concrete", s, way, z, cfg)
+        _abutment(mb, ground, fr, "concrete", s, way, None, cfg)
         ss = np.sort([s, s + way * out])
-        sweep(mb, fr, "concrete_dark", ss, e, -e, z - high, z, deck=False)
+        left, right = (float(np.ravel(d)[0]) for d in fr.across(ss))
+        z, far = (float(fr.soffit(s + fr.k * d)) for d in (left, right))
+        if left - right > 0.05:
+            sweep(mb, fr, "concrete_dark", ss + fr.k * left, left, right, z - high, z, deck=False, skew=fr.k, rise=far - z)
 
 
 def _column(mb: MeshBuilder, mat: str, c: np.ndarray, r: float, z0: float, z1: float, sides: int) -> None:
@@ -448,32 +552,47 @@ def _column(mb: MeshBuilder, mat: str, c: np.ndarray, r: float, z0: float, z1: f
     _grid(mb, mat, pos, np.stack([n, n], axis=1), uv)
 
 
+def _wall_pier(mb: MeshBuilder, ground, fr: Frame, s: float, top: float, wet, cfg: dict) -> None:
+    """A wall with round ends under the deck, up to `top`, dark up from the water."""
+    left, right = (float(np.ravel(d)[0]) for d in fr.across([s]))
+    thick, in_from = (float(v) for v in cfg["wall_pier"])
+    d0, d1 = in_from + 0.5 * thick + right, left - in_from - 0.5 * thick
+    line = LineString(fr.off([s + fr.k * d0, s + fr.k * d1], [d0, d1]))
+    ring = np.asarray(line.buffer(0.5 * thick, quad_segs=3).exterior.coords)[:-1, :2]
+    ring = ring[::-1] if Polygon(ring).exterior.is_ccw is False else ring
+    low = _foot(ground, ring, float(cfg["bury"]))
+    full = np.ones(len(ring))
+    if wet is not None:
+        add_skirt(mb, ring, full * wet, full * low, "concrete_dark")
+    add_skirt(mb, ring, full * top, full * (low if wet is None else wet), "concrete")
+
+
 def _concrete_pier(mb: MeshBuilder, ground, fr: Frame, s: float, cfg: dict) -> None:
-    """A cap beam on round columns on a low bridge, on a wall with round ends where it stands tall."""
-    b, e = fr.b, 0.5 * fr.b.width
-    z = float(fr.soffit(s))
+    """A cap beam on round columns; a wall under it where the pier stands tall; only a low wall where it has no height for
+    either: a cap beam would lie on the grass."""
+    b = fr.b
+    left, right = (float(np.ravel(d)[0]) for d in fr.across([s]))
+    z = float(fr.over_flow(s)[1])
     cap_h, cap_t, short = (float(v) for v in cfg["cap_beam"])
-    sweep(mb, fr, "concrete_dark", [s - 0.5 * cap_t, s + 0.5 * cap_t], e - short, short - e, z - cap_h, z, deck=False)
-    below = z - cap_h
     floor = float(np.interp(s, b.s, b.floor))
-    wet = None if b.dry or floor >= b.water else b.water + float(cfg["wet_band"])
-    if z - max(floor, b.water) > float(cfg["pier_tall"]):
-        thick, in_from = (float(v) for v in cfg["wall_pier"])
-        line = LineString(fr.off([s, s], [in_from + 0.5 * thick - e, e - in_from - 0.5 * thick]))
-        ring = np.asarray(line.buffer(0.5 * thick, quad_segs=3).exterior.coords)[:-1, :2]
-        ring = ring[::-1] if Polygon(ring).exterior.is_ccw is False else ring
-        low = _foot(ground, ring, float(cfg["bury"]))
-        full = np.ones(len(ring))
-        if wet is not None:
-            add_skirt(mb, ring, full * wet, full * low, "concrete_dark")
-        add_skirt(mb, ring, full * below, full * (low if wet is None else wet), "concrete")
+    level = _wet(b, s)
+    wet = None if level is None else level + float(cfg["wet_band"])
+    height = z - max(floor, b.water if level is None else level)
+    if height < float(cfg["pier_low"]):
+        _wall_pier(mb, ground, fr, s, z, wet, cfg)
+        return
+    d0, d1 = left - short, right + short
+    sweep(mb, fr, "concrete_dark", np.array([s - 0.5 * cap_t, s + 0.5 * cap_t]) + fr.k * d0, d0, d1, z - cap_h, z, deck=False,
+          skew=fr.k)
+    below = z - cap_h
+    if height > float(cfg["pier_tall"]):
+        _wall_pier(mb, ground, fr, s, below, wet, cfg)
         return
     r, apart, in_from = (float(v) for v in cfg["column"])
-    reach = e - in_from
-    n = max(int(np.ceil(2.0 * reach / apart)) + 1, 2)
+    n = max(int(np.ceil((left - right - 2.0 * in_from) / apart)) + 1, 2)
     sides = int(cfg["arc_sides"])
-    for d in np.linspace(-reach, reach, n):
-        c = fr.off([s], d)[0]
+    for d in np.linspace(right + in_from, left - in_from, n):
+        c = fr.off([s + fr.k * d], d)[0]
         a = np.linspace(0.0, 2.0 * np.pi, 7)
         low = _foot(ground, c + r * np.column_stack([np.cos(a), np.sin(a)]), float(cfg["bury"]))
         if wet is not None:
@@ -484,28 +603,29 @@ def _concrete_pier(mb: MeshBuilder, ground, fr: Frame, s: float, cfg: dict) -> N
 def _concrete_parapets(mb: MeshBuilder, fr: Frame, cfg: dict) -> None:
     """A low kerb with a rail of posts and two continuous bars, white in a city, iron on a country road, a block at each
     end."""
-    b, e, s = fr.b, 0.5 * fr.b.width, fr.deck
+    e = 0.5 * fr.b.width
     high, wide = (float(v) for v in cfg["kerb"])
     top, mid, rail_w, rail_d = (float(v) for v in cfg["rail"])
     apart, post = (float(v) for v in cfg["rail_post"])
     side, tall = (float(v) for v in cfg["concrete_end"])
-    mat = "iron" if b.road >= 0 else "railing_white"
-    room = b.ends[1] - b.ends[0] - 2.0 * side
-    n = max(int(round(room / apart)), 1)
-    stops = b.ends[0] + side + room * np.arange(n + 1) / n
+    mat = "iron" if fr.b.road >= 0 else "railing_white"
     for d in (e, -e):
         sign = np.sign(d)
-        sweep(mb, fr, "concrete", s, d, d - sign * wide, 0.0, high, "oitb")
-        mid_d = d - sign * 0.5 * wide
-        run = fr.stations(b.ends[0] + side, b.ends[1] - side)
-        for z in (top, mid):
-            sweep(mb, fr, mat, run, mid_d + sign * 0.5 * rail_w, mid_d - sign * 0.5 * rail_w, z - rail_d, z, "oitb")
-        base = fr.top(stops, mid_d)
-        _posts(mb, fr, mat, stops, mid_d, post, base + high - 0.02, base + top)
-        for mid in (b.ends[0] + 0.5 * side, b.ends[1] - 0.5 * side):
-            at = np.array([mid])
-            z = fr.top(at, d - sign * 0.5 * side)
-            _posts(mb, fr, "concrete", at, d - sign * 0.5 * side, side, z - 0.2, z + tall)
+        for a, c in fr.rail(d):
+            room = c - a - 2.0 * side
+            n = max(int(round(room / apart)), 1)
+            stops = a + side + room * np.arange(n + 1) / n
+            sweep(mb, fr, "concrete", fr.stations(a, c), d, d - sign * wide, 0.0, high, "oitb")
+            mid_d = d - sign * 0.5 * wide
+            run = fr.stations(a + side, c - side)
+            for z in (top, mid):
+                sweep(mb, fr, mat, run, mid_d + sign * 0.5 * rail_w, mid_d - sign * 0.5 * rail_w, z - rail_d, z, "oitb")
+            base = fr.top(stops, mid_d)
+            _posts(mb, fr, mat, stops, mid_d, post, base + high - 0.02, base + top)
+            for at in (a + 0.5 * side, c - 0.5 * side):
+                at = np.array([at])
+                z = fr.top(at, d - sign * 0.5 * side)
+                _posts(mb, fr, "concrete", at, d - sign * 0.5 * side, side, z - 0.2, z + tall)
 
 
 def concrete_bridge(mb: MeshBuilder, ground, fr: Frame, cfg: dict) -> None:
@@ -580,22 +700,69 @@ def structure(mb: MeshBuilder, ground, b, style: dict) -> None:
     cfg = style["bridges"]
     fr = Frame(b, float(cfg["step"]))
     (DRAW[b.kind] if b.span[1] > b.span[0] or b.kind == "ford" else ramp_only)(mb, ground, fr, cfg)
+    for gap in (b.seam, b.verge):
+        if gap:
+            sweep(mb, fr, "asphalt", fr.deck, gap[0], gap[1], -0.05, -0.05, "t")
     if b.road < 0 and b.width >= float(cfg["sidewalk_from"]):
         _sidewalks(mb, fr, cfg, float(style["streets"]["curb_height"]))
 
 
-def owned(tc, tile) -> list:
-    """The bridges and fords whose axis has its middle on this tile, city and country."""
-    x0, y0, x1, y1 = tile.bounds
+def own_tile(tc, b) -> tuple:
+    """(i, j) of the tile that holds the middle of the axis of bridge `b`."""
+    p = b.axis.interpolate(0.5 * (b.ends[0] + b.ends[1]))
+    return int(p.x // tc.size), int(p.y // tc.size)
+
+
+def tile_box(tc, i: int, j: int):
+    return box(i * tc.size, j * tc.size, (i + 1) * tc.size, (j + 1) * tc.size)
+
+
+def reached(tc, b) -> list:
+    """The tiles the deck of `b` reaches."""
+    deck = b.deck
+    x0, y0, x1, y1 = deck.bounds
+    return [(i, j) for i in range(int(x0 // tc.size), int(x1 // tc.size) + 1) for j in range(int(y0 // tc.size), int(y1 // tc.size) + 1)
+            if deck.intersects(tile_box(tc, i, j))]
+
+
+def homed(key: tuple, reach, built) -> tuple:
+    """The tile that draws a bridge whose own tile is `key`: that one or, in a build that leaves it out, the nearest built
+    tile of those its deck reaches, `reach`. Left out with them if there is none."""
+    if key in built:
+        return key
+    return min((t for t in reach if t in built), key=lambda t: (abs(t[0] - key[0]) + abs(t[1] - key[1]), t), default=key)
+
+
+def home(tc, b) -> tuple:
+    """(i, j) of the tile that draws bridge `b` in this build (`homed`)."""
+    key = own_tile(tc, b)
+    built = getattr(tc.world, "built_tiles", None)
+    return key if built is None or key in built else homed(key, reached(tc, b), built)
+
+
+def candidates(tc, tile) -> list:
+    """The bridges and fords a tile might draw, city and country."""
     found = [b for plan in tc.plans for b in getattr(plan, "bridges", ())]
     if tc.road_tree is not None:
-        found += [b for k in tc.road_tree.query(tile, predicate="intersects") for b in tc.decks(int(k))]
+        found += [b for k in tc.road_tree.query(tile, predicate="intersects") for b in tc.structures(int(k))]
+    return found
 
-    def mine(b) -> bool:
-        p = b.axis.interpolate(0.5 * (b.ends[0] + b.ends[1]))
-        return x0 <= p.x < x1 and y0 <= p.y < y1
 
-    return [b for b in (b.standing() for b in found) if b is not None and mine(b)]
+def owned(tc, tile) -> list:
+    """The bridges and fords this tile draws (`home`)."""
+    x0, y0, _x1, _y1 = tile.bounds
+    here = (int(round(x0 / tc.size)), int(round(y0 / tc.size)))
+    return [b for b in candidates(tc, tile) if home(tc, b) == here]
+
+
+def guests(tc, i: int, j: int) -> list:
+    """All a tile's content owes to which tiles a build holds: a [own tile, tiles reached, drawn here] for each bridge of
+    another tile whose deck reaches this one. `build.finished_tiles` reads them to reuse a tile only where it would draw
+    the same; a tile has none without a bridge over its edge, and a build with every neighbor draws none of them."""
+    tile = tile_box(tc, i, j)
+    near = [b for b in candidates(tc, tile) if own_tile(tc, b) != (i, j) and b.axis.distance(tile) <= b.width]
+    found = [(own_tile(tc, b), reached(tc, b), home(tc, b) == (i, j)) for b in near]
+    return sorted([list(key), [list(t) for t in reach], drawn] for key, reach, drawn in found if (i, j) in reach)
 
 
 def bridge_meshes(mb: MeshBuilder, tc, tile) -> None:
@@ -615,9 +782,12 @@ def bridge_box(mb: MeshBuilder, ground, b, cfg: dict) -> None:
     bury = float(cfg["bury"])
     openly = (s > b.span[0] + 0.01) & (s < b.span[1] - 0.01) & (b.kind != "ford")
     for d in (e, -e):
-        top = fr.top(s, d)
-        under = np.where(openly, top - b.depth, np.minimum(foot_line(ground, fr, s, d, bury), top))
-        band(mb, mat, fr.at(s, d, top + rise), fr.at(s, d, under), fr.faces(s, np.sign(d)))
+        on = np.logical_or.reduce([(s >= a - 0.05) & (s <= c + 0.05) for a, c in fr.side(d)]) if fr.side(d) else np.zeros(len(s), bool)
+        if on.sum() > 1:
+            q = s[on]
+            top = fr.top(q, d)
+            under = np.where(openly[on], top - b.depth, np.minimum(foot_line(ground, fr, q, d, bury), top))
+            band(mb, mat, fr.at(q, d, top + rise), fr.at(q, d, under), fr.faces(q, np.sign(d)))
     if b.kind != "ford" and b.span[1] > b.span[0]:
         o = fr.stations(*b.span)
         band(mb, mat, fr.at(o, e, fr.top(o, e) - b.depth), fr.at(o, -e, fr.top(o, -e) - b.depth), DOWN)

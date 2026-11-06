@@ -19,7 +19,7 @@ from shapely.geometry.polygon import orient
 from shapely.ops import substring, unary_union
 from shapely.strtree import STRtree
 
-from ..city.bridges import follow, road_bridges
+from ..city.bridges import follow, ribbon_near, road_bridges, stopped, widened
 from ..city.covered import Covers
 from ..city.crowd import tile_bytes
 from ..city.dressing import Dresser, Placement, building_highs, ground_heights
@@ -32,7 +32,7 @@ from ..city.roofs import RoofLayout, roof_layouts, roof_stream
 from ..kit import make_kit
 from ..noise import Fractal
 from ..terrain import BIOME_MATERIAL, SEA, classify
-from .bridges import bridge_meshes
+from .bridges import bridge_meshes, guests
 from .builder import (MeshBuilder, add_arch, add_battlement, add_cap, add_dome, add_draped_cap, add_draped_caps,
                       add_hip_roof, add_loft,
                       add_ribbon, add_sheet, add_skirt, add_walls, closed, extrude, rectangle, regular_polygon)
@@ -67,6 +67,7 @@ class TileContext:
         self.road_tree = STRtree(self.road_lines) if self.road_lines else None
         self.road_alone = {}                     # road index: its bridges and fords, on the first tile that asks
         self.road_decks = {}                     # the same, each sharing a crossing with a higher road on it
+        self.road_stand = {}                     # what stands of them (`structures`)
         self.ribbons = list(world.carve.ribbons.values()) if world.carve is not None else []
         self.ribbon_tree = STRtree([r.line for r in self.ribbons]) if self.ribbons else None
         self.plans = plans
@@ -139,13 +140,40 @@ class TileContext:
 
     def followed(self, k: int, b):
         least = float(self.world.style["bridges"]["share"])
-        reach = b.deck.buffer(0.5 * max(road.width for road in self.world.roads))       # a parallel road's deck, not its line
-        near = sorted(int(j) for j in self.road_tree.query(reach, predicate="intersects") if int(j) != k)
-        for j in sorted((j for j in near if self.rank(j) < self.rank(k)), key=self.rank, reverse=True):
+        for j in sorted((j for j in self.near_roads(k, b) if self.rank(j) < self.rank(k)), key=self.rank, reverse=True):
             for host in self.decks(j):
                 if host.deck.intersection(b.deck).area >= least:
                     b = follow(b, host, self.world.style["bridges"])
         return b
+
+    def near_roads(self, k: int, b) -> list:
+        """The other roads a deck of road k could touch, a parallel road's deck counted, not only its line."""
+        reach = b.deck.buffer(0.5 * max(road.width for road in self.world.roads))
+        return sorted(int(j) for j in self.road_tree.query(reach, predicate="intersects") if int(j) != k)
+
+    def structures(self, k: int) -> list:
+        """The bridges and fords that stand on road k (`Bridge.standing`), their parapets stopped at any road that crosses
+        them (`stopped`): where a road forks off a deck, a rail stops at it. All roads' `decks`, in no order that matters."""
+        if k not in self.road_stand:
+            cfg = self.world.style["bridges"]
+            self.road_stand[k] = []
+            for deck in self.decks(k):
+                b, twins = deck.standing(), self.twins(k, deck)
+                if b is not None:
+                    for road, twin in twins:
+                        b = widened(b, twin, cfg)
+                    self.road_stand[k].append(stopped(b, self.ribbons_over(k, b, [road for road, _ in twins]), cfg))
+        return self.road_stand[k]
+
+    def twins(self, k: int, deck) -> list:
+        """[(road, its Bridge)]: the roads that run beside this deck and stand on its structure."""
+        return [(j, c) for j in self.near_roads(k, deck) for c in self.decks(j) if c.twin == (k, deck.along)]
+
+    def ribbons_over(self, k: int, b, leave: list) -> list:
+        area = b.deck.buffer(1.0)
+        got = [ribbon_near(self.road_lines[j], self.world.roads[j].width, self.decks(j), area)
+               for j in self.near_roads(k, b) if j not in leave]
+        return [ribbon for ribbon in got if ribbon is not None]
 
 
 class GroundTint:
@@ -355,6 +383,16 @@ def paint_meshes(mb: MeshBuilder, tc: TileContext, plan, paint_tree, tile) -> No
     add_draped_caps(mb, caps, tc.height, "road_paint", lifts)   # one ground query for the whole tile
 
 
+def deck_paint_meshes(mb: MeshBuilder, tc: TileContext, plan, tile) -> None:
+    """The lines on a bridge's deck, on its own heights, a meter apart so they follow its crown."""
+    lift = float(tc.world.style.get("streets", {}).get("paint_lift", 0.03))
+    all_marks = getattr(plan, "deck_paint", ())
+    for b in getattr(plan, "bridges", ()) if all_marks else ():
+        marks = [m for m in all_marks if m.street == b.street]
+        caps = [shapely.segmentize(poly, 1.0) for m in marks for poly in polygons(m.polygon.intersection(tile)) if poly.area > 0.005]
+        add_draped_caps(mb, caps, b.at, "road_paint", [lift] * len(caps))
+
+
 def walk_meshes(mb: MeshBuilder, tc: TileContext, plan, tile, street_tree=None) -> None:
     """Raised sidewalks and promenades owned by this tile (the tile holding their centroid).
 
@@ -368,13 +406,14 @@ def walk_meshes(mb: MeshBuilder, tc: TileContext, plan, tile, street_tree=None) 
         c = walk.polygon.centroid
         if walk.kind == "seafront" or not (x0 <= c.x < x1 and y0 <= c.y < y1):   # mesh/corniche.py draws those
             continue
-        poly = shapely.segmentize(orient(walk.polygon, sign=1.0), tc.ground.walk_step(walk.polygon, step))   # long blocks follow the ground
-        add_draped_cap(mb, poly, tc.ground.walk_top, "sidewalk", along)
-        for ring in (poly.exterior, *poly.interiors):
-            pts = np.asarray(ring.coords)[:-1]
-            top = tc.ground.walk_top(pts[:, 0], pts[:, 1])
-            bottom = tc.height(pts[:, 0], pts[:, 1])
-            add_skirt(mb, pts, top, bottom, "curb")
+        whole = shapely.segmentize(orient(walk.polygon, sign=1.0), tc.ground.walk_step(walk.polygon, step))   # long blocks follow the ground
+        for poly in polygons(whole):                       # GEOS may split a sliver in two
+            add_draped_cap(mb, poly, tc.ground.walk_top, "sidewalk", along)
+            for ring in (poly.exterior, *poly.interiors):
+                pts = np.asarray(ring.coords)[:-1]
+                top = tc.ground.walk_top(pts[:, 0], pts[:, 1])
+                bottom = tc.height(pts[:, 0], pts[:, 1])
+                add_skirt(mb, pts, top, bottom, "curb")
 
 
 def apron_mesh(mb: MeshBuilder, tc: TileContext, b, street_tree=None) -> None:
@@ -845,6 +884,7 @@ def build_tile(tc: TileContext, i: int, j: int) -> tuple:
         street_meshes(mb, tc, plan, street_tree, tile)
         covered_meshes(mb, tc.covers[ci], tile, dresser is not None)
         paint_meshes(mb, tc, plan, tc.paint_trees[ci], tile)
+        deck_paint_meshes(mb, tc, plan, tile)
         walk_meshes(mb, tc, plan, tile, street_tree)
         front_meshes(mb, tc, plan, tile, None if street_tree is None else
                      (lambda x, y: street_directions(street_tree, x, y)))   # the seafront promenade (prompt 36)
@@ -975,6 +1015,9 @@ def texture_files(tc: TileContext, parts: dict, instances: list) -> list[str]:
 def export_tile(tc: TileContext, i: int, j: int, folder: Path) -> dict:
     mb, placements = build_tile(tc, i, j)
     entry = write_tile(tc, i, j, mb, placements, folder)
+    owed = guests(tc, i, j)
+    if owed:
+        entry["guests"] = owed
     if tc.lod_cfg is not None:
         from .lod import write_lod                     # imported here: mesh/lod.py builds on this module
         lod = write_lod(tc, i, j, folder, water=mb.has("water"))
