@@ -137,6 +137,8 @@ and care as the last one: keep this file up to date when you learn something tha
 - **Name the slow tests in the brief.** A helper told "the lead runs the slow tests" left one failing that its own change broke on purpose: give it the slow tests that read what it touches.
 
 - **One record per building, dumped once.** One JSON line per house, in shards, from a frozen copy: every later question (who moved, what fell, rates per plan) is a 20-line script with no new planning. A rule proved on three plans held only on the fourth: seed 7 found `unwrap`.
+- **The lead alone, in small parts** (16 November; Ali: no helper, few parts each time). Read the backbone yourself, then let the machine read the rest: a stdlib checker over every call, a two-process build compared byte for byte, a scan of every tile and of 46 plans, each a background script that wakes the lead when done. About 5% of the week, most of it the lead's own long context: start a fresh session per part. Draw a finding as a plan sheet with PIL (streets, walks, buildings, trees, 76 m wide) before believing it: one sheet showed which of nine findings were real.
+- **Prove a finding at its source before fixing.** "304 lamps float" was traced through `build_tile` step by step and turned out to be the file format (HANDOFF): take one case to the line of code that makes it.
 
 ## 4. Gotchas on Ali's Mac
 

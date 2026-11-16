@@ -190,6 +190,16 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
   cost reader compatibility (welding flat vertices breaks the ambient occlusion normal pass and
   Godot/Blender smoothing; 16-bit UVs need rewritten Blender mapping). Far tiles get lod1 (prompt 40).
 
+- [ ] **Q6 Row palms on a road's edge without a sidewalk** (S, a look decision for Ali) - Found by the code check of
+  16 November: about 490 palms of the corniche's and the boulevard's rows in 46 settlements stand 2.5 m inside the
+  ribbon's edge where no walk is drawn (the corniche's sea side without a promenade, a ring road lying on the
+  corniche, a street lying along the boulevard). Leave them, move them to the verge, or give those edges a walk.
+- [ ] **Q7 Village houses over 450 m2** (M, with prompt 67) - 109 of 7,242 village houses in 46 settlements fill a
+  large lot as one block of 500 to 770 m2 with a sliver of a court; 10 of 28,472 old-town houses too.
+- [ ] **Q8 Rare plan faults the scan found** (S each) - a souk through a mosque hall's corner (Ksar Saba, 1 of 46
+  settlements), a needle-thin house in a bridge's ribbon (Rahousir), a tree in a sliver court (2 old-town and 2
+  village houses), 65 of 196,280 houses thinner than 2.5 m everywhere.
+
 ## A. Street level (the capital looks real up close)
 
 - [x] **A0 Reuse the Tounes Rush kit** - Done. 51 pieces from "Tounes Rush AAA V5.2" in

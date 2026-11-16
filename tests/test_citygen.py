@@ -7167,3 +7167,80 @@ def test_a_city_s_land_leaves_a_lake_out_where_the_ground_meets_its_level():
     sh = next(sh for sh in shores if sh.polygon.distance(shapely.Point(s.x, s.y)) < s.radius)
     x, y = (np.asarray(v) for v in wet.intersection(sh.zone).buffer(-10.0).representative_point().xy)
     assert world.terrain.height(x, y)[0] < sh.level
+
+
+def test_row_trees_keep_out_of_street_mouths(world, plan):
+    """A tree of the boulevard's or the corniche's rows never stands in the mouth of a street that crosses or
+    joins its own; the trees kept are the ones dealt before, heights included."""
+    from citygen.city import CityContext
+    from citygen.city.streets import street_trees
+    ctx = CityContext(world, plan.settlement)
+    streets = plan.streets                                         # as the planner calls it: the decks last,
+    walks = [w for w in plan.walks if w.kind != "seafront"]        # before the seafront promenade
+    dealt, kept = street_trees(ctx, streets), street_trees(ctx, streets, walks)
+    as_tuples = [[(t.x, t.y, t.kind, t.height) for t in trees] for trees in (dealt, kept)]
+    assert 0 < len(dealt) - len(kept) < 0.1 * len(dealt)
+    assert set(as_tuples[1]) <= set(as_tuples[0]) and len(set(as_tuples[1])) == len(kept)
+    ribbons = STRtree([st.line.buffer(st.width / 2 - 0.5, cap_style="flat") for st in streets])
+    on_walk = STRtree([w.polygon for w in walks])
+
+    def heading(line, p):
+        d = line.project(p)
+        a, b = line.interpolate(max(d - 1.0, 0.0)), line.interpolate(min(d + 1.0, line.length))
+        return math.atan2(b.y - a.y, b.x - a.x)
+
+    def in_mouth(t) -> bool:
+        p = shapely.Point(t.x, t.y)
+        if len(on_walk.query(p, predicate="dwithin", distance=0.4)):
+            return False
+        hit = ribbons.query(p, predicate="within").tolist()
+        own = [j for j in hit if streets[j].kind in ("boulevard", "corniche")
+               and min(abs(streets[j].line.distance(p) - (streets[j].width / 2 - 2.5)), streets[j].line.distance(p)) < 0.05]
+        turns = [abs(heading(streets[a].line, p) - heading(streets[b].line, p)) % math.pi for a in own for b in hit if a != b]
+        deep = [streets[b].width / 2 - streets[b].line.distance(p) for a in own for b in hit if a != b]
+        return any(min(v, math.pi - v) > math.radians(20.0) for v in turns) or any(d >= 3.0 for d in deep)
+
+    assert not any(in_mouth(t) for t in kept)
+    gone = set(as_tuples[0]) - set(as_tuples[1])
+    assert all(in_mouth(t) for t in dealt if (t.x, t.y, t.kind, t.height) in gone)
+    assert not any(in_mouth(t) for t in plan.trees)                # the finished plan, with every later tree
+
+
+def test_marabouts_stand_clear_of_cypresses_and_each_other():
+    """A cemetery's marabout dealt onto a cypress or onto another marabout is dealt again from a stream of its
+    own; the cypresses and the marabouts dealt on free ground stay where they were."""
+    from citygen.city.buildings import cemetery_and_parks
+    from citygen.city.model import District
+
+    class Ctx:
+        def __init__(self, clear: float, spacing: float = 12.0):
+            self.style = {"district": {"cemetery": {"tree_spacing": spacing, "marabouts": 5, "marabout_clear": clear}}}
+
+        def rng(self, *path):
+            return stream(3, "test-cemetery", *path)
+
+    block = shapely.box(0.0, 0.0, 90.0, 90.0)
+    districts, blocks = [District(0, "cemetery", "x", block)], [(block, 0)]
+    dealt, trees0 = cemetery_and_parks(Ctx(-1e9), districts, blocks)   # no room asked: every dealt spot is kept
+    shrines, trees = cemetery_and_parks(Ctx(1.5), districts, blocks)
+    again, _ = cemetery_and_parks(Ctx(1.5), districts, blocks)
+    assert len(dealt) == len(shrines) == 5 and [s.footprint.wkb for s in shrines] == [s.footprint.wkb for s in again]
+    assert [(t.x, t.y, t.height) for t in trees] == [(t.x, t.y, t.height) for t in trees0] and len(trees) > 30
+    cypresses = [shapely.Point(t.x, t.y) for t in trees]
+
+    def free(b, others) -> bool:
+        room = b.footprint.buffer(1.5)
+        return not any(room.intersects(o) for o in cypresses + others)
+
+    assert not all(free(b, [o.footprint for o in dealt[:n]]) for n, b in enumerate(dealt))   # the test bites
+    for n, b in enumerate(shrines):
+        earlier = [o.footprint for o in shrines[:n]]
+        assert free(b, earlier)
+        assert math.hypot(b.domes[0][0] - b.footprint.centroid.x, b.domes[0][1] - b.footprint.centroid.y) < 1e-6
+        if free(dealt[n], earlier):
+            assert b.footprint.equals(dealt[n].footprint)
+    small = [(shapely.box(0.0, 0.0, 26.0, 26.0), 0)]                   # room for one or two: the others are left out
+    crowded, none = cemetery_and_parks(Ctx(-1e9, 100.0), districts, small)
+    few, _ = cemetery_and_parks(Ctx(1.5, 100.0), districts, small)
+    assert len(crowded) == 5 and not none and 1 <= len(few) < 5
+    assert all(not a.footprint.buffer(1.5).intersects(b.footprint) for n, a in enumerate(few) for b in few[:n])

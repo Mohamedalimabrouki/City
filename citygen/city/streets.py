@@ -126,12 +126,53 @@ def local_streets(ctx, districts) -> list:
     return out
 
 
-def street_trees(ctx, streets) -> list:
-    """Palms and shade trees along the boulevard and the seafront."""
+def _heading(line, p) -> float:
+    """Direction of `line` (radians) at its point nearest p."""
+    d = line.project(p)
+    a, b = line.interpolate(max(d - 1.0, 0.0)), line.interpolate(min(d + 1.0, line.length))
+    return math.atan2(b.y - a.y, b.x - a.x)
+
+
+class _Mouths:
+    """Where a row's tree would stand in a roadway: off every walk and inside the ribbon of another street, either
+    one that crosses or joins the row's own at more than `[streets] tree_mouth_angle` degrees, or `tree_mouth_deep` m
+    inside it at any angle (a street forking off). A street lying along the row's own (a ring road on the corniche)
+    is no mouth: the tree stands by its edge. The outer `tree_mouth_edge` m of a ribbon do not count."""
+
+    def __init__(self, streets, walks, cfg: dict):
+        self.streets = streets
+        self.angle = math.radians(float(cfg.get("tree_mouth_angle", 20.0)))
+        self.deep = float(cfg.get("tree_mouth_deep", 3.0))
+        self.reach = float(cfg.get("tree_walk_reach", 0.4))
+        edge = float(cfg.get("tree_mouth_edge", 0.5))
+        self.ribbons = shapely.STRtree([st.line.buffer(max(st.width / 2 - edge, 0.1), cap_style="flat")
+                                        for st in streets])
+        self.walks = shapely.STRtree([w.polygon for w in walks])
+
+    def holds(self, k: int, p) -> bool:
+        """Is p, a spot of street k's row, in a mouth?"""
+        if len(self.walks.query(p, predicate="dwithin", distance=self.reach)):
+            return False
+        own = _heading(self.streets[k].line, p)
+        for j in self.ribbons.query(p, predicate="within").tolist():
+            st = self.streets[j]
+            turn = abs(own - _heading(st.line, p)) % math.pi
+            if j != k and (min(turn, math.pi - turn) > self.angle or st.width / 2 - st.line.distance(p) >= self.deep):
+                return True
+        return False
+
+
+def street_trees(ctx, streets, walks=None) -> list:
+    """Palms and shade trees along the boulevard and the seafront. With `walks` (the city's sidewalks and
+    promenades) a spot in the mouth of a street that crosses or joins the row's own stays empty (`_Mouths`);
+    its height is drawn all the same, so every other tree keeps its own."""
     rng = ctx.rng("street-trees")
     rows = {"boulevard": [(0.0, 9.0, "broadleaf")], "corniche": []}
+    mouths = None
+    if walks is not None and any(st.kind in rows for st in streets):
+        mouths = _Mouths(streets, walks, ctx.style.get("streets", {}))
     out = []
-    for st in streets:
+    for k, st in enumerate(streets):
         if st.kind not in rows:
             continue
         side = st.width / 2 - 2.5
@@ -139,7 +180,9 @@ def street_trees(ctx, streets) -> list:
             line = st.line.offset_curve(offset) if offset else st.line
             for d in np.arange(spacing / 2, line.length, spacing):
                 p = line.interpolate(d)
-                out.append(Tree(p.x, p.y, kind, float(rng.uniform(7.0, 11.0))))
+                height = float(rng.uniform(7.0, 11.0))
+                if mouths is None or not mouths.holds(k, p):
+                    out.append(Tree(p.x, p.y, kind, height))
     return out
 
 

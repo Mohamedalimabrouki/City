@@ -573,6 +573,10 @@ promenade_width = 8.0       # the raised island under the boulevard's middle tre
 promenade_piece = 64.0      # meters; short pieces keep a tile's mesh local
 apron_reach = 6.0           # a paved lot corner (prompt 23) blends the lifts of the streets this close
 apron_cell = 2.0            # meters: its paving is cut in squares this big on the world grid, to follow the ground
+tree_mouth_angle = 20.0     # degrees: a boulevard or corniche tree stays out of the mouth of a street meeting its own at more than this,
+tree_mouth_edge = 0.5       # where it would stand this far inside that street's ribbon,
+tree_mouth_deep = 3.0       # or this far inside it at any angle (a street forking off: the tree would stand in its lanes),
+tree_walk_reach = 0.4       # and farther than this from every sidewalk and promenade
 
 # painted markings (S1): flat polygons just above the ribbon
 marking_min_width = 8.0     # only streets wider than this get paint
@@ -1116,6 +1120,7 @@ tree_spacing = 13.0
 [district.cemetery]
 tree_spacing = 24.0
 marabouts = 3              # small domed shrines
+marabout_clear = 1.5       # meters from a shrine's walls to a cypress or another shrine (else it is dealt again, or left out where no room is left)
 
 # --- more greenery (prompt 24, city/greenery.py): trees added after all others ----------
 # Street trees along arterials: a row of tree pits behind the curb of colonial and modern

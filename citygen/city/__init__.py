@@ -150,7 +150,7 @@ def plan_city(world, settlement) -> CityPlan:
     buildings += rail_buildings
     marks += rail_marks
     tree_clear = float(ctx.style.get("landmarks", {}).get("tree_clear", 0.0))
-    trees += green_trees + off_decks(railway.clear(boulevard.clear_fronts(street_trees(ctx, streets), sites, tree_clear),
+    trees += green_trees + off_decks(railway.clear(boulevard.clear_fronts(street_trees(ctx, streets + decks, walks), sites, tree_clear),
                                                    station), bridges) + river.riverside_trees(ctx, shore_walks)
     plan = CityPlan(s, boundary, land, medina, districts, streets, blocks, parcels, buildings,
                     trees, marks, walks)

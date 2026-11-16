@@ -416,6 +416,13 @@ block on `rng("impasse", block)`: lot line jitter, widths, covered share and len
   pillars: the trunk needs 2.97 m from the wall, the 3.2 m sidewalk ends at 3.2). Quick capital: 69
   arterial trees (all modern), 58 courtyard trees (45 citrus); full capital: 149 arterial, 273
   courtyard (213 citrus), 2,025 villa fruit trees (1,640 citrus).
+  Row trees (`streets.street_trees`: the palms of the boulevard and the corniche, the boulevard's middle row)
+  leave a spot empty in the mouth of a street that crosses or joins their own (`streets._Mouths`: off every
+  walk by `[streets] tree_walk_reach`, `tree_mouth_edge` m inside that street's ribbon, the two meeting at
+  more than `tree_mouth_angle` degrees or the tree `tree_mouth_deep` m inside it; a bridge's street counts); the
+  spot's height is drawn all the same.
+  A cemetery's marabouts stand `[district.cemetery] marabout_clear` m off its cypresses and each other: one
+  dealt onto them is dealt again from `rng("green", "marabout", block, n)`, or left out where no room is left.
 - `Paint(polygon, street, kind)`: one painted marking (`line` or `crossing`, a zebra bar), a flat
   polygon over the carriageway of a street. `make_paint` builds edge and lane lines, dashes and zebra
   crossings once per plan; a tile only clips the polygons it touches. The carriageway is the street

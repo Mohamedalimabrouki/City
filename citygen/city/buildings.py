@@ -203,10 +203,29 @@ def neighborhood_mosques(ctx, districts, parcels) -> tuple:
     return buildings, landmarks, used
 
 
+def _shrine_spot(ctx, inner, p, a: float, taken: list, clear: float, path: tuple) -> tuple | None:
+    """(point, angle) of a cemetery's marabout: the spot the main stream dealt when it stands `clear` m off every
+    cypress and earlier marabout of its block, else the first free one of up to 24 from a stream of its own
+    (so no other draw moves); None when none is free (a cemetery too small for one more)."""
+    def free(q, turn: float) -> bool:
+        room = rectangle(q.x, q.y, 7.0, 7.0, turn).buffer(clear)
+        return not any(room.intersects(t) for t in taken)
+
+    if free(p, a):
+        return p, a
+    rng = ctx.rng("green", "marabout", *path)
+    for _ in range(24):
+        q = _random_point(inner, rng, tries=1)
+        turn = rng.uniform(0, math.pi)
+        if q is not None and free(q, turn):
+            return q, turn
+    return None
+
+
 def cemetery_and_parks(ctx, districts, blocks) -> tuple:
     rng = ctx.rng("green")
     buildings, trees = [], []
-    for block, did in blocks:
+    for k, (block, did) in enumerate(blocks):
         d = districts[did]
         if d.kind == "park":
             step = float(ctx.style["district"]["park"]["tree_spacing"])
@@ -215,13 +234,18 @@ def cemetery_and_parks(ctx, districts, blocks) -> tuple:
                 trees.append(Tree(x, y, kind, rng.uniform(6.0, 12.0)))
         elif d.kind == "cemetery":
             dc = ctx.style["district"]["cemetery"]
+            first = len(trees)
             for x, y in jittered_grid(block, float(dc["tree_spacing"]), rng, jitter=0.35):
                 trees.append(Tree(x, y, "cypress", rng.uniform(8.0, 13.0)))
-            for _ in range(int(dc.get("marabouts", 0))):
-                p = _random_point(block.buffer(-6.0), rng)
-                if p is not None:
-                    a = rng.uniform(0, math.pi)
+            inner, clear = block.buffer(-6.0), float(dc.get("marabout_clear", 1.5))
+            taken = [Point(t.x, t.y) for t in trees[first:]]   # the block's cypresses, then its marabouts
+            for n in range(int(dc.get("marabouts", 0))):
+                p = _random_point(inner, rng)
+                spot = None if p is None else _shrine_spot(ctx, inner, p, rng.uniform(0, math.pi), taken, clear, (k, n))
+                if spot is not None:
+                    p, a = spot
                     fp = rectangle(p.x, p.y, 7.0, 7.0, a)
+                    taken.append(fp)
                     buildings.append(Building(fp, "marabout", did, 4.2, "lime_white", "roof_white", 1,
                                               domes=[(p.x, p.y, 2.9, "dome_white")]))
     return buildings, trees
