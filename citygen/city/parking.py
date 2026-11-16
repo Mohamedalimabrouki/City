@@ -280,9 +280,12 @@ class Parking:
         return self._inside[k]
 
     def _crossing_streets(self, k: int, hit: np.ndarray) -> np.ndarray:
-        """True for the streets in `hit` that meet street k (not k, nor a street lying on it)."""
-        inside = self.inside(k)
-        return np.array([int(j) not in inside for j in np.asarray(hit).tolist()], dtype=bool)
+        """True for the streets in `hit` that meet street k (not k, nor a street lying on it), and for a wider
+        street k itself lies on: that street's row stands there (of two as wide, the first keeps its row)."""
+        inside, streets = self.inside(k), self.d.plan.streets
+        mine = (streets[k].width, -k)
+        return np.array([int(j) not in inside or (streets[int(j)].width, -int(j)) > mine
+                         for j in np.asarray(hit).tolist()], dtype=bool)
 
     # --- one run --------------------------------------------------------------------------------
     def row(self, k: int, side: int, j: int) -> list:

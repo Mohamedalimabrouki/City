@@ -423,6 +423,9 @@ block on `rng("impasse", block)`: lot line jitter, widths, covered share and len
   spot's height is drawn all the same.
   A cemetery's marabouts stand `[district.cemetery] marabout_clear` m off its cypresses and each other: one
   dealt onto them is dealt again from `rng("green", "marabout", block, n)`, or left out where no room is left.
+  Parked cars: where two streets lie on each other (`parking.lying_on`, true both ways when each line runs
+  inside the other's surface) only the wider one parks there (`Parking._crossing_streets`; of two as wide,
+  the first).
 - `Paint(polygon, street, kind)`: one painted marking (`line` or `crossing`, a zebra bar), a flat
   polygon over the carriageway of a street. `make_paint` builds edge and lane lines, dashes and zebra
   crossings once per plan; a tile only clips the polygons it touches. The carriageway is the street

@@ -7244,3 +7244,29 @@ def test_marabouts_stand_clear_of_cypresses_and_each_other():
     few, _ = cemetery_and_parks(Ctx(1.5, 100.0), districts, small)
     assert len(crowded) == 5 and not none and 1 <= len(few) < 5
     assert all(not a.footprint.buffer(1.5).intersects(b.footprint) for n, a in enumerate(few) for b in few[:n])
+
+
+def test_a_street_lying_on_a_wider_one_leaves_the_parking_to_it(world, plan, built_mesh, old_rule=False):
+    """Where two streets lie on each other only the wider one parks: no car of the narrower street stands on
+    the wider street's surface (their rows would share a curb), and no two cars of such streets overlap."""
+    from citygen.city.dressing import Dresser
+    from citygen.city.parking import Parking
+    tc = built_mesh[0]
+    park = Parking(Dresser(world, plan, tc.kit, tc.ground))
+    if old_rule:                                             # the rule before 16 November: lying streets never count
+        park._crossing_streets = lambda k, hit: np.array([int(j) not in park.inside(k) for j in np.asarray(hit).tolist()], dtype=bool)
+    streets = plan.streets
+    lying = sorted(k for k in range(len(streets)) if len(park.inside(k)) > 1)
+    pairs = [(k, j) for k in lying for j in sorted(park.inside(k)) if k in park.inside(j) and streets[j].width > streets[k].width]
+    everywhere = shapely.box(*plan.boundary.buffer(500.0).bounds)
+    cars = {k: park.cars(k, everywhere) for k in lying}
+    assert len(pairs) >= 4 and sum(len(v) for v in cars.values()) > 50
+    on_wider = sum(streets[j].line.buffer(streets[j].width / 2, cap_style="flat").intersects(_plan_box(tc.kit, p))
+                   for k, j in pairs for p in cars[k])       # k the narrower street, j the wider one it lies on
+    if old_rule:
+        return on_wider
+    assert on_wider == 0
+    feet = [_plan_box(tc.kit, p) for v in cars.values() for p in v]
+    a, b = STRtree(feet).query(feet, predicate="intersects")
+    assert all(feet[int(m)].intersection(feet[int(n)]).area < 1e-6 for m, n in zip(a, b) if m < n)
+    assert test_a_street_lying_on_a_wider_one_leaves_the_parking_to_it(world, plan, built_mesh, old_rule=True) > 0   # it bites

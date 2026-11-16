@@ -199,6 +199,9 @@ finishes, tunable numbers go in the style pack, and the task is ticked here when
 - [ ] **Q8 Rare plan faults the scan found** (S each) - a souk through a mosque hall's corner (Ksar Saba, 1 of 46
   settlements), a needle-thin house in a bridge's ribbon (Rahousir), a tree in a sliver court (2 old-town and 2
   village houses), 65 of 196,280 houses thinner than 2.5 m everywhere.
+- [ ] **Q9 Souk goods on one spot** (S) - The scan of the capital's standing things (16 November) found goods dealt by two
+  rules onto the same place in the souks: 138 pairs of props in each other (an amphora in a stack of amphorae), 41 of
+  goods on props, 10 of stalls; and 2 palms at a lamp's foot on the seafront.
 
 ## A. Street level (the capital looks real up close)
 
